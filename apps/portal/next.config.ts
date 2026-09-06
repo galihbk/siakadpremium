@@ -4,6 +4,14 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   reactStrictMode: true,
   transpilePackages: ['@siakad/ui', '@siakad/types', '@siakad/utils'],
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
+    ],
+  },
 };
 
 export default nextConfig;
