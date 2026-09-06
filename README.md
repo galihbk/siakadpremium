@@ -48,12 +48,15 @@ siakadpremium/
 
 ## 🚀 Port & Akses Layanan
 
-| Layanan | Port Lokal | Deskripsi |
-|---|:---:|---|
-| **Website & PMB** | `http://localhost:3000` | Landing Page resmi Institut Teknologi Nusantara (ITN) & Informasi PMB |
-| **Portal Civitas** | `http://localhost:3002` | Dashboard Akademik Terpadu (Mahasiswa, Dosen, BAAK / Super Admin) |
-| **REST API Engine** | `http://localhost:3001` | Backend API terintegrasi PostgreSQL & Redis |
-| **Swagger OpenAPI** | `http://localhost:3001/api/docs` | Dokumentasi interaktif endpoint REST API |
+| Layanan | Port Lokal (Dev) | Port Host Server (Prod) | Deskripsi |
+|---|:---:|:---:|---|
+| **Website & PMB** | `http://localhost:3000` | `http://<server-ip>:3100` | Landing Page resmi ITN & Informasi PMB |
+| **REST API Engine** | `http://localhost:3001` | `http://<server-ip>:3101` | Backend API terintegrasi PostgreSQL & Redis |
+| **Portal Civitas** | `http://localhost:3002` | `http://<server-ip>:3102` | Dashboard Terpadu (Mahasiswa, Dosen, Admin BAAK) |
+| **Swagger OpenAPI** | `http://localhost:3001/api/docs` | `http://<server-ip>:3101/api/docs` | Dokumentasi interaktif endpoint REST API |
+
+> **Catatan Server**: Port server produksi dialokasikan pada range `3100 - 3102` sehingga tidak bentrok dengan container lain di server Anda (`jpcloud-web` di port 3000, `jpcloud-api` di port 4000, atau `portainer` di port 9000).
+
 
 ---
 

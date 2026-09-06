@@ -43,7 +43,7 @@ services:
     container_name: siakad-api-prod
     restart: always
     ports:
-      - '3001:3001'
+      - '${SIAKAD_API_PORT:-3101}:3001'
     env_file:
       - path: .env.api
         required: false
@@ -63,7 +63,7 @@ services:
     container_name: siakad-web-prod
     restart: always
     ports:
-      - '3000:3000'
+      - '${SIAKAD_WEB_PORT:-3100}:3000'
     env_file:
       - path: .env.web
         required: false
@@ -78,7 +78,7 @@ services:
     container_name: siakad-portal-prod
     restart: always
     ports:
-      - '3002:3002'
+      - '${SIAKAD_PORTAL_PORT:-3102}:3002'
     env_file:
       - path: .env.portal
         required: false
