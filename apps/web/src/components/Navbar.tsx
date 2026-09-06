@@ -17,13 +17,13 @@ export function Navbar() {
   }, []);
 
   const navLinks = [
-    { name: 'Beranda', href: '#' },
-    { name: 'Profil', href: '#sambutan' },
-    { name: 'Akademik', href: '#keunggulan' },
-    { name: 'Fakultas', href: '#fakultas' },
-    { name: 'PMB', href: '#cta' },
-    { name: 'Berita', href: '#berita' },
-    { name: 'Kontak', href: '#kontak' },
+    { name: 'Beranda', href: '/' },
+    { name: 'Profil', href: '/profil' },
+    { name: 'Akademik', href: '/#keunggulan' },
+    { name: 'Fakultas', href: '/#fakultas' },
+    { name: 'PMB', href: '/#cta' },
+    { name: 'Berita', href: '/berita' },
+    { name: 'Kontak', href: '/kontak' },
   ];
 
   return (
