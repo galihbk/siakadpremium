@@ -1,0 +1,11 @@
+{
+  "extends": "@siakad/typescript-config/base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src/**/*"]
+}

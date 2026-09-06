@@ -1,0 +1,228 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN_BAAK
+  ADMIN_KEUANGAN
+  LECTURER
+  STUDENT
+  STAFF
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum StudentStatus {
+  ACTIVE
+  LEAVE
+  GRADUATED
+  DROPOUT
+  TRANSFERRED
+}
+
+enum SemesterType {
+  ODD
+  EVEN
+  SHORT
+}
+
+enum EnrollmentStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum DegreeLevel {
+  D3
+  D4
+  S1
+  S2
+  S3
+  PROFESI
+}
+
+enum AdmissionStatus {
+  PENDING
+  VERIFIED
+  PASSED
+  FAILED
+  REGISTERED
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  fullName     String
+  role         Role      @default(STUDENT)
+  avatarUrl    String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  student      Student?
+  lecturer     Lecturer?
+
+  @@map("users")
+}
+
+model Faculty {
+  id            String         @id @default(uuid())
+  code          String         @unique
+  name          String
+  deanName      String?
+  description   String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  studyPrograms StudyProgram[]
+
+  @@map("faculties")
+}
+
+model StudyProgram {
+  id            String       @id @default(uuid())
+  facultyId     String
+  code          String       @unique
+  name          String
+  degreeLevel   DegreeLevel  @default(S1)
+  accreditation String       @default("Unggul")
+  headOfProgram String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  faculty       Faculty      @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  students      Student[]
+  lecturers     Lecturer[]
+  courses       Course[]
+
+  @@map("study_programs")
+}
+
+model Lecturer {
+  id                String       @id @default(uuid())
+  userId            String       @unique
+  studyProgramId    String
+  nidn              String       @unique
+  nip               String?      @unique
+  titlePrefix       String?
+  titleSuffix       String?
+  phone             String?
+  isAcademicAdvisor Boolean      @default(true)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studyProgram      StudyProgram @relation(fields: [studyProgramId], references: [id], onDelete: Restrict)
+  advisedStudents   Student[]    @relation("AcademicAdvisor")
+
+  @@map("lecturers")
+}
+
+model Student {
+  id                String             @id @default(uuid())
+  userId            String             @unique
+  studyProgramId    String
+  advisorLecturerId String?
+  nim               String             @unique
+  gender            Gender             @default(MALE)
+  birthDate         DateTime?
+  birthPlace        String?
+  phone             String?
+  entryYear         Int
+  currentSemester   Int                @default(1)
+  status            StudentStatus      @default(ACTIVE)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studyProgram      StudyProgram       @relation(fields: [studyProgramId], references: [id], onDelete: Restrict)
+  advisorLecturer   Lecturer?          @relation("AcademicAdvisor", fields: [advisorLecturerId], references: [id], onDelete: SetNull)
+  enrollments       CourseEnrollment[]
+
+  @@map("students")
+}
+
+model AcademicYear {
+  id           String             @id @default(uuid())
+  code         String             @unique // e.g. "20261" for 2026/2027 Gasal
+  name         String             // e.g. "2026/2027"
+  semesterType SemesterType       @default(ODD)
+  isActive     Boolean            @default(false)
+  startDate    DateTime
+  endDate      DateTime
+  krsStartDate DateTime?
+  krsEndDate   DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  enrollments  CourseEnrollment[]
+
+  @@map("academic_years")
+}
+
+model Course {
+  id             String             @id @default(uuid())
+  studyProgramId String
+  code           String             @unique // e.g. "TIF-201"
+  name           String
+  sks            Int                @default(3)
+  semester       Int                @default(1)
+  description    String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  studyProgram   StudyProgram       @relation(fields: [studyProgramId], references: [id], onDelete: Cascade)
+  enrollments    CourseEnrollment[]
+
+  @@map("courses")
+}
+
+model CourseEnrollment {
+  id             String           @id @default(uuid())
+  studentId      String
+  courseId       String
+  academicYearId String
+  status         EnrollmentStatus @default(SUBMITTED)
+  midtermScore   Float?           // Nilai UTS
+  finalScore     Float?           // Nilai UAS
+  totalScore     Float?           // Nilai Akhir Angka
+  gradeLetter    String?          // e.g. "A", "B+", "B"
+  gradePoint     Float?           // e.g. 4.0, 3.5, 3.0
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  student        Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course         Course           @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  academicYear   AcademicYear     @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+
+  @@unique([studentId, courseId, academicYearId])
+  @@map("course_enrollments")
+}
+
+model AdmissionApplicant {
+  id                  String          @id @default(uuid())
+  registrationNumber  String          @unique // e.g. "PMB20270001"
+  fullName            String
+  email               String
+  phone               String
+  highSchool          String
+  chosenStudyProgram  String
+  jalurPendaftaran    String          @default("Reguler / Mandiri")
+  status              AdmissionStatus @default(PENDING)
+  testScore           Float?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@map("admission_applicants")
+}
