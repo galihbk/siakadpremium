@@ -69,7 +69,7 @@ export default function LoginPage() {
         {/* Back Link */}
         <div className="mb-6 flex justify-center">
           <a
-            href="http://localhost:3000"
+            href={process.env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000'}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1E3A8A] hover:underline"
           >
             <ArrowLeft className="w-3.5 h-3.5" />

@@ -54,4 +54,4 @@ COPY --from=builder /app/packages/database/prisma    ./prisma
 RUN mkdir -p uploads
 
 EXPOSE 3001
-CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/main.js"]
+CMD ["node", "dist/main.js"]
