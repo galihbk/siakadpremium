@@ -1,7 +1,11 @@
 name: Production CI/CD & GHCR Deployment Pipeline
 
-# Auto-deploy dinonaktifkan agar tidak otomatis push ke server
 on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 permissions:
