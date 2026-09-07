@@ -1,7 +1,19 @@
 import Image from 'next/image';
 import { Quote } from 'lucide-react';
 
-export function SambutanRektor() {
+interface SambutanRektorProps {
+  rectorName?: string;
+  rectorTitle?: string;
+  rectorSpeech?: string;
+  rectorImageUrl?: string;
+}
+
+export function SambutanRektor({
+  rectorName = 'Prof. Dr. Ir. Hendra Gunawan, M.Eng.',
+  rectorTitle = 'Guru Besar Rekayasa Sistem & Rektor ITN Periode 2024–2028',
+  rectorSpeech,
+  rectorImageUrl = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80',
+}: SambutanRektorProps) {
   return (
     <section id="sambutan" className="py-20 bg-white border-b border-slate-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -13,8 +25,8 @@ export function SambutanRektor() {
               <div className="relative w-44 h-44 sm:w-52 sm:h-52 rounded-full p-1.5 border-4 border-[#1E3A8A] shadow-md bg-white mb-5">
                 <div className="relative w-full h-full rounded-full overflow-hidden">
                   <Image
-                    src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80"
-                    alt="Prof. Dr. Ir. H. Bambang Sudarmono, M.Sc. - Rektor ITN"
+                    src={rectorImageUrl}
+                    alt={`${rectorName} - ${rectorTitle}`}
                     fill
                     sizes="(max-width: 768px) 176px, 208px"
                     className="object-cover object-top"
@@ -27,10 +39,10 @@ export function SambutanRektor() {
               </div>
 
               <h3 className="text-lg sm:text-xl font-bold text-slate-900 leading-tight">
-                Prof. Dr. Ir. H. Bambang Sudarmono, M.Sc.
+                {rectorName}
               </h3>
               <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                Guru Besar Rekayasa Sistem & Rektor ITN Periode 2024–2028
+                {rectorTitle}
               </p>
             </div>
 
@@ -46,15 +58,23 @@ export function SambutanRektor() {
               </h2>
 
               <div className="space-y-4 text-slate-600 text-sm sm:text-base leading-relaxed">
-                <p>
-                  <em>Assalamu’alaikum Warahmatullahi Wabarakatuh, Salam Sejahtera untuk kita semua.</em>
-                </p>
-                <p>
-                  Puji syukur kita panjatkan ke hadirat Tuhan Yang Maha Esa. Sebagai perguruan tinggi yang berakar pada nilai-nilai kebangsaan dan berwawasan global, Institut Teknologi Nusantara hadir bukan semata mencetak sarjana, melainkan mencetak pelopor perubahan yang memiliki keunggulan intelektual dan keluhuran budi pekerti.
-                </p>
-                <p>
-                  Di era percepatan transformasi digital dan ketidakpastian global, kami memadukan kurikulum berbasis luaran (<em>Outcome-Based Education</em>), riset aplikatif, serta kemitraan strategis bersama industri terkemuka demi menjamin setiap lulusan siap berkontribusi secara nyata bagi kemandirian bangsa Indonesia.
-                </p>
+                {rectorSpeech ? (
+                  rectorSpeech.split('\n\n').map((para, idx) => (
+                    <p key={idx}>{para}</p>
+                  ))
+                ) : (
+                  <>
+                    <p>
+                      <em>Assalamu’alaikum Warahmatullahi Wabarakatuh, Salam Sejahtera untuk kita semua.</em>
+                    </p>
+                    <p>
+                      Puji syukur kita panjatkan ke hadirat Tuhan Yang Maha Esa. Sebagai perguruan tinggi yang berakar pada nilai-nilai kebangsaan dan berwawasan global, Institut Teknologi Nusantara hadir bukan semata mencetak sarjana, melainkan mencetak pelopor perubahan yang memiliki keunggulan intelektual dan keluhuran budi pekerti.
+                    </p>
+                    <p>
+                      Di era percepatan transformasi digital dan ketidakpastian global, kami memadukan kurikulum berbasis luaran (<em>Outcome-Based Education</em>), riset aplikatif, serta kemitraan strategis bersama industri terkemuka demi menjamin setiap lulusan siap berkontribusi secara nyata bagi kemandirian bangsa Indonesia.
+                    </p>
+                  </>
+                )}
               </div>
 
               {/* Tanda Tangan Digital Sederhana */}

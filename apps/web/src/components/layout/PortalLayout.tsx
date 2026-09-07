@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -18,6 +18,9 @@ import {
   X,
   ShieldCheck,
   UserCheck,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelLeft,
 } from 'lucide-react';
 
 interface PortalLayoutProps {
@@ -29,7 +32,39 @@ interface PortalLayoutProps {
 
 export function PortalLayout({ children, role, userName, userIdText }: PortalLayoutProps) {
   const pathname = usePathname();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const toggleSidebar = () => {
+    setSidebarOpen((prev) => {
+      const next = !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('siakad_sidebar_open', String(next));
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('siakad_sidebar_open');
+      if (saved !== null) {
+        setSidebarOpen(saved === 'true');
+      } else if (window.innerWidth < 1024) {
+        setSidebarOpen(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const studentNav = [
     { name: 'Dashboard', href: '/student', icon: LayoutDashboard },
@@ -73,13 +108,13 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar (Fixed on Viewport with toggle) */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#0F172A] text-slate-300 flex flex-col justify-between transform transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#0F172A] text-slate-300 flex flex-col justify-between transition-transform duration-300 ease-in-out ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div>
+        <div className="overflow-y-auto flex-1">
           {/* Logo Header */}
           <div className="h-16 flex items-center justify-between px-6 border-b border-slate-800 bg-[#0A0F1D]">
             <Link href="/" className="flex items-center gap-2.5">
@@ -95,12 +130,6 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
                 </span>
               </div>
             </Link>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="lg:hidden text-slate-400 hover:text-white"
-            >
-              <X className="w-5 h-5" />
-            </button>
           </div>
 
           {/* Role Switcher Pills (Convenient for Review) */}
@@ -145,10 +174,14 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
                 <Link
                   key={item.name}
                   href={item.href}
-                  onClick={() => setSidebarOpen(false)}
+                  onClick={() => {
+                    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                      setSidebarOpen(false);
+                    }
+                  }}
                   className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
                     isActive
-                      ? 'bg-[#1E3A8A] text-white shadow-sm'
+                      ? 'bg-[#1E3A8A] text-white shadow-sm font-bold'
                       : 'text-slate-400 hover:bg-slate-800/80 hover:text-white'
                   }`}
                 >
@@ -161,7 +194,7 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
         </div>
 
         {/* User Card Bottom */}
-        <div className="p-4 border-t border-slate-800 bg-[#0A0F1D]">
+        <div className="p-4 border-t border-slate-800 bg-[#0A0F1D] shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5 overflow-hidden">
               <div className="w-8 h-8 rounded-full bg-[#1E3A8A] border border-[#D4A017] text-white flex items-center justify-center font-bold text-xs shrink-0">
@@ -174,7 +207,7 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
             </div>
             <Link
               href="/login"
-              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
+              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
               title="Keluar"
             >
               <LogOut className="w-4 h-4" />
@@ -184,16 +217,30 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div
+        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out ${
+          sidebarOpen ? 'lg:pl-64' : 'lg:pl-0'
+        }`}
+      >
         {/* Header */}
         <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-subtle">
           <div className="flex items-center gap-3">
+            {/* Single Toggle Button (Icon Only, No Text) */}
             <button
-              onClick={() => setSidebarOpen(true)}
-              className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 lg:hidden"
+              onClick={toggleSidebar}
+              className="p-2 rounded-xl text-slate-600 hover:text-[#1E3A8A] hover:bg-slate-100 border border-slate-200 hover:border-slate-300 transition-all cursor-pointer shadow-xs"
+              title={sidebarOpen ? 'Tutup Sidebar' : 'Buka Sidebar'}
+              aria-label="Toggle Sidebar"
             >
-              <Menu className="w-5 h-5" />
+              {sidebarOpen ? (
+                <PanelLeftClose className="w-5 h-5 text-slate-600" />
+              ) : (
+                <PanelLeftOpen className="w-5 h-5 text-[#1E3A8A]" />
+              )}
             </button>
+
+            <div className="h-5 w-px bg-slate-200 hidden sm:block" />
+
             <div>
               <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-tight">
                 {roleLabel}

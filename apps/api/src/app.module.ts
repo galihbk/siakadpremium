@@ -9,6 +9,8 @@ import { StudentsModule } from './modules/students/students.module';
 import { LecturersModule } from './modules/lecturers/lecturers.module';
 import { AcademicModule } from './modules/academic/academic.module';
 import { AdmissionsModule } from './modules/admissions/admissions.module';
+import { LandingPageModule } from './modules/landing-page/landing-page.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -27,6 +29,8 @@ import { AppService } from './app.service';
     LecturersModule,
     AcademicModule,
     AdmissionsModule,
+    LandingPageModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

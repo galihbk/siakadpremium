@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Lock, Mail, ArrowRight, Shield, GraduationCap, UserCheck, ArrowLeft, CheckCircle } from 'lucide-react';
+import { Lock, Mail, ArrowRight, ArrowLeft, CheckCircle } from 'lucide-react';
+
+import { saveAuthSession, getAuthSession, getRoleRedirectPath } from '@/lib/auth';
 
 const loginSchema = z.object({
   email: z.string().email('Format email tidak valid'),
@@ -17,49 +19,67 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
-  const [selectedRole, setSelectedRole] = useState<'student' | 'lecturer' | 'admin'>('student');
   const [isLoading, setIsLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
+  // Kalo sudah login, langsung arahkan ke dashboard sesuai role
+  useEffect(() => {
+    const { token, user } = getAuthSession();
+    if (token && user?.role) {
+      const targetPath = getRoleRedirectPath(user.role);
+      router.replace(targetPath);
+    }
+  }, [router]);
 
   const {
     register,
     handleSubmit,
-    setValue,
     formState: { errors },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: 'mahasiswa@itn.ac.id',
-      password: 'Password123!',
+      email: '',
+      password: '',
     },
   });
 
-  const handleRoleChange = (role: 'student' | 'lecturer' | 'admin') => {
-    setSelectedRole(role);
-    if (role === 'student') {
-      setValue('email', 'mahasiswa@itn.ac.id');
-    } else if (role === 'lecturer') {
-      setValue('email', 'dosen@itn.ac.id');
-    } else {
-      setValue('email', 'admin@itn.ac.id');
-    }
-  };
-
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
-    // Simulate authentication processing
-    setTimeout(() => {
-      setIsLoading(false);
-      if (selectedRole === 'student') router.push('/student');
-      else if (selectedRole === 'lecturer') router.push('/lecturer');
-      else router.push('/admin');
-    }, 600);
-  };
+    setLoginError(null);
 
-  const quickLogin = (role: 'student' | 'lecturer' | 'admin') => {
-    handleRoleChange(role);
-    if (role === 'student') router.push('/student');
-    else if (role === 'lecturer') router.push('/lecturer');
-    else router.push('/admin');
+    try {
+      const res = await fetch(`${apiBaseUrl}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+        }),
+      });
+
+      const resData = await res.json();
+
+      if (!res.ok || !resData?.data) {
+        throw new Error(resData?.message || 'Email atau password yang Anda masukkan salah.');
+      }
+
+      const { accessToken, user } = resData.data;
+
+      // Simpan session & token
+      saveAuthSession(accessToken, user);
+
+      // Arahkan otomatis ke halaman sesuai role aktual dari backend
+      const targetPath = getRoleRedirectPath(user.role);
+      router.push(targetPath);
+    } catch (err: any) {
+      setLoginError(err.message || 'Terjadi kesalahan saat memproses login.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -93,56 +113,19 @@ export default function LoginPage() {
         {/* Main Card */}
         <div className="mt-8 bg-white py-8 px-6 sm:px-10 shadow-card rounded-2xl border border-slate-200/90">
           
-          {/* Role Tabs */}
-          <div className="mb-6">
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-              Pilih Akses Masuk:
-            </label>
-            <div className="grid grid-cols-3 gap-2 bg-slate-100 p-1.5 rounded-xl">
-              <button
-                type="button"
-                onClick={() => handleRoleChange('student')}
-                className={`flex flex-col items-center py-2 px-1 rounded-lg text-xs font-semibold transition-all ${
-                  selectedRole === 'student'
-                    ? 'bg-white text-[#1E3A8A] shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <GraduationCap className="w-4 h-4 mb-1" />
-                <span>Mahasiswa</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleRoleChange('lecturer')}
-                className={`flex flex-col items-center py-2 px-1 rounded-lg text-xs font-semibold transition-all ${
-                  selectedRole === 'lecturer'
-                    ? 'bg-white text-[#1E3A8A] shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <UserCheck className="w-4 h-4 mb-1" />
-                <span>Dosen</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleRoleChange('admin')}
-                className={`flex flex-col items-center py-2 px-1 rounded-lg text-xs font-semibold transition-all ${
-                  selectedRole === 'admin'
-                    ? 'bg-white text-[#1E3A8A] shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Shield className="w-4 h-4 mb-1" />
-                <span>BAAK / Admin</span>
-              </button>
+          {/* Error Alert */}
+          {loginError && (
+            <div className="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2.5 shadow-2xs">
+              <span className="w-2 h-2 rounded-full bg-rose-600 shrink-0 animate-ping"></span>
+              <span className="font-semibold">{loginError}</span>
             </div>
-          </div>
+          )}
 
           {/* Login Form */}
           <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                {selectedRole === 'student' ? 'NIM atau Email Kampus' : 'NIDN atau Email Resmi'}
+                Email Kampus atau Akun Resmi
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -191,7 +174,7 @@ export default function LoginPage() {
               className="w-full flex justify-center items-center gap-2 py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-semibold text-white bg-[#1E3A8A] hover:bg-[#172554] focus:outline-none transition-all"
             >
               {isLoading ? (
-                <span>Memverifikasi...</span>
+                <span>Loading...</span>
               ) : (
                 <>
                   <span>Masuk ke Dashboard</span>
@@ -200,39 +183,6 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
-          {/* Quick Demo Access Box */}
-          <div className="mt-6 pt-5 border-t border-slate-100">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 text-center">
-              Akses Demo Cepat (1-Klik):
-            </p>
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => quickLogin('student')}
-                className="w-full py-2 px-3 text-xs font-semibold rounded-lg bg-blue-50 text-[#1E3A8A] hover:bg-blue-100 flex items-center justify-between border border-blue-200/60"
-              >
-                <span>Masuk sebagai <strong>Mahasiswa</strong></span>
-                <span className="text-[10px] text-slate-500">NIM: 2311501001 &rarr;</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => quickLogin('lecturer')}
-                className="w-full py-2 px-3 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-800 hover:bg-emerald-100 flex items-center justify-between border border-emerald-200/60"
-              >
-                <span>Masuk sebagai <strong>Dosen PA</strong></span>
-                <span className="text-[10px] text-slate-500">NIDN: 0412088501 &rarr;</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => quickLogin('admin')}
-                className="w-full py-2 px-3 text-xs font-semibold rounded-lg bg-purple-50 text-purple-800 hover:bg-purple-100 flex items-center justify-between border border-purple-200/60"
-              >
-                <span>Masuk sebagai <strong>Admin BAAK</strong></span>
-                <span className="text-[10px] text-slate-500">Administrator &rarr;</span>
-              </button>
-            </div>
-          </div>
 
         </div>
 

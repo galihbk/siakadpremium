@@ -2,7 +2,21 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, Users, Award, BookOpen, CheckCircle, ShieldCheck } from 'lucide-react';
 
-export function HeroSection() {
+interface HeroSectionProps {
+  badge?: string;
+  title?: string;
+  subtitle?: string;
+  ctaText?: string;
+  ctaLink?: string;
+}
+
+export function HeroSection({
+  badge = 'Penerimaan Mahasiswa Baru 2027 | Gelombang 1 Dibuka',
+  title = 'Membangun Generasi Unggul untuk Masa Depan Indonesia',
+  subtitle = 'Institut Teknologi Nusantara berkomitmen menyelenggarakan pendidikan tinggi berkelas dunia dengan kurikulum adaptif industri, riset terapan berkelanjutan, dan pembentukan integritas karakter pemimpin bangsa.',
+  ctaText = 'Daftar PMB Sekarang',
+  ctaLink = '/pmb',
+}: HeroSectionProps) {
   return (
     <section className="relative bg-gradient-to-b from-slate-50 via-white to-slate-50/50 pt-12 pb-20 overflow-hidden border-b border-slate-200/80">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -10,31 +24,29 @@ export function HeroSection() {
           
           {/* Kolom Kiri: Teks & Aksi */}
           <div className="lg:col-span-7 flex flex-col justify-center text-left">
-            {/* Badge PMB 2027 */}
+            {/* Badge PMB */}
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200/80 text-[#1E3A8A] text-xs sm:text-sm font-semibold mb-6 w-fit shadow-xs">
               <span className="w-2 h-2 rounded-full bg-[#D4A017] animate-pulse"></span>
-              <span>Penerimaan Mahasiswa Baru 2027</span>
-              <span className="text-slate-400">|</span>
-              <span className="text-slate-600 font-normal">Gelombang 1 Dibuka</span>
+              <span>{badge}</span>
             </div>
 
             {/* Headline */}
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight leading-[1.2] mb-6">
-              Membangun Generasi Unggul untuk <span className="text-[#1E3A8A]">Masa Depan Indonesia</span>
+              {title}
             </h1>
 
             {/* Deskripsi */}
             <p className="text-base sm:text-lg text-slate-600 leading-relaxed mb-8 max-w-2xl font-normal">
-              Institut Teknologi Nusantara berkomitmen menyelenggarakan pendidikan tinggi berkelas dunia dengan kurikulum adaptif industri, riset terapan berkelanjutan, dan pembentukan integritas karakter pemimpin bangsa.
+              {subtitle}
             </p>
 
             {/* CTA Buttons */}
             <div className="flex flex-wrap items-center gap-4 mb-10">
               <Link
-                href="#cta"
+                href={ctaLink}
                 className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-[#1E3A8A] hover:bg-[#172554] text-white font-semibold text-base rounded-xl shadow-md hover:shadow-lg transition-all"
               >
-                <span>Daftar PMB Sekarang</span>
+                <span>{ctaText}</span>
                 <ArrowRight className="w-4 h-4 text-[#D4A017]" />
               </Link>
               <Link

@@ -70,8 +70,10 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  student      Student?
-  lecturer     Lecturer?
+  student                     Student?
+  lecturer                    Lecturer?
+  updatedLandingPageSettings  LandingPageSetting[]
+  landingPageArticles         LandingPageArticle[]
 
   @@map("users")
 }
@@ -226,3 +228,110 @@ model AdmissionApplicant {
 
   @@map("admission_applicants")
 }
+
+model LandingPageSetting {
+  id                    String    @id @default("default-setting")
+  campusName            String    @default("Institut Teknologi Nusantara")
+  campusShortName       String    @default("ITN")
+  tagline               String    @default("Kampus Inovasi Teknologi Masa Depan")
+  heroBadge             String    @default("Penerimaan Mahasiswa Baru TA 2026/2027 Telah Dibuka!")
+  heroTitle             String    @default("Membentuk Generasi Unggul di Era Transformasi Digital")
+  heroSubtitle          String    @default("Institut Teknologi Nusantara (ITN) memadukan keunggulan akademik, riset terapan mutakhir, dan ekosistem industri digital terdepan untuk mencetak profesional dan entrepreneur masa depan.")
+  heroCtaText           String    @default("Daftar Sekarang (PMB)")
+  heroCtaLink           String    @default("/pmb")
+  heroSecondaryCtaText  String    @default("Jelajahi Program Studi")
+  heroSecondaryCtaLink  String    @default("/#program-studi")
+  
+  // Sambutan Rektor
+  rectorName            String    @default("Prof. Dr. Ir. Hendra Gunawan, M.Eng.")
+  rectorTitle           String    @default("Rektor Institut Teknologi Nusantara")
+  rectorQuote           String    @default("Pendidikan di ITN tidak hanya berfokus pada penguasaan teori, tetapi melahirkan solusi nyata bagi bangsa.")
+  rectorSpeech          String    @db.Text
+  rectorImageUrl        String?
+  
+  // Pengumuman Banner
+  announcementActive    Boolean   @default(true)
+  announcementBadge     String    @default("INFO AKADEMIK")
+  announcementText      String    @default("Pengisian KRS Semester Ganjil 2026/2027 berlangsung hingga 31 Agustus 2026. Pastikan konsultasi Dosen PA selesai tepat waktu.")
+  announcementLink      String?   @default("/portal")
+
+  // Kontak & Lokasi Kampus
+  contactAddress        String    @default("Jl. Raya Pendidikan No. 45, Kampus Terpadu, Jakarta Selatan 12430")
+  contactPhone          String    @default("(021) 7890-1234")
+  contactEmail          String    @default("info@itn.ac.id")
+  contactWhatsapp       String    @default("+62 812-3456-7890")
+  
+  // Media Sosial
+  socialInstagram       String?   @default("https://instagram.com/itn_official")
+  socialYoutube         String?   @default("https://youtube.com/@itnofficial")
+  socialLinkedin        String?   @default("https://linkedin.com/school/itn-official")
+
+  updatedByUserId       String?
+  updatedByUser         User?     @relation(fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("landing_page_settings")
+}
+
+model LandingPageArticle {
+  id          String    @id @default(uuid())
+  title       String
+  slug        String    @unique
+  category    String    @default("Akademik")
+  excerpt     String    @db.Text
+  content     String    @db.Text
+  imageUrl    String?
+  authorId    String?
+  authorName  String    @default("Humas ITN")
+  readTime    String    @default("4 min read")
+  isFeatured  Boolean   @default(false)
+  isPublished Boolean   @default(true)
+  publishedAt DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  author      User?     @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@map("landing_page_articles")
+}
+
+model LandingPageFeature {
+  id          String   @id @default(uuid())
+  title       String
+  description String   @db.Text
+  iconName    String   @default("Sparkles")
+  orderIndex  Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("landing_page_features")
+}
+
+model VisitorLog {
+  id        String   @id @default(uuid())
+  path      String   @default("/")
+  ip        String?
+  userAgent String?
+  device    String   @default("Desktop") // "Mobile", "Desktop", "Tablet"
+  referer   String?  @default("Direct")  // "Google", "Instagram", "Direct", "Referral", etc.
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([path])
+  @@map("visitor_logs")
+}
+
+model SystemAuditLog {
+  id        String   @id @default(uuid())
+  action    String
+  detail    String
+  userEmail String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("system_audit_logs")
+}
+

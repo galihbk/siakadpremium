@@ -32,7 +32,17 @@ export class AuthService {
 
     if (!user) {
       // Demo mock authentication based on email format if DB is empty
-      if (email === 'admin@itn.ac.id') {
+      if (email === 'superadmin@itn.ac.id') {
+        user = {
+          id: 'demo-superadmin-id',
+          email: 'superadmin@itn.ac.id',
+          fullName: 'Bambang Pratama, S.Kom., M.Cs. (Super Admin)',
+          role: UserRole.SUPER_ADMIN,
+          avatarUrl: null,
+          student: null,
+          lecturer: null,
+        };
+      } else if (email === 'admin@itn.ac.id') {
         user = {
           id: 'demo-admin-id',
           email: 'admin@itn.ac.id',

@@ -188,7 +188,108 @@ async function main() {
     },
   });
 
-  // 6. Seed PMB Applicant contoh
+  // 6. Seed Super Admin (Pengelola CMS & Landing Page)
+  const superAdmin = await prisma.user.upsert({
+    where: { email: 'superadmin@itn.ac.id' },
+    update: {
+      fullName: 'Bambang Pratama, S.Kom., M.Cs. (Super Admin)',
+      role: Role.SUPER_ADMIN,
+    },
+    create: {
+      email: 'superadmin@itn.ac.id',
+      fullName: 'Bambang Pratama, S.Kom., M.Cs. (Super Admin)',
+      role: Role.SUPER_ADMIN,
+      passwordHash: defaultHash,
+    },
+  });
+
+  // 7. Seed Landing Page Setting (Default CMS Content)
+  await prisma.landingPageSetting.upsert({
+    where: { id: 'default-setting' },
+    update: {
+      updatedByUserId: superAdmin.id,
+    },
+    create: {
+      id: 'default-setting',
+      campusName: 'Institut Teknologi Nusantara',
+      campusShortName: 'ITN',
+      tagline: 'Kampus Inovasi Teknologi Masa Depan',
+      heroBadge: 'Penerimaan Mahasiswa Baru TA 2026/2027 Telah Dibuka!',
+      heroTitle: 'Membentuk Generasi Unggul di Era Transformasi Digital',
+      heroSubtitle: 'Institut Teknologi Nusantara (ITN) memadukan keunggulan akademik berstandar internasional, riset terapan mutakhir, dan ekosistem industri teknologi terdepan untuk mencetak profesional dan entrepreneur masa depan.',
+      heroCtaText: 'Daftar Sekarang (PMB)',
+      heroCtaLink: '/pmb',
+      heroSecondaryCtaText: 'Jelajahi Program Studi',
+      heroSecondaryCtaLink: '/#program-studi',
+      rectorName: 'Prof. Dr. Ir. Hendra Gunawan, M.Eng.',
+      rectorTitle: 'Rektor Institut Teknologi Nusantara',
+      rectorQuote: 'Pendidikan di ITN tidak hanya berfokus pada penguasaan teori semata, melainkan melahirkan karya nyata dan solusi inovatif berdaya saing global bagi kemajuan bangsa.',
+      rectorSpeech: 'Selamat datang di kampus masa depan, Institut Teknologi Nusantara. Di tengah gelombang disrupsi kecerdasan buatan dan otomatisasi global, ITN berkomitmen penuh untuk menghadirkan kurikulum adaptif berbasis industri serta riset terapan kelas dunia.\n\nKami membekali setiap civitas akademika dengan fasilitas laboratorium superkomputasi, inkubator startup teknologi, dan jejaring magang internasional agar setiap lulusan tidak hanya siap kerja, tetapi juga siap memimpin masa depan. Bersama ITN, mari kita wujudkan impian besar Anda dalam ekosistem akademik yang inspiratif, inklusif, dan unggul.',
+      rectorImageUrl: '/images/rector.png',
+      announcementActive: true,
+      announcementBadge: 'INFO AKADEMIK TERKINI',
+      announcementText: 'Pengisian KRS Semester Ganjil 2026/2027 diperpanjang hingga 31 Agustus 2026 pukul 23:59 WIB. Pastikan konsultasi Dosen PA telah disetujui.',
+      announcementLink: '/portal',
+      contactAddress: 'Jl. Raya Pendidikan No. 45, Kampus Terpadu ITN Cyber Park, Jakarta Selatan 12430',
+      contactPhone: '(021) 7890-1234',
+      contactEmail: 'info@itn.ac.id',
+      contactWhatsapp: '+62 812-3456-7890',
+      socialInstagram: 'https://instagram.com/itn_official',
+      socialYoutube: 'https://youtube.com/@itnofficial',
+      socialLinkedin: 'https://linkedin.com/school/itn-official',
+      updatedByUserId: superAdmin.id,
+    },
+  });
+
+  // 8. Seed Landing Page Articles (Berita & Kegiatan)
+  const defaultArticles = [
+    {
+      title: 'ITN Raih Juara 1 Kompetisi AI & Robotika Nasional 2026',
+      slug: 'itn-raih-juara-1-kompetisi-ai-robotika-2026',
+      category: 'Prestasi',
+      excerpt: 'Tim mahasiswa Fakultas Ilmu Komputer ITN sukses menyabet medali emas dengan inovasi Autonomous Drone pemantau pertanian cerdas.',
+      content: 'Prestasi gemilang kembali ditorehkan oleh mahasiswa ITN dalam ajang bergengsi Kompetisi AI Nasional. Karya prototipe drone berbasis Computer Vision mampu mendeteksi kesehatan tanaman secara presisi.',
+      authorName: 'Humas ITN',
+      readTime: '3 min read',
+      isFeatured: true,
+      isPublished: true,
+      authorId: superAdmin.id,
+    },
+    {
+      title: 'Kuliah Umum Internasional: Kolaborasi Riset Cloud Computing dengan Silicon Valley',
+      slug: 'kuliah-umum-internasional-cloud-silicon-valley',
+      category: 'Akademik',
+      excerpt: 'Menghadirkan Principal Cloud Architect ternama untuk membedah arsitektur microservices terdistribusi skala petabyte.',
+      content: 'ITN menggelar webinar dan workshop hands-on arsitektur cloud tingkat lanjut dengan pembicara industri internasional untuk meningkatkan kompetensi mahasiswa.',
+      authorName: 'Biro Kerjasama ITN',
+      readTime: '4 min read',
+      isFeatured: false,
+      isPublished: true,
+      authorId: superAdmin.id,
+    },
+    {
+      title: 'Sosialisasi Program Beasiswa Unggulan Cendekia Nusantara TA 2026/2027',
+      slug: 'beasiswa-unggulan-cendekia-nusantara-2026',
+      category: 'Beasiswa',
+      excerpt: 'Pendaftaran beasiswa penuh biaya kuliah dan uang saku bulanan resmi dibuka bagi calon mahasiswa baru berprestasi.',
+      content: 'Institut Teknologi Nusantara membuka kesempatan bagi putra-putri terbaik bangsa untuk menempuh studi S1 gratis melalui Beasiswa Unggulan Cendekia Nusantara.',
+      authorName: 'Panitia PMB ITN',
+      readTime: '5 min read',
+      isFeatured: false,
+      isPublished: true,
+      authorId: superAdmin.id,
+    },
+  ];
+
+  for (const art of defaultArticles) {
+    await prisma.landingPageArticle.upsert({
+      where: { slug: art.slug },
+      update: {},
+      create: art,
+    });
+  }
+
+  // 9. Seed PMB Applicant contoh
   await prisma.admissionApplicant.upsert({
     where: { registrationNumber: 'PMB20270001' },
     update: {},
@@ -204,7 +305,7 @@ async function main() {
     },
   });
 
-  console.log('✅ Seeding berhasil! Data master akademik, dosen, dan mahasiswa siap digunakan.');
+  console.log('✅ Seeding berhasil! Data master akademik, super admin CMS, dan landing page siap digunakan.');
 }
 
 main()

@@ -27,8 +27,12 @@ RUN pnpm install --frozen-lockfile
 # Copy full source
 COPY . .
 
-# Generate Prisma Client & build API
+# Generate Prisma Client & build workspace packages
 RUN pnpm --filter @siakad/database db:generate
+RUN pnpm --filter @siakad/types build
+RUN pnpm --filter @siakad/utils build
+RUN pnpm --filter @siakad/auth build
+RUN pnpm --filter @siakad/database build
 RUN pnpm --filter @siakad/api build
 
 # Switch to non-hoisted mode for deploy to avoid symlink conflict
