@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { PortalLayout } from '@/components/layout/PortalLayout';
@@ -375,7 +375,7 @@ const initialStudyPrograms: StudyProgram[] = [
   },
 ];
 
-export default function SuperAdminProdiPage() {
+function ProdiContent() {
   const searchParams = useSearchParams();
   const initialFacultyParam = searchParams.get('faculty');
 
@@ -1251,5 +1251,13 @@ export default function SuperAdminProdiPage() {
         </Modal>
       </div>
     </PortalLayout>
+  );
+}
+
+export default function SuperAdminProdiPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-xs text-slate-400">Loading data program studi...</div>}>
+      <ProdiContent />
+    </Suspense>
   );
 }
