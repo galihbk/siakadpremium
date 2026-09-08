@@ -41,7 +41,7 @@ RUN pnpm --filter=@siakad/api deploy --legacy --prod /standalone
 
 # Generate Prisma Client in standalone directory for production
 RUN cp -r packages/database/prisma /standalone/prisma
-RUN cd /standalone && DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" /app/node_modules/.bin/prisma generate --schema=/standalone/prisma/schema.prisma
+RUN cd /standalone && DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" node /app/packages/database/node_modules/prisma/build/index.js generate --schema=/standalone/prisma/schema.prisma
 
 # ------------------------------------------------------------------------------
 # Stage 2: Lean production image
