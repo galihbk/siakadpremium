@@ -39,9 +39,13 @@ RUN pnpm --filter @siakad/api build
 RUN echo "shamefully-hoist=false\nauto-install-peers=true\nforce-legacy-deploy=true" > .npmrc
 RUN pnpm --filter=@siakad/api deploy --legacy --prod /standalone
 
-# Generate Prisma Client in standalone directory for production
-RUN cp -r packages/database/prisma /standalone/prisma
-RUN cd /standalone && DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" node /app/packages/database/node_modules/prisma/build/index.js generate --schema=/standalone/prisma/schema.prisma
+# Copy schema and the generated Prisma Client from builder to standalone
+RUN cp -rf packages/database/prisma /standalone/prisma
+RUN cp -rf /app/node_modules/.pnpm/@prisma+client* /standalone/node_modules/.pnpm/
+RUN if [ -d /app/node_modules/.prisma ]; then cp -rf /app/node_modules/.prisma /standalone/node_modules/; fi
+
+# Verify that PrismaClient initializes cleanly in standalone environment
+RUN cd /standalone && DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" node -e "const { PrismaClient } = require('@siakad/database'); new PrismaClient(); console.log('Prisma client initialized successfully in standalone');"
 
 # ------------------------------------------------------------------------------
 # Stage 2: Lean production image
