@@ -25,6 +25,7 @@ import {
   Calendar,
   ExternalLink,
   Sparkles,
+  Loader2,
 } from 'lucide-react';
 
 interface CurriculumItem {
@@ -44,203 +45,12 @@ interface CurriculumItem {
   description: string;
 }
 
-const initialCurriculums: CurriculumItem[] = [
-  {
-    id: 'c-1',
-    code: 'KUR-TIF-2024',
-    name: 'Kurikulum OBE Teknik Informatika 2024',
-    studyProgram: 'S1 Teknik Informatika',
-    degreeLevel: 'S1',
-    facultyCode: 'FASILKOM',
-    startYear: 2024,
-    sksWajib: 120,
-    sksPilihan: 24,
-    totalSks: 144,
-    curriculumType: 'Kurikulum OBE',
-    skRektor: 'SK Rektor No. 112/ITN/R/2024',
-    status: 'Aktif',
-    description: 'Outcome-Based Education berorientasi AI Engineer, Fullstack Developer, dan Cyber Security Specialist.',
-  },
-  {
-    id: 'c-2',
-    code: 'KUR-SI-2024',
-    name: 'Kurikulum MBKM Sistem Informasi 2024',
-    studyProgram: 'S1 Sistem Informasi',
-    degreeLevel: 'S1',
-    facultyCode: 'FASILKOM',
-    startYear: 2024,
-    sksWajib: 118,
-    sksPilihan: 26,
-    totalSks: 144,
-    curriculumType: 'Kurikulum MBKM',
-    skRektor: 'SK Rektor No. 113/ITN/R/2024',
-    status: 'Aktif',
-    description: 'Fokus pada enterprise system architecture, business intelligence, dan digital transformation consultant.',
-  },
-  {
-    id: 'c-3',
-    code: 'KUR-RPL-2023',
-    name: 'Kurikulum Rekayasa Perangkat Lunak 2023',
-    studyProgram: 'S1 Rekayasa Perangkat Lunak',
-    degreeLevel: 'S1',
-    facultyCode: 'FASILKOM',
-    startYear: 2023,
-    sksWajib: 122,
-    sksPilihan: 22,
-    totalSks: 144,
-    curriculumType: 'Kurikulum OBE',
-    skRektor: 'SK Rektor No. 098/ITN/R/2023',
-    status: 'Aktif',
-    description: 'Standar rekayasa cloud native, QA automation, DevOps lifecycle, dan software scalability.',
-  },
-  {
-    id: 'c-4',
-    code: 'KUR-TKJ-2022',
-    name: 'Kurikulum Terapan Jaringan Komputer 2022',
-    studyProgram: 'D4 Teknologi Rekayasa Komputer Jaringan',
-    degreeLevel: 'D4',
-    facultyCode: 'FASILKOM',
-    startYear: 2022,
-    sksWajib: 110,
-    sksPilihan: 34,
-    totalSks: 144,
-    curriculumType: 'Vokasi Terapan',
-    skRektor: 'SK Rektor No. 045/ITN/R/2022',
-    status: 'Aktif',
-    description: 'Kurikulum vokasi terapan 60% praktik industri bersertifikasi Cisco CCNA & RedHat Linux.',
-  },
-  {
-    id: 'c-5',
-    code: 'KUR-MI-2021',
-    name: 'Kurikulum Vokasi Manajemen Informatika 2021',
-    studyProgram: 'D3 Manajemen Informatika',
-    degreeLevel: 'D3',
-    facultyCode: 'FASILKOM',
-    startYear: 2021,
-    sksWajib: 96,
-    sksPilihan: 14,
-    totalSks: 110,
-    curriculumType: 'Vokasi Terapan',
-    skRektor: 'SK Rektor No. 021/ITN/R/2021',
-    status: 'Masa Transisi',
-    description: 'Kurikulum jenjang D3 untuk mencetak programmer aplikasi bisnis dan administrator basis data muda.',
-  },
-  {
-    id: 'c-6',
-    code: 'KUR-ELK-2024',
-    name: 'Kurikulum OBE Teknik Elektro Industri 2024',
-    studyProgram: 'S1 Teknik Elektro',
-    degreeLevel: 'S1',
-    facultyCode: 'FTI',
-    startYear: 2024,
-    sksWajib: 124,
-    sksPilihan: 20,
-    totalSks: 144,
-    curriculumType: 'Kurikulum OBE',
-    skRektor: 'SK Rektor No. 115/ITN/R/2024',
-    status: 'Aktif',
-    description: 'Sistem tenaga listrik cerdas (smart grid), instrumentasi biomedis, dan sistem embedded IoT.',
-  },
-  {
-    id: 'c-7',
-    code: 'KUR-MSN-2023',
-    name: 'Kurikulum OBE Rekayasa Mekanikal 2023',
-    studyProgram: 'S1 Teknik Mesin',
-    degreeLevel: 'S1',
-    facultyCode: 'FTI',
-    startYear: 2023,
-    sksWajib: 122,
-    sksPilihan: 22,
-    totalSks: 144,
-    curriculumType: 'Kurikulum OBE',
-    skRektor: 'SK Rektor No. 101/ITN/R/2023',
-    status: 'Aktif',
-    description: 'Desain manufaktur otomotif, konversi energi terbarukan, dan perancangan mekanikal CAD/CAM.',
-  },
-  {
-    id: 'c-8',
-    code: 'KUR-IND-2024',
-    name: 'Kurikulum Lean & Supply Chain Industri 2024',
-    studyProgram: 'S1 Teknik Industri',
-    degreeLevel: 'S1',
-    facultyCode: 'FTI',
-    startYear: 2024,
-    sksWajib: 120,
-    sksPilihan: 24,
-    totalSks: 144,
-    curriculumType: 'Kurikulum MBKM',
-    skRektor: 'SK Rektor No. 116/ITN/R/2024',
-    status: 'Aktif',
-    description: 'Manajemen rantai pasok industri 4.0, lean manufacturing, ergonomi, dan optimasi operasional pabrik.',
-  },
-  {
-    id: 'c-9',
-    code: 'KUR-BD-2024',
-    name: 'Kurikulum OBE Bisnis Digital & Technopreneur 2024',
-    studyProgram: 'S1 Bisnis Digital',
-    degreeLevel: 'S1',
-    facultyCode: 'FEBD',
-    startYear: 2024,
-    sksWajib: 116,
-    sksPilihan: 28,
-    totalSks: 144,
-    curriculumType: 'Kurikulum OBE',
-    skRektor: 'SK Rektor No. 118/ITN/R/2024',
-    status: 'Aktif',
-    description: 'Inovasi model bisnis digital, growth hacking, financial technology, dan startup incubation.',
-  },
-  {
-    id: 'c-10',
-    code: 'KUR-MNJ-2023',
-    name: 'Kurikulum Manajemen Stratejik Global 2023',
-    studyProgram: 'S1 Manajemen',
-    degreeLevel: 'S1',
-    facultyCode: 'FEBD',
-    startYear: 2023,
-    sksWajib: 120,
-    sksPilihan: 24,
-    totalSks: 144,
-    curriculumType: 'Kurikulum MBKM',
-    skRektor: 'SK Rektor No. 104/ITN/R/2023',
-    status: 'Aktif',
-    description: 'Manajemen pemasaran internasional, kepemimpinan korporasi, dan manajemen investasi portofolio.',
-  },
-  {
-    id: 'c-11',
-    code: 'KUR-AKT-2024',
-    name: 'Kurikulum Akuntansi Forensik & Sistem ERP 2024',
-    studyProgram: 'S1 Akuntansi',
-    degreeLevel: 'S1',
-    facultyCode: 'FEBD',
-    startYear: 2024,
-    sksWajib: 122,
-    sksPilihan: 22,
-    totalSks: 144,
-    curriculumType: 'Kurikulum OBE',
-    skRektor: 'SK Rektor No. 119/ITN/R/2024',
-    status: 'Aktif',
-    description: 'Standar IFRS, audit forensik berbasis data analytics, perpajakan digital, dan ERP SAP terintegrasi.',
-  },
-  {
-    id: 'c-12',
-    code: 'KUR-DKV-2024',
-    name: 'Kurikulum OBE Desain Komunikasi Visual 2024',
-    studyProgram: 'S1 Desain Komunikasi Visual',
-    degreeLevel: 'S1',
-    facultyCode: 'FDKV',
-    startYear: 2024,
-    sksWajib: 114,
-    sksPilihan: 30,
-    totalSks: 144,
-    curriculumType: 'Kurikulum OBE',
-    skRektor: 'SK Rektor No. 120/ITN/R/2024',
-    status: 'Aktif',
-    description: 'Visual branding, UI/UX interaction design, ilustrasi digital, motion graphics, dan periklanan kreatif.',
-  },
-];
-
 export default function SuperAdminKurikulumPage() {
-  const [curriculums, setCurriculums] = useState<CurriculumItem[]>(initialCurriculums);
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
+  const [curriculums, setCurriculums] = useState<CurriculumItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [degreeFilter, setDegreeFilter] = useState('Semua');
   const [facultyFilter, setFacultyFilter] = useState('Semua');
@@ -250,6 +60,35 @@ export default function SuperAdminKurikulumPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCurriculum, setEditingCurriculum] = useState<CurriculumItem | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const loadCurriculums = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/academic/curriculums`);
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data || json;
+        if (Array.isArray(data)) {
+          setCurriculums(data);
+        }
+      } else {
+        console.error('Gagal memuat dokumen kurikulum:', res.status);
+      }
+    } catch (err) {
+      console.error('Koneksi ke sistem kurikulum terputus:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCurriculums();
+  }, []);
 
   // Form State
   const [formData, setFormData] = useState<{
@@ -280,11 +119,6 @@ export default function SuperAdminKurikulumPage() {
     description: '',
   });
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
-
   // Sorting & Pagination State
   const [sortField, setSortField] = useState<string>('code');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -308,10 +142,10 @@ export default function SuperAdminKurikulumPage() {
   const filteredCurriculums = useMemo(() => {
     return curriculums.filter((c) => {
       const matchSearch =
-        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.studyProgram.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.skRektor.toLowerCase().includes(searchQuery.toLowerCase());
+        (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.code || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.studyProgram || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.skRektor || '').toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchDegree = degreeFilter === 'Semua' || c.degreeLevel === degreeFilter;
       const matchFaculty = facultyFilter === 'Semua' || c.facultyCode === facultyFilter;
@@ -347,7 +181,7 @@ export default function SuperAdminKurikulumPage() {
     const total = curriculums.length;
     const obeCount = curriculums.filter((c) => c.curriculumType === 'Kurikulum OBE' || c.curriculumType === 'Kurikulum MBKM').length;
     const aktifCount = curriculums.filter((c) => c.status === 'Aktif').length;
-    const avgSks = Math.round(curriculums.reduce((acc, c) => acc + c.totalSks, 0) / (total || 1));
+    const avgSks = Math.round(curriculums.reduce((acc, c) => acc + (c.totalSks || 0), 0) / (total || 1));
     return { total, obeCount, aktifCount, avgSks };
   }, [curriculums]);
 
@@ -384,50 +218,73 @@ export default function SuperAdminKurikulumPage() {
       curriculumType: c.curriculumType,
       skRektor: c.skRektor,
       status: c.status,
-      description: c.description,
+      description: c.description || '',
     });
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     const totalSks = Number(formData.sksWajib) + Number(formData.sksPilihan);
+    const payload = {
+      ...formData,
+      startYear: Number(formData.startYear),
+      sksWajib: Number(formData.sksWajib),
+      sksPilihan: Number(formData.sksPilihan),
+      totalSks,
+    };
 
-    if (editingCurriculum) {
-      setCurriculums((prev) =>
-        prev.map((c) =>
-          c.id === editingCurriculum.id
-            ? {
-                ...c,
-                ...formData,
-                startYear: Number(formData.startYear),
-                sksWajib: Number(formData.sksWajib),
-                sksPilihan: Number(formData.sksPilihan),
-                totalSks,
-              }
-            : c
-        )
-      );
-      showToast(`Kurikulum "${formData.name}" berhasil diperbarui.`);
-    } else {
-      const newCurriculum: CurriculumItem = {
-        id: `c-${Date.now()}`,
-        ...formData,
-        startYear: Number(formData.startYear),
-        sksWajib: Number(formData.sksWajib),
-        sksPilihan: Number(formData.sksPilihan),
-        totalSks,
-      };
-      setCurriculums([newCurriculum, ...curriculums]);
-      showToast(`Kurikulum baru "${formData.name}" berhasil ditambahkan.`);
+    try {
+      if (editingCurriculum) {
+        const res = await fetch(`${apiBase}/academic/curriculums/${editingCurriculum.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          showToast(`Kurikulum "${formData.name}" berhasil diperbarui.`);
+          await loadCurriculums();
+          setIsModalOpen(false);
+        } else {
+          showToast('Gagal memperbarui data kurikulum.');
+        }
+      } else {
+        const res = await fetch(`${apiBase}/academic/curriculums`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          showToast(`Kurikulum baru "${formData.name}" berhasil ditambahkan.`);
+          await loadCurriculums();
+          setIsModalOpen(false);
+        } else {
+          showToast('Gagal menambahkan kurikulum baru.');
+        }
+      }
+    } catch {
+      showToast('Terjadi gangguan koneksi saat menyimpan dokumen kurikulum.');
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsModalOpen(false);
   };
 
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = async (id: string, name: string) => {
     if (confirm(`Hapus dokumen kurikulum "${name}"? Seluruh sebaran mata kuliah terkait kurikulum ini akan diarsipkan.`)) {
-      setCurriculums((prev) => prev.filter((c) => c.id !== id));
-      showToast(`Kurikulum "${name}" berhasil dihapus.`);
+      try {
+        const res = await fetch(`${apiBase}/academic/curriculums/${id}`, {
+          method: 'DELETE',
+        });
+        if (res.ok) {
+          showToast(`Kurikulum "${name}" berhasil dihapus.`);
+          await loadCurriculums();
+        } else {
+          showToast('Gagal menghapus dokumen kurikulum.');
+        }
+      } catch {
+        showToast('Terjadi gangguan koneksi saat menghapus kurikulum.');
+      }
     }
   };
 
@@ -719,7 +576,17 @@ export default function SuperAdminKurikulumPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {paginatedCurriculums.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-16 text-slate-500">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <Loader2 className="w-8 h-8 text-[#1E3A8A] animate-spin" />
+                        <p className="font-semibold text-sm text-slate-700">Memuat data kurikulum program studi...</p>
+                        <p className="text-xs text-slate-400">Sinkronisasi data dokumen OBE dan SK Rektor</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : paginatedCurriculums.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="text-center py-12 text-slate-500">
                       <FileText className="w-10 h-10 text-slate-300 mx-auto mb-2" />
@@ -1081,9 +948,11 @@ export default function SuperAdminKurikulumPage() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 transition-all shadow-xs"
+                    disabled={isSubmitting}
+                    className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 disabled:opacity-50 transition-all shadow-xs cursor-pointer"
                   >
-                    {editingCurriculum ? 'Simpan Perubahan' : 'Tambah Kurikulum'}
+                    {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span>{editingCurriculum ? 'Simpan Perubahan' : 'Tambah Kurikulum'}</span>
                   </button>
                 </div>
               </form>

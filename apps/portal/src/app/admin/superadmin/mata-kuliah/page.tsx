@@ -24,6 +24,7 @@ import {
   FileText,
   Clock,
   Check,
+  Loader2,
 } from 'lucide-react';
 
 interface CourseItem {
@@ -42,251 +43,12 @@ interface CourseItem {
   description: string;
 }
 
-const initialCourses: CourseItem[] = [
-  {
-    id: 'mk-1',
-    code: 'UNI-101',
-    name: 'Pendidikan Pancasila & Kewarganegaraan',
-    studyProgram: 'Seluruh Program Studi (MKDU)',
-    facultyCode: 'UNIVERSITAS',
-    sksTeori: 2,
-    sksPraktik: 0,
-    totalSks: 2,
-    semester: 1,
-    type: 'Wajib Institusi',
-    coordinator: 'Dr. Ahmad Fauzi, M.Pd.',
-    status: 'Aktif',
-    description: 'Membangun karakter kebangsaan, wawasan konstitusi, dan etika kehidupan berbangsa dan bernegara.',
-  },
-  {
-    id: 'mk-2',
-    code: 'UNI-102',
-    name: 'Bahasa Indonesia & Penulisan Ilmiah',
-    studyProgram: 'Seluruh Program Studi (MKDU)',
-    facultyCode: 'UNIVERSITAS',
-    sksTeori: 2,
-    sksPraktik: 0,
-    totalSks: 2,
-    semester: 1,
-    type: 'Wajib Institusi',
-    coordinator: 'Dra. Nur Indah, M.Hum.',
-    status: 'Aktif',
-    description: 'Keterampilan menulis artikel ilmiah, tata bahasa baku, dan sitasi akademik standar internasional.',
-  },
-  {
-    id: 'mk-3',
-    code: 'TIF-101',
-    name: 'Algoritma & Struktur Data',
-    studyProgram: 'S1 Teknik Informatika',
-    facultyCode: 'FASILKOM',
-    sksTeori: 2,
-    sksPraktik: 2,
-    totalSks: 4,
-    semester: 1,
-    type: 'Wajib Prodi',
-    coordinator: 'Dr. Eng. Dian Wahyudi, M.Kom.',
-    status: 'Aktif',
-    description: 'Dasar-dasar logika algoritma, kompleksitas waktu Big-O, struktur data array, linked-list, tree, dan graph.',
-  },
-  {
-    id: 'mk-4',
-    code: 'TIF-201',
-    name: 'Basis Data & SQL Lanjut',
-    studyProgram: 'S1 Teknik Informatika',
-    facultyCode: 'FASILKOM',
-    sksTeori: 2,
-    sksPraktik: 1,
-    totalSks: 3,
-    semester: 2,
-    type: 'Wajib Prodi',
-    coordinator: 'Fajar Nugraha, M.Kom.',
-    status: 'Aktif',
-    description: 'Pemodelan relasional ERD, normalisasi, optimasi query indexing, dan pengantar database NoSQL.',
-  },
-  {
-    id: 'mk-5',
-    code: 'TIF-305',
-    name: 'Kecerdasan Buatan & Machine Learning',
-    studyProgram: 'S1 Teknik Informatika',
-    facultyCode: 'FASILKOM',
-    sksTeori: 2,
-    sksPraktik: 1,
-    totalSks: 3,
-    semester: 5,
-    type: 'Wajib Prodi',
-    coordinator: 'Dr. Ir. Hendra Gunawan, M.T.',
-    status: 'Aktif',
-    description: 'Konsep supervised/unsupervised learning, deep learning, computer vision, dan NLP menggunakan Python.',
-  },
-  {
-    id: 'mk-6',
-    code: 'SI-102',
-    name: 'Rekayasa Proses Bisnis & Enterprise System',
-    studyProgram: 'S1 Sistem Informasi',
-    facultyCode: 'FASILKOM',
-    sksTeori: 3,
-    sksPraktik: 0,
-    totalSks: 3,
-    semester: 3,
-    type: 'Wajib Prodi',
-    coordinator: 'Siti Rahmawati, S.Kom., M.T.I.',
-    status: 'Aktif',
-    description: 'Pemodelan BPMN, integrasi ERP, arsitektur data perusahaan, dan manajemen rantai pasok digital.',
-  },
-  {
-    id: 'mk-7',
-    code: 'ELK-201',
-    name: 'Rangkaian Listrik & Elektronika Dasar',
-    studyProgram: 'S1 Teknik Elektro',
-    facultyCode: 'FTI',
-    sksTeori: 2,
-    sksPraktik: 1,
-    totalSks: 3,
-    semester: 2,
-    type: 'Wajib Prodi',
-    coordinator: 'Ir. Budi Santoso, M.T.',
-    status: 'Aktif',
-    description: 'Hukum Kirchhoff, rangkaian AC/DC, komponen semikonduktor, transistor, op-amp, dan simulasi Spice.',
-  },
-  {
-    id: 'mk-8',
-    code: 'MSN-204',
-    name: 'Termodinamika Teknik & Mekanika Fluida',
-    studyProgram: 'S1 Teknik Mesin',
-    facultyCode: 'FTI',
-    sksTeori: 3,
-    sksPraktik: 1,
-    totalSks: 4,
-    semester: 3,
-    type: 'Wajib Prodi',
-    coordinator: 'Prof. Dr. Agus Salim, M.Eng.',
-    status: 'Aktif',
-    description: 'Hukum termodinamika I & II, siklus tenaga uap dan gas, serta dinamika aliran fluida viskositas.',
-  },
-  {
-    id: 'mk-9',
-    code: 'IND-302',
-    name: 'Ergonomi & Perancangan Sistem Kerja',
-    studyProgram: 'S1 Teknik Industri',
-    facultyCode: 'FTI',
-    sksTeori: 2,
-    sksPraktik: 1,
-    totalSks: 3,
-    semester: 4,
-    type: 'Wajib Prodi',
-    coordinator: 'Dra. Rina Marlina, M.T.',
-    status: 'Aktif',
-    description: 'Antropometri tenaga kerja, biomekanika, studi waktu dan gerakan, serta tata letak fasilitas pabrik.',
-  },
-  {
-    id: 'mk-10',
-    code: 'BD-201',
-    name: 'Digital Marketing & E-Commerce Strategy',
-    studyProgram: 'S1 Bisnis Digital',
-    facultyCode: 'FEBD',
-    sksTeori: 3,
-    sksPraktik: 0,
-    totalSks: 3,
-    semester: 2,
-    type: 'Wajib Prodi',
-    coordinator: 'Muhammad Rizki, S.E., M.B.A.',
-    status: 'Aktif',
-    description: 'Strategi omnichannel, SEO/SEM, conversion rate optimization, dan analitik performa bisnis e-commerce.',
-  },
-  {
-    id: 'mk-11',
-    code: 'MNJ-301',
-    name: 'Manajemen Keuangan Korporat',
-    studyProgram: 'S1 Manajemen',
-    facultyCode: 'FEBD',
-    sksTeori: 3,
-    sksPraktik: 0,
-    totalSks: 3,
-    semester: 3,
-    type: 'Wajib Prodi',
-    coordinator: 'Dr. Farida Aryani, M.M.',
-    status: 'Aktif',
-    description: 'Penilaian investasi modal, cost of capital, struktur pendanaan, dan manajemen risiko finansial.',
-  },
-  {
-    id: 'mk-12',
-    code: 'AKT-202',
-    name: 'Sistem Informasi Akuntansi & ERP SAP',
-    studyProgram: 'S1 Akuntansi',
-    facultyCode: 'FEBD',
-    sksTeori: 2,
-    sksPraktik: 1,
-    totalSks: 3,
-    semester: 4,
-    type: 'Wajib Prodi',
-    coordinator: 'Dra. Hj. Sri Wahyuni, M.M., Ak.',
-    status: 'Aktif',
-    description: 'Siklus transaksi pendapatan dan pengeluaran, audit trail komputer, dan implementasi SAP Financial.',
-  },
-  {
-    id: 'mk-13',
-    code: 'DKV-102',
-    name: 'Tipografi & Prinsip Desain Visual',
-    studyProgram: 'S1 Desain Komunikasi Visual',
-    facultyCode: 'FDKV',
-    sksTeori: 1,
-    sksPraktik: 2,
-    totalSks: 3,
-    semester: 1,
-    type: 'Wajib Prodi',
-    coordinator: 'Bayu Pratama, M.Ds.',
-    status: 'Aktif',
-    description: 'Anatomi huruf, hierarki visual, grid layout, keterbacaan, dan eksplorasi tipografi eksperimental.',
-  },
-  {
-    id: 'mk-14',
-    code: 'DKV-308',
-    name: 'UI/UX Design & Desain Interaksi',
-    studyProgram: 'S1 Desain Komunikasi Visual',
-    facultyCode: 'FDKV',
-    sksTeori: 1,
-    sksPraktik: 2,
-    totalSks: 3,
-    semester: 5,
-    type: 'Pilihan',
-    coordinator: 'Arya Wicaksana, M.Sn.',
-    status: 'Aktif',
-    description: 'Design thinking, user journey mapping, wireframing, interactive prototyping Figma, dan usability testing.',
-  },
-  {
-    id: 'mk-15',
-    code: 'TIF-401',
-    name: 'Keamanan Siber & Ethical Hacking',
-    studyProgram: 'S1 Teknik Informatika',
-    facultyCode: 'FASILKOM',
-    sksTeori: 2,
-    sksPraktik: 1,
-    totalSks: 3,
-    semester: 6,
-    type: 'Pilihan',
-    coordinator: 'Dr. Eng. Dian Wahyudi, M.Kom.',
-    status: 'Aktif',
-    description: 'Kriptografi modern, vulnerability assessment, penetration testing OWASP Top 10, dan forensik digital.',
-  },
-  {
-    id: 'mk-16',
-    code: 'MBKM-401',
-    name: 'Magang Industri Bersertifikat (MBKM)',
-    studyProgram: 'Seluruh Program Studi S1/D4',
-    facultyCode: 'UNIVERSITAS',
-    sksTeori: 0,
-    sksPraktik: 20,
-    totalSks: 20,
-    semester: 7,
-    type: 'MBKM',
-    coordinator: 'Tim BAAK & Dosen Pembimbing Lapangan',
-    status: 'Aktif',
-    description: 'Konversi 20 SKS praktik kerja profesional di perusahaan mitra industri nasional dan multinasional.',
-  },
-];
-
 export default function SuperAdminMataKuliahPage() {
-  const [courses, setCourses] = useState<CourseItem[]>(initialCourses);
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
+  const [courses, setCourses] = useState<CourseItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [facultyFilter, setFacultyFilter] = useState('Semua');
   const [semesterFilter, setSemesterFilter] = useState('Semua');
@@ -317,6 +79,31 @@ export default function SuperAdminMataKuliahPage() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  // Muat data mata kuliah dari sistem
+  const loadCourses = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/academic/courses`);
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data || json;
+        if (Array.isArray(data)) {
+          setCourses(data);
+        }
+      } else {
+        console.error('Gagal memuat mata kuliah:', res.status);
+      }
+    } catch (err) {
+      console.error('Koneksi ke sistem mata kuliah terputus:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCourses();
+  }, []);
+
   // Sorting & Pagination State
   const [sortField, setSortField] = useState<string>('code');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -340,17 +127,16 @@ export default function SuperAdminMataKuliahPage() {
   const filteredCourses = useMemo(() => {
     return courses.filter((c) => {
       const matchSearch =
-        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.coordinator.toLowerCase().includes(searchQuery.toLowerCase());
+        (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.code || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.studyProgram || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.coordinator || '').toLowerCase().includes(searchQuery.toLowerCase());
 
-      const matchFaculty =
-        facultyFilter === 'Semua' || c.facultyCode === facultyFilter;
-      const matchSem =
-        semesterFilter === 'Semua' || c.semester.toString() === semesterFilter;
+      const matchFaculty = facultyFilter === 'Semua' || c.facultyCode === facultyFilter;
+      const matchSemester = semesterFilter === 'Semua' || String(c.semester) === semesterFilter;
       const matchType = typeFilter === 'Semua' || c.type === typeFilter;
 
-      return matchSearch && matchFaculty && matchSem && matchType;
+      return matchSearch && matchFaculty && matchSemester && matchType;
     });
   }, [courses, searchQuery, facultyFilter, semesterFilter, typeFilter]);
 
@@ -378,10 +164,10 @@ export default function SuperAdminMataKuliahPage() {
 
   const metrics = useMemo(() => {
     const totalMK = courses.length;
-    const totalSKS = courses.reduce((acc, c) => acc + c.totalSks, 0);
-    const wajibCount = courses.filter((c) => c.type.startsWith('Wajib')).length;
-    const pilihanCount = courses.filter((c) => c.type === 'Pilihan' || c.type === 'MBKM').length;
-    return { totalMK, totalSKS, wajibCount, pilihanCount };
+    const totalSks = courses.reduce((acc, c) => acc + (c.totalSks || 0), 0);
+    const wajibProdi = courses.filter((c) => c.type === 'Wajib Prodi').length;
+    const pilihanMBKM = courses.filter((c) => c.type === 'Pilihan' || c.type === 'MBKM').length;
+    return { totalMK, totalSks, wajibProdi, pilihanMBKM };
   }, [courses]);
 
   const handleOpenAddModal = () => {
@@ -420,45 +206,68 @@ export default function SuperAdminMataKuliahPage() {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     const totalSks = Number(formData.sksTeori) + Number(formData.sksPraktik);
+    const payload = {
+      ...formData,
+      sksTeori: Number(formData.sksTeori),
+      sksPraktik: Number(formData.sksPraktik),
+      totalSks,
+      semester: Number(formData.semester),
+    };
 
-    if (editingCourse) {
-      setCourses((prev) =>
-        prev.map((c) =>
-          c.id === editingCourse.id
-            ? {
-                ...c,
-                ...formData,
-                sksTeori: Number(formData.sksTeori),
-                sksPraktik: Number(formData.sksPraktik),
-                totalSks,
-                semester: Number(formData.semester),
-              }
-            : c
-        )
-      );
-      showToast(`Mata kuliah "${formData.name}" berhasil diperbarui.`);
-    } else {
-      const newCourse: CourseItem = {
-        id: `mk-${Date.now()}`,
-        ...formData,
-        sksTeori: Number(formData.sksTeori),
-        sksPraktik: Number(formData.sksPraktik),
-        totalSks,
-        semester: Number(formData.semester),
-      };
-      setCourses([newCourse, ...courses]);
-      showToast(`Mata kuliah baru "${formData.name}" berhasil ditambahkan.`);
+    try {
+      if (editingCourse) {
+        const res = await fetch(`${apiBase}/academic/courses/${editingCourse.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          showToast(`Mata kuliah "${formData.name}" berhasil diperbarui.`);
+          await loadCourses();
+          setIsModalOpen(false);
+        } else {
+          showToast('Gagal memperbarui data mata kuliah.');
+        }
+      } else {
+        const res = await fetch(`${apiBase}/academic/courses`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          showToast(`Mata kuliah baru "${formData.name}" berhasil ditambahkan.`);
+          await loadCourses();
+          setIsModalOpen(false);
+        } else {
+          showToast('Gagal menambahkan mata kuliah baru.');
+        }
+      }
+    } catch {
+      showToast('Terjadi gangguan koneksi saat menyimpan mata kuliah.');
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsModalOpen(false);
   };
 
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = async (id: string, name: string) => {
     if (confirm(`Hapus mata kuliah "${name}" dari kurikulum?`)) {
-      setCourses((prev) => prev.filter((c) => c.id !== id));
-      showToast(`Mata kuliah "${name}" berhasil dihapus.`);
+      try {
+        const res = await fetch(`${apiBase}/academic/courses/${id}`, {
+          method: 'DELETE',
+        });
+        if (res.ok) {
+          showToast(`Mata kuliah "${name}" berhasil dihapus.`);
+          await loadCourses();
+        } else {
+          showToast('Gagal menghapus mata kuliah.');
+        }
+      } catch {
+        showToast('Terjadi gangguan koneksi saat menghapus data.');
+      }
     }
   };
 
@@ -532,7 +341,7 @@ export default function SuperAdminMataKuliahPage() {
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total SKS Terdaftar</p>
-              <h3 className="text-2xl font-black text-indigo-700 mt-1">{metrics.totalSKS} SKS</h3>
+              <h3 className="text-2xl font-black text-indigo-700 mt-1">{metrics.totalSks} SKS</h3>
               <p className="text-xs text-indigo-600 font-medium mt-0.5">Distribusi teori & praktikum</p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-700 border border-indigo-100 flex items-center justify-center font-bold text-lg">
@@ -543,7 +352,7 @@ export default function SuperAdminMataKuliahPage() {
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Mata Kuliah Wajib</p>
-              <h3 className="text-2xl font-black text-emerald-700 mt-1">{metrics.wajibCount} MK</h3>
+              <h3 className="text-2xl font-black text-emerald-700 mt-1">{metrics.wajibProdi} MK</h3>
               <p className="text-xs text-emerald-600 font-medium mt-0.5">Wajib Institusi & Wajib Prodi</p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center justify-center font-bold text-lg">
@@ -554,7 +363,7 @@ export default function SuperAdminMataKuliahPage() {
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">MK Pilihan & MBKM</p>
-              <h3 className="text-2xl font-black text-amber-600 mt-1">{metrics.pilihanCount} MK</h3>
+              <h3 className="text-2xl font-black text-amber-600 mt-1">{metrics.pilihanMBKM} MK</h3>
               <p className="text-xs text-slate-500 mt-0.5">Pengayaan & magang industri</p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center font-bold text-lg">
@@ -775,7 +584,17 @@ export default function SuperAdminMataKuliahPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {paginatedCourses.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-16 text-slate-500">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <Loader2 className="w-8 h-8 text-[#1E3A8A] animate-spin" />
+                        <p className="font-semibold text-sm text-slate-700">Memuat data mata kuliah kurikulum...</p>
+                        <p className="text-xs text-slate-400">Sinkronisasi data master akademik kampus</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : paginatedCourses.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="text-center py-12 text-slate-500">
                       <BookOpen className="w-10 h-10 text-slate-300 mx-auto mb-2" />
@@ -1093,9 +912,11 @@ export default function SuperAdminMataKuliahPage() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 transition-all shadow-xs"
+                    disabled={isSubmitting}
+                    className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 disabled:opacity-50 transition-all shadow-xs cursor-pointer"
                   >
-                    {editingCourse ? 'Simpan Perubahan' : 'Tambah Mata Kuliah'}
+                    {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span>{editingCourse ? 'Simpan Perubahan' : 'Tambah Mata Kuliah'}</span>
                   </button>
                 </div>
               </form>

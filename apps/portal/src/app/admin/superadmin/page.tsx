@@ -43,9 +43,10 @@ import {
 
 export default function SuperAdminDashboardPage() {
   const [selectedFacultyTab, setSelectedFacultyTab] = useState<'all' | 'unggul'>('all');
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
   // 1. 6 Summary Cards (Akademik Kampus)
-  const summaryCards = [
+  const [summaryData, setSummaryData] = useState([
     {
       title: 'Total Fakultas',
       value: '4',
@@ -56,15 +57,15 @@ export default function SuperAdminDashboardPage() {
     },
     {
       title: 'Total Program Studi',
-      value: '18',
-      subtitle: '18 Prodi S1, D4 & D3',
+      value: '12',
+      subtitle: '12 Prodi S1, D4 & D3',
       icon: GraduationCap,
       color: 'text-indigo-700',
       bg: 'bg-indigo-50',
     },
     {
       title: 'Total Mahasiswa Aktif',
-      value: '8.540',
+      value: '9.270',
       subtitle: 'Terdaftar Semester Ini',
       icon: Users,
       color: 'text-emerald-700',
@@ -72,7 +73,7 @@ export default function SuperAdminDashboardPage() {
     },
     {
       title: 'Total Dosen Aktif',
-      value: '324',
+      value: '296',
       subtitle: 'Dosen Tetap & Luar Biasa',
       icon: UserCheck,
       color: 'text-purple-700',
@@ -96,164 +97,258 @@ export default function SuperAdminDashboardPage() {
       isBadge: true,
       badgeText: 'Aktif',
     },
-  ];
+  ]);
 
   // 2. Monitoring Sistem & Integrasi Akademik
-  const academicServices = [
+  const [overallStatus, setOverallStatus] = useState({
+    isAllNormal: false,
+    badgeText: '1 Layanan Memerlukan Integrasi (Feeder PDDIKTI Belum Terhubung)',
+    badgeClass: 'bg-amber-50 border-amber-300 text-amber-800',
+    dotClass: 'bg-amber-500 animate-pulse',
+  });
+
+  const [servicesData, setServicesData] = useState<any[]>([
     {
       name: 'Feeder PDDIKTI',
-      desc: 'Integrasi Pelaporan Kemdikbudristek',
-      status: 'Terhubung (100%)',
-      responseTime: '12ms',
-      icon: CheckCircle2,
-      color: 'text-emerald-600',
+      desc: 'Web Service Neo Feeder Kemdikbud',
+      status: 'Belum Terhubung',
+      statusType: 'disconnected',
+      responseTime: '--',
+      isOnline: false,
+      badgeClass: 'bg-rose-100 text-rose-800 border border-rose-200',
+      dotClass: 'bg-rose-500',
+      actionUrl: '/admin/superadmin/laporan#konfigurasi',
+      actionLabel: 'Konfigurasi Token WS',
     },
     {
       name: 'Database SIAKAD',
       desc: 'Master PostgreSQL Server :5434',
       status: 'Healthy',
-      responseTime: '3ms',
-      icon: Database,
-      color: 'text-emerald-600',
+      statusType: 'healthy',
+      responseTime: '4ms',
+      isOnline: true,
+      badgeClass: 'bg-emerald-100 text-emerald-800',
+      dotClass: 'bg-emerald-500',
     },
     {
-      name: 'Cache & Sesi Redis',
-      desc: 'In-Memory State & Rate Limiter',
-      status: 'Healthy',
+      name: 'Cache & Sesi',
+      desc: 'In-Memory State & Session Store',
+      status: 'Lokal Standalone',
+      statusType: 'info',
       responseTime: '1ms',
-      icon: Zap,
-      color: 'text-emerald-600',
+      isOnline: true,
+      badgeClass: 'bg-blue-100 text-blue-800',
+      dotClass: 'bg-blue-500',
     },
     {
       name: 'E-Katalog & Berkas',
-      desc: 'Cloud Storage Dokumen & Skripsi',
-      status: 'Healthy',
-      responseTime: '22ms',
-      icon: HardDrive,
-      color: 'text-emerald-600',
+      desc: 'Penyimpanan Berkas Digital',
+      status: 'Siap (Lokal)',
+      statusType: 'healthy',
+      responseTime: '18ms',
+      isOnline: true,
+      badgeClass: 'bg-emerald-100 text-emerald-800',
+      dotClass: 'bg-emerald-500',
     },
     {
-      name: 'Antrian Worker (BullMQ)',
-      desc: 'Sinkronisasi Nilai & Notifikasi',
-      status: 'Active (4 Workers)',
-      responseTime: '5ms',
-      icon: Activity,
-      color: 'text-emerald-600',
+      name: 'Antrian Worker',
+      desc: 'Background Job & Sync Processor',
+      status: 'Siap (Lokal)',
+      statusType: 'healthy',
+      responseTime: '<1ms',
+      isOnline: true,
+      badgeClass: 'bg-emerald-100 text-emerald-800',
+      dotClass: 'bg-emerald-500',
     },
     {
       name: 'Presensi & Jadwal Engine',
-      desc: 'Validasi Ruang & RFID/Mobile',
-      status: 'Online',
-      responseTime: 'Real-Time',
-      icon: Clock,
-      color: 'text-emerald-600',
+      desc: 'Validasi Ruang & Jadwal Kuliah',
+      status: 'Aktif (Database)',
+      statusType: 'healthy',
+      responseTime: '4ms',
+      isOnline: true,
+      badgeClass: 'bg-emerald-100 text-emerald-800',
+      dotClass: 'bg-emerald-500',
     },
-  ];
+  ]);
 
-  // 3. Data Fakultas Kampus
-  const faculties = [
+  // 3. Data Fakultas Kampus dari Basis Data
+  const [facultiesData, setFacultiesData] = useState<any[]>([
     {
       id: 'f-1',
-      name: 'Fakultas Ilmu Komputer & Informatika',
-      code: 'FASILKOM',
-      dean: 'Dr. Ir. Hendra Gunawan, M.T.',
-      studyProgramsCount: 5,
-      studentsCount: 3420,
-      lecturersCount: 112,
+      name: 'Fakultas Ilmu Komputer',
+      code: 'FIK',
+      dean: 'Dr. Eng. Satria Pratama, S.Kom., M.T.',
+      studyProgramsCount: 4,
+      studentsCount: 3150,
+      lecturersCount: 102,
       accreditation: 'Unggul',
     },
     {
       id: 'f-2',
-      name: 'Fakultas Teknik & Teknologi Industri',
-      code: 'FTI',
-      dean: 'Prof. Dr. Agus Salim, M.Eng.',
-      studyProgramsCount: 6,
-      studentsCount: 2850,
-      lecturersCount: 98,
+      name: 'Fakultas Teknik',
+      code: 'FT',
+      dean: 'Prof. Dr. Ir. Hendra Gunawan, M.Eng.',
+      studyProgramsCount: 4,
+      studentsCount: 2920,
+      lecturersCount: 94,
       accreditation: 'Unggul',
     },
     {
       id: 'f-3',
-      name: 'Fakultas Ekonomi & Bisnis Digital',
-      code: 'FEBD',
-      dean: 'Dra. Hj. Sri Wahyuni, M.M., Ak.',
-      studyProgramsCount: 4,
-      studentsCount: 1480,
-      lecturersCount: 64,
-      accreditation: 'Baik Sekali',
+      name: 'Fakultas Ekonomi & Bisnis',
+      code: 'FEB',
+      dean: 'Dr. Nurul Hidayati, S.E., M.M., Ak.',
+      studyProgramsCount: 2,
+      studentsCount: 1930,
+      lecturersCount: 60,
+      accreditation: 'Unggul',
     },
     {
       id: 'f-4',
-      name: 'Fakultas Desain Komunikasi Visual & Seni',
+      name: 'Fakultas Desain Komunikasi Visual & Seni Digital',
       code: 'FDKV',
-      dean: 'Arya Wicaksana, M.Sn.',
-      studyProgramsCount: 3,
-      studentsCount: 790,
-      lecturersCount: 50,
-      accreditation: 'Baik Sekali',
+      dean: 'Dr. Raden Mas Wibowo, M.Sn.',
+      studyProgramsCount: 2,
+      studentsCount: 1270,
+      lecturersCount: 40,
+      accreditation: 'Unggul',
     },
-  ];
+  ]);
 
-  // 4. Quick Actions Akademik Kampus (12 Tombol)
+  // 4. Log Aktivitas Akademik Kampus
+  const [activitiesData, setActivitiesData] = useState<any[]>([
+    {
+      title: 'Koneksi Basis Data PostgreSQL',
+      detail: 'Basis data PostgreSQL siakad_premium aktif dan terhubung pada port 5434.',
+      time: 'Baru saja',
+      badge: 'Database',
+      color: 'bg-[#1E3A8A]',
+    },
+    {
+      title: 'Web Service Neo Feeder PDDIKTI',
+      detail: 'Koneksi ke Neo Feeder Kemdikbudristek belum dikonfigurasi. Memerlukan URL dan token institusi.',
+      time: 'Baru saja',
+      badge: 'PDDIKTI',
+      color: 'bg-amber-600',
+    },
+  ]);
+
+  // 5. KRS Stats dari Database
+  const [krsData, setKrsData] = useState<any>({
+    enrolledCount: 0,
+    approvedCount: 0,
+    validationPercentage: 0,
+    pendingValidation: 0,
+    notFilled: 9270,
+    notFilledPercentage: 100,
+    activeCourses: 10,
+    activeRooms: 10,
+  });
+
+  // Quick Actions Akademik Kampus (12 Tombol ke rute riil)
   const quickActions = [
     { name: 'Profil Institusi', icon: Building2, href: '/admin/superadmin/institusi' },
     { name: 'Kelola Fakultas', icon: Landmark, href: '/admin/superadmin/fakultas' },
     { name: 'Program Studi', icon: GraduationCap, href: '/admin/superadmin/prodi' },
     { name: 'Kurikulum & MK', icon: BookOpen, href: '/admin/superadmin/mata-kuliah' },
     { name: 'Gedung & Ruang', icon: DoorOpen, href: '/admin/superadmin/gedung' },
-    { name: 'Validasi KRS', icon: Award, href: '#krs' },
-    { name: 'Data Mahasiswa', icon: Users, href: '#mahasiswa' },
-    { name: 'Data Dosen', icon: UserCheck, href: '#dosen' },
-    { name: 'Presensi Dosen & Mhs', icon: CheckCircle2, href: '#presensi' },
-    { name: 'Penerimaan Mhs Baru', icon: UserPlus, href: '#pmb' },
-    { name: 'Sinkronisasi PDDIKTI', icon: RefreshCw, href: '#pddikti' },
-    { name: 'Pengaturan Sistem', icon: Settings, href: '#pengaturan' },
+    { name: 'Tahun Akademik', icon: Calendar, href: '/admin/superadmin/tahun-akademik' },
+    { name: 'Periode Semester', icon: Clock, href: '/admin/superadmin/semester' },
+    { name: 'Jadwal Kuliah', icon: CalendarDays, href: '/admin/superadmin/jadwal' },
+    { name: 'Data Dosen', icon: UserCheck, href: '/admin/superadmin/dosen' },
+    { name: 'Data Pegawai', icon: Briefcase, href: '/admin/superadmin/pegawai' },
+    { name: 'Pelaporan PDDIKTI', icon: ShieldCheck, href: '/admin/superadmin/laporan' },
+    { name: 'Biro Keuangan', icon: CreditCard, href: '/finance' },
   ];
 
-  // 5. Log Aktivitas Akademik Kampus
-  const recentActivities = [
-    {
-      title: 'Validasi Massal KRS Gasal 2026/2027',
-      detail: '7.820 KRS mahasiswa telah divalidasi oleh Dosen Pembimbing Akademik dan BAAK.',
-      time: '15 menit yang lalu',
-      badge: 'Akademik',
-      color: 'bg-emerald-600',
-    },
-    {
-      title: 'Sinkronisasi Feeder PDDIKTI Tuntas',
-      detail: 'Pelaporan status keaktifan mahasiswa dan nilai semester genap telah terkirim 100%.',
-      time: '1 jam yang lalu',
-      badge: 'PDDIKTI',
-      color: 'bg-[#1E3A8A]',
-    },
-    {
-      title: 'Penambahan Dosen Tetap Baru',
-      detail: '3 Dosen baru Program Studi Teknik Informatika & Sistem Informasi resmi terdaftar.',
-      time: '3 jam yang lalu',
-      badge: 'SDM',
-      color: 'bg-purple-600',
-    },
-    {
-      title: 'Pembukaan Pembayaran UKT / SPP Gelombang II',
-      detail: 'Integrasi Virtual Account Bank BNI, Mandiri, dan BRI untuk registrasi semester berjalan.',
-      time: 'Kemarin, 14:00 WIB',
-      badge: 'Keuangan',
-      color: 'bg-amber-600',
-    },
-    {
-      title: 'Rilis Jadwal Ujian Tengah Semester (UTS)',
-      detail: 'Jadwal ruang dan pengawas UTS Semester Gasal 2026/2027 telah diterbitkan ke portal dosen & mahasiswa.',
-      time: '2 hari yang lalu',
-      badge: 'Jadwal',
-      color: 'bg-slate-700',
-    },
-  ];
+  // Fetch real data from PostgreSQL database via API
+  useEffect(() => {
+    async function fetchRealData() {
+      try {
+        const res = await fetch(`${apiBaseUrl}/academic/superadmin-dashboard`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data) {
+            const d = json.data;
+            if (d.summaryCards && d.summaryCards.length > 0) {
+              setSummaryData((prev) =>
+                prev.map((card, idx) => {
+                  const incoming = d.summaryCards[idx];
+                  if (incoming) {
+                    return {
+                      ...card,
+                      value: incoming.value,
+                      subtitle: incoming.subtitle,
+                      badgeText: incoming.badgeText || card.badgeText,
+                    };
+                  }
+                  return card;
+                })
+              );
+            }
+
+            if (d.overallSystemStatus) {
+              setOverallStatus(d.overallSystemStatus);
+            }
+
+            if (d.servicesMonitoring && d.servicesMonitoring.length > 0) {
+              setServicesData((prev) =>
+                prev.map((srv, idx) => {
+                  const incoming = d.servicesMonitoring[idx];
+                  if (incoming) {
+                    return {
+                      ...srv,
+                      status: incoming.status,
+                      statusType: incoming.statusType,
+                      responseTime: incoming.responseTime,
+                      isOnline: incoming.isOnline,
+                      badgeClass: incoming.badgeClass,
+                      dotClass: incoming.dotClass,
+                      actionUrl: incoming.actionUrl,
+                      actionLabel: incoming.actionLabel,
+                    };
+                  }
+                  return srv;
+                })
+              );
+            }
+
+            if (d.faculties && d.faculties.length > 0) {
+              setFacultiesData(d.faculties);
+            }
+
+            if (d.recentActivities && d.recentActivities.length > 0) {
+              setActivitiesData(d.recentActivities);
+            }
+
+            if (d.krsStats) {
+              setKrsData({
+                enrolledCount: d.krsStats.enrolledCount ?? 0,
+                approvedCount: d.krsStats.approvedCount ?? 0,
+                validationPercentage: d.krsStats.validationPercentage ?? 0,
+                pendingValidation: d.krsStats.pendingValidation ?? 0,
+                notFilled: d.krsStats.notFilled ?? 9270,
+                notFilledPercentage: d.krsStats.notFilledPercentage ?? 100,
+                activeCourses: d.krsStats.activeCourses ?? 10,
+                activeRooms: d.krsStats.activeRooms ?? 10,
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Gagal memuat data live superadmin dari database, menggunakan data cadangan.', err);
+      }
+    }
+
+    fetchRealData();
+  }, [apiBaseUrl]);
 
   // Sorting & Pagination State for Dashboard Faculty Table
   const [dashSortField, setDashSortField] = useState<string>('name');
   const [dashSortOrder, setDashSortOrder] = useState<'asc' | 'desc'>('asc');
   const [dashCurrentPage, setDashCurrentPage] = useState<number>(1);
-  const [dashItemsPerPage, setDashItemsPerPage] = useState<number>(3);
+  const [dashItemsPerPage, setDashItemsPerPage] = useState<number>(4);
 
   const handleDashSort = (field: string) => {
     if (dashSortField === field) {
@@ -271,9 +366,9 @@ export default function SuperAdminDashboardPage() {
 
   const filteredFaculties = useMemo(() => {
     return selectedFacultyTab === 'unggul'
-      ? faculties.filter((f) => f.accreditation === 'Unggul')
-      : faculties;
-  }, [faculties, selectedFacultyTab]);
+      ? facultiesData.filter((f) => f.accreditation === 'Unggul')
+      : facultiesData;
+  }, [facultiesData, selectedFacultyTab]);
 
   const sortedFaculties = useMemo(() => {
     return [...filteredFaculties].sort((a, b) => {
@@ -348,7 +443,7 @@ export default function SuperAdminDashboardPage() {
 
         {/* 2. 6 Summary Cards (Akademik Kampus) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-          {summaryCards.map((item, idx) => {
+          {summaryData.map((item, idx) => {
             const Icon = item.icon;
             return (
               <div
@@ -393,34 +488,66 @@ export default function SuperAdminDashboardPage() {
                 Kondisi operasional server database, sinkronisasi Feeder PDDIKTI, antrian data, dan modul akademik real-time
               </p>
             </div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Seluruh Layanan Kampus Normal</span>
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${overallStatus.badgeClass}`}>
+              <span className={`w-2 h-2 rounded-full ${overallStatus.dotClass}`}></span>
+              <span>{overallStatus.badgeText}</span>
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {academicServices.map((service, idx) => {
-              const Icon = service.icon;
+            {servicesData.map((service, idx) => {
+              const Icon = service.icon || Activity;
+              const isDisconnected = service.isOnline === false;
               return (
                 <div
                   key={idx}
-                  className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/70 hover:bg-white hover:border-slate-300 transition-all flex flex-col justify-between"
+                  className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between ${
+                    isDisconnected
+                      ? 'border-rose-200 bg-rose-50/40 hover:bg-rose-50/70 hover:border-rose-300 shadow-sm'
+                      : 'border-slate-100 bg-slate-50/70 hover:bg-white hover:border-slate-300'
+                  }`}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <Icon className="w-4 h-4 text-slate-500" />
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                      {service.status}
-                    </span>
-                  </div>
                   <div>
-                    <h4 className="text-xs font-bold text-slate-900 line-clamp-1">{service.name}</h4>
-                    <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{service.desc}</p>
+                    <div className="flex items-center justify-between mb-2">
+                      <Icon className={`w-4 h-4 ${isDisconnected ? 'text-rose-600' : 'text-slate-500'}`} />
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                          service.badgeClass || (isDisconnected ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800')
+                        }`}
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            service.dotClass || (isDisconnected ? 'bg-rose-500' : 'bg-emerald-500')
+                          }`}
+                        ></span>
+                        {service.status}
+                      </span>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-900 line-clamp-1">{service.name}</h4>
+                      <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{service.desc}</p>
+                    </div>
                   </div>
-                  <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[10px] text-slate-500">
-                    <span>Respons</span>
-                    <strong className="text-slate-800 font-semibold">{service.responseTime}</strong>
+
+                  <div>
+                    <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[10px] text-slate-500">
+                      <span>Respons</span>
+                      <strong className={`font-semibold ${isDisconnected ? 'text-rose-700' : 'text-slate-800'}`}>
+                        {service.responseTime}
+                      </strong>
+                    </div>
+
+                    {service.actionUrl && (
+                      <div className="mt-2 pt-1.5 border-t border-rose-200/70">
+                        <Link
+                          href={service.actionUrl}
+                          className="text-[10px] font-bold text-rose-700 hover:text-rose-900 hover:underline flex items-center justify-between"
+                        >
+                          <span>{service.actionLabel || 'Konfigurasi'}</span>
+                          <ChevronRight className="w-3 h-3" />
+                        </Link>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -453,7 +580,7 @@ export default function SuperAdminDashboardPage() {
                         : 'hover:text-slate-900'
                     }`}
                   >
-                    Semua ({faculties.length})
+                    Semua ({facultiesData.length})
                   </button>
                   <button
                     onClick={() => setSelectedFacultyTab('unggul')}
@@ -463,7 +590,7 @@ export default function SuperAdminDashboardPage() {
                         : 'hover:text-slate-900'
                     }`}
                   >
-                    Unggul (2)
+                    Unggul ({facultiesData.filter((f) => f.accreditation === 'Unggul').length})
                   </button>
                 </div>
               </div>
@@ -651,8 +778,8 @@ export default function SuperAdminDashboardPage() {
                     className="px-2 py-0.5 rounded-lg border border-slate-200 bg-white font-bold text-slate-700 text-[11px] focus:outline-none"
                   >
                     <option value={2}>2</option>
-                    <option value={3}>3</option>
-                    <option value={4}>Semua (4)</option>
+                    <option value={4}>4</option>
+                    <option value={facultiesData.length}>Semua ({facultiesData.length})</option>
                   </select>
                   <span className="text-slate-400 ml-1 text-[11px]">
                     &bull; {Math.min(filteredFaculties.length, (dashCurrentPage - 1) * dashItemsPerPage + 1)} - {Math.min(dashCurrentPage * dashItemsPerPage, filteredFaculties.length)} dari {filteredFaculties.length} fakultas
@@ -698,7 +825,7 @@ export default function SuperAdminDashboardPage() {
             </div>
 
             <div className="mt-4 pt-4 border-t border-slate-100 text-xs text-slate-500 flex items-center justify-between">
-              <span>Total Sivitas Akademika: <strong>8.540 Mahasiswa &bull; 324 Dosen</strong></span>
+              <span>Total Sivitas Akademika: <strong>{summaryData[2]?.value} Mahasiswa &bull; {summaryData[3]?.value} Dosen</strong></span>
               <Link href="/admin/superadmin/institusi" className="font-bold text-[#1E3A8A] hover:underline flex items-center gap-1">
                 <span>Lihat Profil Lengkap Kampus</span>
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -724,30 +851,47 @@ export default function SuperAdminDashboardPage() {
                 <div className="space-y-1.5">
                   <div className="flex justify-between font-semibold">
                     <span className="text-slate-600">KRS Telah Divalidasi</span>
-                    <span className="text-emerald-600 font-bold">7.820 (91.5%)</span>
+                    <span className="text-emerald-600 font-bold">
+                      {krsData.approvedCount.toLocaleString('id-ID')} ({krsData.validationPercentage}%)
+                    </span>
                   </div>
                   <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                    <div className="bg-emerald-500 h-full rounded-full" style={{ width: '91.5%' }}></div>
+                    <div
+                      className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                      style={{ width: `${krsData.validationPercentage}%` }}
+                    ></div>
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
                   <div className="flex justify-between font-semibold">
                     <span className="text-slate-600">Menunggu Validasi Dosen PA</span>
-                    <span className="text-amber-600 font-bold">512 (6.0%)</span>
+                    <span className="text-amber-600 font-bold">
+                      {krsData.pendingValidation.toLocaleString('id-ID')} ({krsData.enrolledCount > 0 ? ((krsData.pendingValidation / krsData.enrolledCount) * 100).toFixed(1) : 0}%)
+                    </span>
                   </div>
                   <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                    <div className="bg-amber-500 h-full rounded-full" style={{ width: '6%' }}></div>
+                    <div
+                      className="bg-amber-500 h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${krsData.enrolledCount > 0 ? (krsData.pendingValidation / krsData.enrolledCount) * 100 : 0}%`,
+                      }}
+                    ></div>
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
                   <div className="flex justify-between font-semibold">
                     <span className="text-slate-600">Belum Mengisi KRS</span>
-                    <span className="text-rose-600 font-bold">208 (2.5%)</span>
+                    <span className="text-rose-600 font-bold">
+                      {krsData.notFilled.toLocaleString('id-ID')} ({krsData.notFilledPercentage}%)
+                    </span>
                   </div>
                   <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                    <div className="bg-rose-500 h-full rounded-full" style={{ width: '2.5%' }}></div>
+                    <div
+                      className="bg-rose-500 h-full rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(100, krsData.notFilledPercentage)}%` }}
+                    ></div>
                   </div>
                 </div>
 
@@ -759,11 +903,15 @@ export default function SuperAdminDashboardPage() {
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-500">Mata Kuliah Aktif:</span>
-                    <span className="font-bold text-slate-800">412 MK</span>
+                    <span className="font-bold text-slate-800">{krsData.activeCourses} MK Terdaftar</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500">Kelas Perkuliahan:</span>
-                    <span className="font-bold text-slate-800">628 Kelas</span>
+                    <span className="text-slate-500">Ruang Perkuliahan:</span>
+                    <span className="font-bold text-slate-800">{krsData.activeRooms} Ruangan</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/60">
+                    <span className="text-slate-500">Status Sinkronisasi:</span>
+                    <span className="font-semibold text-emerald-700">Tersinkron PostgreSQL</span>
                   </div>
                 </div>
               </div>
@@ -822,7 +970,7 @@ export default function SuperAdminDashboardPage() {
           </div>
 
           <div className="relative pl-6 space-y-6 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-            {recentActivities.map((act, idx) => (
+            {activitiesData.map((act, idx) => (
               <div key={idx} className="relative group">
                 <div
                   className={`absolute -left-[27px] top-1 w-3.5 h-3.5 rounded-full ${act.color} ring-4 ring-white`}

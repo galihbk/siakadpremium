@@ -94,15 +94,23 @@ model Faculty {
 }
 
 model StudyProgram {
-  id            String       @id @default(uuid())
-  facultyId     String
-  code          String       @unique
-  name          String
-  degreeLevel   DegreeLevel  @default(S1)
-  accreditation String       @default("Unggul")
-  headOfProgram String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id                  String       @id @default(uuid())
+  facultyId           String
+  code                String       @unique
+  diktiCode           String?
+  name                String
+  degreeLevel         DegreeLevel  @default(S1)
+  degreeTitle         String?
+  accreditation       String       @default("Unggul")
+  accreditationAgency String?      @default("BAN-PT / LAM")
+  skAkreditasi        String?
+  headOfProgram       String?
+  headNip             String?
+  status              String       @default("Aktif")
+  studentsCount       Int          @default(0)
+  lecturersCount      Int          @default(0)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
 
   faculty       Faculty      @relation(fields: [facultyId], references: [id], onDelete: Cascade)
   students      Student[]
@@ -177,18 +185,26 @@ model AcademicYear {
 }
 
 model Course {
-  id             String             @id @default(uuid())
-  studyProgramId String
-  code           String             @unique // e.g. "TIF-201"
-  name           String
-  sks            Int                @default(3)
-  semester       Int                @default(1)
-  description    String?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  id               String             @id @default(uuid())
+  studyProgramId   String?
+  studyProgramName String?
+  facultyCode      String?
+  code             String             @unique // e.g. "TIF-201"
+  name             String
+  sksTeori         Int                @default(2)
+  sksPraktik       Int                @default(0)
+  totalSks         Int                @default(2)
+  sks              Int                @default(3)
+  semester         Int                @default(1)
+  type             String             @default("Wajib Prodi")
+  coordinator      String?
+  status           String             @default("Aktif")
+  description      String?            @db.Text
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
-  studyProgram   StudyProgram       @relation(fields: [studyProgramId], references: [id], onDelete: Cascade)
-  enrollments    CourseEnrollment[]
+  studyProgram     StudyProgram?      @relation(fields: [studyProgramId], references: [id], onDelete: Cascade)
+  enrollments      CourseEnrollment[]
 
   @@map("courses")
 }
@@ -269,6 +285,40 @@ model LandingPageSetting {
   socialYoutube         String?   @default("https://youtube.com/@itnofficial")
   socialLinkedin        String?   @default("https://linkedin.com/school/itn-official")
 
+  // Identitas & Legalitas Institusi
+  foundationName        String    @default("Yayasan Pendidikan Teknologi Nusantara Mandiri")
+  website               String    @default("https://itn.ac.id")
+  academicEmail         String    @default("baak@itn.ac.id")
+  accreditation         String    @default("Unggul")
+  accreditationSk       String    @default("No. 1042/SK/BAN-PT/Ak/PT/VIII/2024")
+  accreditationValidUntil String  @default("28 Agustus 2029")
+  ptStatus              String    @default("Perguruan Tinggi Swasta (Aktif)")
+  npsn                  String    @default("061024")
+  ptCode                String    @default("071032")
+  establishmentYear     Int       @default(1993)
+  establishmentSk       String    @default("Kepmendikbud No. 048/D/O/1993")
+  activeSemester        String    @default("Semester Gasal")
+  activeAcademicYear    String    @default("2026/2027")
+
+  // Pimpinan Perguruan Tinggi
+  viceRector1           String    @default("Dr. Ir. Hendra Gunawan, M.T. (Bid. Akademik & Riset)")
+  viceRector2           String    @default("Dra. Hj. Sri Wahyuni, M.M., Ak. (Bid. Keuangan & SDM)")
+  viceRector3           String    @default("Dr. Rian Hidayat, S.Kom., M.Kom. (Bid. Kemahasiswaan & Kerjasama)")
+  logoInitials          String    @default("ITN")
+  logoUrl               String?
+
+  // Identitas Visual, Kop Dokumen & Format Penomoran
+  primaryColor          String    @default("#1E3A8A")
+  accentColor           String    @default("#D4A017")
+  themeName             String    @default("Nusantara Navy & Gold")
+  kopLine1              String    @default("Yayasan Pendidikan Teknologi Nusantara Mandiri")
+  kopLine2              String    @default("INSTITUT TEKNOLOGI NUSANTARA")
+  kopContact            String    @default("Jl. DI Panjaitan No. 128, Jakarta Selatan 12340 | Telp: (021) 7888-9900 | Email: baak@itn.ac.id")
+  pinFormat             String    @default("{KODE_PT}-{TAHUN}-{PRODI}-{NO_URUT}")
+  nomorSuratFormat      String    @default("{NO}/ITN-BAAK/{BULAN_ROMAWI}/{TAHUN}")
+  nimFormat             String    @default("{ANGKATAN_2DIGIT}{KODE_PRODI_3DIGIT}{NO_URUT_4DIGIT}")
+  doubleBorderKop       Boolean   @default(true)
+
   updatedByUserId       String?
   updatedByUser         User?     @relation(fields: [updatedByUserId], references: [id], onDelete: SetNull)
   createdAt             DateTime  @default(now())
@@ -337,3 +387,128 @@ model SystemAuditLog {
   @@index([createdAt])
   @@map("system_audit_logs")
 }
+
+model Building {
+  id              String   @id @default(uuid())
+  code            String   @unique
+  name            String
+  alias           String?
+  functionDesc    String?
+  floorsCount     Int      @default(1)
+  roomsCount      Int      @default(0)
+  capacity        Int      @default(0)
+  picName         String?
+  picPhone        String?
+  status          String   @default("Aktif Beroperasi")
+  establishedYear Int      @default(2020)
+  description     String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  rooms           Room[]
+
+  @@map("buildings")
+}
+
+model Room {
+  id              String   @id @default(uuid())
+  code            String   @unique
+  name            String
+  buildingId      String
+  buildingCode    String
+  buildingName    String
+  floor           Int      @default(1)
+  type            String   @default("Kelas Teori")
+  capacity        Int      @default(40)
+  facilities      String[] @default([])
+  status          String   @default("Tersedia")
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  building        Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+
+  @@map("rooms")
+}
+
+model CalendarEvent {
+  id           String   @id @default(uuid())
+  title        String
+  category     String   @default("Perkuliahan")
+  startDate    String
+  endDate      String
+  academicYear String   @default("2026/2027")
+  semester     String   @default("Gasal") // Gasal, Genap, Pendek
+  target       String   @default("Seluruh Mahasiswa & Dosen")
+  status       String   @default("Akan Datang") // Berlangsung, Akan Datang, Selesai
+  notes        String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("calendar_events")
+}
+
+model Curriculum {
+  id             String   @id @default(uuid())
+  code           String   @unique
+  name           String
+  studyProgram   String
+  degreeLevel    String   @default("S1")
+  facultyCode    String   @default("FASILKOM")
+  startYear      Int      @default(2024)
+  sksWajib       Int      @default(120)
+  sksPilihan     Int      @default(24)
+  totalSks       Int      @default(144)
+  curriculumType String   @default("Kurikulum OBE")
+  skRektor       String?
+  status         String   @default("Aktif")
+  description    String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("curriculums")
+}
+
+model SemesterPeriod {
+  id                  String   @id @default(uuid())
+  code                String   @unique // e.g. "20261"
+  name                String
+  academicYear        String
+  type                String   @default("Gasal") // Gasal, Genap, Pendek
+  startDate           String
+  endDate             String
+  krsStartDate        String
+  krsEndDate          String
+  gradeDeadline       String
+  totalCoursesOffered Int      @default(0)
+  totalCreditsOffered Int      @default(0)
+  isActive            Boolean  @default(false)
+  isGradeLocked       Boolean  @default(true)
+  status              String   @default("Buka") // Buka, Masa Ujian, Terkunci, Selesai
+  notes               String?  @db.Text
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("semester_periods")
+}
+
+model AcademicYearPeriod {
+  id                 String   @id @default(uuid())
+  code               String   @unique // e.g. "2026"
+  yearName           String   // e.g. "2026/2027"
+  startDate          String
+  endDate            String
+  pmbStartDate       String
+  pmbEndDate         String
+  semestersAvailable String[] @default(["Gasal", "Genap", "Pendek"])
+  studentsCount      Int      @default(0)
+  skRektor           String?
+  isActive           Boolean  @default(false)
+  status             String   @default("Aktif") // Aktif, Arsip, Mendatang
+  notes              String?  @db.Text
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("academic_year_periods")
+}
+

@@ -134,4 +134,146 @@ export class UpdateLandingPageDto {
   @IsOptional()
   @IsString()
   socialLinkedin?: string;
+
+  // Legalitas & Identitas Resmi Institusi
+  @ApiPropertyOptional({ example: 'Yayasan Pendidikan Teknologi Nusantara Mandiri' })
+  @IsOptional()
+  @IsString()
+  foundationName?: string;
+
+  @ApiPropertyOptional({ example: 'https://itn.ac.id' })
+  @IsOptional()
+  @IsString()
+  website?: string;
+
+  @ApiPropertyOptional({ example: 'baak@itn.ac.id' })
+  @IsOptional()
+  @IsString()
+  academicEmail?: string;
+
+  @ApiPropertyOptional({ example: 'Unggul' })
+  @IsOptional()
+  @IsString()
+  accreditation?: string;
+
+  @ApiPropertyOptional({ example: 'No. 1042/SK/BAN-PT/Ak/PT/VIII/2024' })
+  @IsOptional()
+  @IsString()
+  accreditationSk?: string;
+
+  @ApiPropertyOptional({ example: '28 Agustus 2029' })
+  @IsOptional()
+  @IsString()
+  accreditationValidUntil?: string;
+
+  @ApiPropertyOptional({ example: 'Perguruan Tinggi Swasta (Aktif)' })
+  @IsOptional()
+  @IsString()
+  ptStatus?: string;
+
+  @ApiPropertyOptional({ example: '061024' })
+  @IsOptional()
+  @IsString()
+  npsn?: string;
+
+  @ApiPropertyOptional({ example: '071032' })
+  @IsOptional()
+  @IsString()
+  ptCode?: string;
+
+  @ApiPropertyOptional({ example: 1993 })
+  @IsOptional()
+  establishmentYear?: number;
+
+  @ApiPropertyOptional({ example: 'Kepmendikbud No. 048/D/O/1993' })
+  @IsOptional()
+  @IsString()
+  establishmentSk?: string;
+
+  @ApiPropertyOptional({ example: 'Semester Gasal' })
+  @IsOptional()
+  @IsString()
+  activeSemester?: string;
+
+  @ApiPropertyOptional({ example: '2026/2027' })
+  @IsOptional()
+  @IsString()
+  activeAcademicYear?: string;
+
+  // Pimpinan Perguruan Tinggi
+  @ApiPropertyOptional({ example: 'Dr. Ir. Hendra Gunawan, M.T. (Bid. Akademik & Riset)' })
+  @IsOptional()
+  @IsString()
+  viceRector1?: string;
+
+  @ApiPropertyOptional({ example: 'Dra. Hj. Sri Wahyuni, M.M., Ak. (Bid. Keuangan & SDM)' })
+  @IsOptional()
+  @IsString()
+  viceRector2?: string;
+
+  @ApiPropertyOptional({ example: 'Dr. Rian Hidayat, S.Kom., M.Kom. (Bid. Kemahasiswaan & Kerjasama)' })
+  @IsOptional()
+  @IsString()
+  viceRector3?: string;
+
+  @ApiPropertyOptional({ example: 'ITN' })
+  @IsOptional()
+  @IsString()
+  logoInitials?: string;
+
+  @ApiPropertyOptional({ example: '/images/logo.png' })
+  @IsOptional()
+  @IsString()
+  logoUrl?: string;
+
+  // Identitas Visual & Format Penomoran Kampus
+  @ApiPropertyOptional({ example: '#1E3A8A' })
+  @IsOptional()
+  @IsString()
+  primaryColor?: string;
+
+  @ApiPropertyOptional({ example: '#D4A017' })
+  @IsOptional()
+  @IsString()
+  accentColor?: string;
+
+  @ApiPropertyOptional({ example: 'Nusantara Navy & Gold' })
+  @IsOptional()
+  @IsString()
+  themeName?: string;
+
+  @ApiPropertyOptional({ example: 'Yayasan Pendidikan Teknologi Nusantara Mandiri' })
+  @IsOptional()
+  @IsString()
+  kopLine1?: string;
+
+  @ApiPropertyOptional({ example: 'INSTITUT TEKNOLOGI NUSANTARA' })
+  @IsOptional()
+  @IsString()
+  kopLine2?: string;
+
+  @ApiPropertyOptional({ example: 'Jl. DI Panjaitan No. 128, Jakarta Selatan 12340' })
+  @IsOptional()
+  @IsString()
+  kopContact?: string;
+
+  @ApiPropertyOptional({ example: '{KODE_PT}-{TAHUN}-{PRODI}-{NO_URUT}' })
+  @IsOptional()
+  @IsString()
+  pinFormat?: string;
+
+  @ApiPropertyOptional({ example: '{NO}/ITN-BAAK/{BULAN_ROMAWI}/{TAHUN}' })
+  @IsOptional()
+  @IsString()
+  nomorSuratFormat?: string;
+
+  @ApiPropertyOptional({ example: '{ANGKATAN_2DIGIT}{KODE_PRODI_3DIGIT}{NO_URUT_4DIGIT}' })
+  @IsOptional()
+  @IsString()
+  nimFormat?: string;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  doubleBorderKop?: boolean;
 }

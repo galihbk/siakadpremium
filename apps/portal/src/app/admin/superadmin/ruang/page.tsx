@@ -27,186 +27,31 @@ import {
   Wifi,
   Sparkles,
   Award,
+  Loader2,
 } from 'lucide-react';
 
 interface RoomItem {
   id: string;
   code: string;
   name: string;
-  buildingCode: 'TWR-A' | 'TWR-B' | 'TWR-C' | 'TWR-D' | 'GRH-NUT' | 'HUB-INOV';
+  buildingCode: string;
   buildingName: string;
   floor: number;
-  type: 'Kelas Teori' | 'Lab Komputer' | 'Lab Teknik' | 'Studio Desain' | 'Auditorium & Seminar';
+  type: string;
   capacity: number;
   facilities: string[];
   status: 'Tersedia' | 'Sedang Digunakan' | 'Dalam Pemeliharaan';
   notes: string;
 }
 
-const initialRooms: RoomItem[] = [
-  {
-    id: 'r-1',
-    code: 'A-201',
-    name: 'Smart Classroom Teori 201',
-    buildingCode: 'TWR-A',
-    buildingName: 'Gedung BJ Habibie (Tower A)',
-    floor: 2,
-    type: 'Kelas Teori',
-    capacity: 50,
-    facilities: ['Smart TV 75"', 'AC Inverter (2 Unit)', 'Sound System & Mic Wireless', 'Wi-Fi 6', 'Whiteboard Kaca'],
-    status: 'Tersedia',
-    notes: 'Ruang kelas teori utama program sarjana Teknik Informatika & Sistem Informasi.',
-  },
-  {
-    id: 'r-2',
-    code: 'A-301',
-    name: 'Laboratorium AI & Data Science',
-    buildingCode: 'TWR-A',
-    buildingName: 'Gedung BJ Habibie (Tower A)',
-    floor: 3,
-    type: 'Lab Komputer',
-    capacity: 40,
-    facilities: ['40 Unit Workstation Core i7 RTX 4070', 'Gigabit LAN', 'Interactive Screen', 'AC Central'],
-    status: 'Sedang Digunakan',
-    notes: 'Praktikum Machine Learning, Computer Vision, dan Big Data Analytics.',
-  },
-  {
-    id: 'r-3',
-    code: 'A-402',
-    name: 'Laboratorium Jaringan & Cyber Security',
-    buildingCode: 'TWR-A',
-    buildingName: 'Gedung BJ Habibie (Tower A)',
-    floor: 4,
-    type: 'Lab Komputer',
-    capacity: 36,
-    facilities: ['Cisco Routers & Switches Rack', 'Patch Panel', 'Server Virtualisasi Proxmox', 'AC 2x2 PK'],
-    status: 'Tersedia',
-    notes: 'Sertifikasi CCNA, praktikum keamanan siber, dan ethical hacking.',
-  },
-  {
-    id: 'r-4',
-    code: 'C-101',
-    name: 'Bengkel Manufaktur & CNC Mesin',
-    buildingCode: 'TWR-C',
-    buildingName: 'Gedung Soekarno (Tower C)',
-    floor: 1,
-    type: 'Lab Teknik',
-    capacity: 30,
-    facilities: ['Mesin Bubut CNC 5-Axis', 'Mesin Milling', 'Alat Uji Tarik Logam', 'Exhaust Fan Industri'],
-    status: 'Tersedia',
-    notes: 'Praktikum teknologi mekanik & manufaktur presisi mahasiswa FTI.',
-  },
-  {
-    id: 'r-5',
-    code: 'C-205',
-    name: 'Laboratorium Elektronika Daya & PLC',
-    buildingCode: 'TWR-C',
-    buildingName: 'Gedung Soekarno (Tower C)',
-    floor: 2,
-    type: 'Lab Teknik',
-    capacity: 35,
-    facilities: ['Siemens PLC Trainer Kit', 'Oscilloscope Digital Rigol', 'Power Supply DC 3-Phase', 'AC'],
-    status: 'Sedang Digunakan',
-    notes: 'Praktikum sistem otomasi industri dan instrumentasi elektro.',
-  },
-  {
-    id: 'r-6',
-    code: 'B-201',
-    name: 'Lab Simulasi Perbankan & FinTech',
-    buildingCode: 'TWR-B',
-    buildingName: 'Gedung Mohammad Hatta (Tower B)',
-    floor: 2,
-    type: 'Lab Komputer',
-    capacity: 45,
-    facilities: ['Terminal Bloomberg Simulasi', '35 PC Core i5', 'Ticker Saham Running Text', 'AC'],
-    status: 'Tersedia',
-    notes: 'Laboratorium transaksi keuangan digital, akuntansi, dan trading saham BEI.',
-  },
-  {
-    id: 'r-7',
-    code: 'B-302',
-    name: 'Kelas Eksekutif Bisnis Digital',
-    buildingCode: 'TWR-B',
-    buildingName: 'Gedung Mohammad Hatta (Tower B)',
-    floor: 3,
-    type: 'Kelas Teori',
-    capacity: 40,
-    facilities: ['Meja Melengkung Eksekutif', 'Proyektor Laser HD', 'Microphone Delegasi', 'Full AC'],
-    status: 'Tersedia',
-    notes: 'Presentasi studi kasus bisnis dan kuliah tamu CEO industri.',
-  },
-  {
-    id: 'r-8',
-    code: 'D-102',
-    name: 'Studio Fotografi & Pencahayaan',
-    buildingCode: 'TWR-D',
-    buildingName: 'Gedung Ki Hajar Dewantara (Tower D)',
-    floor: 1,
-    type: 'Studio Desain',
-    capacity: 25,
-    facilities: ['Lighting Softbox Godox', 'Green Screen Cyclorama 6x4m', 'Kamera Sony A7 IV', 'AC Khusus'],
-    status: 'Tersedia',
-    notes: 'Studio pemotretan komersial, produksi video, dan animasi stop-motion.',
-  },
-  {
-    id: 'r-9',
-    code: 'D-301',
-    name: 'Studio Rendering 3D & Desain Grafis',
-    buildingCode: 'TWR-D',
-    buildingName: 'Gedung Ki Hajar Dewantara (Tower D)',
-    floor: 3,
-    type: 'Studio Desain',
-    capacity: 32,
-    facilities: ['Apple Mac Studio M2 Max (30 Unit)', 'Drawing Tablet Wacom Cintiq', 'Color Calibrated Monitor'],
-    status: 'Sedang Digunakan',
-    notes: 'Praktikum modeling 3D Blender/Maya, animasi digital, dan desain UI/UX.',
-  },
-  {
-    id: 'r-10',
-    code: 'GRH-AUD',
-    name: 'Auditorium Utama Graha Nusantara',
-    buildingCode: 'GRH-NUT',
-    buildingName: 'Graha Nusantara (Rektorat)',
-    floor: 3,
-    type: 'Auditorium & Seminar',
-    capacity: 450,
-    facilities: ['Videowall LED P2.5 12x4m', 'Line Array Sound JBL', 'Kursi Teater Busa', 'Central AC Chiller'],
-    status: 'Tersedia',
-    notes: 'Kuliah umum perdana, seminar nasional, wisuda fakultas, dan orasi ilmiah.',
-  },
-  {
-    id: 'r-11',
-    code: 'HUB-201',
-    name: 'Co-Working Space Riset Mahasiswa',
-    buildingCode: 'HUB-INOV',
-    buildingName: 'Pusat Riset & Hub Inovasi Digital',
-    floor: 2,
-    type: 'Auditorium & Seminar',
-    capacity: 60,
-    facilities: ['Hot Desk Fleksibel', 'High Speed Wi-Fi 500 Mbps', 'Pantry & Coffee Station', 'AC'],
-    status: 'Tersedia',
-    notes: 'Ruang kerja kolaboratif startup mahasiswa binaan inkubator bisnis ITN.',
-  },
-  {
-    id: 'r-12',
-    code: 'A-105',
-    name: 'Ruang Kuliah Teori A-105',
-    buildingCode: 'TWR-A',
-    buildingName: 'Gedung BJ Habibie (Tower A)',
-    floor: 1,
-    type: 'Kelas Teori',
-    capacity: 45,
-    facilities: ['Smart Board', 'AC 2x1.5 PK', 'Sound System', 'Kursi Kuliah Chitose'],
-    status: 'Dalam Pemeliharaan',
-    notes: 'Sedang perbaikan instalasi sistem pendingin udara (AC).',
-  },
-];
-
 function RuangContent() {
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
   const searchParams = useSearchParams();
   const initialBuildingParam = searchParams.get('building');
 
-  const [rooms, setRooms] = useState<RoomItem[]>(initialRooms);
+  const [rooms, setRooms] = useState<RoomItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [buildingFilter, setBuildingFilter] = useState<string>(initialBuildingParam || 'Semua');
   const [typeFilter, setTypeFilter] = useState<string>('Semua');
@@ -216,6 +61,35 @@ function RuangContent() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<RoomItem | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const loadRooms = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/buildings/rooms`);
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data || json;
+        if (Array.isArray(data)) {
+          setRooms(data);
+        }
+      } else {
+        console.error('Gagal memuat data ruangan:', res.status);
+      }
+    } catch (err) {
+      console.error('Koneksi ke sistem ruangan terputus:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRooms();
+  }, []);
 
   useEffect(() => {
     if (initialBuildingParam) {
@@ -227,10 +101,10 @@ function RuangContent() {
   const [formData, setFormData] = useState<{
     code: string;
     name: string;
-    buildingCode: RoomItem['buildingCode'];
+    buildingCode: string;
     buildingName: string;
     floor: number;
-    type: RoomItem['type'];
+    type: string;
     capacity: number;
     facilitiesInput: string;
     status: RoomItem['status'];
@@ -247,11 +121,6 @@ function RuangContent() {
     status: 'Tersedia',
     notes: '',
   });
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
 
   // Sorting & Pagination State
   const [sortField, setSortField] = useState<string>('code');
@@ -276,9 +145,9 @@ function RuangContent() {
   const filteredRooms = useMemo(() => {
     return rooms.filter((r) => {
       const matchSearch =
-        r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.facilities.some((f) => f.toLowerCase().includes(searchQuery.toLowerCase()));
+        (r.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (r.code || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (r.facilities || []).some((f) => f.toLowerCase().includes(searchQuery.toLowerCase()));
 
       const matchBuilding =
         buildingFilter === 'Semua' || r.buildingCode === buildingFilter;
@@ -365,57 +234,83 @@ function RuangContent() {
       floor: r.floor,
       type: r.type,
       capacity: r.capacity,
-      facilitiesInput: r.facilities.join(', '),
+      facilitiesInput: (r.facilities || []).join(', '),
       status: r.status,
-      notes: r.notes,
+      notes: r.notes || '',
     });
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     const facilitiesArray = formData.facilitiesInput
       .split(',')
       .map((item) => item.trim())
       .filter((item) => item.length > 0);
 
-    const resolvedBuildingName = getBuildingNameByCode(formData.buildingCode);
+    const payload = {
+      code: formData.code,
+      name: formData.name,
+      buildingCode: formData.buildingCode,
+      floor: Number(formData.floor),
+      type: formData.type,
+      capacity: Number(formData.capacity),
+      facilities: facilitiesArray,
+      status: formData.status,
+      notes: formData.notes,
+    };
 
-    if (editingRoom) {
-      setRooms((prev) =>
-        prev.map((r) =>
-          r.id === editingRoom.id
-            ? {
-                ...r,
-                ...formData,
-                buildingName: resolvedBuildingName,
-                floor: Number(formData.floor),
-                capacity: Number(formData.capacity),
-                facilities: facilitiesArray,
-              }
-            : r
-        )
-      );
-      showToast(`Data ruang "${formData.name}" berhasil diperbarui.`);
-    } else {
-      const newRoom: RoomItem = {
-        id: `r-${Date.now()}`,
-        ...formData,
-        buildingName: resolvedBuildingName,
-        floor: Number(formData.floor),
-        capacity: Number(formData.capacity),
-        facilities: facilitiesArray,
-      };
-      setRooms([newRoom, ...rooms]);
-      showToast(`Ruangan baru "${formData.name}" berhasil ditambahkan.`);
+    try {
+      if (editingRoom) {
+        const res = await fetch(`${apiBase}/buildings/rooms/${editingRoom.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          showToast(`Data ruang "${formData.name}" berhasil diperbarui.`);
+          await loadRooms();
+          setIsModalOpen(false);
+        } else {
+          showToast('Gagal memperbarui data ruangan.');
+        }
+      } else {
+        const res = await fetch(`${apiBase}/buildings/rooms`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          showToast(`Ruangan baru "${formData.name}" berhasil ditambahkan.`);
+          await loadRooms();
+          setIsModalOpen(false);
+        } else {
+          showToast('Gagal menambahkan ruangan baru.');
+        }
+      }
+    } catch {
+      showToast('Terjadi gangguan koneksi saat menyimpan data ruangan.');
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsModalOpen(false);
   };
 
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = async (id: string, name: string) => {
     if (confirm(`Hapus ruangan "${name}"? Jadwal perkuliahan di ruang ini akan dibatalkan.`)) {
-      setRooms((prev) => prev.filter((r) => r.id !== id));
-      showToast(`Ruangan "${name}" berhasil dihapus.`);
+      try {
+        const res = await fetch(`${apiBase}/buildings/rooms/${id}`, {
+          method: 'DELETE',
+        });
+        if (res.ok) {
+          showToast(`Ruangan "${name}" berhasil dihapus.`);
+          await loadRooms();
+        } else {
+          showToast('Gagal menghapus ruangan.');
+        }
+      } catch {
+        showToast('Terjadi gangguan koneksi saat menghapus ruangan.');
+      }
     }
   };
 
@@ -711,7 +606,17 @@ function RuangContent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {paginatedRooms.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-16 text-slate-500">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <Loader2 className="w-8 h-8 text-[#1E3A8A] animate-spin" />
+                        <p className="font-semibold text-sm text-slate-700">Memuat data ruangan & fasilitas...</p>
+                        <p className="text-xs text-slate-400">Sinkronisasi data master sarana dan prasarana kampus</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : paginatedRooms.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="text-center py-12 text-slate-500">
                       <DoorOpen className="w-10 h-10 text-slate-300 mx-auto mb-2" />
@@ -1050,9 +955,11 @@ function RuangContent() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 transition-all shadow-xs"
+                    disabled={isSubmitting}
+                    className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 disabled:opacity-50 transition-all shadow-xs cursor-pointer"
                   >
-                    {editingRoom ? 'Simpan Perubahan' : 'Tambah Ruangan'}
+                    {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span>{editingRoom ? 'Simpan Perubahan' : 'Tambah Ruangan'}</span>
                   </button>
                 </div>
               </form>

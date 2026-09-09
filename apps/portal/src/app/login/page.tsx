@@ -36,6 +36,7 @@ export default function LoginPage() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -171,7 +172,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center items-center gap-2 py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-semibold text-white bg-[#1E3A8A] hover:bg-[#172554] focus:outline-none transition-all"
+              className="w-full flex justify-center items-center gap-2 py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-semibold text-white bg-[#1E3A8A] hover:bg-[#172554] focus:outline-none transition-all cursor-pointer"
             >
               {isLoading ? (
                 <span>Loading...</span>
@@ -182,6 +183,59 @@ export default function LoginPage() {
                 </>
               )}
             </button>
+
+            {/* Quick Demo Selector */}
+            <div className="pt-4 border-t border-slate-100">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-center mb-2.5">
+                Pilih Akun Demo Cepat
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setValue('email', 'keuangan@itn.ac.id');
+                    setValue('password', 'Password123!');
+                  }}
+                  className="px-2.5 py-2 rounded-xl border border-amber-200 bg-amber-50/70 hover:bg-amber-100 text-amber-900 text-xs font-bold text-left transition-all cursor-pointer"
+                >
+                  <span className="block font-bold">💰 Biro Keuangan</span>
+                  <span className="text-[10px] text-amber-700 font-normal">keuangan@itn.ac.id</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setValue('email', 'student@itn.ac.id');
+                    setValue('password', 'Password123!');
+                  }}
+                  className="px-2.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-blue-50 text-slate-800 text-xs font-semibold text-left transition-all cursor-pointer"
+                >
+                  <span className="block font-bold">🎓 Mahasiswa</span>
+                  <span className="text-[10px] text-slate-500 font-normal">student@itn.ac.id</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setValue('email', 'lecturer@itn.ac.id');
+                    setValue('password', 'Password123!');
+                  }}
+                  className="px-2.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-blue-50 text-slate-800 text-xs font-semibold text-left transition-all cursor-pointer"
+                >
+                  <span className="block font-bold">👨‍🏫 Dosen</span>
+                  <span className="text-[10px] text-slate-500 font-normal">lecturer@itn.ac.id</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setValue('email', 'superadmin@itn.ac.id');
+                    setValue('password', 'Password123!');
+                  }}
+                  className="px-2.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-blue-50 text-slate-800 text-xs font-semibold text-left transition-all cursor-pointer"
+                >
+                  <span className="block font-bold">⚡ Super Admin</span>
+                  <span className="text-[10px] text-slate-500 font-normal">superadmin@itn.ac.id</span>
+                </button>
+              </div>
+            </div>
           </form>
 
         </div>

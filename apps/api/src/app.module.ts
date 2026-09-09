@@ -12,6 +12,8 @@ import { AdmissionsModule } from './modules/admissions/admissions.module';
 import { LandingPageModule } from './modules/landing-page/landing-page.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { EmployeesModule } from './modules/employees/employees.module';
+import { BuildingsModule } from './modules/buildings/buildings.module';
+import { FinanceModule } from './modules/finance/finance.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -33,6 +35,8 @@ import { AppService } from './app.service';
     LandingPageModule,
     AnalyticsModule,
     EmployeesModule,
+    BuildingsModule,
+    FinanceModule,
   ],
   controllers: [AppController],
   providers: [AppService],

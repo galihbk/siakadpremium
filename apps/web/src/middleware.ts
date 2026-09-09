@@ -2,15 +2,18 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  const host = (request.headers.get('host') || '').toLowerCase();
+  const host = (
+    request.headers.get('x-forwarded-host') ||
+    request.headers.get('host') ||
+    ''
+  ).toLowerCase();
   const url = request.nextUrl.clone();
 
   // 1. Subdomain Portal (e.g. portal.galihjp.com or portal.itn.ac.id)
   // Dedicated to Login, Mahasiswa (/student), Dosen (/lecturer), and BAAK (/admin)
   if (host.startsWith('portal.')) {
     if (url.pathname === '/') {
-      url.pathname = '/login';
-      return NextResponse.rewrite(url);
+      return NextResponse.redirect(new URL('/login', request.url));
     }
     return NextResponse.next();
   }

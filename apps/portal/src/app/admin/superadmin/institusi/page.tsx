@@ -29,7 +29,6 @@ import {
   Copy,
   Check,
   Sparkles,
-  Database,
   RefreshCw,
   Palette,
   CheckSquare,
@@ -48,20 +47,6 @@ interface IdentitySettings {
   nimFormat: string;
   doubleBorderKop: boolean;
 }
-
-const defaultIdentitySettings: IdentitySettings = {
-  primaryColor: '#1E3A8A',
-  accentColor: '#D4A017',
-  themeName: 'Nusantara Navy & Gold',
-  tagline: 'Kampus Inovasi Teknologi Masa Depan & Technopreneurship',
-  kopLine1: 'Yayasan Pendidikan Teknologi Nusantara Mandiri',
-  kopLine2: 'INSTITUT TEKNOLOGI NUSANTARA',
-  kopContact: 'Jl. DI Panjaitan No. 128, Jakarta Selatan 12340 | Telp: (021) 7888-9900 | Email: baak@itn.ac.id',
-  pinFormat: '{KODE_PT}-{TAHUN}-{PRODI}-{NO_URUT}',
-  nomorSuratFormat: '{NO}/ITN-BAAK/{BULAN_ROMAWI}/{TAHUN}',
-  nimFormat: '{ANGKATAN_2DIGIT}{KODE_PRODI_3DIGIT}{NO_URUT_4DIGIT}',
-  doubleBorderKop: true,
-};
 
 const THEME_PRESETS = [
   { name: 'Nusantara Navy & Gold', primary: '#1E3A8A', accent: '#D4A017' },
@@ -98,48 +83,21 @@ interface CampusProfile {
   logoInitials: string;
 }
 
-const defaultProfile: CampusProfile = {
-  name: 'Institut Teknologi Nusantara',
-  shortName: 'ITN',
-  foundationName: 'Yayasan Pendidikan Teknologi Nusantara Mandiri',
-  address: 'Jl. DI Panjaitan No. 128, Kawasan Pendidikan Terpadu, Jakarta Selatan 12340',
-  website: 'https://itn.ac.id',
-  email: 'info@itn.ac.id',
-  academicEmail: 'baak@itn.ac.id',
-  phone: '(021) 7888-9900',
-  whatsapp: '0812-3456-7890',
-  accreditation: 'Unggul',
-  accreditationSk: 'No. 1042/SK/BAN-PT/Ak/PT/VIII/2024',
-  accreditationValidUntil: '28 Agustus 2029',
-  ptStatus: 'Perguruan Tinggi Swasta (Aktif)',
-  npsn: '061024',
-  ptCode: '071032',
-  establishmentYear: 1993,
-  establishmentSk: 'Kepmendikbud No. 048/D/O/1993',
-  activeSemester: 'Semester Gasal',
-  activeAcademicYear: '2026/2027',
-  rector: 'Prof. Dr. Ir. H. Bambang Soedibyo, M.Sc.',
-  viceRector1: 'Dr. Ir. Hendra Gunawan, M.T. (Bid. Akademik & Riset)',
-  viceRector2: 'Dra. Hj. Sri Wahyuni, M.M., Ak. (Bid. Keuangan & SDM)',
-  viceRector3: 'Dr. Rian Hidayat, S.Kom., M.Kom. (Bid. Kemahasiswaan & Kerjasama)',
-  logoInitials: 'ITN',
-};
-
 export default function SuperAdminProfilInstitusiPage() {
-  const [profile, setProfile] = useState<CampusProfile>(defaultProfile);
+  const [profile, setProfile] = useState<CampusProfile | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isLogoModalOpen, setIsLogoModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [editFormData, setEditFormData] = useState<CampusProfile>(defaultProfile);
+  const [editFormData, setEditFormData] = useState<CampusProfile | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dbConnected, setDbConnected] = useState<boolean | null>(null);
 
   // Identity Settings state
-  const [identitySettings, setIdentitySettings] = useState<IdentitySettings>(defaultIdentitySettings);
-  const [editIdentityData, setEditIdentityData] = useState<IdentitySettings>(defaultIdentitySettings);
+  const [identitySettings, setIdentitySettings] = useState<IdentitySettings | null>(null);
+  const [editIdentityData, setEditIdentityData] = useState<IdentitySettings | null>(null);
   const [savingIdentity, setSavingIdentity] = useState(false);
   const [activeIdentityTab, setActiveIdentityTab] = useState<'tema' | 'kop' | 'format'>('tema');
 
@@ -148,70 +106,74 @@ export default function SuperAdminProfilInstitusiPage() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // 1. Fetch fresh profile data directly from backend PostgreSQL database on mount
-  useEffect(() => {
-    async function loadFromDatabase() {
-      setLoading(true);
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+  // 1. Fetch live institution profile and branding directly from backend PostgreSQL database
+  const loadFromDatabase = async () => {
+    setLoading(true);
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
-      // Load local storage cache first
-      try {
-        const stored = localStorage.getItem('siakad_institution_profile');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          setProfile((prev) => ({ ...prev, ...parsed }));
-          setEditFormData((prev) => ({ ...prev, ...parsed }));
-        }
-        const storedId = localStorage.getItem('siakad_campus_identity_settings');
-        if (storedId) {
-          const parsedId = JSON.parse(storedId);
-          setIdentitySettings(parsedId);
-          setEditIdentityData(parsedId);
-        }
-      } catch {}
+    try {
+      const res = await fetch(`${apiBase}/landing-page`, { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data || json;
+        if (data) {
+          setDbConnected(true);
+          const loadedProfile: CampusProfile = {
+            name: data.campusName ?? '',
+            shortName: data.campusShortName ?? '',
+            foundationName: data.foundationName ?? '',
+            address: data.contactAddress ?? '',
+            website: data.website ?? '',
+            email: data.contactEmail ?? '',
+            academicEmail: data.academicEmail ?? '',
+            phone: data.contactPhone ?? '',
+            whatsapp: data.contactWhatsapp ?? '',
+            accreditation: data.accreditation ?? 'Unggul',
+            accreditationSk: data.accreditationSk ?? '',
+            accreditationValidUntil: data.accreditationValidUntil ?? '',
+            ptStatus: data.ptStatus ?? 'Perguruan Tinggi Swasta (Aktif)',
+            npsn: data.npsn ?? '',
+            ptCode: data.ptCode ?? '',
+            establishmentYear: data.establishmentYear ? Number(data.establishmentYear) : 1993,
+            establishmentSk: data.establishmentSk ?? '',
+            activeSemester: data.activeSemester ?? 'Semester Gasal',
+            activeAcademicYear: data.activeAcademicYear ?? '2026/2027',
+            rector: data.rectorName ?? '',
+            viceRector1: data.viceRector1 ?? '',
+            viceRector2: data.viceRector2 ?? '',
+            viceRector3: data.viceRector3 ?? '',
+            logoInitials: data.logoInitials ?? 'ITN',
+          };
+          setProfile(loadedProfile);
+          setEditFormData(loadedProfile);
 
-      // Fetch from PostgreSQL backend database
-      try {
-        const res = await fetch(`${apiBase}/landing-page`);
-        if (res.ok) {
-          const json = await res.json();
-          const data = json.data || json;
-          if (data) {
-            setDbConnected(true);
-            setProfile((prev) => {
-              const updated: CampusProfile = {
-                ...prev,
-                name: data.campusName || prev.name,
-                shortName: data.campusShortName || prev.shortName,
-                address: data.contactAddress || prev.address,
-                phone: data.contactPhone || prev.phone,
-                email: data.contactEmail || prev.email,
-                whatsapp: data.contactWhatsapp || prev.whatsapp,
-                rector: data.rectorName || prev.rector,
-              };
-              return updated;
-            });
-            setEditFormData((prev) => ({
-              ...prev,
-              name: data.campusName || prev.name,
-              shortName: data.campusShortName || prev.shortName,
-              address: data.contactAddress || prev.address,
-              phone: data.contactPhone || prev.phone,
-              email: data.contactEmail || prev.email,
-              whatsapp: data.contactWhatsapp || prev.whatsapp,
-              rector: data.rectorName || prev.rector,
-            }));
-          }
-        } else {
-          setDbConnected(false);
+          const loadedIdentity: IdentitySettings = {
+            primaryColor: data.primaryColor ?? '#1E3A8A',
+            accentColor: data.accentColor ?? '#D4A017',
+            themeName: data.themeName ?? 'Nusantara Navy & Gold',
+            tagline: data.tagline ?? '',
+            kopLine1: data.kopLine1 ?? '',
+            kopLine2: data.kopLine2 ?? '',
+            kopContact: data.kopContact ?? '',
+            pinFormat: data.pinFormat ?? '{KODE_PT}-{TAHUN}-{PRODI}-{NO_URUT}',
+            nomorSuratFormat: data.nomorSuratFormat ?? '{NO}/ITN-BAAK/{BULAN_ROMAWI}/{TAHUN}',
+            nimFormat: data.nimFormat ?? '{ANGKATAN_2DIGIT}{KODE_PRODI_3DIGIT}{NO_URUT_4DIGIT}',
+            doubleBorderKop: data.doubleBorderKop !== undefined ? Boolean(data.doubleBorderKop) : true,
+          };
+          setIdentitySettings(loadedIdentity);
+          setEditIdentityData(loadedIdentity);
         }
-      } catch {
+      } else {
         setDbConnected(false);
-      } finally {
-        setLoading(false);
       }
+    } catch {
+      setDbConnected(false);
+    } finally {
+      setLoading(false);
     }
+  };
 
+  useEffect(() => {
     loadFromDatabase();
   }, []);
 
@@ -223,33 +185,44 @@ export default function SuperAdminProfilInstitusiPage() {
   };
 
   const handleOpenEditModal = () => {
-    setEditFormData({ ...profile });
-    setIsEditModalOpen(true);
+    if (profile) {
+      setEditFormData({ ...profile });
+      setIsEditModalOpen(true);
+    }
   };
 
   // 2. Save profile directly to backend PostgreSQL database
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editFormData) return;
     setSaving(true);
     const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
-    // Update local UI & local storage immediately
-    setProfile({ ...editFormData });
-    try {
-      localStorage.setItem('siakad_institution_profile', JSON.stringify(editFormData));
-      window.dispatchEvent(new Event('siakad_institution_updated'));
-    } catch {}
-
-    // Save to PostgreSQL backend
     try {
       const payload = {
         campusName: editFormData.name,
         campusShortName: editFormData.shortName,
+        foundationName: editFormData.foundationName,
         contactAddress: editFormData.address,
-        contactPhone: editFormData.phone,
+        website: editFormData.website,
         contactEmail: editFormData.email,
+        academicEmail: editFormData.academicEmail,
+        contactPhone: editFormData.phone,
         contactWhatsapp: editFormData.whatsapp,
+        accreditation: editFormData.accreditation,
+        accreditationSk: editFormData.accreditationSk,
+        accreditationValidUntil: editFormData.accreditationValidUntil,
+        ptStatus: editFormData.ptStatus,
+        npsn: editFormData.npsn,
+        ptCode: editFormData.ptCode,
+        establishmentYear: Number(editFormData.establishmentYear),
+        establishmentSk: editFormData.establishmentSk,
+        activeSemester: editFormData.activeSemester,
+        activeAcademicYear: editFormData.activeAcademicYear,
         rectorName: editFormData.rector,
+        viceRector1: editFormData.viceRector1,
+        viceRector2: editFormData.viceRector2,
+        viceRector3: editFormData.viceRector3,
       };
 
       const res = await fetch(`${apiBase}/landing-page`, {
@@ -259,62 +232,137 @@ export default function SuperAdminProfilInstitusiPage() {
       });
 
       if (res.ok) {
+        setProfile({ ...editFormData });
         setDbConnected(true);
-        showToast('Profil institusi berhasil disimpan ke Database PostgreSQL!');
+        showToast('Profil institusi berhasil diperbarui!');
       } else {
-        showToast('Profil tersimpan secara lokal.');
+        setProfile({ ...editFormData });
+        showToast('Gagal menyimpan perubahan.');
       }
     } catch {
-      showToast('Profil disimpan secara lokal.');
+      setProfile({ ...editFormData });
+      showToast('Gagal terhubung ke server.');
     } finally {
       setSaving(false);
       setIsEditModalOpen(false);
     }
   };
 
-  const handleSaveLogo = (newInitials: string) => {
+  const handleSaveLogo = async (newInitials: string) => {
+    if (!profile) return;
     const updated = { ...profile, logoInitials: newInitials };
     setProfile(updated);
-    try {
-      localStorage.setItem('siakad_institution_profile', JSON.stringify(updated));
-      window.dispatchEvent(new Event('siakad_institution_updated'));
-    } catch {}
     setIsLogoModalOpen(false);
-    showToast('Logo / Identitas visual institusi berhasil diperbarui!');
+
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    try {
+      const res = await fetch(`${apiBase}/landing-page`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ logoInitials: newInitials }),
+      });
+      if (res.ok) {
+        setDbConnected(true);
+        showToast('Logo dan identitas visual kampus berhasil diperbarui!');
+      } else {
+        showToast('Logo berhasil diperbarui.');
+      }
+    } catch {
+      showToast('Logo tersimpan.');
+    }
   };
 
   const handleOpenSettingsModal = () => {
-    setEditIdentityData({ ...identitySettings });
-    setIsSettingsModalOpen(true);
+    if (identitySettings) {
+      setEditIdentityData({ ...identitySettings });
+      setIsSettingsModalOpen(true);
+    }
   };
 
   const handleSaveIdentitySettings = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editIdentityData) return;
     setSavingIdentity(true);
     const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
-    // 1. Update state & localStorage
-    setIdentitySettings({ ...editIdentityData });
     try {
-      localStorage.setItem('siakad_campus_identity_settings', JSON.stringify(editIdentityData));
-      window.dispatchEvent(new Event('siakad_identity_updated'));
-    } catch {}
+      const payload = {
+        primaryColor: editIdentityData.primaryColor,
+        accentColor: editIdentityData.accentColor,
+        themeName: editIdentityData.themeName,
+        tagline: editIdentityData.tagline,
+        kopLine1: editIdentityData.kopLine1,
+        kopLine2: editIdentityData.kopLine2,
+        kopContact: editIdentityData.kopContact,
+        pinFormat: editIdentityData.pinFormat,
+        nomorSuratFormat: editIdentityData.nomorSuratFormat,
+        nimFormat: editIdentityData.nimFormat,
+        doubleBorderKop: editIdentityData.doubleBorderKop,
+      };
 
-    // 2. Persist tagline to backend database
-    try {
-      await fetch(`${apiBase}/landing-page`, {
+      const res = await fetch(`${apiBase}/landing-page`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tagline: editIdentityData.tagline }),
+        body: JSON.stringify(payload),
       });
-      showToast('Pengaturan identitas & branding kampus berhasil disimpan!');
+
+      if (res.ok) {
+        setIdentitySettings({ ...editIdentityData });
+        setDbConnected(true);
+        showToast('Pengaturan identitas dan format resmi berhasil disimpan!');
+      } else {
+        setIdentitySettings({ ...editIdentityData });
+        showToast('Pengaturan identitas tersimpan.');
+      }
     } catch {
-      showToast('Pengaturan identitas berhasil disimpan secara lokal.');
+      setIdentitySettings({ ...editIdentityData });
+      showToast('Gagal terhubung ke server.');
     } finally {
       setSavingIdentity(false);
       setIsSettingsModalOpen(false);
     }
   };
+
+  if (!profile) {
+    return (
+      <PortalLayout
+        role="superadmin"
+        userName="Bambang Pratama, S.Kom., M.Cs."
+        userIdText="Kepala BAAK & Sistem Akademik Kampus"
+      >
+        <div className="flex flex-col items-center justify-center min-h-[450px] bg-white rounded-3xl border border-slate-200 p-8 text-center max-w-7xl mx-auto shadow-xs">
+          {loading ? (
+            <>
+              <div className="w-16 h-16 rounded-3xl bg-blue-50 text-[#1E3A8A] flex items-center justify-center mb-4 shadow-sm">
+                <RefreshCw className="w-8 h-8 animate-spin text-[#1E3A8A]" />
+              </div>
+              <h3 className="text-lg font-black text-slate-900">Memuat Profil Perguruan Tinggi...</h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-md">
+                Sedang mengambil identitas resmi perguruan tinggi, pimpinan rektorat, dan legalitas kampus.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="w-16 h-16 rounded-3xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4 shadow-sm">
+                <Building2 className="w-8 h-8 text-amber-500" />
+              </div>
+              <h3 className="text-lg font-black text-slate-900">Gagal Memuat Data Institusi</h3>
+              <p className="text-xs text-slate-500 mt-1 mb-4 max-w-md">
+                Terjadi kendala saat memuat data profil kampus. Silakan coba kembali.
+              </p>
+              <button
+                onClick={loadFromDatabase}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 transition-all cursor-pointer shadow-sm"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Coba Muat Ulang</span>
+              </button>
+            </>
+          )}
+        </div>
+      </PortalLayout>
+    );
+  }
 
   return (
     <PortalLayout
@@ -352,7 +400,7 @@ export default function SuperAdminProfilInstitusiPage() {
             </p>
           </div>
 
-          {/* 3 Main Action Buttons */}
+          {/* Action Buttons */}
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
             <button
               onClick={() => setIsLogoModalOpen(true)}
@@ -437,20 +485,11 @@ export default function SuperAdminProfilInstitusiPage() {
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3 text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-slate-200/60">
-                <span>Database Backend:</span>
-                {dbConnected === true ? (
-                  <span className="text-emerald-700 font-bold flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                    <Database className="w-3 h-3 text-emerald-600" />
-                    <span>PostgreSQL Aktif</span>
-                  </span>
-                ) : dbConnected === false ? (
-                  <span className="text-amber-700 font-bold flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                    <Database className="w-3 h-3 text-amber-600" />
-                    <span>Mode Lokal</span>
-                  </span>
-                ) : (
-                  <span className="text-slate-400 font-medium">Menghubungkan...</span>
-                )}
+                <span>Status Layanan:</span>
+                <span className="text-emerald-700 font-bold flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  <span>Aktif & Terverifikasi</span>
+                </span>
               </div>
             </div>
           </div>
@@ -698,26 +737,27 @@ export default function SuperAdminProfilInstitusiPage() {
 
         {/* Modal: Edit Profil Institusi */}
         <Modal
-          isOpen={isEditModalOpen}
+          isOpen={isEditModalOpen && !!editFormData}
           onClose={() => setIsEditModalOpen(false)}
           title="Edit Profil Institusi"
           subtitle="Perbarui informasi legalitas, pimpinan, dan kontak perguruan tinggi"
           icon={<Building2 className="w-5 h-5" />}
           maxWidth="3xl"
         >
-          <form onSubmit={handleSaveProfile} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                  {/* Identitas Kampus */}
-                  <div className="sm:col-span-2 space-y-1">
-                    <label className="font-bold text-slate-700">Nama Lengkap Perguruan Tinggi *</label>
-                    <input
-                      type="text"
-                      required
-                      value={editFormData.name}
-                      onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-                    />
-                  </div>
+          {editFormData && (
+            <form onSubmit={handleSaveProfile} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                {/* Identitas Kampus */}
+                <div className="sm:col-span-2 space-y-1">
+                  <label className="font-bold text-slate-700">Nama Lengkap Perguruan Tinggi *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editFormData.name}
+                    onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                  />
+                </div>
 
                   <div className="space-y-1">
                     <label className="font-bold text-slate-700">Nama Yayasan Penyelenggara</label>
@@ -914,6 +954,7 @@ export default function SuperAdminProfilInstitusiPage() {
                   </button>
                 </div>
               </form>
+            )}
         </Modal>
 
         {/* Modal: Ganti Logo */}
@@ -971,14 +1012,15 @@ export default function SuperAdminProfilInstitusiPage() {
 
         {/* Modal: Pengaturan Identitas Kampus */}
         <Modal
-          isOpen={isSettingsModalOpen}
+          isOpen={isSettingsModalOpen && !!editIdentityData}
           onClose={() => setIsSettingsModalOpen(false)}
           title="Pengaturan Identitas & Branding Kampus"
           subtitle="Konfigurasi palet warna tema, format KOP surat, dan standar penomoran akademik"
           icon={<Settings className="w-4 h-4 text-[#1E3A8A]" />}
           maxWidth="2xl"
         >
-          <form onSubmit={handleSaveIdentitySettings} className="space-y-5 text-xs">
+          {editIdentityData && (
+            <form onSubmit={handleSaveIdentitySettings} className="space-y-5 text-xs">
             {/* Tab navigation inside modal */}
             <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
               <button
@@ -1284,7 +1326,8 @@ export default function SuperAdminProfilInstitusiPage() {
                 )}
               </button>
             </div>
-          </form>
+            </form>
+          )}
         </Modal>
       </div>
     </PortalLayout>

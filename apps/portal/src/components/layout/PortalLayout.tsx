@@ -20,6 +20,7 @@ import {
   Users,
   BookOpen,
   Award,
+  FlaskConical,
   Bell,
   LogOut,
   Menu,
@@ -60,11 +61,13 @@ import {
   UserPlus,
   CalendarDays,
   ChevronDown,
+  CheckCircle2,
+  Wallet,
 } from 'lucide-react';
 
 interface PortalLayoutProps {
   children: React.ReactNode;
-  role: 'student' | 'lecturer' | 'admin' | 'superadmin';
+  role: 'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance';
   userName: string;
   userIdText: string;
 }
@@ -75,7 +78,7 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [effectiveRole, setEffectiveRole] = useState<
-    'student' | 'lecturer' | 'admin' | 'superadmin'
+    'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance'
   >(role);
   const [isVerifying, setIsVerifying] = useState(true);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
@@ -201,13 +204,19 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
     {
       title: 'PENGAJARAN & NILAI',
       items: [
-        { name: 'Jadwal Mengajar', href: '/lecturer#jadwal', icon: Calendar },
-        { name: 'Input Nilai Semester', href: '/lecturer#nilai', icon: Award },
+        { name: 'Jadwal Mengajar', href: '/lecturer/jadwal', icon: Calendar },
+        { name: 'Input Nilai Semester', href: '/lecturer/nilai', icon: Award },
       ],
     },
     {
       title: 'BIMBINGAN',
-      items: [{ name: 'Mahasiswa Bimbingan PA', href: '/lecturer#bimbingan', icon: Users }],
+      items: [{ name: 'Mahasiswa Bimbingan PA', href: '/lecturer/bimbingan', icon: Users }],
+    },
+    {
+      title: 'PENELITIAN & PENGABDIAN (P3M)',
+      items: [
+        { name: 'Laporan Penelitian & PkM', href: '/lecturer/p3m', icon: FlaskConical },
+      ],
     },
   ];
 
@@ -250,9 +259,9 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
       items: [
         { name: 'Tahun Akademik', href: '/admin/superadmin/tahun-akademik', icon: Calendar },
         { name: 'Semester', href: '/admin/superadmin/semester', icon: Clock },
-        { name: 'Jadwal', href: '/admin/superadmin#jadwal', icon: CalendarDays },
+        { name: 'Jadwal', href: '/admin/superadmin/jadwal', icon: CalendarDays },
         { name: 'KRS', href: '/admin/superadmin#krs', icon: FileText },
-        { name: 'Nilai', href: '/admin/superadmin#nilai', icon: Award },
+        { name: 'Nilai', href: '/admin/superadmin/nilai', icon: Award },
         { name: 'Presensi', href: '/admin/superadmin#presensi', icon: UserCheck },
       ],
     },
@@ -260,7 +269,7 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
       title: 'PENGGUNA',
       items: [
         { name: 'Mahasiswa', href: '/admin/superadmin#mahasiswa', icon: Users },
-        { name: 'Dosen', href: '/admin/superadmin#dosen', icon: UserCheck },
+        { name: 'Dosen', href: '/admin/superadmin/dosen', icon: UserCheck },
         { name: 'Pegawai', href: '/admin/superadmin/pegawai', icon: Briefcase },
         { name: 'User', href: '/admin/superadmin#users', icon: User },
         { name: 'Role & Permission', href: '/admin/superadmin#roles', icon: ShieldCheck },
@@ -299,6 +308,30 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
     },
   ];
 
+  const financeNavGroups = [
+    {
+      title: 'MENU UTAMA',
+      items: [
+        { name: 'Dashboard Keuangan', href: '/finance', icon: LayoutDashboard },
+      ],
+    },
+    {
+      title: 'PENERIMAAN & TAGIHAN',
+      items: [
+        { name: 'Penerimaan SPP & UKT', href: '/finance#penerimaan', icon: CreditCard },
+        { name: 'Daftar Tagihan Mahasiswa', href: '/finance#tagihan', icon: FileText },
+        { name: 'Verifikasi Pembayaran', href: '/finance#verifikasi', icon: ShieldCheck },
+      ],
+    },
+    {
+      title: 'KAS & ANGGARAN',
+      items: [
+        { name: 'Rekening Bank & Kas', href: '/finance#rekening', icon: Landmark },
+        { name: 'Realisasi Anggaran Kampus', href: '/finance#anggaran', icon: TrendingUp },
+      ],
+    },
+  ];
+
   const navGroups =
     effectiveRole === 'student'
       ? studentNavGroups
@@ -306,7 +339,9 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
         ? lecturerNavGroups
         : effectiveRole === 'superadmin'
           ? superAdminNavGroups
-          : adminNavGroups;
+          : effectiveRole === 'finance'
+            ? financeNavGroups
+            : adminNavGroups;
 
   const roleLabel =
     effectiveRole === 'student'
@@ -315,7 +350,9 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
         ? 'Portal Dosen'
         : effectiveRole === 'superadmin'
           ? 'Super Administrator'
-          : 'Administrator BAAK';
+          : effectiveRole === 'finance'
+            ? 'Biro Keuangan (Finance)'
+            : 'Administrator BAAK';
 
   const displayName = currentUser?.fullName || userName;
   const displayAvatar = currentUser?.avatarUrl;
@@ -324,11 +361,13 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
     userIdText ||
     (effectiveRole === 'superadmin'
       ? 'Super Administrator (Platform)'
-      : effectiveRole === 'admin'
-        ? 'Biro BAAK Pusat'
-        : effectiveRole === 'lecturer'
-          ? 'Dosen Pengajar'
-          : 'Mahasiswa Aktif');
+      : effectiveRole === 'finance'
+        ? 'Biro Keuangan Kampus'
+        : effectiveRole === 'admin'
+          ? 'Biro BAAK Pusat'
+          : effectiveRole === 'lecturer'
+            ? 'Dosen Pengajar'
+            : 'Mahasiswa Aktif');
 
   if (isVerifying) {
     return (
@@ -543,7 +582,9 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
                         ? 'Dosen'
                         : effectiveRole === 'superadmin'
                           ? 'Super Admin'
-                          : 'Admin BAAK'}
+                          : effectiveRole === 'finance'
+                            ? 'Biro Keuangan'
+                            : 'Admin BAAK'}
                   </span>
                 </div>
 
@@ -572,7 +613,7 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
                         <p className="text-xs font-bold text-slate-900 truncate">{displayName}</p>
                         <p className="text-[11px] text-slate-500 truncate">{displayId}</p>
                         <span className="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-[#1E3A8A]">
-                          {effectiveRole === 'student' ? 'Mahasiswa Aktif' : effectiveRole.toUpperCase()}
+                          {effectiveRole === 'student' ? 'Mahasiswa Aktif' : effectiveRole === 'finance' ? 'Biro Keuangan' : effectiveRole.toUpperCase()}
                         </span>
                       </div>
                     </div>
@@ -581,7 +622,7 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
                   {/* Menu Links */}
                   <div className="px-2 py-1.5 space-y-1">
                     <Link
-                      href={effectiveRole === 'student' ? '/student/profil' : effectiveRole === 'lecturer' ? '/lecturer' : '/admin'}
+                      href={effectiveRole === 'student' ? '/student/profil' : effectiveRole === 'lecturer' ? '/lecturer' : effectiveRole === 'finance' ? '/finance' : '/admin'}
                       onClick={() => setProfileDropdownOpen(false)}
                       className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:text-[#1E3A8A] hover:bg-blue-50/70 rounded-xl transition-all"
                     >

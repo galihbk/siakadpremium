@@ -7,6 +7,26 @@ import { Menu, X, Phone, Mail, UserCircle, ArrowRight } from 'lucide-react';
 export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [portalUrl, setPortalUrl] = useState('http://portal.siakadpremium.ac.id');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const hostname = window.location.hostname;
+
+      if (hostname === 'siakadpremium.ac.id' || hostname.endsWith('.siakadpremium.ac.id')) {
+        setPortalUrl('http://portal.siakadpremium.ac.id');
+      } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        setPortalUrl('http://localhost:3002');
+      } else if (hostname === 'galihjp.com' || hostname.endsWith('.galihjp.com')) {
+        setPortalUrl('https://portal.galihjp.com');
+      } else if (process.env.NEXT_PUBLIC_PORTAL_URL) {
+        setPortalUrl(process.env.NEXT_PUBLIC_PORTAL_URL);
+      } else {
+        const protocol = window.location.protocol;
+        setPortalUrl(`${protocol}//portal.${hostname}`);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -47,13 +67,13 @@ export function Navbar() {
           </div>
 
           <div className="flex items-center space-x-3 sm:space-x-4 text-[11px] sm:text-xs text-blue-100">
-            <Link
-              href="/login"
+            <a
+              href={portalUrl}
               className="hover:text-white font-semibold transition-colors flex items-center gap-1 text-[#D4A017]"
             >
               <span>Portal SIAKAD</span>
               <ArrowRight className="w-3 h-3" />
-            </Link>
+            </a>
             <span className="text-blue-400">|</span>
             <Link href="#kontak" className="hover:text-white transition-colors hidden xs:inline">
               Perpustakaan
@@ -105,13 +125,13 @@ export function Navbar() {
 
             {/* Action Buttons Kanan */}
             <div className="hidden lg:flex items-center gap-2 xl:gap-3 shrink-0">
-              <Link
-                href="/login"
+              <a
+                href={portalUrl}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs xl:text-sm font-bold text-[#1E3A8A] border border-[#1E3A8A] rounded-xl hover:bg-blue-50 transition-colors whitespace-nowrap shadow-xs"
               >
                 <UserCircle className="w-4 h-4 text-[#1E3A8A]" />
                 <span>Portal Akademik</span>
-              </Link>
+              </a>
               <Link
                 href="#cta"
                 className="inline-flex items-center gap-1.5 px-4 py-2 text-xs xl:text-sm font-bold text-slate-950 bg-[#D4A017] hover:bg-[#C59114] rounded-xl shadow-xs hover:shadow transition-all whitespace-nowrap"
@@ -152,14 +172,14 @@ export function Navbar() {
             </div>
 
             <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
-              <Link
-                href="/login"
+              <a
+                href={portalUrl}
                 onClick={() => setMobileMenuOpen(false)}
                 className="w-full text-center px-4 py-2.5 text-xs font-bold text-[#1E3A8A] border border-[#1E3A8A] rounded-xl hover:bg-blue-50 flex items-center justify-center gap-2"
               >
                 <UserCircle className="w-4 h-4" />
                 <span>Masuk Portal Akademik</span>
-              </Link>
+              </a>
               <Link
                 href="#cta"
                 onClick={() => setMobileMenuOpen(false)}

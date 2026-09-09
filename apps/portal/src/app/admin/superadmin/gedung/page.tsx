@@ -25,6 +25,7 @@ import {
   Phone,
   DoorOpen,
   Wrench,
+  Loader2,
 } from 'lucide-react';
 
 interface BuildingItem {
@@ -43,101 +44,12 @@ interface BuildingItem {
   description: string;
 }
 
-const initialBuildings: BuildingItem[] = [
-  {
-    id: 'b-1',
-    code: 'TWR-A',
-    name: 'Gedung BJ Habibie',
-    alias: 'Tower A - Fakultas Ilmu Komputer',
-    functionDesc: 'Dekanat FASILKOM, Lab Kecerdasan Buatan, Lab Jaringan, dan Ruang Kuliah Teori.',
-    floorsCount: 6,
-    roomsCount: 24,
-    capacity: 2400,
-    picName: 'Heri Susanto, S.T. (Urusan Rumah Tangga A)',
-    picPhone: '0812-3456-7890',
-    status: 'Aktif Beroperasi',
-    establishedYear: 2018,
-    description: 'Tower modern 6 lantai dengan fasilitas fiber optic 10 Gbps, smart classroom, dan data center kampus.',
-  },
-  {
-    id: 'b-2',
-    code: 'TWR-C',
-    name: 'Gedung Soekarno',
-    alias: 'Tower C - Fakultas Teknik & Industri',
-    functionDesc: 'Dekanat FTI, Workshop Mekatronika, Laboratorium Listrik Tenaga, dan Bengkel Mesin CNC.',
-    floorsCount: 5,
-    roomsCount: 28,
-    capacity: 2200,
-    picName: 'Bambang Irawan (Urusan Rumah Tangga C)',
-    picPhone: '0813-9876-5432',
-    status: 'Aktif Beroperasi',
-    establishedYear: 2016,
-    description: 'Fasilitas rekayasa terpadu dengan daya listrik industri 3-phase dan sistem ventilasi sirkulasi udara khusus.',
-  },
-  {
-    id: 'b-3',
-    code: 'TWR-B',
-    name: 'Gedung Mohammad Hatta',
-    alias: 'Tower B - Fakultas Ekonomi & Bisnis',
-    functionDesc: 'Dekanat FEBD, Laboratorium FinTech, Galeri Investasi BEI, dan Ruang Kuliah Eksekutif.',
-    floorsCount: 4,
-    roomsCount: 18,
-    capacity: 1800,
-    picName: 'Rahmat Hidayat, A.Md. (URT B)',
-    picPhone: '0857-1122-3344',
-    status: 'Aktif Beroperasi',
-    establishedYear: 2019,
-    description: 'Pusat pembelajaran bisnis digital dilengkapi simulasi trading bursa efek dan auditorium mini.',
-  },
-  {
-    id: 'b-4',
-    code: 'TWR-D',
-    name: 'Gedung Ki Hajar Dewantara',
-    alias: 'Tower D - Fakultas Desain Komunikasi Visual',
-    functionDesc: 'Dekanat FDKV, Studio Rendering 3D, Studio Motion Capture Animasi, dan Galeri Seni.',
-    floorsCount: 4,
-    roomsCount: 16,
-    capacity: 1400,
-    picName: 'Yusuf Maulana (URT D)',
-    picPhone: '0821-4455-6677',
-    status: 'Aktif Beroperasi',
-    establishedYear: 2021,
-    description: 'Gedung kreatif dengan akustik khusus, studio fotografi profesional, dan lab komputasi grafis Mac/Workstation.',
-  },
-  {
-    id: 'b-5',
-    code: 'GRH-NUT',
-    name: 'Graha Nusantara (Rektorat & BAAK)',
-    alias: 'Gedung Pusat Administrasi Kampus',
-    functionDesc: 'Kantor Rektor & Wakil Rektor, Layanan Terpadu BAAK, Biro Keuangan, dan Balai Sidang Senat.',
-    floorsCount: 4,
-    roomsCount: 14,
-    capacity: 800,
-    picName: 'Ir. Joko Pramono (Kepala Sarana Prasarana)',
-    picPhone: '0811-7788-9900',
-    status: 'Aktif Beroperasi',
-    establishedYear: 2015,
-    description: 'Pusat pelayanan administratif sivitas akademika terpadu satu atap (One Stop Academic Service).',
-  },
-  {
-    id: 'b-6',
-    code: 'HUB-INOV',
-    name: 'Pusat Riset & Hub Inovasi Digital',
-    alias: 'Gedung Inkubator & Kolaborasi Industri',
-    functionDesc: 'Coworking space riset multidisiplin, inkubator startup mahasiswa, dan laboratorium bersama mitra teknologi.',
-    floorsCount: 3,
-    roomsCount: 12,
-    capacity: 600,
-    picName: 'Didik Kurniawan, S.Kom. (Pengelola Hub)',
-    picPhone: '0878-2233-4455',
-    status: 'Aktif Beroperasi',
-    establishedYear: 2023,
-    description: 'Gedung riset terapan kolaboratif penghubung kampus dengan industri digital dan venture capital.',
-  },
-];
-
 export default function SuperAdminGedungPage() {
-  const [buildings, setBuildings] = useState<BuildingItem[]>(initialBuildings);
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
+  const [buildings, setBuildings] = useState<BuildingItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('Semua');
 
@@ -180,6 +92,31 @@ export default function SuperAdminGedungPage() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  // Muat data gedung kampus dari sistem
+  const loadBuildings = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/buildings`);
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data || json;
+        if (Array.isArray(data)) {
+          setBuildings(data);
+        }
+      } else {
+        console.error('Respon sistem tidak sesuai:', res.status);
+      }
+    } catch (err) {
+      console.error('Koneksi ke sistem gedung terputus:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadBuildings();
+  }, []);
+
   // Sorting & Pagination State
   const [sortField, setSortField] = useState<string>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -203,10 +140,10 @@ export default function SuperAdminGedungPage() {
   const filteredBuildings = useMemo(() => {
     return buildings.filter((b) => {
       const matchSearch =
-        b.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        b.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        b.alias.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        b.picName.toLowerCase().includes(searchQuery.toLowerCase());
+        (b.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (b.code || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (b.alias || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (b.picName || '').toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchStatus = statusFilter === 'Semua' || b.status === statusFilter;
 
@@ -238,9 +175,9 @@ export default function SuperAdminGedungPage() {
 
   const metrics = useMemo(() => {
     const totalGedung = buildings.length;
-    const totalLantai = buildings.reduce((acc, b) => acc + b.floorsCount, 0);
-    const totalKapasitas = buildings.reduce((acc, b) => acc + b.capacity, 0);
-    const totalRuang = buildings.reduce((acc, b) => acc + b.roomsCount, 0);
+    const totalLantai = buildings.reduce((acc, b) => acc + (b.floorsCount || 0), 0);
+    const totalKapasitas = buildings.reduce((acc, b) => acc + (b.capacity || 0), 0);
+    const totalRuang = buildings.reduce((acc, b) => acc + (b.roomsCount || 0), 0);
     return { totalGedung, totalLantai, totalKapasitas, totalRuang };
   }, [buildings]);
 
@@ -282,44 +219,68 @@ export default function SuperAdminGedungPage() {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
-    if (editingBuilding) {
-      setBuildings((prev) =>
-        prev.map((b) =>
-          b.id === editingBuilding.id
-            ? {
-                ...b,
-                ...formData,
-                floorsCount: Number(formData.floorsCount),
-                roomsCount: Number(formData.roomsCount),
-                capacity: Number(formData.capacity),
-                establishedYear: Number(formData.establishedYear),
-              }
-            : b
-        )
-      );
-      showToast(`Data gedung "${formData.name}" berhasil diperbarui.`);
-    } else {
-      const newBuilding: BuildingItem = {
-        id: `b-${Date.now()}`,
-        ...formData,
-        floorsCount: Number(formData.floorsCount),
-        roomsCount: Number(formData.roomsCount),
-        capacity: Number(formData.capacity),
-        establishedYear: Number(formData.establishedYear),
-      };
-      setBuildings([...buildings, newBuilding]);
-      showToast(`Gedung baru "${formData.name}" berhasil ditambahkan.`);
+    const payload = {
+      ...formData,
+      floorsCount: Number(formData.floorsCount),
+      roomsCount: Number(formData.roomsCount),
+      capacity: Number(formData.capacity),
+      establishedYear: Number(formData.establishedYear),
+    };
+
+    try {
+      if (editingBuilding) {
+        const res = await fetch(`${apiBase}/buildings/${editingBuilding.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          showToast(`Data gedung "${formData.name}" berhasil diperbarui.`);
+          await loadBuildings();
+          setIsModalOpen(false);
+        } else {
+          showToast('Gagal memperbarui data gedung. Silakan periksa kembali formulir.');
+        }
+      } else {
+        const res = await fetch(`${apiBase}/buildings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          showToast(`Gedung baru "${formData.name}" berhasil ditambahkan.`);
+          await loadBuildings();
+          setIsModalOpen(false);
+        } else {
+          showToast('Gagal menambahkan gedung baru. Kode gedung mungkin sudah terdaftar.');
+        }
+      }
+    } catch {
+      showToast('Terjadi gangguan koneksi saat menyimpan data gedung.');
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsModalOpen(false);
   };
 
-  const handleDelete = (id: string, name: string) => {
-    if (confirm(`Hapus data "${name}"? Ruangan terkait gedung ini akan terpengaruh.`)) {
-      setBuildings((prev) => prev.filter((b) => b.id !== id));
-      showToast(`Gedung "${name}" berhasil dihapus.`);
+  const handleDelete = async (id: string, name: string) => {
+    if (confirm(`Hapus data gedung "${name}"? Seluruh data terkait gedung ini akan disesuaikan.`)) {
+      try {
+        const res = await fetch(`${apiBase}/buildings/${id}`, {
+          method: 'DELETE',
+        });
+        if (res.ok) {
+          showToast(`Gedung "${name}" berhasil dihapus.`);
+          await loadBuildings();
+        } else {
+          showToast('Gagal menghapus data gedung.');
+        }
+      } catch {
+        showToast('Terjadi gangguan koneksi saat menghapus data gedung.');
+      }
     }
   };
 
@@ -591,7 +552,15 @@ export default function SuperAdminGedungPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {paginatedBuildings.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-12 text-slate-500">
+                      <Loader2 className="w-8 h-8 text-[#1E3A8A] animate-spin mx-auto mb-2" />
+                      <p className="font-semibold text-sm text-slate-700">Memuat data gedung kampus...</p>
+                      <p className="text-xs text-slate-400 mt-0.5">Mengambil data resmi fasilitas dan sarana fisik</p>
+                    </td>
+                  </tr>
+                ) : paginatedBuildings.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="text-center py-12 text-slate-500">
                       <Building2 className="w-10 h-10 text-slate-300 mx-auto mb-2" />
@@ -879,9 +848,17 @@ export default function SuperAdminGedungPage() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 transition-all shadow-xs"
+                    disabled={isSubmitting}
+                    className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 disabled:opacity-50 transition-all shadow-xs flex items-center gap-1.5"
                   >
-                    {editingBuilding ? 'Simpan Perubahan' : 'Tambah Gedung'}
+                    {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span>
+                      {isSubmitting
+                        ? 'Menyimpan...'
+                        : editingBuilding
+                        ? 'Simpan Perubahan'
+                        : 'Tambah Gedung'}
+                    </span>
                   </button>
                 </div>
               </form>

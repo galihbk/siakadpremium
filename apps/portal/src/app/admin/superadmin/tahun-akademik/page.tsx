@@ -26,6 +26,7 @@ import {
   Check,
   Radio,
   FileText,
+  Loader2,
 } from 'lucide-react';
 
 interface AcademicYearItem {
@@ -44,101 +45,12 @@ interface AcademicYearItem {
   notes: string;
 }
 
-const initialYears: AcademicYearItem[] = [
-  {
-    id: 'ay-1',
-    code: '2026',
-    yearName: '2026/2027',
-    startDate: '2026-08-01',
-    endDate: '2027-07-31',
-    pmbStartDate: '2026-01-05',
-    pmbEndDate: '2026-07-25',
-    semestersAvailable: ['Gasal (Aktif)', 'Genap', 'Pendek'],
-    studentsCount: 8540,
-    skRektor: 'SK Rektor No. 042/ITN/R/2026',
-    isActive: true,
-    status: 'Aktif',
-    notes: 'Tahun akademik berjalan untuk seluruh program studi sarjana dan vokasi terpadu ITN.',
-  },
-  {
-    id: 'ay-2',
-    code: '2025',
-    yearName: '2025/2026',
-    startDate: '2025-08-01',
-    endDate: '2026-07-31',
-    pmbStartDate: '2025-01-10',
-    pmbEndDate: '2025-07-28',
-    semestersAvailable: ['Gasal', 'Genap', 'Pendek'],
-    studentsCount: 8120,
-    skRektor: 'SK Rektor No. 038/ITN/R/2025',
-    isActive: false,
-    status: 'Arsip',
-    notes: 'Telah tuntas 100%. Pelaporan Feeder PDDIKTI Gasal, Genap, dan Pendek selesai terverifikasi.',
-  },
-  {
-    id: 'ay-3',
-    code: '2024',
-    yearName: '2024/2025',
-    startDate: '2024-08-01',
-    endDate: '2025-07-31',
-    pmbStartDate: '2024-01-15',
-    pmbEndDate: '2024-07-30',
-    semestersAvailable: ['Gasal', 'Genap', 'Pendek'],
-    studentsCount: 7650,
-    skRektor: 'SK Rektor No. 029/ITN/R/2024',
-    isActive: false,
-    status: 'Arsip',
-    notes: 'Arsip akademik. Kurikulum OBE 2024 pertama kali diterapkan secara masif pada angkatan ini.',
-  },
-  {
-    id: 'ay-4',
-    code: '2023',
-    yearName: '2023/2024',
-    startDate: '2023-08-01',
-    endDate: '2024-07-31',
-    pmbStartDate: '2023-01-10',
-    pmbEndDate: '2023-07-25',
-    semestersAvailable: ['Gasal', 'Genap', 'Pendek'],
-    studentsCount: 7100,
-    skRektor: 'SK Rektor No. 018/ITN/R/2023',
-    isActive: false,
-    status: 'Arsip',
-    notes: 'Arsip riwayat akademik dan pelaporan nilai kelulusan angkatan 2019/2020.',
-  },
-  {
-    id: 'ay-5',
-    code: '2022',
-    yearName: '2022/2023',
-    startDate: '2022-08-01',
-    endDate: '2023-07-31',
-    pmbStartDate: '2022-01-08',
-    pmbEndDate: '2022-07-20',
-    semestersAvailable: ['Gasal', 'Genap', 'Pendek'],
-    studentsCount: 6580,
-    skRektor: 'SK Rektor No. 012/ITN/R/2022',
-    isActive: false,
-    status: 'Arsip',
-    notes: 'Arsip data historis akademik sistem SIAKAD kampus ITN.',
-  },
-  {
-    id: 'ay-6',
-    code: '2027',
-    yearName: '2027/2028',
-    startDate: '2027-08-01',
-    endDate: '2028-07-31',
-    pmbStartDate: '2027-01-04',
-    pmbEndDate: '2027-07-24',
-    semestersAvailable: ['Gasal', 'Genap', 'Pendek'],
-    studentsCount: 0,
-    skRektor: 'Draft SK Rektor 2027',
-    isActive: false,
-    status: 'Mendatang',
-    notes: 'Perencanaan kuota daya tampung penerimaan mahasiswa baru (PMB 2027).',
-  },
-];
-
 export default function SuperAdminTahunAkademikPage() {
-  const [years, setYears] = useState<AcademicYearItem[]>(initialYears);
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
+  const [years, setYears] = useState<AcademicYearItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('Semua');
 
@@ -146,6 +58,35 @@ export default function SuperAdminTahunAkademikPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingYear, setEditingYear] = useState<AcademicYearItem | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const loadYears = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/academic/years`);
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data || json;
+        if (Array.isArray(data)) {
+          setYears(data);
+        }
+      } else {
+        console.error('Gagal memuat tahun akademik:', res.status);
+      }
+    } catch (err) {
+      console.error('Koneksi ke sistem tahun akademik terputus:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadYears();
+  }, []);
 
   // Form State
   const [formData, setFormData] = useState<{
@@ -172,11 +113,6 @@ export default function SuperAdminTahunAkademikPage() {
     notes: '',
   });
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
-
   // Sorting & Pagination State
   const [sortField, setSortField] = useState<string>('code');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -200,9 +136,9 @@ export default function SuperAdminTahunAkademikPage() {
   const filteredYears = useMemo(() => {
     return years.filter((y) => {
       const matchSearch =
-        y.yearName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        y.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        y.skRektor.toLowerCase().includes(searchQuery.toLowerCase());
+        (y.yearName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (y.code || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (y.skRektor || '').toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchStatus = statusFilter === 'Semua' || y.status === statusFilter;
 
@@ -244,16 +180,23 @@ export default function SuperAdminTahunAkademikPage() {
     return { totalTA, activeStudents, archiveCount };
   }, [years, activeYear]);
 
-  const handleSetActive = (id: string, yearName: string) => {
+  const handleSetActive = async (id: string, yearName: string) => {
     if (confirm(`Jadikan tahun akademik "${yearName}" sebagai tahun akademik AKTIF kampus? Seluruh sistem registrasi dan KRS akan mengacu pada tahun ajaran ini.`)) {
-      setYears((prev) =>
-        prev.map((y) => ({
-          ...y,
-          isActive: y.id === id,
-          status: y.id === id ? 'Aktif' : y.status === 'Aktif' ? 'Arsip' : y.status,
-        }))
-      );
-      showToast(`Tahun akademik "${yearName}" sekarang aktif sebagai acuan sistem.`);
+      try {
+        const res = await fetch(`${apiBase}/academic/years/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isActive: true, status: 'Aktif' }),
+        });
+        if (res.ok) {
+          showToast(`Tahun akademik "${yearName}" sekarang aktif sebagai acuan sistem.`);
+          await loadYears();
+        } else {
+          showToast('Gagal mengaktifkan tahun akademik.');
+        }
+      } catch {
+        showToast('Terjadi gangguan koneksi saat mengaktifkan tahun akademik.');
+      }
     }
   };
 
@@ -286,50 +229,55 @@ export default function SuperAdminTahunAkademikPage() {
       studentsCount: y.studentsCount,
       skRektor: y.skRektor,
       isActive: y.isActive,
-      notes: y.notes,
+      notes: y.notes || '',
     });
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
+    const payload = {
+      ...formData,
+      studentsCount: Number(formData.studentsCount),
+    };
 
-    if (editingYear) {
-      setYears((prev) =>
-        prev.map((y) =>
-          y.id === editingYear.id
-            ? {
-                ...y,
-                ...formData,
-                studentsCount: Number(formData.studentsCount),
-                status: formData.isActive ? 'Aktif' : y.status,
-              }
-            : formData.isActive
-              ? { ...y, isActive: false, status: y.isActive ? 'Arsip' : y.status }
-              : y
-        )
-      );
-      showToast(`Tahun akademik "${formData.yearName}" berhasil diperbarui.`);
-    } else {
-      const newYear: AcademicYearItem = {
-        id: `ay-${Date.now()}`,
-        ...formData,
-        semestersAvailable: ['Gasal', 'Genap', 'Pendek'],
-        studentsCount: Number(formData.studentsCount),
-        status: formData.isActive ? 'Aktif' : 'Mendatang',
-      };
-
-      setYears((prev) =>
-        formData.isActive
-          ? [newYear, ...prev.map((y) => ({ ...y, isActive: false, status: y.isActive ? 'Arsip' : y.status }))]
-          : [newYear, ...prev]
-      );
-      showToast(`Tahun akademik baru "${formData.yearName}" berhasil ditambahkan.`);
+    try {
+      if (editingYear) {
+        const res = await fetch(`${apiBase}/academic/years/${editingYear.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          showToast(`Tahun akademik "${formData.yearName}" berhasil diperbarui.`);
+          await loadYears();
+          setIsModalOpen(false);
+        } else {
+          showToast('Gagal memperbarui tahun akademik.');
+        }
+      } else {
+        const res = await fetch(`${apiBase}/academic/years`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          showToast(`Tahun akademik baru "${formData.yearName}" berhasil ditambahkan.`);
+          await loadYears();
+          setIsModalOpen(false);
+        } else {
+          showToast('Gagal menambahkan tahun akademik.');
+        }
+      }
+    } catch {
+      showToast('Terjadi gangguan koneksi saat menyimpan tahun akademik.');
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsModalOpen(false);
   };
 
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = async (id: string, name: string) => {
     const targetYear = years.find((y) => y.id === id);
     if (targetYear?.isActive) {
       alert('Tidak dapat menghapus tahun akademik yang sedang AKTIF!');
@@ -337,8 +285,19 @@ export default function SuperAdminTahunAkademikPage() {
     }
 
     if (confirm(`Hapus data tahun akademik "${name}"?`)) {
-      setYears((prev) => prev.filter((y) => y.id !== id));
-      showToast(`Tahun akademik "${name}" berhasil dihapus.`);
+      try {
+        const res = await fetch(`${apiBase}/academic/years/${id}`, {
+          method: 'DELETE',
+        });
+        if (res.ok) {
+          showToast(`Tahun akademik "${name}" berhasil dihapus.`);
+          await loadYears();
+        } else {
+          showToast('Gagal menghapus tahun akademik.');
+        }
+      } catch {
+        showToast('Terjadi gangguan koneksi saat menghapus tahun akademik.');
+      }
     }
   };
 
@@ -595,7 +554,17 @@ export default function SuperAdminTahunAkademikPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {paginatedYears.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-16 text-slate-500">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <Loader2 className="w-8 h-8 text-[#1E3A8A] animate-spin" />
+                        <p className="font-semibold text-sm text-slate-700">Memuat data tahun akademik kampus...</p>
+                        <p className="text-xs text-slate-400">Sinkronisasi status acuan kalender perkuliahan</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : paginatedYears.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="text-center py-12 text-slate-500">
                       <Calendar className="w-10 h-10 text-slate-300 mx-auto mb-2" />
@@ -930,9 +899,11 @@ export default function SuperAdminTahunAkademikPage() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 transition-all shadow-xs"
+                    disabled={isSubmitting}
+                    className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 disabled:opacity-50 transition-all shadow-xs cursor-pointer"
                   >
-                    {editingYear ? 'Simpan Perubahan' : 'Tambah Tahun Akademik'}
+                    {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span>{editingYear ? 'Simpan Perubahan' : 'Tambah Tahun Akademik'}</span>
                   </button>
                 </div>
               </form>

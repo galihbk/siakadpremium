@@ -27,6 +27,7 @@ import {
   BookOpen,
   Users,
   Flag,
+  Loader2,
 } from 'lucide-react';
 
 interface CalendarEventItem {
@@ -42,155 +43,12 @@ interface CalendarEventItem {
   notes: string;
 }
 
-const initialEvents: CalendarEventItem[] = [
-  {
-    id: 'ev-1',
-    title: 'Pembayaran UKT / SPP Semester Gasal 2026/2027',
-    category: 'Keuangan & UKT',
-    startDate: '2026-08-01',
-    endDate: '2026-08-20',
-    academicYear: '2026/2027',
-    semester: 'Gasal',
-    target: 'Seluruh Mahasiswa Aktif',
-    status: 'Selesai',
-    notes: 'Pembayaran melalui Virtual Account Bank BNI, Mandiri, BRI, dan BSI terintegrasi.',
-  },
-  {
-    id: 'ev-2',
-    title: 'Pengisian KRS Online & Bimbingan Dosen PA',
-    category: 'KRS & Registrasi',
-    startDate: '2026-08-15',
-    endDate: '2026-08-31',
-    academicYear: '2026/2027',
-    semester: 'Gasal',
-    target: 'Mahasiswa & Dosen Pembimbing Akademik',
-    status: 'Selesai',
-    notes: 'Konsultasi rencana studi dan persetujuan KRS oleh Dosen PA melalui portal.',
-  },
-  {
-    id: 'ev-3',
-    title: 'Masa Perkuliahan Efektif Bagian I (Minggu 1 - 7)',
-    category: 'Perkuliahan',
-    startDate: '2026-09-01',
-    endDate: '2026-10-23',
-    academicYear: '2026/2027',
-    semester: 'Gasal',
-    target: 'Seluruh Mahasiswa & Dosen Pengampu',
-    status: 'Berlangsung',
-    notes: 'Perkuliahan tatap muka & praktikum laboratorium terpadu di seluruh fakultas.',
-  },
-  {
-    id: 'ev-4',
-    title: 'Batas Perubahan Rencana Studi (KPRS / Batal-Tambah)',
-    category: 'KRS & Registrasi',
-    startDate: '2026-09-07',
-    endDate: '2026-09-14',
-    academicYear: '2026/2027',
-    semester: 'Gasal',
-    target: 'Mahasiswa & BAAK',
-    status: 'Berlangsung',
-    notes: 'Penyesuaian mata kuliah jika terjadi bentrok jadwal atau kuota kelas.',
-  },
-  {
-    id: 'ev-5',
-    title: 'Ujian Tengah Semester (UTS) Gasal 2026/2027',
-    category: 'Ujian (UTS/UAS)',
-    startDate: '2026-10-26',
-    endDate: '2026-11-06',
-    academicYear: '2026/2027',
-    semester: 'Gasal',
-    target: 'Mahasiswa & Panitia Ujian',
-    status: 'Akan Datang',
-    notes: 'Evaluasi tengah semester terjadwal berbasis Computer-Based Test (CBT) dan proyek.',
-  },
-  {
-    id: 'ev-6',
-    title: 'Batas Akhir Input Nilai UTS oleh Dosen',
-    category: 'Nilai & Yudisium',
-    startDate: '2026-11-07',
-    endDate: '2026-11-20',
-    academicYear: '2026/2027',
-    semester: 'Gasal',
-    target: 'Dosen Pengampu Mata Kuliah',
-    status: 'Akan Datang',
-    notes: 'Publikasi nilai UTS ke KHS mahasiswa melalui portal akademik dosen.',
-  },
-  {
-    id: 'ev-7',
-    title: 'Masa Perkuliahan Efektif Bagian II (Minggu 9 - 16)',
-    category: 'Perkuliahan',
-    startDate: '2026-11-09',
-    endDate: '2026-12-24',
-    academicYear: '2026/2027',
-    semester: 'Gasal',
-    target: 'Seluruh Mahasiswa & Dosen',
-    status: 'Akan Datang',
-    notes: 'Perkuliahan teori lanjutan, asistensi tugas besar, dan ujian praktikum.',
-  },
-  {
-    id: 'ev-8',
-    title: 'Libur Akhir Tahun & Tahun Baru 2027',
-    category: 'Libur Kampus',
-    startDate: '2026-12-25',
-    endDate: '2027-01-02',
-    academicYear: '2026/2027',
-    semester: 'Gasal',
-    target: 'Seluruh Sivitas Akademika',
-    status: 'Akan Datang',
-    notes: 'Libur nasional hari raya Natal dan pergantian Tahun Baru 2027.',
-  },
-  {
-    id: 'ev-9',
-    title: 'Ujian Akhir Semester (UAS) Gasal 2026/2027',
-    category: 'Ujian (UTS/UAS)',
-    startDate: '2027-01-04',
-    endDate: '2027-01-16',
-    academicYear: '2026/2027',
-    semester: 'Gasal',
-    target: 'Mahasiswa & Pengawas Ujian',
-    status: 'Akan Datang',
-    notes: 'Evaluasi akhir semester sebagai penentu kelulusan mata kuliah.',
-  },
-  {
-    id: 'ev-10',
-    title: 'Batas Akhir Entri Nilai UAS & Finalisasi KHS',
-    category: 'Nilai & Yudisium',
-    startDate: '2027-01-18',
-    endDate: '2027-01-28',
-    academicYear: '2026/2027',
-    semester: 'Gasal',
-    target: 'Dosen Pengampu & BAAK',
-    status: 'Akan Datang',
-    notes: 'Kunci nilai final (Grade A/B/C/D/E) dan penerbitan Kartu Hasil Studi resmi.',
-  },
-  {
-    id: 'ev-11',
-    title: 'Sidang Yudisium Sarjana & Vokasi Periode I',
-    category: 'Nilai & Yudisium',
-    startDate: '2027-02-05',
-    endDate: '2027-02-06',
-    academicYear: '2026/2027',
-    semester: 'Gasal',
-    target: 'Calon Wisudawan & Senat Fakultas',
-    status: 'Akan Datang',
-    notes: 'Penetapan kelulusan, predikat kelulusan (Cumlaude), dan penerbitan SKL.',
-  },
-  {
-    id: 'ev-12',
-    title: 'Upacara Wisuda Sarjana & Diploma ITN Ke-42',
-    category: 'Nilai & Yudisium',
-    startDate: '2027-02-27',
-    endDate: '2027-02-27',
-    academicYear: '2026/2027',
-    semester: 'Gasal',
-    target: 'Wisudawan, Senat Terbuka & Orang Tua',
-    status: 'Akan Datang',
-    notes: 'Prosesi wisuda luring di Auditorium Utama Graha Nusantara ITN.',
-  },
-];
-
 export default function SuperAdminKalenderPage() {
-  const [events, setEvents] = useState<CalendarEventItem[]>(initialEvents);
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
+  const [events, setEvents] = useState<CalendarEventItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [semesterTab, setSemesterTab] = useState<'Gasal' | 'Genap' | 'Pendek'>('Gasal');
   const [categoryFilter, setCategoryFilter] = useState('Semua');
@@ -229,6 +87,31 @@ export default function SuperAdminKalenderPage() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  // Muat agenda kalender akademik dari sistem
+  const loadCalendarEvents = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/academic/calendar-events`);
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data || json;
+        if (Array.isArray(data)) {
+          setEvents(data);
+        }
+      } else {
+        console.error('Gagal memuat agenda kalender:', res.status);
+      }
+    } catch (err) {
+      console.error('Koneksi ke kalender akademik terputus:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCalendarEvents();
+  }, []);
+
   // Sorting & Pagination State
   const [sortField, setSortField] = useState<string>('startDate');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -252,9 +135,9 @@ export default function SuperAdminKalenderPage() {
   const filteredEvents = useMemo(() => {
     return events.filter((e) => {
       const matchSearch =
-        e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        e.target.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        e.notes.toLowerCase().includes(searchQuery.toLowerCase());
+        (e.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (e.target || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (e.notes || '').toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchSemester = e.semester === semesterTab;
       const matchCategory = categoryFilter === 'Semua' || e.category === categoryFilter;
@@ -323,36 +206,60 @@ export default function SuperAdminKalenderPage() {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
-    if (editingEvent) {
-      setEvents((prev) =>
-        prev.map((ev) =>
-          ev.id === editingEvent.id
-            ? {
-                ...ev,
-                ...formData,
-              }
-            : ev
-        )
-      );
-      showToast(`Agenda "${formData.title}" berhasil diperbarui.`);
-    } else {
-      const newEvent: CalendarEventItem = {
-        id: `ev-${Date.now()}`,
-        ...formData,
-      };
-      setEvents([...events, newEvent]);
-      showToast(`Agenda baru "${formData.title}" berhasil ditambahkan.`);
+    try {
+      if (editingEvent) {
+        const res = await fetch(`${apiBase}/academic/calendar-events/${editingEvent.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData),
+        });
+        if (res.ok) {
+          showToast(`Agenda "${formData.title}" berhasil diperbarui.`);
+          await loadCalendarEvents();
+          setIsModalOpen(false);
+        } else {
+          showToast('Gagal memperbarui agenda kalender. Silakan periksa kembali formulir.');
+        }
+      } else {
+        const res = await fetch(`${apiBase}/academic/calendar-events`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData),
+        });
+        if (res.ok) {
+          showToast(`Agenda baru "${formData.title}" berhasil ditambahkan.`);
+          await loadCalendarEvents();
+          setIsModalOpen(false);
+        } else {
+          showToast('Gagal menambahkan agenda baru. Silakan periksa kembali formulir.');
+        }
+      }
+    } catch {
+      showToast('Terjadi gangguan koneksi saat menyimpan agenda kalender.');
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsModalOpen(false);
   };
 
-  const handleDelete = (id: string, title: string) => {
+  const handleDelete = async (id: string, title: string) => {
     if (confirm(`Hapus agenda "${title}" dari kalender akademik?`)) {
-      setEvents((prev) => prev.filter((ev) => ev.id !== id));
-      showToast(`Agenda "${title}" berhasil dihapus.`);
+      try {
+        const res = await fetch(`${apiBase}/academic/calendar-events/${id}`, {
+          method: 'DELETE',
+        });
+        if (res.ok) {
+          showToast(`Agenda "${title}" berhasil dihapus.`);
+          await loadCalendarEvents();
+        } else {
+          showToast('Gagal menghapus agenda kalender.');
+        }
+      } catch {
+        showToast('Terjadi gangguan koneksi saat menghapus agenda.');
+      }
     }
   };
 
@@ -729,7 +636,15 @@ export default function SuperAdminKalenderPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {paginatedEvents.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-12 text-slate-500">
+                      <Loader2 className="w-8 h-8 text-[#1E3A8A] animate-spin mx-auto mb-2" />
+                      <p className="font-semibold text-sm text-slate-700">Memuat agenda kalender akademik...</p>
+                      <p className="text-xs text-slate-400 mt-0.5">Mengambil jadwal dan kegiatan resmi dari sistem</p>
+                    </td>
+                  </tr>
+                ) : paginatedEvents.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="text-center py-12 text-slate-500">
                       <CalendarDays className="w-10 h-10 text-slate-300 mx-auto mb-2" />
@@ -1028,9 +943,17 @@ export default function SuperAdminKalenderPage() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 transition-all shadow-xs"
+                    disabled={isSubmitting}
+                    className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 disabled:opacity-50 transition-all shadow-xs flex items-center gap-1.5"
                   >
-                    {editingEvent ? 'Simpan Perubahan' : 'Tambah Agenda'}
+                    {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span>
+                      {isSubmitting
+                        ? 'Menyimpan...'
+                        : editingEvent
+                        ? 'Simpan Perubahan'
+                        : 'Tambah Agenda'}
+                    </span>
                   </button>
                 </div>
               </form>

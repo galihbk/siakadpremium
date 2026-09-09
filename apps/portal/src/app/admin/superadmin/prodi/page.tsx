@@ -27,6 +27,7 @@ import {
   ArrowUp,
   ArrowDown,
   ChevronLeft,
+  Loader2,
 } from 'lucide-react';
 
 interface StudyProgram {
@@ -48,338 +49,14 @@ interface StudyProgram {
   status: 'Aktif' | 'Nonaktif';
 }
 
-const initialStudyPrograms: StudyProgram[] = [
-  {
-    id: 'prodi-1',
-    code: 'TI-S1',
-    diktiCode: '55201',
-    name: 'Teknik Informatika',
-    degreeLevel: 'S1',
-    degreeTitle: 'S.Kom.',
-    facultyCode: 'FASILKOM',
-    facultyName: 'Fakultas Ilmu Komputer & Informatika',
-    headOfProgram: 'Dr. Bambang Sutrisno, M.Kom.',
-    headNip: '19790112 200501 1 002',
-    studentsCount: 1240,
-    lecturersCount: 38,
-    accreditation: 'Unggul',
-    accreditationAgency: 'LAM-INFOKOM',
-    skAkreditasi: 'No. 088/SK/LAM-INFOKOM/Ak/S/2024',
-    status: 'Aktif',
-  },
-  {
-    id: 'prodi-2',
-    code: 'SI-S1',
-    diktiCode: '57201',
-    name: 'Sistem Informasi',
-    degreeLevel: 'S1',
-    degreeTitle: 'S.Kom.',
-    facultyCode: 'FASILKOM',
-    facultyName: 'Fakultas Ilmu Komputer & Informatika',
-    headOfProgram: 'Dewi Rahmawati, M.Kom.',
-    headNip: '19820415 200812 2 001',
-    studentsCount: 980,
-    lecturersCount: 32,
-    accreditation: 'Unggul',
-    accreditationAgency: 'LAM-INFOKOM',
-    skAkreditasi: 'No. 112/SK/LAM-INFOKOM/Ak/S/2023',
-    status: 'Aktif',
-  },
-  {
-    id: 'prodi-3',
-    code: 'RPL-S1',
-    diktiCode: '55202',
-    name: 'Rekayasa Perangkat Lunak',
-    degreeLevel: 'S1',
-    degreeTitle: 'S.Kom.',
-    facultyCode: 'FASILKOM',
-    facultyName: 'Fakultas Ilmu Komputer & Informatika',
-    headOfProgram: 'Arif Wicaksono, M.Cs.',
-    headNip: '19850920 201201 1 004',
-    studentsCount: 520,
-    lecturersCount: 18,
-    accreditation: 'Baik Sekali',
-    accreditationAgency: 'LAM-INFOKOM',
-    skAkreditasi: 'No. 204/SK/LAM-INFOKOM/Ak/S/2024',
-    status: 'Aktif',
-  },
-  {
-    id: 'prodi-4',
-    code: 'TRKJ-D4',
-    diktiCode: '55301',
-    name: 'Teknologi Rekayasa Komputer Jaringan',
-    degreeLevel: 'D4',
-    degreeTitle: 'S.Tr.Kom.',
-    facultyCode: 'FASILKOM',
-    facultyName: 'Fakultas Ilmu Komputer & Informatika',
-    headOfProgram: 'Rahmat Hidayat, M.T.',
-    headNip: '19800311 200604 1 003',
-    studentsCount: 410,
-    lecturersCount: 14,
-    accreditation: 'Unggul',
-    accreditationAgency: 'LAM-INFOKOM',
-    skAkreditasi: 'No. 045/SK/LAM-INFOKOM/Ak/D4/2023',
-    status: 'Aktif',
-  },
-  {
-    id: 'prodi-5',
-    code: 'MI-D3',
-    diktiCode: '57401',
-    name: 'Manajemen Informatika',
-    degreeLevel: 'D3',
-    degreeTitle: 'A.Md.Kom.',
-    facultyCode: 'FASILKOM',
-    facultyName: 'Fakultas Ilmu Komputer & Informatika',
-    headOfProgram: 'Siti Aminah, M.Kom.',
-    headNip: '19871109 201402 2 002',
-    studentsCount: 270,
-    lecturersCount: 10,
-    accreditation: 'Baik Sekali',
-    accreditationAgency: 'BAN-PT',
-    skAkreditasi: 'No. 518/SK/BAN-PT/Ak/D3/2022',
-    status: 'Aktif',
-  },
-  {
-    id: 'prodi-6',
-    code: 'TE-S1',
-    diktiCode: '20201',
-    name: 'Teknik Elektro',
-    degreeLevel: 'S1',
-    degreeTitle: 'S.T.',
-    facultyCode: 'FTI',
-    facultyName: 'Fakultas Teknik & Teknologi Industri',
-    headOfProgram: 'Ir. Budi Santoso, M.T.',
-    headNip: '19700514 199702 1 001',
-    studentsCount: 780,
-    lecturersCount: 26,
-    accreditation: 'Unggul',
-    accreditationAgency: 'LAM-TEKNIK',
-    skAkreditasi: 'No. 340/SK/LAM-TEKNIK/Ak/S/2023',
-    status: 'Aktif',
-  },
-  {
-    id: 'prodi-7',
-    code: 'TM-S1',
-    diktiCode: '21201',
-    name: 'Teknik Mesin',
-    degreeLevel: 'S1',
-    degreeTitle: 'S.T.',
-    facultyCode: 'FTI',
-    facultyName: 'Fakultas Teknik & Teknologi Industri',
-    headOfProgram: 'Dr. Suparman, M.Eng.',
-    headNip: '19730822 200003 1 002',
-    studentsCount: 640,
-    lecturersCount: 24,
-    accreditation: 'Unggul',
-    accreditationAgency: 'LAM-TEKNIK',
-    skAkreditasi: 'No. 290/SK/LAM-TEKNIK/Ak/S/2023',
-    status: 'Aktif',
-  },
-  {
-    id: 'prodi-8',
-    code: 'TI-IND-S1',
-    diktiCode: '26201',
-    name: 'Teknik Industri',
-    degreeLevel: 'S1',
-    degreeTitle: 'S.T.',
-    facultyCode: 'FTI',
-    facultyName: 'Fakultas Teknik & Teknologi Industri',
-    headOfProgram: 'Dra. Rina Marlina, M.T.',
-    headNip: '19760218 200212 2 001',
-    studentsCount: 710,
-    lecturersCount: 22,
-    accreditation: 'Unggul',
-    accreditationAgency: 'LAM-TEKNIK',
-    skAkreditasi: 'No. 182/SK/LAM-TEKNIK/Ak/S/2024',
-    status: 'Aktif',
-  },
-  {
-    id: 'prodi-9',
-    code: 'TK-S1',
-    diktiCode: '24201',
-    name: 'Teknik Kimia',
-    degreeLevel: 'S1',
-    degreeTitle: 'S.T.',
-    facultyCode: 'FTI',
-    facultyName: 'Fakultas Teknik & Teknologi Industri',
-    headOfProgram: 'Dr. Ir. Wahyudi, M.T.',
-    headNip: '19710915 199903 1 003',
-    studentsCount: 320,
-    lecturersCount: 12,
-    accreditation: 'Baik Sekali',
-    accreditationAgency: 'LAM-TEKNIK',
-    skAkreditasi: 'No. 095/SK/LAM-TEKNIK/Ak/S/2022',
-    status: 'Aktif',
-  },
-  {
-    id: 'prodi-10',
-    code: 'TRO-D4',
-    diktiCode: '20301',
-    name: 'Teknologi Rekayasa Otomasi',
-    degreeLevel: 'D4',
-    degreeTitle: 'S.Tr.T.',
-    facultyCode: 'FTI',
-    facultyName: 'Fakultas Teknik & Teknologi Industri',
-    headOfProgram: 'Hendro Sasongko, M.T.',
-    headNip: '19830628 200912 1 002',
-    studentsCount: 240,
-    lecturersCount: 8,
-    accreditation: 'Baik Sekali',
-    accreditationAgency: 'LAM-TEKNIK',
-    skAkreditasi: 'No. 110/SK/LAM-TEKNIK/Ak/D4/2023',
-    status: 'Aktif',
-  },
-  {
-    id: 'prodi-11',
-    code: 'TE-D3',
-    diktiCode: '20401',
-    name: 'Teknik Elektronika',
-    degreeLevel: 'D3',
-    degreeTitle: 'A.Md.T.',
-    facultyCode: 'FTI',
-    facultyName: 'Fakultas Teknik & Teknologi Industri',
-    headOfProgram: 'Joko Widodo, S.T., M.T.',
-    headNip: '19780410 200604 1 001',
-    studentsCount: 160,
-    lecturersCount: 6,
-    accreditation: 'Baik Sekali',
-    accreditationAgency: 'BAN-PT',
-    skAkreditasi: 'No. 402/SK/BAN-PT/Ak/D3/2021',
-    status: 'Aktif',
-  },
-  {
-    id: 'prodi-12',
-    code: 'BD-S1',
-    diktiCode: '61202',
-    name: 'Bisnis Digital',
-    degreeLevel: 'S1',
-    degreeTitle: 'S.Bns.',
-    facultyCode: 'FEBD',
-    facultyName: 'Fakultas Ekonomi & Bisnis Digital',
-    headOfProgram: 'Muhammad Rizki, S.E., M.B.A.',
-    headNip: '19860714 201504 1 003',
-    studentsCount: 580,
-    lecturersCount: 22,
-    accreditation: 'Unggul',
-    accreditationAgency: 'LAMEMBA',
-    skAkreditasi: 'No. 301/SK/LAMEMBA/Ak/S/2024',
-    status: 'Aktif',
-  },
-  {
-    id: 'prodi-13',
-    code: 'MAN-S1',
-    diktiCode: '61201',
-    name: 'Manajemen',
-    degreeLevel: 'S1',
-    degreeTitle: 'S.M.',
-    facultyCode: 'FEBD',
-    facultyName: 'Fakultas Ekonomi & Bisnis Digital',
-    headOfProgram: 'Dr. Nurul Hidayati, M.M.',
-    headNip: '19741005 200112 2 001',
-    studentsCount: 490,
-    lecturersCount: 20,
-    accreditation: 'Unggul',
-    accreditationAgency: 'LAMEMBA',
-    skAkreditasi: 'No. 245/SK/LAMEMBA/Ak/S/2023',
-    status: 'Aktif',
-  },
-  {
-    id: 'prodi-14',
-    code: 'AKT-S1',
-    diktiCode: '62201',
-    name: 'Akuntansi',
-    degreeLevel: 'S1',
-    degreeTitle: 'S.Ak.',
-    facultyCode: 'FEBD',
-    facultyName: 'Fakultas Ekonomi & Bisnis Digital',
-    headOfProgram: 'Ahmad Farhan, M.Ak., Ak., CA',
-    headNip: '19810325 200902 1 002',
-    studentsCount: 260,
-    lecturersCount: 12,
-    accreditation: 'Baik Sekali',
-    accreditationAgency: 'LAMEMBA',
-    skAkreditasi: 'No. 180/SK/LAMEMBA/Ak/S/2022',
-    status: 'Aktif',
-  },
-  {
-    id: 'prodi-15',
-    code: 'PSKD-D4',
-    diktiCode: '61301',
-    name: 'Perbankan Syariah & Keuangan Digital',
-    degreeLevel: 'D4',
-    degreeTitle: 'S.Tr.E.',
-    facultyCode: 'FEBD',
-    facultyName: 'Fakultas Ekonomi & Bisnis Digital',
-    headOfProgram: 'Fitriani, M.E.Sy.',
-    headNip: '19880918 201601 2 004',
-    studentsCount: 150,
-    lecturersCount: 10,
-    accreditation: 'Baik Sekali',
-    accreditationAgency: 'LAMEMBA',
-    skAkreditasi: 'No. 092/SK/LAMEMBA/Ak/D4/2023',
-    status: 'Aktif',
-  },
-  {
-    id: 'prodi-16',
-    code: 'DKV-S1',
-    diktiCode: '90201',
-    name: 'Desain Komunikasi Visual',
-    degreeLevel: 'S1',
-    degreeTitle: 'S.Ds.',
-    facultyCode: 'FDKV',
-    facultyName: 'Fakultas Desain Komunikasi Visual & Seni',
-    headOfProgram: 'Bayu Pratama, M.Ds.',
-    headNip: '19841203 201101 1 001',
-    studentsCount: 440,
-    lecturersCount: 24,
-    accreditation: 'Unggul',
-    accreditationAgency: 'BAN-PT',
-    skAkreditasi: 'No. 410/SK/BAN-PT/Ak/S/2024',
-    status: 'Aktif',
-  },
-  {
-    id: 'prodi-17',
-    code: 'DPI-S1',
-    diktiCode: '90202',
-    name: 'Desain Produk Industri',
-    degreeLevel: 'S1',
-    degreeTitle: 'S.Ds.',
-    facultyCode: 'FDKV',
-    facultyName: 'Fakultas Desain Komunikasi Visual & Seni',
-    headOfProgram: 'Dian Permana, M.Ds.',
-    headNip: '19830517 201012 1 003',
-    studentsCount: 210,
-    lecturersCount: 14,
-    accreditation: 'Baik Sekali',
-    accreditationAgency: 'BAN-PT',
-    skAkreditasi: 'No. 312/SK/BAN-PT/Ak/S/2022',
-    status: 'Aktif',
-  },
-  {
-    id: 'prodi-18',
-    code: 'ADG-D4',
-    diktiCode: '90301',
-    name: 'Animasi & Desain Game',
-    degreeLevel: 'D4',
-    degreeTitle: 'S.Tr.Ds.',
-    facultyCode: 'FDKV',
-    facultyName: 'Fakultas Desain Komunikasi Visual & Seni',
-    headOfProgram: 'Gilang Ramadhan, M.Sn.',
-    headNip: '19890214 201701 1 002',
-    studentsCount: 140,
-    lecturersCount: 12,
-    accreditation: 'Baik Sekali',
-    accreditationAgency: 'BAN-PT',
-    skAkreditasi: 'No. 150/SK/BAN-PT/Ak/D4/2023',
-    status: 'Aktif',
-  },
-];
-
 function ProdiContent() {
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
   const searchParams = useSearchParams();
   const initialFacultyParam = searchParams.get('faculty');
 
-  const [programs, setPrograms] = useState<StudyProgram[]>(initialStudyPrograms);
+  const [programs, setPrograms] = useState<StudyProgram[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [facultyFilter, setFacultyFilter] = useState<string>(initialFacultyParam || 'Semua');
   const [degreeFilter, setDegreeFilter] = useState<string>('Semua');
@@ -387,6 +64,35 @@ function ProdiContent() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingProgram, setEditingProgram] = useState<StudyProgram | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const loadPrograms = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/study-programs`);
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data || json;
+        if (Array.isArray(data)) {
+          setPrograms(data);
+        }
+      } else {
+        console.error('Gagal memuat program studi:', res.status);
+      }
+    } catch (err) {
+      console.error('Koneksi ke sistem program studi terputus:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPrograms();
+  }, []);
 
   useEffect(() => {
     if (initialFacultyParam) {
@@ -425,11 +131,6 @@ function ProdiContent() {
     skAkreditasi: '',
   });
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
-
   // Sorting & Pagination State
   const [sortField, setSortField] = useState<string>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -449,10 +150,10 @@ function ProdiContent() {
   const filteredPrograms = useMemo(() => {
     return programs.filter((p) => {
       const matchSearch =
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.diktiCode.includes(searchQuery) ||
-        p.headOfProgram.toLowerCase().includes(searchQuery.toLowerCase());
+        (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (p.code || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (p.diktiCode || '').includes(searchQuery) ||
+        (p.headOfProgram || '').toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchFaculty = facultyFilter === 'Semua' || p.facultyCode === facultyFilter;
       const matchDegree = degreeFilter === 'Semua' || p.degreeLevel === degreeFilter;
@@ -494,7 +195,7 @@ function ProdiContent() {
     const s1Count = programs.filter((p) => p.degreeLevel === 'S1').length;
     const vokasiCount = programs.filter((p) => p.degreeLevel === 'D4' || p.degreeLevel === 'D3').length;
     const unggulCount = programs.filter((p) => p.accreditation === 'Unggul').length;
-    const totalMhs = programs.reduce((acc, p) => acc + p.studentsCount, 0);
+    const totalMhs = programs.reduce((acc, p) => acc + (p.studentsCount || 0), 0);
 
     return { total, s1Count, vokasiCount, unggulCount, totalMhs };
   }, [programs]);
@@ -523,29 +224,30 @@ function ProdiContent() {
     setEditingProgram(p);
     setFormData({
       code: p.code,
-      diktiCode: p.diktiCode,
+      diktiCode: p.diktiCode || '',
       name: p.name,
       degreeLevel: p.degreeLevel,
-      degreeTitle: p.degreeTitle,
+      degreeTitle: p.degreeTitle || '',
       facultyCode: p.facultyCode,
-      headOfProgram: p.headOfProgram,
-      headNip: p.headNip,
-      studentsCount: p.studentsCount,
-      lecturersCount: p.lecturersCount,
+      headOfProgram: p.headOfProgram || '',
+      headNip: p.headNip || '',
+      studentsCount: p.studentsCount || 0,
+      lecturersCount: p.lecturersCount || 0,
       accreditation: p.accreditation,
-      accreditationAgency: p.accreditationAgency,
-      skAkreditasi: p.skAkreditasi,
+      accreditationAgency: p.accreditationAgency || '',
+      skAkreditasi: p.skAkreditasi || '',
     });
     setIsAddModalOpen(true);
   };
 
-  const handleSaveProgram = (e: React.FormEvent) => {
+  const handleSaveProgram = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.code || !formData.name || !formData.headOfProgram) {
       alert('Mohon isi field wajib!');
       return;
     }
 
+    setIsSubmitting(true);
     const facultyMap: Record<string, string> = {
       FASILKOM: 'Fakultas Ilmu Komputer & Informatika',
       FTI: 'Fakultas Teknik & Teknologi Industri',
@@ -553,59 +255,74 @@ function ProdiContent() {
       FDKV: 'Fakultas Desain Komunikasi Visual & Seni',
     };
 
-    if (editingProgram) {
-      setPrograms((prev) =>
-        prev.map((p) =>
-          p.id === editingProgram.id
-            ? {
-                ...p,
-                code: formData.code.toUpperCase(),
-                diktiCode: formData.diktiCode,
-                name: formData.name,
-                degreeLevel: formData.degreeLevel,
-                degreeTitle: formData.degreeTitle,
-                facultyCode: formData.facultyCode,
-                facultyName: facultyMap[formData.facultyCode] || p.facultyName,
-                headOfProgram: formData.headOfProgram,
-                headNip: formData.headNip,
-                accreditation: formData.accreditation,
-                accreditationAgency: formData.accreditationAgency,
-                skAkreditasi: formData.skAkreditasi,
-              }
-            : p
-        )
-      );
-      showToast(`Program Studi "${formData.name}" berhasil diperbarui!`);
-    } else {
-      const newProg: StudyProgram = {
-        id: `prodi-${Date.now()}`,
-        code: formData.code.toUpperCase(),
-        diktiCode: formData.diktiCode || '00000',
-        name: formData.name,
-        degreeLevel: formData.degreeLevel,
-        degreeTitle: formData.degreeTitle,
-        facultyCode: formData.facultyCode,
-        facultyName: facultyMap[formData.facultyCode] || 'Fakultas',
-        headOfProgram: formData.headOfProgram,
-        headNip: formData.headNip || '-',
-        studentsCount: Number(formData.studentsCount) || 0,
-        lecturersCount: Number(formData.lecturersCount) || 0,
-        accreditation: formData.accreditation,
-        accreditationAgency: formData.accreditationAgency,
-        skAkreditasi: formData.skAkreditasi || 'Dalam Proses',
-        status: 'Aktif',
-      };
-      setPrograms([...programs, newProg]);
-      showToast(`Program Studi "${newProg.name}" berhasil ditambahkan!`);
-    }
+    const payload = {
+      code: formData.code.toUpperCase(),
+      diktiCode: formData.diktiCode || '00000',
+      name: formData.name,
+      degreeLevel: formData.degreeLevel,
+      degreeTitle: formData.degreeTitle,
+      facultyCode: formData.facultyCode,
+      facultyName: facultyMap[formData.facultyCode] || 'Fakultas',
+      headOfProgram: formData.headOfProgram,
+      headNip: formData.headNip || '-',
+      studentsCount: Number(formData.studentsCount) || 0,
+      lecturersCount: Number(formData.lecturersCount) || 0,
+      accreditation: formData.accreditation,
+      accreditationAgency: formData.accreditationAgency || 'BAN-PT',
+      skAkreditasi: formData.skAkreditasi || 'Dalam Proses',
+      status: 'Aktif',
+    };
 
-    setIsAddModalOpen(false);
+    try {
+      if (editingProgram) {
+        const res = await fetch(`${apiBase}/study-programs/${editingProgram.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          showToast(`Program Studi "${formData.name}" berhasil diperbarui!`);
+          await loadPrograms();
+          setIsAddModalOpen(false);
+        } else {
+          showToast('Gagal memperbarui program studi.');
+        }
+      } else {
+        const res = await fetch(`${apiBase}/study-programs`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          showToast(`Program Studi "${formData.name}" berhasil ditambahkan!`);
+          await loadPrograms();
+          setIsAddModalOpen(false);
+        } else {
+          showToast('Gagal menambahkan program studi baru.');
+        }
+      }
+    } catch {
+      showToast('Terjadi gangguan koneksi saat menyimpan data program studi.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = async (id: string, name: string) => {
     if (confirm(`Hapus Program Studi "${name}"?`)) {
-      setPrograms(programs.filter((p) => p.id !== id));
-      showToast(`Program Studi "${name}" berhasil dihapus.`);
+      try {
+        const res = await fetch(`${apiBase}/study-programs/${id}`, {
+          method: 'DELETE',
+        });
+        if (res.ok) {
+          showToast(`Program Studi "${name}" berhasil dihapus.`);
+          await loadPrograms();
+        } else {
+          showToast('Gagal menghapus program studi.');
+        }
+      } catch {
+        showToast('Terjadi gangguan koneksi saat menghapus program studi.');
+      }
     }
   };
 
@@ -933,7 +650,17 @@ function ProdiContent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {paginatedPrograms.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-16 text-slate-500">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <Loader2 className="w-8 h-8 text-[#1E3A8A] animate-spin" />
+                        <p className="font-semibold text-sm text-slate-700">Memuat data program studi...</p>
+                        <p className="text-xs text-slate-400">Sinkronisasi data master akademik prodi & akreditasi</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : paginatedPrograms.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="text-center py-12 text-slate-500">
                       <GraduationCap className="w-10 h-10 text-slate-300 mx-auto mb-2" />
@@ -1242,9 +969,11 @@ function ProdiContent() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 transition-all shadow-xs"
+                    disabled={isSubmitting}
+                    className="inline-flex items-center gap-2 px-5 py-2 rounded-xl font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 disabled:opacity-50 transition-all shadow-xs cursor-pointer"
                   >
-                    {editingProgram ? 'Simpan Perubahan' : 'Tambah Program Studi'}
+                    {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span>{editingProgram ? 'Simpan Perubahan' : 'Tambah Program Studi'}</span>
                   </button>
                 </div>
               </form>

@@ -27,11 +27,12 @@ import {
   BookOpen,
   Check,
   AlertTriangle,
+  Loader2,
 } from 'lucide-react';
 
 interface SemesterPeriodItem {
   id: string;
-  code: string; // e.g. "20261"
+  code: string;
   name: string;
   academicYear: string;
   type: 'Gasal' | 'Genap' | 'Pendek';
@@ -48,101 +49,12 @@ interface SemesterPeriodItem {
   notes: string;
 }
 
-const initialSemesters: SemesterPeriodItem[] = [
-  {
-    id: 'sem-1',
-    code: '20261',
-    name: 'Semester Gasal 2026/2027',
-    academicYear: '2026/2027',
-    type: 'Gasal',
-    startDate: '2026-09-01',
-    endDate: '2027-01-20',
-    krsStartDate: '2026-08-15',
-    krsEndDate: '2026-08-31',
-    gradeDeadline: '2027-01-28',
-    totalCoursesOffered: 48,
-    totalCreditsOffered: 1420,
-    isActive: true,
-    isGradeLocked: true,
-    status: 'Buka',
-    notes: 'Semester aktif berjalan. Tahap perkuliahan tatap muka minggu ke-2 & revisi KPRS online.',
-  },
-  {
-    id: 'sem-2',
-    code: '20262',
-    name: 'Semester Genap 2026/2027',
-    academicYear: '2026/2027',
-    type: 'Genap',
-    startDate: '2027-02-15',
-    endDate: '2027-06-30',
-    krsStartDate: '2027-01-25',
-    krsEndDate: '2027-02-10',
-    gradeDeadline: '2027-07-10',
-    totalCoursesOffered: 45,
-    totalCreditsOffered: 1380,
-    isActive: false,
-    isGradeLocked: true,
-    status: 'Terkunci',
-    notes: 'Periode semester genap terjadwal. Registrasi dan penawaran mata kuliah belum dibuka.',
-  },
-  {
-    id: 'sem-3',
-    code: '20263',
-    name: 'Semester Antara / Pendek 2026/2027',
-    academicYear: '2026/2027',
-    type: 'Pendek',
-    startDate: '2027-07-05',
-    endDate: '2027-08-10',
-    krsStartDate: '2027-06-20',
-    krsEndDate: '2027-07-01',
-    gradeDeadline: '2027-08-15',
-    totalCoursesOffered: 18,
-    totalCreditsOffered: 360,
-    isActive: false,
-    isGradeLocked: true,
-    status: 'Terkunci',
-    notes: 'Semester perbaikan nilai dan akselerasi maksimal 9 SKS bagi mahasiswa.',
-  },
-  {
-    id: 'sem-4',
-    code: '20252',
-    name: 'Semester Genap 2025/2026',
-    academicYear: '2025/2026',
-    type: 'Genap',
-    startDate: '2026-02-16',
-    endDate: '2026-06-30',
-    krsStartDate: '2026-01-26',
-    krsEndDate: '2026-02-12',
-    gradeDeadline: '2026-07-08',
-    totalCoursesOffered: 46,
-    totalCreditsOffered: 1400,
-    isActive: false,
-    isGradeLocked: true,
-    status: 'Selesai',
-    notes: 'Selesai tuntas. Pelaporan data nilai dan aktivitas kuliah terkirim 100% ke PDDIKTI.',
-  },
-  {
-    id: 'sem-5',
-    code: '20251',
-    name: 'Semester Gasal 2025/2026',
-    academicYear: '2025/2026',
-    type: 'Gasal',
-    startDate: '2025-09-01',
-    endDate: '2026-01-22',
-    krsStartDate: '2025-08-15',
-    krsEndDate: '2025-08-31',
-    gradeDeadline: '2026-01-30',
-    totalCoursesOffered: 47,
-    totalCreditsOffered: 1410,
-    isActive: false,
-    isGradeLocked: true,
-    status: 'Selesai',
-    notes: 'Arsip akademik. KHS mahasiswa dan rekapitulasi IPK semester telah difinalisasi.',
-  },
-];
-
 export default function SuperAdminSemesterPage() {
-  const [semesters, setSemesters] = useState<SemesterPeriodItem[]>(initialSemesters);
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
+  const [semesters, setSemesters] = useState<SemesterPeriodItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('Semua');
   const [statusFilter, setStatusFilter] = useState('Semua');
@@ -151,6 +63,35 @@ export default function SuperAdminSemesterPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSemester, setEditingSemester] = useState<SemesterPeriodItem | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const loadSemesters = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/academic/semesters`);
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data || json;
+        if (Array.isArray(data)) {
+          setSemesters(data);
+        }
+      } else {
+        console.error('Gagal memuat data semester:', res.status);
+      }
+    } catch (err) {
+      console.error('Koneksi ke sistem semester terputus:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSemesters();
+  }, []);
 
   // Form State
   const [formData, setFormData] = useState<{
@@ -187,11 +128,6 @@ export default function SuperAdminSemesterPage() {
     notes: '',
   });
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
-
   // Sorting & Pagination State
   const [sortField, setSortField] = useState<string>('code');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -215,9 +151,9 @@ export default function SuperAdminSemesterPage() {
   const filteredSemesters = useMemo(() => {
     return semesters.filter((s) => {
       const matchSearch =
-        s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        s.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        s.academicYear.toLowerCase().includes(searchQuery.toLowerCase());
+        (s.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (s.code || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (s.academicYear || '').toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchType = typeFilter === 'Semua' || s.type === typeFilter;
       const matchStatus = statusFilter === 'Semua' || s.status === statusFilter;
@@ -261,26 +197,44 @@ export default function SuperAdminSemesterPage() {
     return { total, activeName, totalMK, totalSKS };
   }, [semesters, activeSemester]);
 
-  const handleToggleGradeLock = (id: string, name: string, currentLocked: boolean) => {
+  const handleToggleGradeLock = async (id: string, name: string, currentLocked: boolean) => {
     const action = currentLocked ? 'Buka Kunci' : 'Kunci';
     if (confirm(`${action} entri nilai dosen untuk "${name}"?`)) {
-      setSemesters((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, isGradeLocked: !currentLocked } : s))
-      );
-      showToast(`Input nilai "${name}" sekarang ${!currentLocked ? 'TERKUNCI' : 'TERBUKA UNTUK DOSEN'}.`);
+      try {
+        const res = await fetch(`${apiBase}/academic/semesters/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isGradeLocked: !currentLocked }),
+        });
+        if (res.ok) {
+          showToast(`Input nilai "${name}" sekarang ${!currentLocked ? 'TERKUNCI' : 'TERBUKA UNTUK DOSEN'}.`);
+          await loadSemesters();
+        } else {
+          showToast('Gagal mengubah status penguncian nilai.');
+        }
+      } catch {
+        showToast('Terjadi gangguan koneksi saat mengubah status nilai.');
+      }
     }
   };
 
-  const handleSetActiveSemester = (id: string, name: string) => {
+  const handleSetActiveSemester = async (id: string, name: string) => {
     if (confirm(`Jadikan "${name}" sebagai SEMESTER AKTIF kampus? Seluruh aktivitas portal dosen, mahasiswa, dan KRS akan beralih ke semester ini.`)) {
-      setSemesters((prev) =>
-        prev.map((s) => ({
-          ...s,
-          isActive: s.id === id,
-          status: s.id === id ? 'Buka' : s.status === 'Buka' ? 'Selesai' : s.status,
-        }))
-      );
-      showToast(`"${name}" sekarang aktif sebagai semester berjalan.`);
+      try {
+        const res = await fetch(`${apiBase}/academic/semesters/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isActive: true, status: 'Buka' }),
+        });
+        if (res.ok) {
+          showToast(`"${name}" sekarang aktif sebagai semester berjalan.`);
+          await loadSemesters();
+        } else {
+          showToast('Gagal mengaktifkan periode semester.');
+        }
+      } catch {
+        showToast('Terjadi gangguan koneksi saat mengaktifkan semester.');
+      }
     }
   };
 
@@ -323,59 +277,76 @@ export default function SuperAdminSemesterPage() {
       isActive: s.isActive,
       isGradeLocked: s.isGradeLocked,
       status: s.status,
-      notes: s.notes,
+      notes: s.notes || '',
     });
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
+    const payload = {
+      ...formData,
+      totalCoursesOffered: Number(formData.totalCoursesOffered),
+      totalCreditsOffered: Number(formData.totalCreditsOffered),
+    };
 
-    if (editingSemester) {
-      setSemesters((prev) =>
-        prev.map((s) =>
-          s.id === editingSemester.id
-            ? {
-                ...s,
-                ...formData,
-                totalCoursesOffered: Number(formData.totalCoursesOffered),
-                totalCreditsOffered: Number(formData.totalCreditsOffered),
-                status: formData.isActive ? 'Buka' : s.status,
-              }
-            : formData.isActive
-              ? { ...s, isActive: false, status: s.isActive ? 'Selesai' : s.status }
-              : s
-        )
-      );
-      showToast(`Data semester "${formData.name}" berhasil diperbarui.`);
-    } else {
-      const newSem: SemesterPeriodItem = {
-        id: `sem-${Date.now()}`,
-        ...formData,
-        totalCoursesOffered: Number(formData.totalCoursesOffered),
-        totalCreditsOffered: Number(formData.totalCreditsOffered),
-      };
-
-      setSemesters((prev) =>
-        formData.isActive
-          ? [newSem, ...prev.map((s) => ({ ...s, isActive: false, status: s.isActive ? 'Selesai' : s.status }))]
-          : [newSem, ...prev]
-      );
-      showToast(`Periode semester baru "${formData.name}" berhasil ditambahkan.`);
+    try {
+      if (editingSemester) {
+        const res = await fetch(`${apiBase}/academic/semesters/${editingSemester.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          showToast(`Data semester "${formData.name}" berhasil diperbarui.`);
+          await loadSemesters();
+          setIsModalOpen(false);
+        } else {
+          showToast('Gagal memperbarui data semester.');
+        }
+      } else {
+        const res = await fetch(`${apiBase}/academic/semesters`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          showToast(`Periode semester baru "${formData.name}" berhasil ditambahkan.`);
+          await loadSemesters();
+          setIsModalOpen(false);
+        } else {
+          showToast('Gagal menambahkan periode semester.');
+        }
+      }
+    } catch {
+      showToast('Terjadi gangguan koneksi saat menyimpan periode semester.');
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsModalOpen(false);
   };
 
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = async (id: string, name: string) => {
     const targetSem = semesters.find((s) => s.id === id);
     if (targetSem?.isActive) {
-      alert('Tidak dapat menghapus semester yang sedang AKTIF!');
+      alert('Semester yang sedang AKTIF tidak dapat dihapus!');
       return;
     }
 
-    if (confirm(`Hapus periode semester "${name}"?`)) {
-      setSemesters((prev) => prev.filter((s) => s.id !== id));
-      showToast(`Semester "${name}" berhasil dihapus.`);
+    if (confirm(`Hapus periode semester "${name}"? Seluruh arsip perkuliahan dan kelas yang terkait akan terpengaruh.`)) {
+      try {
+        const res = await fetch(`${apiBase}/academic/semesters/${id}`, {
+          method: 'DELETE',
+        });
+        if (res.ok) {
+          showToast(`Semester "${name}" berhasil dihapus.`);
+          await loadSemesters();
+        } else {
+          showToast('Gagal menghapus semester.');
+        }
+      } catch {
+        showToast('Terjadi gangguan koneksi saat menghapus semester.');
+      }
     }
   };
 
@@ -668,7 +639,17 @@ export default function SuperAdminSemesterPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {paginatedSemesters.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-16 text-slate-500">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <Loader2 className="w-8 h-8 text-[#1E3A8A] animate-spin" />
+                        <p className="font-semibold text-sm text-slate-700">Memuat data periode semester...</p>
+                        <p className="text-xs text-slate-400">Sinkronisasi status masa perkuliahan dan penguncian nilai</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : paginatedSemesters.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="text-center py-12 text-slate-500">
                       <Clock className="w-10 h-10 text-slate-300 mx-auto mb-2" />
@@ -1029,9 +1010,11 @@ export default function SuperAdminSemesterPage() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 transition-all shadow-xs"
+                    disabled={isSubmitting}
+                    className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 disabled:opacity-50 transition-all shadow-xs cursor-pointer"
                   >
-                    {editingSemester ? 'Simpan Perubahan' : 'Tambah Semester'}
+                    {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span>{editingSemester ? 'Simpan Perubahan' : 'Tambah Semester'}</span>
                   </button>
                 </div>
               </form>

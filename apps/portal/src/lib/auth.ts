@@ -57,8 +57,10 @@ export function getRoleRedirectPath(role: string): string {
   switch (role) {
     case 'SUPER_ADMIN':
       return '/admin/superadmin';
-    case 'ADMIN_BAAK':
     case 'ADMIN_KEUANGAN':
+    case 'FINANCE':
+      return '/finance';
+    case 'ADMIN_BAAK':
     case 'STAFF':
       return '/admin';
     case 'LECTURER':
@@ -70,12 +72,14 @@ export function getRoleRedirectPath(role: string): string {
   }
 }
 
-export function getPortalRoleFromBackend(backendRole: string): 'student' | 'lecturer' | 'admin' | 'superadmin' {
+export function getPortalRoleFromBackend(backendRole: string): 'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' {
   switch (backendRole) {
     case 'SUPER_ADMIN':
       return 'superadmin';
-    case 'ADMIN_BAAK':
     case 'ADMIN_KEUANGAN':
+    case 'FINANCE':
+      return 'finance';
+    case 'ADMIN_BAAK':
     case 'STAFF':
       return 'admin';
     case 'LECTURER':
@@ -87,8 +91,29 @@ export function getPortalRoleFromBackend(backendRole: string): 'student' | 'lect
 }
 
 export function isRouteAllowedForRole(pathname: string, role: string): boolean {
+  // 1. Dashboard Keuangan HANYA boleh diakses oleh role Keuangan (ADMIN_KEUANGAN / FINANCE)
+  if (pathname.startsWith('/finance')) {
+    return role === 'ADMIN_KEUANGAN' || role === 'FINANCE';
+  }
+
+  // 2. Portal Dosen HANYA boleh diakses oleh role Dosen (LECTURER)
+  if (pathname.startsWith('/lecturer')) {
+    return role === 'LECTURER';
+  }
+
+  // 3. Portal Mahasiswa HANYA boleh diakses oleh role Mahasiswa (STUDENT)
+  if (pathname.startsWith('/student')) {
+    return role === 'STUDENT';
+  }
+
+  // 4. Role Keuangan (Finance) HANYA boleh mengakses area keuangan (/finance)
+  if (role === 'ADMIN_KEUANGAN' || role === 'FINANCE') {
+    return pathname.startsWith('/finance');
+  }
+
+  // 5. Super Admin memiliki akses penuh ke area administrasi, master data & sistem
   if (role === 'SUPER_ADMIN') {
-    return true; // Super admin has full access
+    return true;
   }
 
   if (pathname.startsWith('/admin/superadmin')) {
@@ -103,15 +128,7 @@ export function isRouteAllowedForRole(pathname: string, role: string): boolean {
   }
 
   if (pathname.startsWith('/admin')) {
-    return role === 'ADMIN_BAAK' || role === 'ADMIN_KEUANGAN' || role === 'STAFF';
-  }
-
-  if (pathname.startsWith('/lecturer')) {
-    return role === 'LECTURER';
-  }
-
-  if (pathname.startsWith('/student')) {
-    return role === 'STUDENT';
+    return role === 'ADMIN_BAAK' || role === 'STAFF';
   }
 
   return true;

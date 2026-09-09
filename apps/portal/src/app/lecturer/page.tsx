@@ -1,10 +1,12 @@
 'use client';
 
+import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import {
   BookOpen,
   Calendar,
   CheckCircle,
+  ChevronRight,
   Clock,
   FileCheck,
   GraduationCap,
@@ -50,14 +52,20 @@ export default function LecturerDashboardPage() {
             </p>
           </div>
           <div className="flex gap-2.5">
-            <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-[#1E3A8A] text-xs font-bold rounded-xl shadow-xs hover:bg-blue-50 transition-colors">
+            <Link
+              href="/lecturer/nilai"
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-[#1E3A8A] text-xs font-bold rounded-xl shadow-xs hover:bg-blue-50 transition-colors"
+            >
               <Upload className="w-3.5 h-3.5" />
               <span>Input Nilai UTS/UAS</span>
-            </button>
-            <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#D4A017] text-slate-950 text-xs font-bold rounded-xl shadow-xs hover:bg-[#C59114] transition-colors">
+            </Link>
+            <Link
+              href="/lecturer/bimbingan"
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#D4A017] text-slate-950 text-xs font-bold rounded-xl shadow-xs hover:bg-[#C59114] transition-colors"
+            >
               <FileCheck className="w-3.5 h-3.5" />
               <span>Validasi KRS Online</span>
-            </button>
+            </Link>
           </div>
         </div>
 
@@ -115,6 +123,13 @@ export default function LecturerDashboardPage() {
               <h3 className="text-base font-bold text-slate-900">Jadwal Perkuliahan Gasal 2026/2027</h3>
               <p className="text-xs text-slate-500 mt-0.5">Daftar kelas reguler dan praktikum yang diampu semester ini</p>
             </div>
+            <Link
+              href="/lecturer/jadwal"
+              className="text-xs font-bold text-[#1E3A8A] hover:underline flex items-center gap-1"
+            >
+              <span>Lihat Semua Jadwal</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
 
           <div className="overflow-x-auto">
@@ -149,9 +164,12 @@ export default function LecturerDashboardPage() {
                     <td className="py-3.5 px-4 text-center font-semibold">{item.peserta} Orang</td>
                     <td className="py-3.5 px-4 text-center font-bold text-emerald-700">{item.presensiRata}</td>
                     <td className="py-3.5 px-4 text-center">
-                      <button className="text-xs font-semibold text-[#1E3A8A] hover:underline">
+                      <Link
+                        href="/lecturer/nilai"
+                        className="text-xs font-semibold text-[#1E3A8A] hover:underline"
+                      >
                         Input Nilai
-                      </button>
+                      </Link>
                     </td>
                   </tr>
                 ))}
@@ -173,12 +191,18 @@ export default function LecturerDashboardPage() {
                   <p className="text-[11px] text-slate-600 mt-0.5">{req.prodi} &bull; Beban: {req.sks} SKS &bull; <span className="text-[#1E3A8A] font-semibold">{req.status}</span></p>
                 </div>
                 <div className="flex gap-2">
-                  <button className="px-3 py-1.5 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-[#172554] rounded-lg">
+                  <Link
+                    href="/lecturer/bimbingan"
+                    className="px-3 py-1.5 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-[#172554] rounded-lg inline-flex items-center"
+                  >
                     Setujui
-                  </button>
-                  <button className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-200 bg-slate-100 rounded-lg">
+                  </Link>
+                  <Link
+                    href="/lecturer/bimbingan"
+                    className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-200 bg-slate-100 rounded-lg inline-flex items-center"
+                  >
                     Detail
-                  </button>
+                  </Link>
                 </div>
               </div>
             ))}

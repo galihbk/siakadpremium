@@ -1,0 +1,16 @@
+-- Seed data for calendar_events
+INSERT INTO calendar_events (id, title, category, "startDate", "endDate", "academicYear", semester, target, status, notes, "createdAt", "updatedAt")
+VALUES
+  ('ev-1', 'Pembayaran UKT / SPP Semester Gasal 2026/2027', 'Keuangan & UKT', '2026-08-01', '2026-08-20', '2026/2027', 'Gasal', 'Seluruh Mahasiswa Aktif', 'Selesai', 'Pembayaran melalui Virtual Account Bank BNI, Mandiri, BRI, dan BSI terintegrasi.', NOW(), NOW()),
+  ('ev-2', 'Pengisian KRS Online & Bimbingan Dosen PA', 'KRS & Registrasi', '2026-08-15', '2026-08-31', '2026/2027', 'Gasal', 'Mahasiswa & Dosen Pembimbing Akademik', 'Selesai', 'Konsultasi rencana studi dan persetujuan KRS oleh Dosen PA melalui portal.', NOW(), NOW()),
+  ('ev-3', 'Masa Perkuliahan Efektif Bagian I (Minggu 1 - 7)', 'Perkuliahan', '2026-09-01', '2026-10-23', '2026/2027', 'Gasal', 'Seluruh Mahasiswa & Dosen Pengampu', 'Berlangsung', 'Perkuliahan tatap muka & praktikum laboratorium terpadu di seluruh fakultas.', NOW(), NOW()),
+  ('ev-4', 'Batas Perubahan Rencana Studi (KPRS / Batal-Tambah)', 'KRS & Registrasi', '2026-09-07', '2026-09-14', '2026/2027', 'Gasal', 'Mahasiswa & BAAK', 'Berlangsung', 'Penyesuaian mata kuliah jika terjadi bentrok jadwal atau kuota kelas.', NOW(), NOW()),
+  ('ev-5', 'Ujian Tengah Semester (UTS) Gasal 2026/2027', 'Ujian (UTS/UAS)', '2026-10-26', '2026-11-06', '2026/2027', 'Gasal', 'Mahasiswa & Panitia Ujian', 'Akan Datang', 'Evaluasi tengah semester terjadwal berbasis Computer-Based Test (CBT) dan proyek.', NOW(), NOW()),
+  ('ev-6', 'Batas Akhir Input Nilai UTS oleh Dosen', 'Nilai & Yudisium', '2026-11-07', '2026-11-20', '2026/2027', 'Gasal', 'Dosen Pengampu Mata Kuliah', 'Akan Datang', 'Publikasi nilai UTS ke KHS mahasiswa melalui portal akademik dosen.', NOW(), NOW()),
+  ('ev-7', 'Masa Perkuliahan Efektif Bagian II (Minggu 9 - 16)', 'Perkuliahan', '2026-11-09', '2026-12-24', '2026/2027', 'Gasal', 'Seluruh Mahasiswa & Dosen', 'Akan Datang', 'Perkuliahan teori lanjutan, asistensi tugas besar, dan ujian praktikum.', NOW(), NOW()),
+  ('ev-8', 'Libur Akhir Tahun & Tahun Baru 2027', 'Libur Kampus', '2026-12-25', '2027-01-02', '2026/2027', 'Gasal', 'Seluruh Sivitas Akademika', 'Akan Datang', 'Libur nasional hari raya Natal dan pergantian Tahun Baru 2027.', NOW(), NOW()),
+  ('ev-9', 'Ujian Akhir Semester (UAS) Gasal 2026/2027', 'Ujian (UTS/UAS)', '2027-01-04', '2027-01-16', '2026/2027', 'Gasal', 'Mahasiswa & Pengawas Ujian', 'Akan Datang', 'Evaluasi akhir semester sebagai penentu kelulusan mata kuliah.', NOW(), NOW()),
+  ('ev-10', 'Batas Akhir Entri Nilai UAS & Finalisasi KHS', 'Nilai & Yudisium', '2027-01-18', '2027-01-28', '2026/2027', 'Gasal', 'Dosen Pengampu & BAAK', 'Akan Datang', 'Kunci nilai final (Grade A/B/C/D/E) dan penerbitan Kartu Hasil Studi resmi.', NOW(), NOW()),
+  ('ev-11', 'Sidang Yudisium Sarjana & Vokasi Periode I', 'Nilai & Yudisium', '2027-02-05', '2027-02-06', '2026/2027', 'Gasal', 'Calon Wisudawan & Senat Fakultas', 'Akan Datang', 'Penetapan kelulusan, predikat kelulusan (Cumlaude), dan penerbitan SKL.', NOW(), NOW()),
+  ('ev-12', 'Upacara Wisuda Sarjana & Diploma ITN Ke-42', 'Nilai & Yudisium', '2027-02-27', '2027-02-27', '2026/2027', 'Gasal', 'Wisudawan, Senat Terbuka & Orang Tua', 'Akan Datang', 'Prosesi wisuda luring di Auditorium Utama Graha Nusantara ITN.', NOW(), NOW())
+ON CONFLICT (id) DO NOTHING;
