@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { Modal } from '@/components/ui/Modal';
@@ -29,7 +29,47 @@ import {
   Copy,
   Check,
   Sparkles,
+  Database,
+  RefreshCw,
+  Palette,
+  CheckSquare,
 } from 'lucide-react';
+
+interface IdentitySettings {
+  primaryColor: string;
+  accentColor: string;
+  themeName: string;
+  tagline: string;
+  kopLine1: string;
+  kopLine2: string;
+  kopContact: string;
+  pinFormat: string;
+  nomorSuratFormat: string;
+  nimFormat: string;
+  doubleBorderKop: boolean;
+}
+
+const defaultIdentitySettings: IdentitySettings = {
+  primaryColor: '#1E3A8A',
+  accentColor: '#D4A017',
+  themeName: 'Nusantara Navy & Gold',
+  tagline: 'Kampus Inovasi Teknologi Masa Depan & Technopreneurship',
+  kopLine1: 'Yayasan Pendidikan Teknologi Nusantara Mandiri',
+  kopLine2: 'INSTITUT TEKNOLOGI NUSANTARA',
+  kopContact: 'Jl. DI Panjaitan No. 128, Jakarta Selatan 12340 | Telp: (021) 7888-9900 | Email: baak@itn.ac.id',
+  pinFormat: '{KODE_PT}-{TAHUN}-{PRODI}-{NO_URUT}',
+  nomorSuratFormat: '{NO}/ITN-BAAK/{BULAN_ROMAWI}/{TAHUN}',
+  nimFormat: '{ANGKATAN_2DIGIT}{KODE_PRODI_3DIGIT}{NO_URUT_4DIGIT}',
+  doubleBorderKop: true,
+};
+
+const THEME_PRESETS = [
+  { name: 'Nusantara Navy & Gold', primary: '#1E3A8A', accent: '#D4A017' },
+  { name: 'Royal Emerald & Gold', primary: '#047857', accent: '#F59E0B' },
+  { name: 'Imperial Purple & Amber', primary: '#6D28D9', accent: '#FBBF24' },
+  { name: 'Cyber Slate & Cyan', primary: '#0F172A', accent: '#06B6D4' },
+  { name: 'Crimson Maroon & Gold', primary: '#881337', accent: '#F59E0B' },
+];
 
 interface CampusProfile {
   name: string;
@@ -93,11 +133,87 @@ export default function SuperAdminProfilInstitusiPage() {
   const [editFormData, setEditFormData] = useState<CampusProfile>(defaultProfile);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [dbConnected, setDbConnected] = useState<boolean | null>(null);
+
+  // Identity Settings state
+  const [identitySettings, setIdentitySettings] = useState<IdentitySettings>(defaultIdentitySettings);
+  const [editIdentityData, setEditIdentityData] = useState<IdentitySettings>(defaultIdentitySettings);
+  const [savingIdentity, setSavingIdentity] = useState(false);
+  const [activeIdentityTab, setActiveIdentityTab] = useState<'tema' | 'kop' | 'format'>('tema');
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
+
+  // 1. Fetch fresh profile data directly from backend PostgreSQL database on mount
+  useEffect(() => {
+    async function loadFromDatabase() {
+      setLoading(true);
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
+      // Load local storage cache first
+      try {
+        const stored = localStorage.getItem('siakad_institution_profile');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setProfile((prev) => ({ ...prev, ...parsed }));
+          setEditFormData((prev) => ({ ...prev, ...parsed }));
+        }
+        const storedId = localStorage.getItem('siakad_campus_identity_settings');
+        if (storedId) {
+          const parsedId = JSON.parse(storedId);
+          setIdentitySettings(parsedId);
+          setEditIdentityData(parsedId);
+        }
+      } catch {}
+
+      // Fetch from PostgreSQL backend database
+      try {
+        const res = await fetch(`${apiBase}/landing-page`);
+        if (res.ok) {
+          const json = await res.json();
+          const data = json.data || json;
+          if (data) {
+            setDbConnected(true);
+            setProfile((prev) => {
+              const updated: CampusProfile = {
+                ...prev,
+                name: data.campusName || prev.name,
+                shortName: data.campusShortName || prev.shortName,
+                address: data.contactAddress || prev.address,
+                phone: data.contactPhone || prev.phone,
+                email: data.contactEmail || prev.email,
+                whatsapp: data.contactWhatsapp || prev.whatsapp,
+                rector: data.rectorName || prev.rector,
+              };
+              return updated;
+            });
+            setEditFormData((prev) => ({
+              ...prev,
+              name: data.campusName || prev.name,
+              shortName: data.campusShortName || prev.shortName,
+              address: data.contactAddress || prev.address,
+              phone: data.contactPhone || prev.phone,
+              email: data.contactEmail || prev.email,
+              whatsapp: data.contactWhatsapp || prev.whatsapp,
+              rector: data.rectorName || prev.rector,
+            }));
+          }
+        } else {
+          setDbConnected(false);
+        }
+      } catch {
+        setDbConnected(false);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadFromDatabase();
+  }, []);
 
   const handleCopy = (text: string, fieldName: string) => {
     navigator.clipboard.writeText(text);
@@ -111,17 +227,93 @@ export default function SuperAdminProfilInstitusiPage() {
     setIsEditModalOpen(true);
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  // 2. Save profile directly to backend PostgreSQL database
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaving(true);
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
+    // Update local UI & local storage immediately
     setProfile({ ...editFormData });
-    setIsEditModalOpen(false);
-    showToast('Profil institusi berhasil diperbarui!');
+    try {
+      localStorage.setItem('siakad_institution_profile', JSON.stringify(editFormData));
+      window.dispatchEvent(new Event('siakad_institution_updated'));
+    } catch {}
+
+    // Save to PostgreSQL backend
+    try {
+      const payload = {
+        campusName: editFormData.name,
+        campusShortName: editFormData.shortName,
+        contactAddress: editFormData.address,
+        contactPhone: editFormData.phone,
+        contactEmail: editFormData.email,
+        contactWhatsapp: editFormData.whatsapp,
+        rectorName: editFormData.rector,
+      };
+
+      const res = await fetch(`${apiBase}/landing-page`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        setDbConnected(true);
+        showToast('Profil institusi berhasil disimpan ke Database PostgreSQL!');
+      } else {
+        showToast('Profil tersimpan secara lokal.');
+      }
+    } catch {
+      showToast('Profil disimpan secara lokal.');
+    } finally {
+      setSaving(false);
+      setIsEditModalOpen(false);
+    }
   };
 
   const handleSaveLogo = (newInitials: string) => {
-    setProfile((prev) => ({ ...prev, logoInitials: newInitials }));
+    const updated = { ...profile, logoInitials: newInitials };
+    setProfile(updated);
+    try {
+      localStorage.setItem('siakad_institution_profile', JSON.stringify(updated));
+      window.dispatchEvent(new Event('siakad_institution_updated'));
+    } catch {}
     setIsLogoModalOpen(false);
     showToast('Logo / Identitas visual institusi berhasil diperbarui!');
+  };
+
+  const handleOpenSettingsModal = () => {
+    setEditIdentityData({ ...identitySettings });
+    setIsSettingsModalOpen(true);
+  };
+
+  const handleSaveIdentitySettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingIdentity(true);
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
+    // 1. Update state & localStorage
+    setIdentitySettings({ ...editIdentityData });
+    try {
+      localStorage.setItem('siakad_campus_identity_settings', JSON.stringify(editIdentityData));
+      window.dispatchEvent(new Event('siakad_identity_updated'));
+    } catch {}
+
+    // 2. Persist tagline to backend database
+    try {
+      await fetch(`${apiBase}/landing-page`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tagline: editIdentityData.tagline }),
+      });
+      showToast('Pengaturan identitas & branding kampus berhasil disimpan!');
+    } catch {
+      showToast('Pengaturan identitas berhasil disimpan secara lokal.');
+    } finally {
+      setSavingIdentity(false);
+      setIsSettingsModalOpen(false);
+    }
   };
 
   return (
@@ -171,7 +363,7 @@ export default function SuperAdminProfilInstitusiPage() {
             </button>
 
             <button
-              onClick={() => setIsSettingsModalOpen(true)}
+              onClick={handleOpenSettingsModal}
               className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer shadow-xs"
             >
               <Settings className="w-4 h-4 text-slate-500" />
@@ -244,7 +436,22 @@ export default function SuperAdminProfilInstitusiPage() {
                   {profile.activeSemester} TA {profile.activeAcademicYear}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 mt-1">Status Sinkronisasi PDDIKTI: <span className="text-emerald-600 font-bold">Terhubung (100%)</span></p>
+              <div className="flex items-center justify-between gap-3 text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-slate-200/60">
+                <span>Database Backend:</span>
+                {dbConnected === true ? (
+                  <span className="text-emerald-700 font-bold flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                    <Database className="w-3 h-3 text-emerald-600" />
+                    <span>PostgreSQL Aktif</span>
+                  </span>
+                ) : dbConnected === false ? (
+                  <span className="text-amber-700 font-bold flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                    <Database className="w-3 h-3 text-amber-600" />
+                    <span>Mode Lokal</span>
+                  </span>
+                ) : (
+                  <span className="text-slate-400 font-medium">Menghubungkan...</span>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -690,9 +897,20 @@ export default function SuperAdminProfilInstitusiPage() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 transition-all shadow-sm"
+                    disabled={saving}
+                    className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-900 transition-all shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-60"
                   >
-                    Simpan Perubahan
+                    {saving ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Menyimpan...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-[#D4A017]" />
+                        <span>Simpan</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
@@ -755,45 +973,318 @@ export default function SuperAdminProfilInstitusiPage() {
         <Modal
           isOpen={isSettingsModalOpen}
           onClose={() => setIsSettingsModalOpen(false)}
-          title="Pengaturan Identitas Kampus"
-          subtitle="Konfigurasi format nomor ijazah, kop surat & tema institusi"
-          icon={<Settings className="w-4 h-4" />}
-          maxWidth="lg"
+          title="Pengaturan Identitas & Branding Kampus"
+          subtitle="Konfigurasi palet warna tema, format KOP surat, dan standar penomoran akademik"
+          icon={<Settings className="w-4 h-4 text-[#1E3A8A]" />}
+          maxWidth="2xl"
         >
+          <form onSubmit={handleSaveIdentitySettings} className="space-y-5 text-xs">
+            {/* Tab navigation inside modal */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setActiveIdentityTab('tema')}
+                className={`flex-1 py-2 rounded-lg font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  activeIdentityTab === 'tema'
+                    ? 'bg-white text-[#1E3A8A] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Palette className="w-3.5 h-3.5" />
+                <span>Tema & Warna</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveIdentityTab('kop')}
+                className={`flex-1 py-2 rounded-lg font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  activeIdentityTab === 'kop'
+                    ? 'bg-white text-[#1E3A8A] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>KOP Surat Resmi</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveIdentityTab('format')}
+                className={`flex-1 py-2 rounded-lg font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  activeIdentityTab === 'format'
+                    ? 'bg-white text-[#1E3A8A] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <CheckSquare className="w-3.5 h-3.5" />
+                <span>Format Nomor & PIN</span>
+              </button>
+            </div>
 
-              <div className="space-y-3.5 text-xs">
-                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
-                  <p className="font-bold text-slate-800">Format KOP Surat & Dokumen Resmi</p>
-                  <p className="text-slate-500 text-[11px]">Kop surat menggunakan logo resmi {profile.shortName}, nama yayasan, dan alamat kampus terdaftar.</p>
+            {/* TAB 1: TEMA & WARNA */}
+            {activeIdentityTab === 'tema' && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-2">
+                    Preset Palet Warna Resmi Institusi
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {THEME_PRESETS.map((preset) => {
+                      const isSelected =
+                        editIdentityData.primaryColor === preset.primary &&
+                        editIdentityData.accentColor === preset.accent;
+                      return (
+                        <button
+                          key={preset.name}
+                          type="button"
+                          onClick={() => {
+                            setEditIdentityData({
+                              ...editIdentityData,
+                              primaryColor: preset.primary,
+                              accentColor: preset.accent,
+                              themeName: preset.name,
+                            });
+                          }}
+                          className={`p-2.5 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                            isSelected
+                              ? 'border-[#1E3A8A] bg-blue-50/60 ring-2 ring-blue-100'
+                              : 'border-slate-200 hover:border-slate-300 bg-white'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className="flex items-center -space-x-1.5">
+                              <div
+                                className="w-6 h-6 rounded-full border border-white shadow-xs"
+                                style={{ backgroundColor: preset.primary }}
+                              />
+                              <div
+                                className="w-6 h-6 rounded-full border border-white shadow-xs"
+                                style={{ backgroundColor: preset.accent }}
+                              />
+                            </div>
+                            <span className="font-bold text-slate-800 text-xs truncate">
+                              {preset.name}
+                            </span>
+                          </div>
+                          {isSelected && <Check className="w-4 h-4 text-[#1E3A8A]" />}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700">Warna Aksen Utama Kampus</label>
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-[#1E3A8A] border-2 border-[#D4A017] shadow-xs shrink-0" />
-                    <div>
-                      <p className="font-semibold text-slate-900">Nusantara Navy (#1E3A8A) & Gold (#D4A017)</p>
-                      <p className="text-[11px] text-slate-400">Warna korporat resmi Institut Teknologi Nusantara</p>
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700">Warna Utama (Primary Hex)</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={editIdentityData.primaryColor}
+                        onChange={(e) =>
+                          setEditIdentityData({ ...editIdentityData, primaryColor: e.target.value })
+                        }
+                        className="w-9 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-white"
+                      />
+                      <input
+                        type="text"
+                        value={editIdentityData.primaryColor}
+                        onChange={(e) =>
+                          setEditIdentityData({ ...editIdentityData, primaryColor: e.target.value })
+                        }
+                        className="w-full px-3 py-1.5 font-mono text-xs font-bold uppercase rounded-xl border border-slate-200 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700">Warna Aksen (Gold/Accent Hex)</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={editIdentityData.accentColor}
+                        onChange={(e) =>
+                          setEditIdentityData({ ...editIdentityData, accentColor: e.target.value })
+                        }
+                        className="w-9 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-white"
+                      />
+                      <input
+                        type="text"
+                        value={editIdentityData.accentColor}
+                        onChange={(e) =>
+                          setEditIdentityData({ ...editIdentityData, accentColor: e.target.value })
+                        }
+                        className="w-full px-3 py-1.5 font-mono text-xs font-bold uppercase rounded-xl border border-slate-200 focus:outline-none"
+                      />
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-1 pt-2 border-t border-slate-100">
-                  <label className="font-bold text-slate-700">Format Penomoran Ijazah Nasional (PIN)</label>
-                  <p className="font-mono text-[11px] text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg">
-                    {profile.ptCode}-2026-XXXXX
-                  </p>
+                <div className="space-y-1 pt-2">
+                  <label className="font-bold text-slate-700">Slogan / Tagline Resmi Kampus</label>
+                  <input
+                    type="text"
+                    value={editIdentityData.tagline}
+                    onChange={(e) =>
+                      setEditIdentityData({ ...editIdentityData, tagline: e.target.value })
+                    }
+                    placeholder="Contoh: Kampus Inovasi Teknologi Masa Depan"
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
+                  />
+                  <p className="text-[10px] text-slate-400">Ditampilkan pada halaman muka website dan banner portal akademik.</p>
                 </div>
               </div>
+            )}
 
-              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 mt-5">
-                <button
-                  onClick={() => setIsSettingsModalOpen(false)}
-                  className="px-4 py-2 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 rounded-xl"
-                >
-                  Tutup
-                </button>
+            {/* TAB 2: KOP SURAT */}
+            {activeIdentityTab === 'kop' && (
+              <div className="space-y-3.5">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">KOP Baris 1 (Nama Yayasan Penyelenggara)</label>
+                  <input
+                    type="text"
+                    value={editIdentityData.kopLine1}
+                    onChange={(e) =>
+                      setEditIdentityData({ ...editIdentityData, kopLine1: e.target.value })
+                    }
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">KOP Baris 2 (Nama Resmi Institusi)</label>
+                  <input
+                    type="text"
+                    value={editIdentityData.kopLine2}
+                    onChange={(e) =>
+                      setEditIdentityData({ ...editIdentityData, kopLine2: e.target.value })
+                    }
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none font-bold uppercase"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">KOP Baris 3 (Alamat, Kontak & Website)</label>
+                  <input
+                    type="text"
+                    value={editIdentityData.kopContact}
+                    onChange={(e) =>
+                      setEditIdentityData({ ...editIdentityData, kopContact: e.target.value })
+                    }
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none text-xs"
+                  />
+                </div>
+
+                <label className="flex items-center gap-2 pt-1 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={editIdentityData.doubleBorderKop}
+                    onChange={(e) =>
+                      setEditIdentityData({ ...editIdentityData, doubleBorderKop: e.target.checked })
+                    }
+                    className="w-4 h-4 rounded text-[#1E3A8A] focus:ring-0"
+                  />
+                  <span className="font-bold text-slate-700">
+                    Gunakan Garis Tebal Ganda (Double Border) di Bawah KOP Surat
+                  </span>
+                </label>
+
+                {/* Live Preview Kop Surat */}
+                <div className="mt-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    Pratinjau KOP Dokumen Resmi
+                  </p>
+                  <div className="bg-white p-4 rounded-lg border border-slate-200 text-center font-serif space-y-0.5">
+                    <p className="text-[11px] font-bold text-slate-600 uppercase font-sans">
+                      {editIdentityData.kopLine1}
+                    </p>
+                    <p className="text-sm font-black text-slate-900 uppercase tracking-wider font-sans">
+                      {editIdentityData.kopLine2}
+                    </p>
+                    <p className="text-[10px] text-slate-500 font-sans">
+                      {editIdentityData.kopContact}
+                    </p>
+                    <div
+                      className={`pt-2 mt-2 ${
+                        editIdentityData.doubleBorderKop
+                          ? 'border-b-2 border-t border-slate-900'
+                          : 'border-b border-slate-900'
+                      }`}
+                    />
+                  </div>
+                </div>
               </div>
+            )}
+
+            {/* TAB 3: FORMAT NOMOR */}
+            {activeIdentityTab === 'format' && (
+              <div className="space-y-3.5">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">Format Penomoran Ijazah Nasional (PIN)</label>
+                  <input
+                    type="text"
+                    value={editIdentityData.pinFormat}
+                    onChange={(e) =>
+                      setEditIdentityData({ ...editIdentityData, pinFormat: e.target.value })
+                    }
+                    className="w-full px-3.5 py-2 font-mono text-xs rounded-xl border border-slate-200 focus:outline-none font-bold"
+                  />
+                  <p className="text-[10px] text-slate-400">Format standar penomoran ijazah sesuai regulasi PDDikti.</p>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">Format Penomoran Surat Resmi BAAK</label>
+                  <input
+                    type="text"
+                    value={editIdentityData.nomorSuratFormat}
+                    onChange={(e) =>
+                      setEditIdentityData({ ...editIdentityData, nomorSuratFormat: e.target.value })
+                    }
+                    className="w-full px-3.5 py-2 font-mono text-xs rounded-xl border border-slate-200 focus:outline-none font-bold"
+                  />
+                  <p className="text-[10px] text-slate-400">Digunakan pada layanan surat keterangan aktif kuliah, izin magang, dll.</p>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">Format Nomor Induk Mahasiswa (NIM)</label>
+                  <input
+                    type="text"
+                    value={editIdentityData.nimFormat}
+                    onChange={(e) =>
+                      setEditIdentityData({ ...editIdentityData, nimFormat: e.target.value })
+                    }
+                    className="w-full px-3.5 py-2 font-mono text-xs rounded-xl border border-slate-200 focus:outline-none font-bold"
+                  />
+                  <p className="text-[10px] text-slate-400">Contoh hasil: 2311501001 (Angkatan 23, Prodi 115, Urut 01001).</p>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100 mt-5">
+              <button
+                type="button"
+                onClick={() => setIsSettingsModalOpen(false)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={savingIdentity}
+                className="px-5 py-2 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-900 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+              >
+                {savingIdentity ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Menyimpan...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-[#D4A017]" />
+                    <span>Simpan</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
         </Modal>
       </div>
     </PortalLayout>

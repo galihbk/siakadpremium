@@ -19,7 +19,8 @@ import {
 
 export const metadata = {
   title: 'Profil Institusi - Institut Teknologi Nusantara (ITN)',
-  description: 'Sejarah, Visi, Misi, Pimpinan, dan Nilai-Nilai Dasar Institut Teknologi Nusantara (ITN). Menjadi Perguruan Tinggi Berstandar Dunia yang Berbudaya dan Berdaya Saing Global.',
+  description:
+    'Sejarah, Visi, Misi, Pimpinan, dan Nilai-Nilai Dasar Institut Teknologi Nusantara (ITN). Menjadi Perguruan Tinggi Berstandar Dunia yang Berbudaya dan Berdaya Saing Global.',
 };
 
 export default function ProfilPage() {
@@ -28,28 +29,32 @@ export default function ProfilPage() {
       name: 'Prof. Dr. Ir. H. Muhammad Arif, M.Sc., IPU.',
       role: 'Rektor Institut Teknologi Nusantara',
       bidang: 'Guru Besar Teknik Sistem Energi & Komputasi Lanjut',
-      image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
+      image:
+        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
       pendidikan: 'S3 Imperial College London • S2 TU Delft • S1 ITB',
     },
     {
       name: 'Dr. Anita Rahmawati, S.T., M.T.',
       role: 'Wakil Rektor I (Bidang Akademik & Riset)',
       bidang: 'Pengembangan Kurikulum OBE & Inovasi Pembelajaran Digital',
-      image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=600&q=80',
+      image:
+        'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=600&q=80',
       pendidikan: 'S3 Universitas Indonesia • S2 ITB • S1 UGM',
     },
     {
       name: 'Dr. Hendra Saputra, S.E., M.Ak., Ak., CA.',
       role: 'Wakil Rektor II (Bidang Keuangan & SDM)',
       bidang: 'Tata Kelola Keuangan Modern & Transformasi SDM Berkelanjutan',
-      image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80',
+      image:
+        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80',
       pendidikan: 'S3 Universitas Gadjah Mada • S2 UI • S1 Undip',
     },
     {
       name: 'Dr. Bayu Wicaksono, S.Kom., M.Kom.',
       role: 'Wakil Rektor III (Kemahasiswaan & Kerjasama)',
       bidang: 'Pengembangan Karir, Kewirausahaan & Kemitraan Internasional',
-      image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=600&q=80',
+      image:
+        'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=600&q=80',
       pendidikan: 'S3 Nanyang Technological Univ. • S2 ITS • S1 ITN',
     },
   ];
@@ -112,19 +117,31 @@ export default function ProfilPage() {
         {/* Header Hero Section */}
         <section className="bg-gradient-to-br from-[#0F172A] via-[#1E3A8A] to-[#172554] text-white py-16 sm:py-24 relative overflow-hidden">
           <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#D4A017_1px,transparent_1px)] [background-size:16px_16px]"></div>
-          
+
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div className="max-w-3xl">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-[#D4A017]/20 border border-[#D4A017]/40 text-[#D4A017] text-xs font-bold uppercase tracking-wider mb-4">
                 <Building className="w-3.5 h-3.5" />
                 <span>Tentang Kami</span>
               </span>
+
               <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight leading-tight">
                 Profil Institut Teknologi Nusantara
               </h1>
+
               <p className="mt-4 text-sm sm:text-base text-blue-100/90 leading-relaxed">
-                Membangun generasi cerdas berkarakter, berdaya saing global, dan berakar pada nilai-nilai kebudayaan luhur bangsa sejak 1988.
+                Membangun generasi cerdas berkarakter, berdaya saing global, dan berakar pada
+                nilai-nilai kebudayaan luhur bangsa sejak 1988.
               </p>
+
+              <div className="mt-4">
+                <Link
+                  href="/profil/edit"
+                  className="inline-block text-sm px-3 py-2 bg-[#1E3A8A] text-white rounded-md"
+                >
+                  Edit Profil
+                </Link>
+              </div>
             </div>
           </div>
         </section>
@@ -156,7 +173,6 @@ export default function ProfilPage() {
         {/* Visi & Misi Section */}
         <section className="py-16 sm:py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-stretch">
-            
             {/* Visi Card */}
             <div className="bg-white rounded-2xl p-8 border border-slate-200 shadow-card flex flex-col justify-between">
               <div>
@@ -170,12 +186,16 @@ export default function ProfilPage() {
                   Visi Institusi 2035
                 </h2>
                 <p className="text-slate-600 leading-relaxed text-sm sm:text-base italic">
-                  &ldquo;Menjadi perguruan tinggi riset berbasis teknologi terkemuka di tingkat Asia yang unggul, berbudaya, berintegritas tinggi, dan berperan aktif memajukan kesejahteraan bangsa pada tahun 2035.&rdquo;
+                  &ldquo;Menjadi perguruan tinggi riset berbasis teknologi terkemuka di tingkat Asia
+                  yang unggul, berbudaya, berintegritas tinggi, dan berperan aktif memajukan
+                  kesejahteraan bangsa pada tahun 2035.&rdquo;
                 </p>
               </div>
               <div className="mt-8 pt-6 border-t border-slate-100 flex items-center gap-3">
                 <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                <span className="text-xs font-semibold text-slate-700">Tersertifikasi ISO 9001:2015 & IABEE Engineering</span>
+                <span className="text-xs font-semibold text-slate-700">
+                  Tersertifikasi ISO 9001:2015 & IABEE Engineering
+                </span>
               </div>
             </div>
 
@@ -196,7 +216,8 @@ export default function ProfilPage() {
                     1
                   </span>
                   <span>
-                    Menyelenggarakan pendidikan tinggi bertaraf internasional yang memadukan keunggulan sains terapan, teknologi modern, dan etika kemanusiaan.
+                    Menyelenggarakan pendidikan tinggi bertaraf internasional yang memadukan
+                    keunggulan sains terapan, teknologi modern, dan etika kemanusiaan.
                   </span>
                 </li>
                 <li className="flex items-start gap-3">
@@ -204,7 +225,8 @@ export default function ProfilPage() {
                     2
                   </span>
                   <span>
-                    Mengembangkan riset inovatif multidisiplin yang terpublikasi bereputasi dan menghasilkan produk paten bernilai industri.
+                    Mengembangkan riset inovatif multidisiplin yang terpublikasi bereputasi dan
+                    menghasilkan produk paten bernilai industri.
                   </span>
                 </li>
                 <li className="flex items-start gap-3">
@@ -212,7 +234,8 @@ export default function ProfilPage() {
                     3
                   </span>
                   <span>
-                    Melaksanakan pengabdian kepada masyarakat berbasis teknologi tepat guna untuk mengentaskan persoalan riil bangsa.
+                    Melaksanakan pengabdian kepada masyarakat berbasis teknologi tepat guna untuk
+                    mengentaskan persoalan riil bangsa.
                   </span>
                 </li>
                 <li className="flex items-start gap-3">
@@ -220,12 +243,12 @@ export default function ProfilPage() {
                     4
                   </span>
                   <span>
-                    Mewujudkan tata kelola perguruan tinggi modern (*Good University Governance*) yang transparan, akuntabel, dan berbasis digital.
+                    Mewujudkan tata kelola perguruan tinggi modern (*Good University Governance*)
+                    yang transparan, akuntabel, dan berbasis digital.
                   </span>
                 </li>
               </ul>
             </div>
-
           </div>
         </section>
 
@@ -240,7 +263,8 @@ export default function ProfilPage() {
                 Nilai-Nilai Dasar Institut
               </h2>
               <p className="text-sm text-slate-500 mt-2">
-                Empat fondasi moral yang menjiwai setiap langkah civitas akademika ITN dalam berkarya.
+                Empat fondasi moral yang menjiwai setiap langkah civitas akademika ITN dalam
+                berkarya.
               </p>
             </div>
 
@@ -248,8 +272,13 @@ export default function ProfilPage() {
               {values.map((v, idx) => {
                 const Icon = v.icon;
                 return (
-                  <div key={idx} className="bg-slate-50 rounded-2xl p-6 border border-slate-200/80 hover:shadow-card transition-shadow">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${v.color}`}>
+                  <div
+                    key={idx}
+                    className="bg-slate-50 rounded-2xl p-6 border border-slate-200/80 hover:shadow-card transition-shadow"
+                  >
+                    <div
+                      className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${v.color}`}
+                    >
                       <Icon className="w-6 h-6" />
                     </div>
                     <h3 className="text-base font-bold text-slate-900 mb-2">{v.title}</h3>
@@ -271,13 +300,17 @@ export default function ProfilPage() {
               Pimpinan Rektorat ITN
             </h2>
             <p className="text-sm text-slate-500 mt-2">
-              Dipimpin oleh akademisi dan praktisi berkaliber internasional yang berdedikasi memajukan pendidikan tinggi Indonesia.
+              Dipimpin oleh akademisi dan praktisi berkaliber internasional yang berdedikasi
+              memajukan pendidikan tinggi Indonesia.
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {leadership.map((leader, idx) => (
-              <div key={idx} className="bg-white rounded-2xl border border-slate-200 shadow-subtle overflow-hidden flex flex-col">
+              <div
+                key={idx}
+                className="bg-white rounded-2xl border border-slate-200 shadow-subtle overflow-hidden flex flex-col"
+              >
                 <div className="relative h-64 w-full bg-slate-200">
                   <Image
                     src={leader.image}
@@ -294,12 +327,8 @@ export default function ProfilPage() {
                 </div>
                 <div className="p-5 flex-1 flex flex-col justify-between">
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900 leading-snug">
-                      {leader.name}
-                    </h3>
-                    <p className="text-xs text-[#1E3A8A] font-semibold mt-1">
-                      {leader.bidang}
-                    </p>
+                    <h3 className="text-sm font-bold text-slate-900 leading-snug">{leader.name}</h3>
+                    <p className="text-xs text-[#1E3A8A] font-semibold mt-1">{leader.bidang}</p>
                   </div>
                   <p className="text-[11px] text-slate-500 mt-3 pt-3 border-t border-slate-100">
                     {leader.pendidikan}
@@ -324,8 +353,13 @@ export default function ProfilPage() {
 
             <div className="space-y-6 relative before:absolute before:inset-0 before:left-8 md:before:left-1/2 before:w-0.5 before:bg-slate-300">
               {milestones.map((m, idx) => (
-                <div key={idx} className="relative flex flex-col md:flex-row items-start md:items-center gap-6">
-                  <div className={`w-full md:w-1/2 ${idx % 2 === 0 ? 'md:pr-10 md:text-right' : 'md:pl-10 md:order-last'}`}>
+                <div
+                  key={idx}
+                  className="relative flex flex-col md:flex-row items-start md:items-center gap-6"
+                >
+                  <div
+                    className={`w-full md:w-1/2 ${idx % 2 === 0 ? 'md:pr-10 md:text-right' : 'md:pl-10 md:order-last'}`}
+                  >
                     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-card">
                       <span className="inline-block text-xs font-bold text-[#1E3A8A] bg-blue-50 px-2.5 py-0.5 rounded-md mb-1.5">
                         Tahun {m.year}
@@ -334,7 +368,7 @@ export default function ProfilPage() {
                       <p className="text-xs text-slate-600 mt-1 leading-relaxed">{m.desc}</p>
                     </div>
                   </div>
-                  
+
                   {/* Timeline Badge */}
                   <div className="absolute left-8 md:left-1/2 transform -translate-x-1/2 w-8 h-8 rounded-full bg-[#1E3A8A] border-4 border-white text-white flex items-center justify-center shadow-xs">
                     <span className="w-2 h-2 bg-[#D4A017] rounded-full"></span>
@@ -344,7 +378,6 @@ export default function ProfilPage() {
             </div>
           </div>
         </section>
-
       </main>
 
       <Footer />

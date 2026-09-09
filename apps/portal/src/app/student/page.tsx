@@ -1,5 +1,8 @@
 'use client';
 
+import React, { useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import {
   Award,
@@ -16,6 +19,18 @@ import {
 } from 'lucide-react';
 
 export default function StudentDashboardPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (window.location.hash === '#khs') {
+        router.push('/student/khs');
+      } else if (window.location.hash === '#jadwal') {
+        router.push('/student/jadwal');
+      }
+    }
+  }, [router]);
+
   const krsList = [
     { code: 'TIF-301', name: 'Rekayasa Perangkat Lunak', sks: 3, dosen: 'Dr. Bayu Wicaksono, M.Kom.', hari: 'Senin', jam: '08.00 - 10.30 WIB', ruang: 'Lab Komputasi 3' },
     { code: 'TIF-305', name: 'Pemrograman Web & Cloud Lanjut', sks: 3, dosen: 'Ir. Anita Rahmawati, M.T.', hari: 'Selasa', jam: '10.30 - 13.00 WIB', ruang: 'Lab Software Eng.' },
@@ -46,10 +61,13 @@ export default function StudentDashboardPage() {
             </p>
           </div>
           <div className="flex gap-2.5">
-            <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-[#1E3A8A] text-xs font-bold rounded-xl shadow-xs hover:bg-blue-50 transition-colors">
+            <Link
+              href="/student/khs"
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-[#1E3A8A] text-xs font-bold rounded-xl shadow-xs hover:bg-blue-50 transition-colors"
+            >
               <Printer className="w-3.5 h-3.5" />
               <span>Cetak KHS</span>
-            </button>
+            </Link>
             <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#D4A017] text-slate-950 text-xs font-bold rounded-xl shadow-xs hover:bg-[#C59114] transition-colors">
               <FileCheck className="w-3.5 h-3.5" />
               <span>Unduh Kartu Ujian</span>

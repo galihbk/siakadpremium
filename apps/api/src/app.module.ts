@@ -11,6 +11,7 @@ import { AcademicModule } from './modules/academic/academic.module';
 import { AdmissionsModule } from './modules/admissions/admissions.module';
 import { LandingPageModule } from './modules/landing-page/landing-page.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { EmployeesModule } from './modules/employees/employees.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -31,6 +32,7 @@ import { AppService } from './app.service';
     AdmissionsModule,
     LandingPageModule,
     AnalyticsModule,
+    EmployeesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

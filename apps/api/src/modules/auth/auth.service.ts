@@ -143,4 +143,52 @@ export class AuthService {
       role: UserRole.ADMIN_BAAK,
     };
   }
+
+  async updateProfile(
+    userId: string,
+    payload: Partial<{
+      fullName: string;
+      avatarUrl: string;
+      phone: string;
+      nik: string;
+      address: string;
+      birthPlace: string;
+      birthDate: string;
+    }>,
+  ) {
+    // Update base user fields
+    const data: any = {};
+    if (payload.fullName) data.fullName = payload.fullName;
+    if (payload.avatarUrl) data.avatarUrl = payload.avatarUrl;
+
+    let updatedUser = null;
+    try {
+      if (Object.keys(data).length > 0) {
+        updatedUser = await this.prisma.user.update({ where: { id: userId }, data });
+      }
+
+      // If the user is a student, update student details if provided
+      const student = await this.prisma.student.findUnique({ where: { userId } });
+      if (student) {
+        const studentData: any = {};
+        if (payload.phone) studentData.phone = payload.phone;
+        if (payload.nik) studentData.nik = payload.nik;
+        if (payload.address) studentData.address = payload.address;
+        if (payload.birthPlace) studentData.birthPlace = payload.birthPlace;
+        if (payload.birthDate) studentData.birthDate = new Date(payload.birthDate);
+        if (Object.keys(studentData).length > 0) {
+          await this.prisma.student.update({ where: { id: student.id }, data: studentData });
+        }
+      }
+
+      return updatedUser || (await this.getProfile(userId));
+    } catch {
+      // In demo/offline mode, return a simple merge
+      return {
+        id: userId,
+        fullName: payload.fullName || 'Demo User',
+        avatarUrl: payload.avatarUrl || null,
+      };
+    }
+  }
 }

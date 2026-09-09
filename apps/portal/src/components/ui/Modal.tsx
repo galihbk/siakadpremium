@@ -9,8 +9,10 @@ export interface ModalProps {
   onClose: () => void;
   title?: React.ReactNode;
   subtitle?: string;
+  description?: string;
   icon?: React.ReactNode;
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
   children: React.ReactNode;
   className?: string;
   showCloseButton?: boolean;
@@ -30,12 +32,16 @@ export function Modal({
   onClose,
   title,
   subtitle,
+  description,
   icon,
-  maxWidth = 'xl',
+  maxWidth,
+  size,
   children,
   className = '',
   showCloseButton = true,
 }: ModalProps) {
+  const finalSubtitle = subtitle ?? description;
+  const finalMaxWidth = maxWidth ?? size ?? 'xl';
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -55,7 +61,7 @@ export function Modal({
 
   if (!isOpen || !mounted) return null;
 
-  const maxWidthClass = maxWidthMap[maxWidth] || 'max-w-xl';
+  const maxWidthClass = maxWidthMap[finalMaxWidth] || 'max-w-xl';
 
   return createPortal(
     <div
@@ -94,7 +100,7 @@ export function Modal({
                 ) : (
                   title
                 )}
-                {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
+                {finalSubtitle && <p className="text-xs text-slate-500 mt-0.5">{finalSubtitle}</p>}
               </div>
             </div>
             {showCloseButton && (

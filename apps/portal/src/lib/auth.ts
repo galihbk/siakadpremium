@@ -92,6 +92,9 @@ export function isRouteAllowedForRole(pathname: string, role: string): boolean {
   }
 
   if (pathname.startsWith('/admin/superadmin')) {
+    if (pathname === '/admin/superadmin/laporan') {
+      return role === 'SUPER_ADMIN' || role === 'ADMIN_BAAK';
+    }
     return role === 'SUPER_ADMIN';
   }
 

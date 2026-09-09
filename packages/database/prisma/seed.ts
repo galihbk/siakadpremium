@@ -13,7 +13,8 @@ async function main() {
       code: 'FT',
       name: 'Fakultas Teknik',
       deanName: 'Prof. Dr. Ir. Hendra Gunawan, M.Eng.',
-      description: 'Fakultas yang berfokus pada inovasi keinsinyuran dan rekayasa teknologi infrastruktur.',
+      description:
+        'Fakultas yang berfokus pada inovasi keinsinyuran dan rekayasa teknologi infrastruktur.',
     },
   });
 
@@ -188,18 +189,187 @@ async function main() {
     },
   });
 
+  // Mahasiswa tambahan (dummy) — dibuat untuk kebutuhan pengujian
+  const userStudent2 = await prisma.user.upsert({
+    where: { email: 'student02@itn.ac.id' },
+    update: {},
+    create: {
+      email: 'student02@itn.ac.id',
+      fullName: 'Rina Salsabila',
+      role: Role.STUDENT,
+      passwordHash: defaultHash,
+    },
+  });
+
+  await prisma.student.upsert({
+    where: { nim: '2311501002' },
+    update: {},
+    create: {
+      userId: userStudent2.id,
+      studyProgramId: prodiSi.id,
+      advisorLecturerId: lecturer.id,
+      nim: '2311501002',
+      entryYear: 2024,
+      currentSemester: 3,
+      status: StudentStatus.ACTIVE,
+      phone: '081234567890',
+    },
+  });
+
   // 6. Seed Super Admin (Pengelola CMS & Landing Page)
   const superAdmin = await prisma.user.upsert({
     where: { email: 'superadmin@itn.ac.id' },
     update: {
-      fullName: 'Bambang Pratama, S.Kom., M.Cs. (Super Admin)',
+      fullName: 'Bambang Pratama, S.Kom., M.Cs.',
       role: Role.SUPER_ADMIN,
     },
     create: {
       email: 'superadmin@itn.ac.id',
-      fullName: 'Bambang Pratama, S.Kom., M.Cs. (Super Admin)',
+      fullName: 'Bambang Pratama, S.Kom., M.Cs.',
       role: Role.SUPER_ADMIN,
       passwordHash: defaultHash,
+    },
+  });
+
+  // 6b. Seed Pegawai Tambahan (Keuangan, IT, Dosen-Dosen)
+  await prisma.user.upsert({
+    where: { email: 'dewi.lestari@itn.ac.id' },
+    update: {},
+    create: {
+      email: 'dewi.lestari@itn.ac.id',
+      fullName: 'Dewi Lestari, S.E., M.Ak.',
+      role: Role.ADMIN_KEUANGAN,
+      passwordHash: defaultHash,
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { email: 'rizky.kurniawan@itn.ac.id' },
+    update: {},
+    create: {
+      email: 'rizky.kurniawan@itn.ac.id',
+      fullName: 'Rizky Kurniawan, S.Tr.Kom.',
+      role: Role.STAFF,
+      passwordHash: defaultHash,
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { email: 'ahmad.fauzi@itn.ac.id' },
+    update: {},
+    create: {
+      email: 'ahmad.fauzi@itn.ac.id',
+      fullName: 'Ahmad Fauzi, A.Md.',
+      role: Role.STAFF,
+      passwordHash: defaultHash,
+    },
+  });
+
+  // Dosen Dekan FT
+  const userHendra = await prisma.user.upsert({
+    where: { email: 'h.gunawan@itn.ac.id' },
+    update: {},
+    create: {
+      email: 'h.gunawan@itn.ac.id',
+      fullName: 'Prof. Dr. Ir. Hendra Gunawan, M.Eng.',
+      role: Role.LECTURER,
+      passwordHash: defaultHash,
+    },
+  });
+
+  await prisma.lecturer.upsert({
+    where: { nidn: '0012087501' },
+    update: {},
+    create: {
+      userId: userHendra.id,
+      studyProgramId: prodiMesin.id,
+      nidn: '0012087501',
+      nip: '19750812 200112 1 002',
+      titlePrefix: 'Prof. Dr. Ir.',
+      titleSuffix: 'M.Eng., IPU.',
+      phone: '0812-3456-7890',
+      isAcademicAdvisor: true,
+    },
+  });
+
+  // Dosen Dekan FIK
+  const userSatria = await prisma.user.upsert({
+    where: { email: 'satria.pratama@itn.ac.id' },
+    update: {},
+    create: {
+      email: 'satria.pratama@itn.ac.id',
+      fullName: 'Dr. Eng. Satria Pratama, S.Kom., M.T.',
+      role: Role.LECTURER,
+      passwordHash: defaultHash,
+    },
+  });
+
+  await prisma.lecturer.upsert({
+    where: { nidn: '0405108701' },
+    update: {},
+    create: {
+      userId: userSatria.id,
+      studyProgramId: prodiTif.id,
+      nidn: '0405108701',
+      nip: '19871005 201509 1 003',
+      titlePrefix: 'Dr. Eng.',
+      titleSuffix: 'S.Kom., M.T.',
+      phone: '0813-7766-5544',
+      isAcademicAdvisor: true,
+    },
+  });
+
+  // Dosen Kaprodi TIF
+  const userSiti = await prisma.user.upsert({
+    where: { email: 'siti.rahmawati@itn.ac.id' },
+    update: {},
+    create: {
+      email: 'siti.rahmawati@itn.ac.id',
+      fullName: 'Dr. Siti Rahmawati, S.T., M.Kom.',
+      role: Role.LECTURER,
+      passwordHash: defaultHash,
+    },
+  });
+
+  await prisma.lecturer.upsert({
+    where: { nidn: '0424098802' },
+    update: {},
+    create: {
+      userId: userSiti.id,
+      studyProgramId: prodiTif.id,
+      nidn: '0424098802',
+      nip: '19880924 201403 2 004',
+      titlePrefix: 'Dr.',
+      titleSuffix: 'S.T., M.Kom.',
+      phone: '0815-4422-9900',
+      isAcademicAdvisor: true,
+    },
+  });
+
+  // Dosen Dekan FEB
+  const userNurul = await prisma.user.upsert({
+    where: { email: 'nurul.hidayati@itn.ac.id' },
+    update: {},
+    create: {
+      email: 'nurul.hidayati@itn.ac.id',
+      fullName: 'Dr. Nurul Hidayati, S.E., M.M., Ak.',
+      role: Role.LECTURER,
+      passwordHash: defaultHash,
+    },
+  });
+
+  await prisma.lecturer.upsert({
+    where: { nidn: '0018028503' },
+    update: {},
+    create: {
+      userId: userNurul.id,
+      studyProgramId: prodiSi.id,
+      nidn: '0018028503',
+      nip: '19850218 201101 2 002',
+      titlePrefix: 'Dr.',
+      titleSuffix: 'S.E., M.M., Ak.',
+      phone: '0812-9988-7766',
+      isAcademicAdvisor: true,
     },
   });
 
@@ -216,21 +386,26 @@ async function main() {
       tagline: 'Kampus Inovasi Teknologi Masa Depan',
       heroBadge: 'Penerimaan Mahasiswa Baru TA 2026/2027 Telah Dibuka!',
       heroTitle: 'Membentuk Generasi Unggul di Era Transformasi Digital',
-      heroSubtitle: 'Institut Teknologi Nusantara (ITN) memadukan keunggulan akademik berstandar internasional, riset terapan mutakhir, dan ekosistem industri teknologi terdepan untuk mencetak profesional dan entrepreneur masa depan.',
+      heroSubtitle:
+        'Institut Teknologi Nusantara (ITN) memadukan keunggulan akademik berstandar internasional, riset terapan mutakhir, dan ekosistem industri teknologi terdepan untuk mencetak profesional dan entrepreneur masa depan.',
       heroCtaText: 'Daftar Sekarang (PMB)',
       heroCtaLink: '/pmb',
       heroSecondaryCtaText: 'Jelajahi Program Studi',
       heroSecondaryCtaLink: '/#program-studi',
       rectorName: 'Prof. Dr. Ir. Hendra Gunawan, M.Eng.',
       rectorTitle: 'Rektor Institut Teknologi Nusantara',
-      rectorQuote: 'Pendidikan di ITN tidak hanya berfokus pada penguasaan teori semata, melainkan melahirkan karya nyata dan solusi inovatif berdaya saing global bagi kemajuan bangsa.',
-      rectorSpeech: 'Selamat datang di kampus masa depan, Institut Teknologi Nusantara. Di tengah gelombang disrupsi kecerdasan buatan dan otomatisasi global, ITN berkomitmen penuh untuk menghadirkan kurikulum adaptif berbasis industri serta riset terapan kelas dunia.\n\nKami membekali setiap civitas akademika dengan fasilitas laboratorium superkomputasi, inkubator startup teknologi, dan jejaring magang internasional agar setiap lulusan tidak hanya siap kerja, tetapi juga siap memimpin masa depan. Bersama ITN, mari kita wujudkan impian besar Anda dalam ekosistem akademik yang inspiratif, inklusif, dan unggul.',
+      rectorQuote:
+        'Pendidikan di ITN tidak hanya berfokus pada penguasaan teori semata, melainkan melahirkan karya nyata dan solusi inovatif berdaya saing global bagi kemajuan bangsa.',
+      rectorSpeech:
+        'Selamat datang di kampus masa depan, Institut Teknologi Nusantara. Di tengah gelombang disrupsi kecerdasan buatan dan otomatisasi global, ITN berkomitmen penuh untuk menghadirkan kurikulum adaptif berbasis industri serta riset terapan kelas dunia.\n\nKami membekali setiap civitas akademika dengan fasilitas laboratorium superkomputasi, inkubator startup teknologi, dan jejaring magang internasional agar setiap lulusan tidak hanya siap kerja, tetapi juga siap memimpin masa depan. Bersama ITN, mari kita wujudkan impian besar Anda dalam ekosistem akademik yang inspiratif, inklusif, dan unggul.',
       rectorImageUrl: '/images/rector.png',
       announcementActive: true,
       announcementBadge: 'INFO AKADEMIK TERKINI',
-      announcementText: 'Pengisian KRS Semester Ganjil 2026/2027 diperpanjang hingga 31 Agustus 2026 pukul 23:59 WIB. Pastikan konsultasi Dosen PA telah disetujui.',
+      announcementText:
+        'Pengisian KRS Semester Ganjil 2026/2027 diperpanjang hingga 31 Agustus 2026 pukul 23:59 WIB. Pastikan konsultasi Dosen PA telah disetujui.',
       announcementLink: '/portal',
-      contactAddress: 'Jl. Raya Pendidikan No. 45, Kampus Terpadu ITN Cyber Park, Jakarta Selatan 12430',
+      contactAddress:
+        'Jl. Raya Pendidikan No. 45, Kampus Terpadu ITN Cyber Park, Jakarta Selatan 12430',
       contactPhone: '(021) 7890-1234',
       contactEmail: 'info@itn.ac.id',
       contactWhatsapp: '+62 812-3456-7890',
@@ -247,8 +422,10 @@ async function main() {
       title: 'ITN Raih Juara 1 Kompetisi AI & Robotika Nasional 2026',
       slug: 'itn-raih-juara-1-kompetisi-ai-robotika-2026',
       category: 'Prestasi',
-      excerpt: 'Tim mahasiswa Fakultas Ilmu Komputer ITN sukses menyabet medali emas dengan inovasi Autonomous Drone pemantau pertanian cerdas.',
-      content: 'Prestasi gemilang kembali ditorehkan oleh mahasiswa ITN dalam ajang bergengsi Kompetisi AI Nasional. Karya prototipe drone berbasis Computer Vision mampu mendeteksi kesehatan tanaman secara presisi.',
+      excerpt:
+        'Tim mahasiswa Fakultas Ilmu Komputer ITN sukses menyabet medali emas dengan inovasi Autonomous Drone pemantau pertanian cerdas.',
+      content:
+        'Prestasi gemilang kembali ditorehkan oleh mahasiswa ITN dalam ajang bergengsi Kompetisi AI Nasional. Karya prototipe drone berbasis Computer Vision mampu mendeteksi kesehatan tanaman secara presisi.',
       authorName: 'Humas ITN',
       readTime: '3 min read',
       isFeatured: true,
@@ -259,8 +436,10 @@ async function main() {
       title: 'Kuliah Umum Internasional: Kolaborasi Riset Cloud Computing dengan Silicon Valley',
       slug: 'kuliah-umum-internasional-cloud-silicon-valley',
       category: 'Akademik',
-      excerpt: 'Menghadirkan Principal Cloud Architect ternama untuk membedah arsitektur microservices terdistribusi skala petabyte.',
-      content: 'ITN menggelar webinar dan workshop hands-on arsitektur cloud tingkat lanjut dengan pembicara industri internasional untuk meningkatkan kompetensi mahasiswa.',
+      excerpt:
+        'Menghadirkan Principal Cloud Architect ternama untuk membedah arsitektur microservices terdistribusi skala petabyte.',
+      content:
+        'ITN menggelar webinar dan workshop hands-on arsitektur cloud tingkat lanjut dengan pembicara industri internasional untuk meningkatkan kompetensi mahasiswa.',
       authorName: 'Biro Kerjasama ITN',
       readTime: '4 min read',
       isFeatured: false,
@@ -271,8 +450,10 @@ async function main() {
       title: 'Sosialisasi Program Beasiswa Unggulan Cendekia Nusantara TA 2026/2027',
       slug: 'beasiswa-unggulan-cendekia-nusantara-2026',
       category: 'Beasiswa',
-      excerpt: 'Pendaftaran beasiswa penuh biaya kuliah dan uang saku bulanan resmi dibuka bagi calon mahasiswa baru berprestasi.',
-      content: 'Institut Teknologi Nusantara membuka kesempatan bagi putra-putri terbaik bangsa untuk menempuh studi S1 gratis melalui Beasiswa Unggulan Cendekia Nusantara.',
+      excerpt:
+        'Pendaftaran beasiswa penuh biaya kuliah dan uang saku bulanan resmi dibuka bagi calon mahasiswa baru berprestasi.',
+      content:
+        'Institut Teknologi Nusantara membuka kesempatan bagi putra-putri terbaik bangsa untuk menempuh studi S1 gratis melalui Beasiswa Unggulan Cendekia Nusantara.',
       authorName: 'Panitia PMB ITN',
       readTime: '5 min read',
       isFeatured: false,
@@ -305,7 +486,9 @@ async function main() {
     },
   });
 
-  console.log('✅ Seeding berhasil! Data master akademik, super admin CMS, dan landing page siap digunakan.');
+  console.log(
+    '✅ Seeding berhasil! Data master akademik, super admin CMS, dan landing page siap digunakan.',
+  );
 }
 
 main()

@@ -142,6 +142,8 @@ model Student {
   birthDate         DateTime?
   birthPlace        String?
   phone             String?
+  nik               String?
+  address           String?            @db.Text
   entryYear         Int
   currentSemester   Int                @default(1)
   status            StudentStatus      @default(ACTIVE)
@@ -335,4 +337,3 @@ model SystemAuditLog {
   @@index([createdAt])
   @@map("system_audit_logs")
 }
-

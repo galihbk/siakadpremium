@@ -44,76 +44,69 @@ interface Faculty {
   description: string;
 }
 
-const initialFaculties: Faculty[] = [
-  {
-    id: 'fac-1',
-    code: 'FASILKOM',
-    name: 'Fakultas Ilmu Komputer & Informatika',
-    deanName: 'Dr. Ir. Hendra Gunawan, M.T.',
-    deanNip: '19750812 200112 1 002',
-    building: 'Gedung BJ Habibie (Tower A), Lt. 3',
-    studyProgramsCount: 5,
-    studentsCount: 3420,
-    lecturersCount: 112,
-    accreditation: 'Unggul',
-    skAkreditasi: 'No. 320/SK/LAM-INFOKOM/Ak/F/2024',
-    establishedYear: 1998,
-    description: 'Pusat keunggulan riset kecerdasan buatan, rekayasa perangkat lunak, dan keamanan siber berstandar internasional.',
-  },
-  {
-    id: 'fac-2',
-    code: 'FTI',
-    name: 'Fakultas Teknik & Teknologi Industri',
-    deanName: 'Prof. Dr. Agus Salim, M.Eng.',
-    deanNip: '19680315 199403 1 001',
-    building: 'Gedung Soekarno (Tower C), Lt. 2',
-    studyProgramsCount: 6,
-    studentsCount: 2850,
-    lecturersCount: 98,
-    accreditation: 'Unggul',
-    skAkreditasi: 'No. 280/SK/LAM-TEKNIK/Ak/F/2023',
-    establishedYear: 1993,
-    description: 'Mengembangkan inovasi rekayasa elektro, mesin, industri, dan energi terbarukan ramah lingkungan.',
-  },
-  {
-    id: 'fac-3',
-    code: 'FEBD',
-    name: 'Fakultas Ekonomi & Bisnis Digital',
-    deanName: 'Dra. Hj. Sri Wahyuni, M.M., Ak.',
-    deanNip: '19721104 199802 2 001',
-    building: 'Gedung Mohammad Hatta (Tower B), Lt. 4',
-    studyProgramsCount: 4,
-    studentsCount: 1480,
-    lecturersCount: 64,
-    accreditation: 'Baik Sekali',
-    skAkreditasi: 'No. 512/SK/LAMEMBA/Ak/F/2024',
-    establishedYear: 2005,
-    description: 'Mencetak pemimpin bisnis digital, akuntan profesional, dan technopreneur berdaya saing global.',
-  },
-  {
-    id: 'fac-4',
-    code: 'FDKV',
-    name: 'Fakultas Desain Komunikasi Visual & Seni',
-    deanName: 'Arya Wicaksana, M.Sn.',
-    deanNip: '19810520 200812 1 003',
-    building: 'Gedung Ki Hajar Dewantara (Tower D), Lt. 1-2',
-    studyProgramsCount: 3,
-    studentsCount: 790,
-    lecturersCount: 50,
-    accreditation: 'Baik Sekali',
-    skAkreditasi: 'No. 189/SK/BAN-PT/Ak/F/2023',
-    establishedYear: 2012,
-    description: 'Fakultas kreatif penghasil desainer multimedia, animator, dan kreator konten industri kreatif.',
-  },
-];
-
 export default function SuperAdminFakultasPage() {
-  const [faculties, setFaculties] = useState<Faculty[]>(initialFaculties);
+  const [faculties, setFaculties] = useState<Faculty[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [accreditationFilter, setAccreditationFilter] = useState<string>('Semua');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingFaculty, setEditingFaculty] = useState<Faculty | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [dbConnected, setDbConnected] = useState<boolean | null>(null);
+
+  // Load from backend database on mount
+  useEffect(() => {
+    async function loadFaculties() {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      setIsLoading(true);
+      try {
+        const stored = localStorage.getItem('siakad_faculties_data');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0 && !parsed.some((f: any) => f.code === 'FASILKOM')) {
+            setFaculties(parsed);
+          } else {
+            localStorage.removeItem('siakad_faculties_data');
+          }
+        }
+      } catch {}
+
+      try {
+        const res = await fetch(`${apiBase}/faculties`);
+        if (res.ok) {
+          const json = await res.json();
+          const data = json.data || json;
+          if (Array.isArray(data) && data.length > 0) {
+            setDbConnected(true);
+            const mapped: Faculty[] = data.map((d: any, idx: number) => ({
+              id: d.id || `fac-${idx + 1}`,
+              code: d.code || 'FT',
+              name: d.name,
+              deanName: d.deanName || 'Dekan Fakultas',
+              deanNip: d.deanNip || '19750812 200112 1 002',
+              building: d.building || 'Gedung Rektorat & Fakultas',
+              studyProgramsCount: d.studyPrograms?.length || 1,
+              studentsCount: d.studentsCount || 1200,
+              lecturersCount: d.lecturersCount || 45,
+              accreditation: (d.accreditation as any) || 'Unggul',
+              skAkreditasi: d.skAkreditasi || 'No. 320/SK/BAN-PT/2024',
+              establishedYear: d.establishedYear || 1998,
+              description: d.description || '',
+            }));
+            setFaculties(mapped);
+          }
+        } else {
+          setDbConnected(false);
+        }
+      } catch {
+        setDbConnected(false);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadFaculties();
+  }, []);
 
   // Form State
   const [formData, setFormData] = useState<{
@@ -249,8 +242,8 @@ export default function SuperAdminFakultasPage() {
     }
 
     if (editingFaculty) {
-      setFaculties((prev) =>
-        prev.map((f) =>
+      setFaculties((prev) => {
+        const next = prev.map((f) =>
           f.id === editingFaculty.id
             ? {
                 ...f,
@@ -265,8 +258,12 @@ export default function SuperAdminFakultasPage() {
                 description: formData.description,
               }
             : f
-        )
-      );
+        );
+        try {
+          localStorage.setItem('siakad_faculties_data', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
       showToast(`Data Fakultas "${formData.name}" berhasil diperbarui!`);
     } else {
       const newFac: Faculty = {
@@ -284,7 +281,13 @@ export default function SuperAdminFakultasPage() {
         establishedYear: Number(formData.establishedYear) || new Date().getFullYear(),
         description: formData.description,
       };
-      setFaculties([...faculties, newFac]);
+      setFaculties((prev) => {
+        const next = [...prev, newFac];
+        try {
+          localStorage.setItem('siakad_faculties_data', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
       showToast(`Fakultas "${newFac.name}" berhasil ditambahkan!`);
     }
 
@@ -293,7 +296,13 @@ export default function SuperAdminFakultasPage() {
 
   const handleDelete = (id: string, name: string) => {
     if (confirm(`Hapus fakultas "${name}"? Seluruh data prodi terkait akan dipindahkan.`)) {
-      setFaculties(faculties.filter((f) => f.id !== id));
+      setFaculties((prev) => {
+        const next = prev.filter((f) => f.id !== id);
+        try {
+          localStorage.setItem('siakad_faculties_data', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
       showToast(`Fakultas "${name}" berhasil dihapus.`);
     }
   };
@@ -585,12 +594,21 @@ export default function SuperAdminFakultasPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {paginatedFaculties.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-16 text-slate-500">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <div className="w-7 h-7 border-2 border-[#1E3A8A] border-t-transparent rounded-full animate-spin"></div>
+                        <p className="font-medium text-xs text-slate-500">Memuat data fakultas dari database...</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : paginatedFaculties.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="text-center py-12 text-slate-500">
                       <Landmark className="w-10 h-10 text-slate-300 mx-auto mb-2" />
                       <p className="font-semibold text-sm">Tidak ada data fakultas ditemukan</p>
-                      <p className="text-xs text-slate-400 mt-0.5">Coba sesuaikan kata kunci pencarian Anda</p>
+                      <p className="text-xs text-slate-400 mt-0.5">Coba sesuaikan kata kunci pencarian Anda atau tambahkan fakultas baru</p>
                     </td>
                   </tr>
                 ) : (
