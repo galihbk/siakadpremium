@@ -25,6 +25,18 @@ export function middleware(request: NextRequest) {
       url.pathname = '/pmb';
       return NextResponse.rewrite(url);
     }
+    if (url.pathname === '/login') {
+      url.pathname = '/pmb/login';
+      return NextResponse.rewrite(url);
+    }
+    if (url.pathname === '/daftar' || url.pathname === '/register') {
+      url.pathname = '/pmb/daftar';
+      return NextResponse.rewrite(url);
+    }
+    if (url.pathname === '/dashboard' || url.pathname === '/portal') {
+      url.pathname = '/pmb/dashboard';
+      return NextResponse.rewrite(url);
+    }
     return NextResponse.next();
   }
 
