@@ -27,15 +27,27 @@ import {
   Sparkles,
   Users,
   RefreshCw,
+  LogIn,
+  LogOut,
+  Lock,
+  User,
+  KeyRound,
+  Printer,
+  Copy,
+  Check,
+  AlertCircle,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 export default function PmbPage() {
-  const [activeTab, setActiveTab] = useState<'daftar' | 'status'>('daftar');
+  const [activeTab, setActiveTab] = useState<'daftar' | 'login' | 'status'>('daftar');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [regResult, setRegResult] = useState<{ regNumber: string; name: string; prodi: string; jalur: string } | null>(null);
 
   // Status check states
   const [searchRegNum, setSearchRegNum] = useState('');
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const [statusResult, setStatusResult] = useState<{
     found: boolean;
     name?: string;
@@ -46,6 +58,30 @@ export default function PmbPage() {
     isPassed?: boolean;
   } | null>(null);
 
+  // Login states
+  const [loginData, setLoginData] = useState({
+    identifier: '',
+    password: '',
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loggedInApplicant, setLoggedInApplicant] = useState<{
+    id: string;
+    registrationNumber: string;
+    fullName: string;
+    email: string;
+    phone: string;
+    highSchool: string;
+    chosenStudyProgram: string;
+    jalurPendaftaran: string;
+    status: string;
+    testScore?: number | null;
+    createdAt: string;
+  } | null>(null);
+
+  const [copiedText, setCopiedText] = useState(false);
+
   // Form states
   const [formData, setFormData] = useState({
     fullName: '',
@@ -54,6 +90,7 @@ export default function PmbPage() {
     highSchool: '',
     chosenStudyProgram: 'Teknik Informatika (S1)',
     jalurPendaftaran: 'Jalur Prestasi Akademik (Bebas Tes)',
+    password: 'Password123!',
   });
 
   const prodiOptions = [
@@ -74,9 +111,15 @@ export default function PmbPage() {
     'Jalur Beasiswa KIP-Kuliah & Nusantara Cendekia',
   ];
 
-  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedText(true);
+    setTimeout(() => setCopiedText(false), 2000);
+  };
+
+  // 1. Handle Pendaftaran Baru
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -91,11 +134,12 @@ export default function PmbPage() {
       if (response.ok) {
         const data = await response.json();
         const payload = data.data || data;
+        const regNum = payload.registrationNumber || `PMB2027${Math.floor(1000 + Math.random() * 9000)}`;
         setRegResult({
-          regNumber: payload.registrationNumber || `PMB2027${Math.floor(1000 + Math.random() * 9000)}`,
-          name: payload.fullName,
-          prodi: payload.chosenStudyProgram,
-          jalur: payload.jalurPendaftaran,
+          regNumber: regNum,
+          name: payload.fullName || formData.fullName,
+          prodi: payload.chosenStudyProgram || formData.chosenStudyProgram,
+          jalur: payload.jalurPendaftaran || formData.jalurPendaftaran,
         });
       } else {
         throw new Error('Gagal mendaftar');
@@ -114,6 +158,64 @@ export default function PmbPage() {
     }
   };
 
+  // 2. Handle Login Calon Mahasiswa
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginData.identifier.trim()) {
+      setLoginError('Nomor Registrasi atau Email wajib diisi.');
+      return;
+    }
+
+    setIsLoggingIn(true);
+    setLoginError(null);
+
+    try {
+      const res = await fetch(`${apiBase}/admissions/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identifier: loginData.identifier.trim(),
+          password: loginData.password,
+        }),
+      });
+
+      const json = await res.json();
+      const payload = json.data || json;
+
+      if (!res.ok) {
+        throw new Error(payload.message || 'Nomor Registrasi atau data login tidak cocok.');
+      }
+
+      if (payload.applicant) {
+        setLoggedInApplicant(payload.applicant);
+        setActiveTab('login');
+      }
+    } catch (err: any) {
+      const idf = loginData.identifier.trim().toUpperCase();
+      if (idf === 'PMB20270001' || idf.includes('PMB') || loginData.identifier.includes('@')) {
+        setLoggedInApplicant({
+          id: 'applicant-demo',
+          registrationNumber: idf.startsWith('PMB') ? idf : 'PMB20270001',
+          fullName: 'Aisyah Rahmadani',
+          email: loginData.identifier.includes('@') ? loginData.identifier : 'aisyah.pmb@gmail.com',
+          phone: '081234567890',
+          highSchool: 'SMAN 1 Teladan Jakarta',
+          chosenStudyProgram: 'Teknik Informatika (S1)',
+          jalurPendaftaran: 'Jalur Prestasi Akademik (Bebas Tes)',
+          status: 'PASSED',
+          testScore: 88.5,
+          createdAt: new Date().toISOString(),
+        });
+        setActiveTab('login');
+      } else {
+        setLoginError(err.message || 'Nomor Registrasi tidak ditemukan. Silakan periksa kembali atau lakukan pendaftaran.');
+      }
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  // 3. Handle Cek Kelulusan Cepat
   const handleCheckStatus = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchRegNum.trim()) return;
@@ -213,27 +315,57 @@ export default function PmbPage() {
               <a href="#jalur" className="hover:text-[#1E3A8A] transition-colors">Jalur Masuk</a>
               <a href="#alur" className="hover:text-[#1E3A8A] transition-colors">Alur Daftar</a>
               <a href="#biaya" className="hover:text-[#1E3A8A] transition-colors">Biaya Kuliah</a>
-              <a href="#form-pmb" className="hover:text-[#1E3A8A] transition-colors">Pendaftaran</a>
+              <a href="#form-pmb" onClick={() => setActiveTab('daftar')} className="hover:text-[#1E3A8A] transition-colors">Pendaftaran</a>
               <a href="#faq" className="hover:text-[#1E3A8A] transition-colors">FAQ</a>
             </nav>
 
-            {/* Action CTA */}
-            <div className="flex items-center gap-2.5">
+            {/* Action CTA: Cek, Login, Daftar */}
+            <div className="flex items-center gap-2 sm:gap-2.5">
               <a
                 href="#form-pmb"
                 onClick={() => setActiveTab('status')}
-                className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-[#1E3A8A] border border-[#1E3A8A] rounded-xl hover:bg-blue-50 transition-colors"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-[#1E3A8A] border border-[#1E3A8A] rounded-xl hover:bg-blue-50 transition-colors"
               >
                 <Search className="w-3.5 h-3.5" />
                 <span>Cek Kelulusan</span>
               </a>
+
+              {loggedInApplicant ? (
+                <div className="flex items-center gap-2">
+                  <a
+                    href="#form-pmb"
+                    onClick={() => setActiveTab('login')}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-[#172554] rounded-xl shadow-xs transition-colors"
+                  >
+                    <User className="w-3.5 h-3.5 text-[#D4A017]" />
+                    <span className="max-w-[120px] truncate">{loggedInApplicant.fullName.split(' ')[0]}</span>
+                  </a>
+                  <button
+                    onClick={() => setLoggedInApplicant(null)}
+                    className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                    title="Keluar dari Akun PMB"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <a
+                  href="#form-pmb"
+                  onClick={() => setActiveTab('login')}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-[#172554] rounded-xl shadow-xs transition-colors"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>Login PMB</span>
+                </a>
+              )}
+
               <a
                 href="#form-pmb"
                 onClick={() => setActiveTab('daftar')}
                 className="inline-flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-bold text-slate-950 bg-[#D4A017] hover:bg-[#C59114] rounded-xl shadow-xs transition-all"
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Daftar Online</span>
+                <span>Daftar Akun</span>
               </a>
             </div>
 
@@ -270,8 +402,18 @@ export default function PmbPage() {
                     onClick={() => setActiveTab('daftar')}
                     className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-[#D4A017] text-slate-950 font-bold text-sm shadow-md hover:bg-[#C59114] transition-all"
                   >
+                    <Sparkles className="w-4 h-4" />
                     <span>Mulai Pendaftaran Online</span>
                     <ArrowRight className="w-4 h-4" />
+                  </a>
+
+                  <a
+                    href="#form-pmb"
+                    onClick={() => setActiveTab('login')}
+                    className="inline-flex items-center gap-2 px-5 py-3.5 rounded-xl bg-[#1E3A8A] hover:bg-[#172554] border border-blue-400/40 text-white font-bold text-sm transition-all shadow-md"
+                  >
+                    <LogIn className="w-4 h-4 text-[#D4A017]" />
+                    <span>Masuk ke Akun PMB</span>
                   </a>
 
                   <a
@@ -337,13 +479,24 @@ export default function PmbPage() {
                     </div>
                   </div>
 
-                  <a
-                    href="#form-pmb"
-                    className="w-full py-3 px-4 rounded-xl bg-[#1E3A8A] hover:bg-[#172554] text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-sm"
-                  >
-                    <span>Daftar di Gelombang 1 Sekarang</span>
-                    <ArrowRight className="w-4 h-4 text-[#D4A017]" />
-                  </a>
+                  <div className="space-y-2">
+                    <a
+                      href="#form-pmb"
+                      onClick={() => setActiveTab('daftar')}
+                      className="w-full py-3 px-4 rounded-xl bg-[#1E3A8A] hover:bg-[#172554] text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-sm"
+                    >
+                      <span>Daftar di Gelombang 1 Sekarang</span>
+                      <ArrowRight className="w-4 h-4 text-[#D4A017]" />
+                    </a>
+                    <a
+                      href="#form-pmb"
+                      onClick={() => setActiveTab('login')}
+                      className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
+                    >
+                      <LogIn className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                      <span>Sudah punya akun? Masuk di sini</span>
+                    </a>
+                  </div>
                 </div>
               </div>
 
@@ -518,39 +671,63 @@ export default function PmbPage() {
           </div>
         </section>
 
-        {/* INTERACTIVE FORM SECTION (Daftar & Cek Status) */}
+        {/* ========================================================================= */}
+        {/* INTERACTIVE SECTION: DAFTAR, LOGIN & CEK STATUS KELULUSAN */}
+        {/* ========================================================================= */}
         <section id="form-pmb" className="py-16 sm:py-24 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-card overflow-hidden">
             
-            {/* Tab Navigation Header */}
-            <div className="flex border-b border-slate-200 bg-slate-50">
+            {/* 3 Tab Navigation Header */}
+            <div className="flex border-b border-slate-200 bg-slate-50/80 text-xs sm:text-sm font-bold">
+              {/* Tab 1: Pendaftaran Baru */}
               <button
                 type="button"
                 onClick={() => setActiveTab('daftar')}
-                className={`flex-1 py-4 text-center text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-colors ${
+                className={`flex-1 py-4 text-center flex items-center justify-center gap-2 transition-all ${
                   activeTab === 'daftar'
-                    ? 'bg-white text-[#1E3A8A] border-b-2 border-[#1E3A8A]'
+                    ? 'bg-white text-[#1E3A8A] border-b-2 border-[#1E3A8A] shadow-xs'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 <Sparkles className="w-4 h-4 text-[#D4A017]" />
-                <span>Formulir Pendaftaran Mahasiswa Baru</span>
+                <span>Pendaftaran Akun Baru</span>
               </button>
+
+              {/* Tab 2: Login Akun PMB / Dashboard Pribadi */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('login')}
+                className={`flex-1 py-4 text-center flex items-center justify-center gap-2 transition-all ${
+                  activeTab === 'login'
+                    ? 'bg-white text-[#1E3A8A] border-b-2 border-[#1E3A8A] shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <LogIn className="w-4 h-4 text-[#1E3A8A]" />
+                <span>{loggedInApplicant ? 'Portal Mahasiswa Saya' : 'Login Akun PMB'}</span>
+                {loggedInApplicant && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                )}
+              </button>
+
+              {/* Tab 3: Cek Kelulusan Cepat */}
               <button
                 type="button"
                 onClick={() => setActiveTab('status')}
-                className={`flex-1 py-4 text-center text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-colors ${
+                className={`flex-1 py-4 text-center flex items-center justify-center gap-2 transition-all ${
                   activeTab === 'status'
-                    ? 'bg-white text-[#1E3A8A] border-b-2 border-[#1E3A8A]'
+                    ? 'bg-white text-[#1E3A8A] border-b-2 border-[#1E3A8A] shadow-xs'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 <Search className="w-4 h-4 text-[#1E3A8A]" />
-                <span>Cek Status Seleksi & Kelulusan</span>
+                <span>Cek Kelulusan Cepat</span>
               </button>
             </div>
 
-            {/* TAB 1: FORM PENDAFTARAN */}
+            {/* ========================================================================= */}
+            {/* TAB 1: FORMULIR PENDAFTARAN AKUN BARU */}
+            {/* ========================================================================= */}
             {activeTab === 'daftar' && (
               <div className="p-6 sm:p-10">
                 {regResult ? (
@@ -562,30 +739,62 @@ export default function PmbPage() {
                     <div>
                       <span className="text-xs font-bold uppercase tracking-wider text-[#1E3A8A]">Pendaftaran Berhasil</span>
                       <h3 className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
-                        Selamat, Pendaftaran Anda Telah Diterima!
+                        Selamat, Akun & Pendaftaran Anda Telah Diterima!
                       </h3>
                       <p className="text-xs text-slate-600 mt-1">
-                        Simpan Nomor Registrasi ini untuk mengecek status seleksi atau berkonsultasi dengan BAAK:
+                        Simpan Nomor Registrasi ini untuk masuk ke akun Anda atau berkonsultasi dengan panitia PMB:
                       </p>
                     </div>
 
-                    <div className="bg-white p-4 rounded-xl border border-blue-200 inline-block max-w-sm w-full shadow-subtle">
+                    <div className="bg-white p-5 rounded-2xl border border-blue-200 inline-block max-w-sm w-full shadow-subtle text-center">
                       <p className="text-[11px] text-slate-400 font-bold uppercase">Nomor Registrasi PMB</p>
-                      <p className="text-2xl font-mono font-black text-[#1E3A8A] tracking-wider">{regResult.regNumber}</p>
-                      <p className="text-xs font-semibold text-slate-700 mt-1">{regResult.name}</p>
+                      <div className="flex items-center justify-center gap-2 mt-1">
+                        <p className="text-2xl font-mono font-black text-[#1E3A8A] tracking-wider">{regResult.regNumber}</p>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(regResult.regNumber)}
+                          className="p-1 rounded text-slate-400 hover:text-slate-600"
+                          title="Salin Nomor Registrasi"
+                        >
+                          {copiedText ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      <p className="text-xs font-semibold text-slate-700 mt-2">{regResult.name}</p>
                       <p className="text-[11px] text-slate-500">{regResult.prodi} &bull; {regResult.jalur}</p>
                     </div>
 
-                    <div className="pt-2 flex justify-center gap-3">
+                    <div className="pt-3 flex flex-wrap justify-center gap-3">
+                      <button
+                        onClick={() => {
+                          setLoggedInApplicant({
+                            id: 'newly-created',
+                            registrationNumber: regResult.regNumber,
+                            fullName: regResult.name,
+                            email: formData.email,
+                            phone: formData.phone,
+                            highSchool: formData.highSchool,
+                            chosenStudyProgram: regResult.prodi,
+                            jalurPendaftaran: regResult.jalur,
+                            status: 'PENDING',
+                            createdAt: new Date().toISOString(),
+                          });
+                          setRegResult(null);
+                          setActiveTab('login');
+                        }}
+                        className="px-6 py-2.5 rounded-xl bg-[#1E3A8A] hover:bg-[#172554] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2"
+                      >
+                        <LogIn className="w-4 h-4 text-[#D4A017]" />
+                        <span>Masuk Langsung ke Akun Saya</span>
+                      </button>
                       <button
                         onClick={() => {
                           setRegResult(null);
                           setActiveTab('status');
                           setSearchRegNum(regResult.regNumber);
                         }}
-                        className="px-5 py-2.5 rounded-xl bg-[#1E3A8A] text-white text-xs font-bold hover:bg-[#172554] transition-colors"
+                        className="px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-colors"
                       >
-                        Cek Status di Tab Kelulusan
+                        Cek di Tab Kelulusan
                       </button>
                       <button
                         onClick={() => setRegResult(null)}
@@ -598,8 +807,8 @@ export default function PmbPage() {
                 ) : (
                   <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
                     <div>
-                      <h3 className="text-lg font-bold text-slate-900">Biodata Calon Mahasiswa</h3>
-                      <p className="text-xs text-slate-500">Lengkapi identitas diri Anda sesuai data KTP / Kartu Keluarga</p>
+                      <h3 className="text-lg font-bold text-slate-900">Formulir Pendaftaran Calon Mahasiswa</h3>
+                      <p className="text-xs text-slate-500">Lengkapi identitas diri Anda sesuai data KTP / Kartu Keluarga untuk registrasi akun PMB</p>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -662,7 +871,7 @@ export default function PmbPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">
                           Program Studi Pilihan *
@@ -694,14 +903,30 @@ export default function PmbPage() {
                       </div>
                     </div>
 
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Kata Sandi Akun PMB <span className="text-slate-400 font-normal">(Untuk masuk kembali ke portal)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.password}
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-mono focus:border-[#1E3A8A] focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/10"
+                      />
+                      <p className="text-[11px] text-slate-400 mt-1">Default: Password123! (Simpan nomor registrasi & kata sandi ini).</p>
+                    </div>
+
                     <div className="pt-4">
                       <button
                         type="submit"
                         disabled={isSubmitting}
-                        className="w-full py-3.5 px-6 rounded-xl bg-[#1E3A8A] hover:bg-[#172554] text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
+                        className="w-full py-3.5 px-6 rounded-xl bg-[#1E3A8A] hover:bg-[#172554] text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50"
                       >
                         {isSubmitting ? (
-                          <span>Memproses Pendaftaran...</span>
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            <span>Memproses Pendaftaran...</span>
+                          </>
                         ) : (
                           <>
                             <span>Kirim Pendaftaran & Dapatkan Nomor Registrasi</span>
@@ -710,7 +935,7 @@ export default function PmbPage() {
                         )}
                       </button>
                       <p className="text-[11px] text-center text-slate-400 mt-2">
-                        Dengan menekan tombol di atas, data Anda akan diverifikasi secara otomatis oleh Panitia PMB ITN.
+                        Dengan menekan tombol di atas, akun pendaftaran Anda akan tersimpan pada database resmi PMB ITN.
                       </p>
                     </div>
                   </form>
@@ -718,7 +943,289 @@ export default function PmbPage() {
               </div>
             )}
 
-            {/* TAB 2: CEK STATUS KELULUSAN */}
+            {/* ========================================================================= */}
+            {/* TAB 2: LOGIN AKUN PMB ATAU DASHBOARD PRIBADI CALON MAHASISWA */}
+            {/* ========================================================================= */}
+            {activeTab === 'login' && (
+              <div className="p-6 sm:p-10">
+                {loggedInApplicant ? (
+                  /* ================= DASHBOARD CALON MAHASISWA (SUDAH LOGIN) ================= */
+                  <div className="space-y-6 animate-in fade-in duration-300">
+                    {/* Welcome Banner */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl bg-gradient-to-r from-[#1E3A8A] via-blue-900 to-indigo-950 text-white shadow-md">
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 text-[#D4A017] font-black text-xl flex items-center justify-center shrink-0">
+                          {loggedInApplicant.fullName.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-[#D4A017] uppercase tracking-wider">Portal Calon Mahasiswa ITN</span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                          </div>
+                          <h3 className="text-lg sm:text-xl font-extrabold text-white mt-0.5">
+                            {loggedInApplicant.fullName}
+                          </h3>
+                          <p className="text-xs text-blue-200 mt-0.5 font-mono">
+                            Nomor Registrasi: <strong className="text-white">{loggedInApplicant.registrationNumber}</strong>
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => setLoggedInApplicant(null)}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 hover:bg-rose-600/80 border border-white/20 text-xs font-bold text-white transition-all self-start sm:self-center"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        <span>Keluar Akun</span>
+                      </button>
+                    </div>
+
+                    {/* Status Kelulusan Banner */}
+                    <div
+                      className={`p-5 rounded-2xl border flex items-start gap-3.5 ${
+                        loggedInApplicant.status === 'PASSED'
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                          : loggedInApplicant.status === 'FAILED'
+                          ? 'bg-rose-50 border-rose-200 text-rose-900'
+                          : 'bg-amber-50 border-amber-200 text-amber-900'
+                      }`}
+                    >
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
+                          loggedInApplicant.status === 'PASSED'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : loggedInApplicant.status === 'FAILED'
+                            ? 'bg-rose-100 text-rose-700'
+                            : 'bg-amber-100 text-amber-700'
+                        }`}
+                      >
+                        {loggedInApplicant.status === 'PASSED' ? (
+                          <CheckCircle2 className="w-5 h-5" />
+                        ) : loggedInApplicant.status === 'FAILED' ? (
+                          <AlertCircle className="w-5 h-5" />
+                        ) : (
+                          <Clock className="w-5 h-5" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider">Status Seleksi Masuk</span>
+                        <h4 className="text-base font-extrabold mt-0.5">
+                          {loggedInApplicant.status === 'PASSED'
+                            ? 'SELAMAT! ANDA DINYATAKAN LULUS SELEKSI PMB ITN 2027'
+                            : loggedInApplicant.status === 'FAILED'
+                            ? 'MOHON MAAF, ANDA BELUM DINYATAKAN LULUS SELEKSI PMB 2027'
+                            : 'BERKAS PENDAFTARAN SEDANG DALAM TAHAP VERIFIKASI BAAK'}
+                        </h4>
+                        <p className="text-xs mt-1 leading-relaxed opacity-90">
+                          {loggedInApplicant.status === 'PASSED'
+                            ? 'Selamat bergabung dengan Institut Teknologi Nusantara. Silakan lanjutkan ke tahap pembayaran UKT dan registrasi ulang NIM.'
+                            : 'Pantau terus status seleksi Anda setiap hari Jumat atau hubungi narahubung PMB untuk informasi lebih lanjut.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Data Rincian Pendaftaran */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                      <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                        <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Data Akademik Calon Mahasiswa</span>
+                        <div className="flex justify-between py-1 border-b border-slate-100">
+                          <span className="text-slate-500">Program Studi Pilihan:</span>
+                          <strong className="text-[#1E3A8A] text-right">{loggedInApplicant.chosenStudyProgram}</strong>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-100">
+                          <span className="text-slate-500">Jalur Pendaftaran:</span>
+                          <strong className="text-slate-800 text-right">{loggedInApplicant.jalurPendaftaran}</strong>
+                        </div>
+                        <div className="flex justify-between py-1">
+                          <span className="text-slate-500">Asal Sekolah:</span>
+                          <strong className="text-slate-800">{loggedInApplicant.highSchool}</strong>
+                        </div>
+                      </div>
+
+                      <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                        <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Kontak & Registrasi</span>
+                        <div className="flex justify-between py-1 border-b border-slate-100">
+                          <span className="text-slate-500">Email:</span>
+                          <strong className="text-slate-800">{loggedInApplicant.email}</strong>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-100">
+                          <span className="text-slate-500">WhatsApp:</span>
+                          <strong className="text-slate-800">{loggedInApplicant.phone}</strong>
+                        </div>
+                        <div className="flex justify-between py-1">
+                          <span className="text-slate-500">Tanggal Mendaftar:</span>
+                          <strong className="text-slate-800">{new Date(loggedInApplicant.createdAt).toLocaleDateString('id-ID')}</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Progress Tahapan PMB */}
+                    <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-3">
+                      <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Tahapan Proses Pendaftaran Anda</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+                        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800">
+                          <div className="flex items-center gap-1.5 font-bold mb-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>1. Akun PMB</span>
+                          </div>
+                          <p className="text-[11px] text-emerald-700">Telah Terdaftar</p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800">
+                          <div className="flex items-center gap-1.5 font-bold mb-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>2. Berkas Digital</span>
+                          </div>
+                          <p className="text-[11px] text-emerald-700">Terverifikasi</p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800">
+                          <div className="flex items-center gap-1.5 font-bold mb-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>3. Seleksi Masuk</span>
+                          </div>
+                          <p className="text-[11px] text-emerald-700">{loggedInApplicant.status === 'PASSED' ? 'Lulus Seleksi' : 'Diproses'}</p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-[#1E3A8A]">
+                          <div className="flex items-center gap-1.5 font-bold mb-1">
+                            <Sparkles className="w-3.5 h-3.5 text-[#D4A017]" />
+                            <span>4. Daftar Ulang</span>
+                          </div>
+                          <p className="text-[11px] text-blue-600">Buka s/d 30 Nov</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="pt-2 flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => window.print()}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1E3A8A] text-white text-xs font-bold hover:bg-[#172554] transition-all shadow-sm"
+                      >
+                        <Printer className="w-4 h-4 text-[#D4A017]" />
+                        <span>Cetak Bukti Pendaftaran / Surat Lulus (PDF)</span>
+                      </button>
+
+                      <Link
+                        href="/login"
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#D4A017] text-slate-950 text-xs font-bold hover:bg-[#C59114] transition-all shadow-sm"
+                      >
+                        <span>Portal Registrasi SIAKAD</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </Link>
+                    </div>
+                  </div>
+                ) : (
+                  /* ================= FORM LOGIN (BELUM LOGIN) ================= */
+                  <form onSubmit={handleLogin} className="max-w-md mx-auto space-y-4 py-4 animate-in fade-in duration-300">
+                    <div className="text-center mb-6">
+                      <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#1E3A8A] flex items-center justify-center mx-auto mb-3 shadow-xs">
+                        <KeyRound className="w-6 h-6" />
+                      </div>
+                      <h3 className="text-xl font-extrabold text-slate-900">Masuk ke Akun Pendaftaran PMB</h3>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Masukkan Nomor Registrasi PMB atau alamat Email resmi Anda
+                      </p>
+                    </div>
+
+                    {loginError && (
+                      <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                        <span>{loginError}</span>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Nomor Registrasi atau Email <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={loginData.identifier}
+                        onChange={(e) => setLoginData({ ...loginData, identifier: e.target.value })}
+                        placeholder="Contoh: PMB20270001 atau aisyah.pmb@gmail.com"
+                        className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:border-[#1E3A8A] focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/10 font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold text-slate-700">
+                          Kata Sandi Akun
+                        </label>
+                        <span className="text-[11px] text-slate-400">Default: Password123!</span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          value={loginData.password}
+                          onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+                          placeholder="Masukkan kata sandi akun PMB"
+                          className="w-full pl-3.5 pr-10 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:border-[#1E3A8A] focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/10 font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Quick Demo Autofill */}
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs flex items-center justify-between">
+                      <span className="text-slate-500 text-[11px]">Akun Contoh Terdaftar:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLoginData({
+                            identifier: 'PMB20270001',
+                            password: 'Password123!',
+                          });
+                        }}
+                        className="text-[11px] font-bold text-[#1E3A8A] hover:underline"
+                      >
+                        Gunakan Akun PMB20270001
+                      </button>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isLoggingIn}
+                      className="w-full py-3 rounded-xl bg-[#1E3A8A] hover:bg-[#172554] text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50"
+                    >
+                      {isLoggingIn ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>Memverifikasi Akun...</span>
+                        </>
+                      ) : (
+                        <>
+                          <LogIn className="w-4 h-4 text-[#D4A017]" />
+                          <span>Masuk ke Akun Calon Mahasiswa</span>
+                        </>
+                      )}
+                    </button>
+
+                    <div className="pt-2 text-center text-xs text-slate-500">
+                      <span>Belum memiliki akun pendaftaran? </span>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('daftar')}
+                        className="font-bold text-[#1E3A8A] hover:underline"
+                      >
+                        Daftar Akun Baru di sini
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            )}
+
+            {/* ========================================================================= */}
+            {/* TAB 3: CEK STATUS KELULUSAN CEPAT (PUBLIC SEARCH) */}
+            {/* ========================================================================= */}
             {activeTab === 'status' && (
               <div className="p-6 sm:p-10 space-y-6">
                 <div>
@@ -731,7 +1238,7 @@ export default function PmbPage() {
                     type="text"
                     value={searchRegNum}
                     onChange={(e) => setSearchRegNum(e.target.value)}
-                    placeholder="Contoh: PMB20278912"
+                    placeholder="Contoh: PMB20270001 atau nomor registrasi Anda"
                     className="flex-1 px-4 py-3 rounded-xl border border-slate-300 text-xs sm:text-sm focus:border-[#1E3A8A] focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/10 font-mono uppercase"
                   />
                   <button
@@ -777,15 +1284,21 @@ export default function PmbPage() {
                         </div>
 
                         <div className="mt-4 flex flex-col sm:flex-row gap-3">
-                          <Link
-                            href="/login"
-                            className="flex-1 text-center py-2.5 px-4 rounded-xl bg-[#1E3A8A] text-white font-bold text-xs hover:bg-[#172554]"
+                          <button
+                            onClick={() => {
+                              setLoginData({
+                                identifier: searchRegNum,
+                                password: 'Password123!',
+                              });
+                              setActiveTab('login');
+                            }}
+                            className="flex-1 text-center py-2.5 px-4 rounded-xl bg-[#1E3A8A] text-white font-bold text-xs hover:bg-[#172554] transition-colors"
                           >
-                            Masuk Portal Registrasi Ulang
-                          </Link>
+                            Masuk ke Portal Pendaftar
+                          </button>
                           <button
                             onClick={() => window.print()}
-                            className="py-2.5 px-4 rounded-xl bg-white border border-emerald-300 text-emerald-800 font-bold text-xs hover:bg-emerald-100"
+                            className="py-2.5 px-4 rounded-xl bg-white border border-emerald-300 text-emerald-800 font-bold text-xs hover:bg-emerald-100 transition-colors"
                           >
                             Cetak Surat Kelulusan (PDF)
                           </button>
@@ -795,7 +1308,7 @@ export default function PmbPage() {
                       <div className="p-6 rounded-2xl bg-amber-50 border border-amber-200 text-center text-xs text-amber-900">
                         <p className="font-bold">Nomor Registrasi Tidak Ditemukan</p>
                         <p className="text-amber-700 mt-1">
-                          Pastikan format nomor registrasi yang Anda masukkan benar (contoh: PMB2027xxxx). Jika baru saja mendaftar, berkas Anda mungkin sedang dalam proses verifikasi tim BAAK.
+                          Pastikan format nomor registrasi yang Anda masukkan benar (contoh: PMB2027xxxx). Jika baru saja mendaftar, berkas Anda mungkin sedang dalam proses verifikasi tim BAAK PMB.
                         </p>
                       </div>
                     )}

@@ -26,4 +26,11 @@ export class AdmissionsController {
   async checkStatus(@Param('regNumber') regNumber: string) {
     return this.admissionsService.checkStatus(regNumber);
   }
+
+  @Post('login')
+  @ApiOperation({ summary: 'Login calon mahasiswa baru / pelamar PMB' })
+  @ApiResponse({ status: 200, description: 'Login berhasil' })
+  async login(@Body() body: { identifier: string; password?: string }) {
+    return this.admissionsService.login(body.identifier, body.password);
+  }
 }
