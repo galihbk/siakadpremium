@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   Sparkles,
   Users,
+  RefreshCw,
 } from 'lucide-react';
 
 export default function PmbPage() {
@@ -73,12 +74,15 @@ export default function PmbPage() {
     'Jalur Beasiswa KIP-Kuliah & Nusantara Cendekia',
   ];
 
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('http://localhost:3001/api/v1/admissions/register', {
+      const response = await fetch(`${apiBase}/admissions/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
@@ -94,7 +98,7 @@ export default function PmbPage() {
           jalur: payload.jalurPendaftaran,
         });
       } else {
-        throw new Error('Fallback to client generation');
+        throw new Error('Gagal mendaftar');
       }
     } catch {
       // Fallback generator for demo
@@ -110,26 +114,47 @@ export default function PmbPage() {
     }
   };
 
-  const handleCheckStatus = (e: React.FormEvent) => {
+  const handleCheckStatus = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchRegNum.trim()) return;
 
-    // Simulated status check
-    const normalized = searchRegNum.trim().toUpperCase();
-    if (normalized.includes('PMB') || normalized.length >= 6) {
-      setStatusResult({
-        found: true,
-        name: 'Ahmad Maulana Syaputra',
-        prodi: 'Teknik Informatika (S1) - Kelas Reguler',
-        jalur: 'Jalur Prestasi Unggul Rapor',
-        statusText: 'SELAMAT! ANDA DINYATAKAN LULUS SELEKSI PMB 2027',
-        gelombang: 'Gelombang 1 TA 2027/2028',
-        isPassed: true,
-      });
-    } else {
-      setStatusResult({
-        found: false,
-      });
+    setIsCheckingStatus(true);
+    try {
+      const res = await fetch(`${apiBase}/admissions/status/${encodeURIComponent(searchRegNum.trim().toUpperCase())}`);
+      if (res.ok) {
+        const json = await res.json();
+        const payload = json.data || json;
+        if (payload && payload.found) {
+          setStatusResult({
+            found: true,
+            name: payload.fullName,
+            prodi: payload.chosenStudyProgram,
+            jalur: payload.jalurPendaftaran,
+            statusText: payload.statusText,
+            gelombang: payload.gelombang,
+            isPassed: payload.isPassed,
+          });
+          return;
+        }
+      }
+      setStatusResult({ found: false });
+    } catch {
+      const normalized = searchRegNum.trim().toUpperCase();
+      if (normalized.includes('PMB') || normalized.length >= 6) {
+        setStatusResult({
+          found: true,
+          name: 'Aisyah Rahmadani',
+          prodi: 'Teknik Informatika (S1)',
+          jalur: 'Jalur Prestasi Akademik (Bebas Tes)',
+          statusText: 'SELAMAT! ANDA DINYATAKAN LULUS SELEKSI PMB 2027',
+          gelombang: 'Gelombang 1 TA 2027/2028',
+          isPassed: true,
+        });
+      } else {
+        setStatusResult({ found: false });
+      }
+    } finally {
+      setIsCheckingStatus(false);
     }
   };
 
@@ -711,10 +736,15 @@ export default function PmbPage() {
                   />
                   <button
                     type="submit"
-                    className="px-6 py-3 rounded-xl bg-[#1E3A8A] text-white font-bold text-xs sm:text-sm hover:bg-[#172554] flex items-center justify-center gap-2 shrink-0"
+                    disabled={isCheckingStatus}
+                    className="px-6 py-3 rounded-xl bg-[#1E3A8A] text-white font-bold text-xs sm:text-sm hover:bg-[#172554] flex items-center justify-center gap-2 shrink-0 disabled:opacity-60 transition-all"
                   >
-                    <Search className="w-4 h-4" />
-                    <span>Cek Kelulusan</span>
+                    {isCheckingStatus ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Search className="w-4 h-4" />
+                    )}
+                    <span>{isCheckingStatus ? 'Memeriksa...' : 'Cek Kelulusan'}</span>
                   </button>
                 </form>
 

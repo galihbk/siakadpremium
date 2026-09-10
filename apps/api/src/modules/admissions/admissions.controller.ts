@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AdmissionsService } from './admissions.service';
 import { RegisterApplicantDto } from './dto/register-applicant.dto';
@@ -19,5 +19,11 @@ export class AdmissionsController {
   @ApiOperation({ summary: 'Mendapatkan informasi gelombang dan statistik PMB aktif' })
   async getSummary() {
     return this.admissionsService.getSummary();
+  }
+
+  @Get('status/:regNumber')
+  @ApiOperation({ summary: 'Mengecek status seleksi & kelulusan calon mahasiswa' })
+  async checkStatus(@Param('regNumber') regNumber: string) {
+    return this.admissionsService.checkStatus(regNumber);
   }
 }

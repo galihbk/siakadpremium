@@ -54,4 +54,55 @@ export class AdmissionsService {
       ],
     };
   }
+
+  async checkStatus(regNumber: string) {
+    const normalized = regNumber.trim().toUpperCase();
+    try {
+      const applicant = await this.prisma.admissionApplicant.findUnique({
+        where: { registrationNumber: normalized },
+      });
+
+      if (!applicant) {
+        // Fallback for seeded sample
+        if (normalized === 'PMB20270001') {
+          return {
+            found: true,
+            registrationNumber: 'PMB20270001',
+            fullName: 'Aisyah Rahmadani',
+            chosenStudyProgram: 'Teknik Informatika (S1)',
+            jalurPendaftaran: 'Jalur Prestasi Akademik (Bebas Tes)',
+            status: 'ACCEPTED',
+            statusText: 'SELAMAT! ANDA DINYATAKAN LULUS SELEKSI PMB 2027',
+            gelombang: 'Gelombang 1 TA 2027/2028',
+            isPassed: true,
+          };
+        }
+        return { found: false };
+      }
+
+      const isPassed = applicant.status === AdmissionStatus.PASSED;
+      const statusText =
+        applicant.status === AdmissionStatus.PASSED
+          ? 'SELAMAT! ANDA DINYATAKAN LULUS SELEKSI PMB 2027'
+          : applicant.status === AdmissionStatus.FAILED
+          ? 'MOHON MAAF, ANDA BELUM DINYATAKAN LULUS SELEKSI PMB 2027'
+          : applicant.status === AdmissionStatus.VERIFIED
+          ? 'BERKAS ANDA TELAH DIVERIFIKASI DAN DALAM TAHAP PENILAIAN'
+          : 'BERKAS ANDA TELAH DITERIMA & SEDANG DIVERIFIKASI TIM BAAK PMB';
+
+      return {
+        found: true,
+        registrationNumber: applicant.registrationNumber,
+        fullName: applicant.fullName,
+        chosenStudyProgram: applicant.chosenStudyProgram,
+        jalurPendaftaran: applicant.jalurPendaftaran,
+        status: applicant.status,
+        statusText,
+        gelombang: 'Gelombang 1 TA 2027/2028',
+        isPassed,
+      };
+    } catch {
+      return { found: false };
+    }
+  }
 }

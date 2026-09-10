@@ -9,18 +9,18 @@ export function middleware(request: NextRequest) {
   ).toLowerCase();
   const url = request.nextUrl.clone();
 
-  // 1. Subdomain Portal (e.g. portal.galihjp.com or portal.itn.ac.id)
+  // 1. Subdomain Portal (e.g. portal.siakadpremium.ac.id or portalsiakadpremium.ac.id)
   // Dedicated to Login, Mahasiswa (/student), Dosen (/lecturer), and BAAK (/admin)
-  if (host.startsWith('portal.')) {
+  if (host.startsWith('portal.') || host.startsWith('portalsiakadpremium')) {
     if (url.pathname === '/') {
       return NextResponse.redirect(new URL('/login', request.url));
     }
     return NextResponse.next();
   }
 
-  // 2. Subdomain PMB (e.g. pmb.galihjp.com or pmb.itn.ac.id)
+  // 2. Subdomain PMB (e.g. pmb.siakadpremium.ac.id or pmbsiakadpremium.ac.id or pmb.*)
   // Dedicated to Penerimaan Mahasiswa Baru
-  if (host.startsWith('pmb.')) {
+  if (host.startsWith('pmb.') || host.startsWith('pmbsiakadpremium') || host.includes('pmb')) {
     if (url.pathname === '/') {
       url.pathname = '/pmb';
       return NextResponse.rewrite(url);
