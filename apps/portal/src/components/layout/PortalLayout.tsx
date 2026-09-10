@@ -291,18 +291,6 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       ],
     },
     {
-      title: 'KEUANGAN',
-      items: [
-        { name: 'Tagihan & Pembayaran', href: '/admin/superadmin#keuangan', icon: CreditCard },
-      ],
-    },
-    {
-      title: 'RISET & PENGABDIAN',
-      items: [
-        { name: 'Dashboard LP3M', href: '/admin/p3m', icon: FlaskConical },
-      ],
-    },
-    {
       title: 'LAPORAN',
       items: [
         { name: 'Laporan Akademik & PDDIKTI', href: '/admin/superadmin/laporan', icon: BarChart3 },

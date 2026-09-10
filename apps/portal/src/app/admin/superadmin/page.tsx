@@ -185,7 +185,7 @@ export default function SuperAdminDashboardPage() {
     { name: 'Data Dosen', icon: UserCheck, href: '/admin/superadmin/dosen' },
     { name: 'Data Pegawai', icon: Briefcase, href: '/admin/superadmin/pegawai' },
     { name: 'Pelaporan PDDIKTI', icon: ShieldCheck, href: '/admin/superadmin/laporan' },
-    { name: 'Biro Keuangan', icon: CreditCard, href: '/finance' },
+    { name: 'Manajemen User', icon: Users, href: '/admin/superadmin/users' },
   ];
 
   // Fetch real data from PostgreSQL database via API
