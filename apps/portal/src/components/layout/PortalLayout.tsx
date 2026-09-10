@@ -67,18 +67,19 @@ import {
 
 interface PortalLayoutProps {
   children: React.ReactNode;
-  role: 'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance';
+  role: 'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' | 'lp3m';
   userName: string;
   userIdText: string;
+  activeMenuHref?: string;
 }
 
-export function PortalLayout({ children, role, userName, userIdText }: PortalLayoutProps) {
+export function PortalLayout({ children, role, userName, userIdText, activeMenuHref }: PortalLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [effectiveRole, setEffectiveRole] = useState<
-    'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance'
+    'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' | 'lp3m'
   >(role);
   const [isVerifying, setIsVerifying] = useState(true);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
@@ -154,7 +155,10 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
     }
 
     setCurrentUser(user);
-    const computedRole = getPortalRoleFromBackend(user.role);
+    let computedRole = getPortalRoleFromBackend(user.role, user.email);
+    if (role === 'lp3m' || user.email === 'lp3m@itn.ac.id' || pathname.startsWith('/admin/p3m')) {
+      computedRole = 'lp3m';
+    }
     setEffectiveRole(computedRole);
 
     // 2. Kalo sudah login: Pastikan rute yang diakses sesuai dengan rolenya
@@ -232,7 +236,10 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
     },
     {
       title: 'PELAPORAN & INTEGRASI',
-      items: [{ name: 'Pelaporan PDDIKTI', href: '/admin/superadmin/laporan', icon: ShieldCheck }],
+      items: [
+        { name: 'Dashboard Riset (LP3M)', href: '/admin/p3m', icon: FlaskConical },
+        { name: 'Pelaporan PDDIKTI', href: '/admin/superadmin/laporan', icon: ShieldCheck },
+      ],
     },
   ];
 
@@ -271,7 +278,7 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
         { name: 'Mahasiswa', href: '/admin/superadmin#mahasiswa', icon: Users },
         { name: 'Dosen', href: '/admin/superadmin/dosen', icon: UserCheck },
         { name: 'Pegawai', href: '/admin/superadmin/pegawai', icon: Briefcase },
-        { name: 'User', href: '/admin/superadmin#users', icon: User },
+        { name: 'User', href: '/admin/superadmin/users', icon: User },
         { name: 'Role & Permission', href: '/admin/superadmin#roles', icon: ShieldCheck },
       ],
     },
@@ -287,6 +294,12 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
       title: 'KEUANGAN',
       items: [
         { name: 'Tagihan & Pembayaran', href: '/admin/superadmin#keuangan', icon: CreditCard },
+      ],
+    },
+    {
+      title: 'RISET & PENGABDIAN',
+      items: [
+        { name: 'Dashboard LP3M', href: '/admin/p3m', icon: FlaskConical },
       ],
     },
     {
@@ -332,6 +345,36 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
     },
   ];
 
+  const lp3mNavGroups = [
+    {
+      title: 'MENU UTAMA LP3M',
+      items: [
+        { name: 'Dashboard LP3M', href: '/admin/p3m', icon: LayoutDashboard },
+      ],
+    },
+    {
+      title: 'TRI DHARMA & RISET',
+      items: [
+        { name: 'Laporan Penelitian', href: '/admin/p3m/penelitian', icon: BookOpen },
+        { name: 'Pengabdian (PkM)', href: '/admin/p3m/pengabdian', icon: Users },
+        { name: 'Sentra HAKI & Paten', href: '/admin/p3m/haki', icon: Award },
+      ],
+    },
+    {
+      title: 'REGULASI & DOKUMEN',
+      items: [
+        { name: 'Bank Dokumen Panduan', href: '/admin/p3m/dokumen', icon: FileText },
+        { name: 'Rekap Borang Akreditasi', href: '/admin/p3m/borang', icon: BarChart3 },
+      ],
+    },
+    {
+      title: 'AKUN & SISTEM',
+      items: [
+        { name: 'Logout', href: '#logout', icon: LogOut, isLogout: true },
+      ],
+    },
+  ];
+
   const navGroups =
     effectiveRole === 'student'
       ? studentNavGroups
@@ -341,7 +384,9 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
           ? superAdminNavGroups
           : effectiveRole === 'finance'
             ? financeNavGroups
-            : adminNavGroups;
+            : effectiveRole === 'lp3m'
+              ? lp3mNavGroups
+              : adminNavGroups;
 
   const roleLabel =
     effectiveRole === 'student'
@@ -352,7 +397,9 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
           ? 'Super Administrator'
           : effectiveRole === 'finance'
             ? 'Biro Keuangan (Finance)'
-            : 'Administrator BAAK';
+            : effectiveRole === 'lp3m'
+              ? 'Lembaga Penelitian & Pengabdian (LP3M)'
+              : 'Administrator BAAK';
 
   const displayName = currentUser?.fullName || userName;
   const displayAvatar = currentUser?.avatarUrl;
@@ -361,13 +408,15 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
     userIdText ||
     (effectiveRole === 'superadmin'
       ? 'Super Administrator (Platform)'
-      : effectiveRole === 'finance'
-        ? 'Biro Keuangan Kampus'
-        : effectiveRole === 'admin'
-          ? 'Biro BAAK Pusat'
-          : effectiveRole === 'lecturer'
-            ? 'Dosen Pengajar'
-            : 'Mahasiswa Aktif');
+      : effectiveRole === 'lp3m'
+        ? 'Pengelola / Reviewer LP3M'
+        : effectiveRole === 'finance'
+          ? 'Biro Keuangan Kampus'
+          : effectiveRole === 'admin'
+            ? 'Biro BAAK Pusat'
+            : effectiveRole === 'lecturer'
+              ? 'Dosen Pengajar'
+              : 'Mahasiswa Aktif');
 
   if (isVerifying) {
     return (
@@ -406,7 +455,7 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
                   SIAKAD PREMIUM
                 </span>
                 <span className="text-[10px] text-[#D4A017] font-semibold tracking-wider uppercase block">
-                  {effectiveRole === 'superadmin' ? 'Super Administrator' : roleLabel}
+                  {effectiveRole === 'lp3m' ? 'Lembaga Penelitian & Pengabdian' : effectiveRole === 'superadmin' ? 'Super Administrator' : roleLabel}
                 </span>
               </div>
             </Link>
@@ -421,7 +470,7 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
                 </p>
                 {group.items.map((item) => {
                   const Icon = item.icon;
-                  const isActive = pathname === item.href;
+                  const isActive = activeMenuHref ? item.href === activeMenuHref : pathname === item.href;
 
                   if ((item as any).isLogout) {
                     return (
@@ -580,11 +629,13 @@ export function PortalLayout({ children, role, userName, userIdText }: PortalLay
                       ? 'Mahasiswa'
                       : effectiveRole === 'lecturer'
                         ? 'Dosen'
-                        : effectiveRole === 'superadmin'
-                          ? 'Super Admin'
-                          : effectiveRole === 'finance'
-                            ? 'Biro Keuangan'
-                            : 'Admin BAAK'}
+                        : effectiveRole === 'lp3m'
+                          ? 'Ketua LP3M & Reviewer'
+                          : effectiveRole === 'superadmin'
+                            ? 'Super Admin'
+                            : effectiveRole === 'finance'
+                              ? 'Biro Keuangan'
+                              : 'Admin BAAK'}
                   </span>
                 </div>
 

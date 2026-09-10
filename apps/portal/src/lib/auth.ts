@@ -2,7 +2,7 @@ export interface AuthUser {
   id: string;
   email: string;
   fullName: string;
-  role: 'SUPER_ADMIN' | 'ADMIN_BAAK' | 'ADMIN_KEUANGAN' | 'LECTURER' | 'STUDENT' | 'STAFF';
+  role: 'SUPER_ADMIN' | 'ADMIN_BAAK' | 'ADMIN_KEUANGAN' | 'ADMIN_LP3M' | 'LP3M' | 'LECTURER' | 'STUDENT' | 'STAFF';
   avatarUrl?: string | null;
   studentId?: string | null;
   lecturerId?: string | null;
@@ -57,6 +57,9 @@ export function getRoleRedirectPath(role: string): string {
   switch (role) {
     case 'SUPER_ADMIN':
       return '/admin/superadmin';
+    case 'ADMIN_LP3M':
+    case 'LP3M':
+      return '/admin/p3m';
     case 'ADMIN_KEUANGAN':
     case 'FINANCE':
       return '/finance';
@@ -72,7 +75,10 @@ export function getRoleRedirectPath(role: string): string {
   }
 }
 
-export function getPortalRoleFromBackend(backendRole: string): 'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' {
+export function getPortalRoleFromBackend(backendRole: string, email?: string): 'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' | 'lp3m' {
+  if (email === 'lp3m@itn.ac.id' || email === 'p3m@itn.ac.id' || backendRole === 'ADMIN_LP3M' || backendRole === 'LP3M') {
+    return 'lp3m';
+  }
   switch (backendRole) {
     case 'SUPER_ADMIN':
       return 'superadmin';
@@ -91,27 +97,37 @@ export function getPortalRoleFromBackend(backendRole: string): 'student' | 'lect
 }
 
 export function isRouteAllowedForRole(pathname: string, role: string): boolean {
-  // 1. Dashboard Keuangan HANYA boleh diakses oleh role Keuangan (ADMIN_KEUANGAN / FINANCE)
+  // 1. Dashboard LP3M HANYA boleh diakses oleh role LP3M (ADMIN_LP3M / LP3M) dan Super Admin
+  if (pathname.startsWith('/admin/p3m') || pathname.startsWith('/p3m')) {
+    return role === 'ADMIN_LP3M' || role === 'LP3M' || role === 'SUPER_ADMIN';
+  }
+
+  // Role LP3M HANYA boleh mengakses area LP3M (/admin/p3m)
+  if (role === 'ADMIN_LP3M' || role === 'LP3M') {
+    return pathname.startsWith('/admin/p3m') || pathname.startsWith('/p3m');
+  }
+
+  // 2. Dashboard Keuangan HANYA boleh diakses oleh role Keuangan (ADMIN_KEUANGAN / FINANCE)
   if (pathname.startsWith('/finance')) {
     return role === 'ADMIN_KEUANGAN' || role === 'FINANCE';
   }
 
-  // 2. Portal Dosen HANYA boleh diakses oleh role Dosen (LECTURER)
+  // 3. Portal Dosen HANYA boleh diakses oleh role Dosen (LECTURER)
   if (pathname.startsWith('/lecturer')) {
     return role === 'LECTURER';
   }
 
-  // 3. Portal Mahasiswa HANYA boleh diakses oleh role Mahasiswa (STUDENT)
+  // 4. Portal Mahasiswa HANYA boleh diakses oleh role Mahasiswa (STUDENT)
   if (pathname.startsWith('/student')) {
     return role === 'STUDENT';
   }
 
-  // 4. Role Keuangan (Finance) HANYA boleh mengakses area keuangan (/finance)
+  // 5. Role Keuangan (Finance) HANYA boleh mengakses area keuangan (/finance)
   if (role === 'ADMIN_KEUANGAN' || role === 'FINANCE') {
     return pathname.startsWith('/finance');
   }
 
-  // 5. Super Admin memiliki akses penuh ke area administrasi, master data & sistem
+  // 6. Super Admin memiliki akses penuh ke area administrasi, master data & sistem
   if (role === 'SUPER_ADMIN') {
     return true;
   }

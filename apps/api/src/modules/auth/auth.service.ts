@@ -50,6 +50,16 @@ export class AuthService {
           student: null,
           lecturer: null,
         };
+      } else if (email === 'lp3m@itn.ac.id' || email === 'p3m@itn.ac.id') {
+        user = {
+          id: 'demo-lp3m-id',
+          email: 'lp3m@itn.ac.id',
+          fullName: 'Prof. Dr. Ir. H. Sudirman, M.T. (Ketua LP3M)',
+          role: UserRole.ADMIN_LP3M,
+          avatarUrl: null,
+          student: null,
+          lecturer: null,
+        };
       } else if (email === 'keuangan@itn.ac.id' || email === 'finance@itn.ac.id') {
         user = {
           id: 'demo-finance-id',
@@ -70,7 +80,7 @@ export class AuthService {
           student: null,
           lecturer: null,
         };
-      } else if (email === 'dosen@itn.ac.id') {
+      } else if (email === 'dosen@itn.ac.id' || email === 'lecturer@itn.ac.id') {
         user = {
           id: 'demo-dosen-id',
           email: 'dosen@itn.ac.id',
@@ -80,7 +90,7 @@ export class AuthService {
           student: null,
           lecturer: { id: 'lec-1', nidn: '0412088501' },
         };
-      } else if (email === 'mahasiswa@itn.ac.id') {
+      } else if (email === 'mahasiswa@itn.ac.id' || email === 'student@itn.ac.id') {
         user = {
           id: 'demo-mhs-id',
           email: 'mahasiswa@itn.ac.id',

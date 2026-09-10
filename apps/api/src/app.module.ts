@@ -14,6 +14,8 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { BuildingsModule } from './modules/buildings/buildings.module';
 import { FinanceModule } from './modules/finance/finance.module';
+import { Lp3mModule } from './modules/lp3m/lp3m.module';
+import { UsersModule } from './modules/users/users.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -37,6 +39,8 @@ import { AppService } from './app.service';
     EmployeesModule,
     BuildingsModule,
     FinanceModule,
+    Lp3mModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

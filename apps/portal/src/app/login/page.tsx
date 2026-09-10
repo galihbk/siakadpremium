@@ -73,8 +73,11 @@ export default function LoginPage() {
       // Simpan session & token
       saveAuthSession(accessToken, user);
 
-      // Arahkan otomatis ke halaman sesuai role aktual dari backend
-      const targetPath = getRoleRedirectPath(user.role);
+      // Arahkan otomatis ke halaman sesuai role aktual dari backend atau spesifik LP3M
+      let targetPath = getRoleRedirectPath(user.role);
+      if (user.email === 'lp3m@itn.ac.id' || user.email === 'p3m@itn.ac.id') {
+        targetPath = '/admin/p3m';
+      }
       router.push(targetPath);
     } catch (err: any) {
       setLoginError(err.message || 'Terjadi kesalahan saat memproses login.');
@@ -190,6 +193,20 @@ export default function LoginPage() {
                 Pilih Akun Demo Cepat
               </p>
               <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setValue('email', 'lp3m@itn.ac.id');
+                    setValue('password', 'Password123!');
+                  }}
+                  className="px-2.5 py-2 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 text-[#1E3A8A] text-xs font-bold text-left transition-all cursor-pointer col-span-2 flex items-center justify-between"
+                >
+                  <div>
+                    <span className="block font-bold">🔬 Pengelola Riset & LP3M</span>
+                    <span className="text-[10px] text-blue-700 font-normal">lp3m@itn.ac.id</span>
+                  </div>
+                  <span className="text-[10px] bg-[#1E3A8A] text-white px-2 py-0.5 rounded-md font-semibold">Demo LP3M</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => {

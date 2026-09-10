@@ -12,6 +12,8 @@ enum Role {
   SUPER_ADMIN
   ADMIN_BAAK
   ADMIN_KEUANGAN
+  ADMIN_LP3M
+  LP3M
   LECTURER
   STUDENT
   STAFF
@@ -510,5 +512,102 @@ model AcademicYearPeriod {
   updatedAt          DateTime @updatedAt
 
   @@map("academic_year_periods")
+}
+
+// ==============================================================================
+// LP3M (LEMBAGA PENELITIAN & PENGABDIAN KEPADA MASYARAKAT) MODELS
+// ==============================================================================
+
+model Lp3mResearch {
+  id              String   @id @default(uuid())
+  code            String?  @unique
+  type            String   // 'Penelitian' | 'Pengabdian'
+  title           String
+  scheme          String   // e.g. 'Penelitian Fundamental Internal'
+  focusArea       String   // e.g. 'Kecerdasan Buatan & Kesehatan Digital'
+  leader          String
+  nidn            String?
+  faculty         String
+  studyProgram    String?
+  membersCount    Int      @default(1)
+  year            Int      @default(2026)
+  fundingAmount   Float    @default(0)
+  fundingSource   String   @default("DIPA Internal")
+  status          String   @default("Menunggu Verifikasi") // 'Sedang Berjalan' | 'Selesai' | 'Menunggu Verifikasi' | 'Revisi Usulan' | 'Ditolak'
+  targetOutput    String?
+  mitraSasaran    String?
+  reviewerNote    String?  @db.Text
+  documentUrl     String?
+  submittedAt     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("lp3m_researches")
+}
+
+model Lp3mIntellectualProperty {
+  id              String   @id @default(uuid())
+  regNumber       String   @unique
+  title           String
+  type            String   // 'Hak Cipta' | 'Paten Sederhana' | 'Paten Biasa' | 'Desain Industri'
+  inventor        String
+  nidn            String?
+  faculty         String
+  status          String   @default("Menunggu Verifikasi") // 'Tersertifikasi' | 'Pemeriksaan Substantif' | 'Menunggu Verifikasi'
+  certificateUrl  String?
+  grantYear       Int      @default(2026)
+  applicationDate String?
+  description     String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("lp3m_intellectual_properties")
+}
+
+model Lp3mDocument {
+  id             String   @id @default(uuid())
+  code           String   @unique
+  title          String
+  category       String   // 'Panduan & Renstra' | 'Regulasi & SK Rektor' | 'Template Proposal' | 'Instrumen Borang'
+  fileType       String   @default("PDF") // 'PDF' | 'DOCX' | 'XLSX' | 'ZIP'
+  fileSize       String   @default("1.0 MB")
+  version        String   @default("v2026.1")
+  academicYear   String   @default("2026")
+  accessLevel    String   @default("Publik") // 'Publik' | 'Dosen & Reviewer' | 'Khusus Tim LP3M'
+  description    String?  @db.Text
+  author         String   @default("LP3M ITN")
+  fileUrl        String?
+  downloadsCount Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("lp3m_documents")
+}
+
+model Lp3mBorangRecord {
+  id                      String   @id @default(uuid())
+  prodiCode               String   @unique
+  prodiName               String
+  faculty                 String
+  academicYear            String   @default("2026")
+  dtpsCount               Int      @default(0)
+  penelitianLokal         Int      @default(0)
+  penelitianNasional      Int      @default(0)
+  penelitianInternasional Int      @default(0)
+  danaPenelitianTotal     Float    @default(0)
+  pkmLokal                Int      @default(0)
+  pkmNasional             Int      @default(0)
+  pkmInternasional        Int      @default(0)
+  danaPkmTotal            Float    @default(0)
+  scopusCount             Int      @default(0)
+  sintaCount              Int      @default(0)
+  hakiCount               Int      @default(0)
+  bukuCount               Int      @default(0)
+  scorePenelitian         Float    @default(0)
+  scorePkm                Float    @default(0)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@map("lp3m_borang_records")
 }
 
