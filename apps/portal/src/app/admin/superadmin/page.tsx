@@ -21,7 +21,6 @@ import {
   UserCheck,
   CreditCard,
   BarChart3,
-  Activity,
   Settings,
   ShieldCheck,
   ChevronRight,
@@ -99,80 +98,7 @@ export default function SuperAdminDashboardPage() {
     },
   ]);
 
-  // 2. Monitoring Sistem & Integrasi Akademik
-  const [overallStatus, setOverallStatus] = useState({
-    isAllNormal: false,
-    badgeText: '1 Layanan Memerlukan Integrasi (Feeder PDDIKTI Belum Terhubung)',
-    badgeClass: 'bg-amber-50 border-amber-300 text-amber-800',
-    dotClass: 'bg-amber-500 animate-pulse',
-  });
-
-  const [servicesData, setServicesData] = useState<any[]>([
-    {
-      name: 'Feeder PDDIKTI',
-      desc: 'Web Service Neo Feeder Kemdikbud',
-      status: 'Belum Terhubung',
-      statusType: 'disconnected',
-      responseTime: '--',
-      isOnline: false,
-      badgeClass: 'bg-rose-100 text-rose-800 border border-rose-200',
-      dotClass: 'bg-rose-500',
-      actionUrl: '/admin/superadmin/laporan#konfigurasi',
-      actionLabel: 'Konfigurasi Token WS',
-    },
-    {
-      name: 'Database SIAKAD',
-      desc: 'Master PostgreSQL Server :5434',
-      status: 'Healthy',
-      statusType: 'healthy',
-      responseTime: '4ms',
-      isOnline: true,
-      badgeClass: 'bg-emerald-100 text-emerald-800',
-      dotClass: 'bg-emerald-500',
-    },
-    {
-      name: 'Cache & Sesi',
-      desc: 'In-Memory State & Session Store',
-      status: 'Lokal Standalone',
-      statusType: 'info',
-      responseTime: '1ms',
-      isOnline: true,
-      badgeClass: 'bg-blue-100 text-blue-800',
-      dotClass: 'bg-blue-500',
-    },
-    {
-      name: 'E-Katalog & Berkas',
-      desc: 'Penyimpanan Berkas Digital',
-      status: 'Siap (Lokal)',
-      statusType: 'healthy',
-      responseTime: '18ms',
-      isOnline: true,
-      badgeClass: 'bg-emerald-100 text-emerald-800',
-      dotClass: 'bg-emerald-500',
-    },
-    {
-      name: 'Antrian Worker',
-      desc: 'Background Job & Sync Processor',
-      status: 'Siap (Lokal)',
-      statusType: 'healthy',
-      responseTime: '<1ms',
-      isOnline: true,
-      badgeClass: 'bg-emerald-100 text-emerald-800',
-      dotClass: 'bg-emerald-500',
-    },
-    {
-      name: 'Presensi & Jadwal Engine',
-      desc: 'Validasi Ruang & Jadwal Kuliah',
-      status: 'Aktif (Database)',
-      statusType: 'healthy',
-      responseTime: '4ms',
-      isOnline: true,
-      badgeClass: 'bg-emerald-100 text-emerald-800',
-      dotClass: 'bg-emerald-500',
-    },
-  ]);
-
-  // 3. Data Fakultas Kampus dari Basis Data
+  // 2. Data Fakultas Kampus dari Basis Data
   const [facultiesData, setFacultiesData] = useState<any[]>([
     {
       id: 'f-1',
@@ -284,32 +210,6 @@ export default function SuperAdminDashboardPage() {
                     };
                   }
                   return card;
-                })
-              );
-            }
-
-            if (d.overallSystemStatus) {
-              setOverallStatus(d.overallSystemStatus);
-            }
-
-            if (d.servicesMonitoring && d.servicesMonitoring.length > 0) {
-              setServicesData((prev) =>
-                prev.map((srv, idx) => {
-                  const incoming = d.servicesMonitoring[idx];
-                  if (incoming) {
-                    return {
-                      ...srv,
-                      status: incoming.status,
-                      statusType: incoming.statusType,
-                      responseTime: incoming.responseTime,
-                      isOnline: incoming.isOnline,
-                      badgeClass: incoming.badgeClass,
-                      dotClass: incoming.dotClass,
-                      actionUrl: incoming.actionUrl,
-                      actionLabel: incoming.actionLabel,
-                    };
-                  }
-                  return srv;
                 })
               );
             }
@@ -476,86 +376,7 @@ export default function SuperAdminDashboardPage() {
           })}
         </div>
 
-        {/* 3. Monitoring Sistem & Integrasi Akademik */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-subtle">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-5 pb-3 border-b border-slate-100">
-            <div>
-              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Activity className="w-4 h-4 text-[#1E3A8A]" />
-                Monitoring Sistem & Integrasi Layanan Kampus
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Kondisi operasional server database, sinkronisasi Feeder PDDIKTI, antrian data, dan modul akademik real-time
-              </p>
-            </div>
-            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${overallStatus.badgeClass}`}>
-              <span className={`w-2 h-2 rounded-full ${overallStatus.dotClass}`}></span>
-              <span>{overallStatus.badgeText}</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {servicesData.map((service, idx) => {
-              const Icon = service.icon || Activity;
-              const isDisconnected = service.isOnline === false;
-              return (
-                <div
-                  key={idx}
-                  className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between ${
-                    isDisconnected
-                      ? 'border-rose-200 bg-rose-50/40 hover:bg-rose-50/70 hover:border-rose-300 shadow-sm'
-                      : 'border-slate-100 bg-slate-50/70 hover:bg-white hover:border-slate-300'
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <Icon className={`w-4 h-4 ${isDisconnected ? 'text-rose-600' : 'text-slate-500'}`} />
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                          service.badgeClass || (isDisconnected ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800')
-                        }`}
-                      >
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            service.dotClass || (isDisconnected ? 'bg-rose-500' : 'bg-emerald-500')
-                          }`}
-                        ></span>
-                        {service.status}
-                      </span>
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-900 line-clamp-1">{service.name}</h4>
-                      <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{service.desc}</p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[10px] text-slate-500">
-                      <span>Respons</span>
-                      <strong className={`font-semibold ${isDisconnected ? 'text-rose-700' : 'text-slate-800'}`}>
-                        {service.responseTime}
-                      </strong>
-                    </div>
-
-                    {service.actionUrl && (
-                      <div className="mt-2 pt-1.5 border-t border-rose-200/70">
-                        <Link
-                          href={service.actionUrl}
-                          className="text-[10px] font-bold text-rose-700 hover:text-rose-900 hover:underline flex items-center justify-between"
-                        >
-                          <span>{service.actionLabel || 'Konfigurasi'}</span>
-                          <ChevronRight className="w-3 h-3" />
-                        </Link>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 4. Main Section: Distribusi Fakultas (2 Cols) & Status Registrasi KRS (1 Col) */}
+        {/* 3. Main Section: Distribusi Fakultas (2 Cols) & Status Registrasi KRS (1 Col) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Distribusi Fakultas Kampus (2 Cols) */}
           <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-200/90 shadow-subtle flex flex-col justify-between">
@@ -574,21 +395,19 @@ export default function SuperAdminDashboardPage() {
                 <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-semibold text-slate-600">
                   <button
                     onClick={() => setSelectedFacultyTab('all')}
-                    className={`px-3 py-1 rounded-lg transition-all ${
-                      selectedFacultyTab === 'all'
-                        ? 'bg-white text-[#1E3A8A] font-bold shadow-xs'
-                        : 'hover:text-slate-900'
-                    }`}
+                    className={`px-3 py-1 rounded-lg transition-all ${selectedFacultyTab === 'all'
+                      ? 'bg-white text-[#1E3A8A] font-bold shadow-xs'
+                      : 'hover:text-slate-900'
+                      }`}
                   >
                     Semua ({facultiesData.length})
                   </button>
                   <button
                     onClick={() => setSelectedFacultyTab('unggul')}
-                    className={`px-3 py-1 rounded-lg transition-all ${
-                      selectedFacultyTab === 'unggul'
-                        ? 'bg-white text-[#1E3A8A] font-bold shadow-xs'
-                        : 'hover:text-slate-900'
-                    }`}
+                    className={`px-3 py-1 rounded-lg transition-all ${selectedFacultyTab === 'unggul'
+                      ? 'bg-white text-[#1E3A8A] font-bold shadow-xs'
+                      : 'hover:text-slate-900'
+                      }`}
                   >
                     Unggul ({facultiesData.filter((f) => f.accreditation === 'Unggul').length})
                   </button>
@@ -749,11 +568,10 @@ export default function SuperAdminDashboardPage() {
                           </td>
                           <td className="py-3.5 px-3 text-center">
                             <span
-                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                fac.accreditation === 'Unggul'
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : 'bg-blue-100 text-blue-800'
-                              }`}
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold ${fac.accreditation === 'Unggul'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-blue-100 text-blue-800'
+                                }`}
                             >
                               {fac.accreditation}
                             </span>
@@ -801,11 +619,10 @@ export default function SuperAdminDashboardPage() {
                       <button
                         key={page}
                         onClick={() => setDashCurrentPage(page)}
-                        className={`w-6 h-6 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                          dashCurrentPage === page
-                            ? 'bg-[#1E3A8A] text-white'
-                            : 'bg-white border border-slate-200 hover:bg-slate-100 text-slate-700'
-                        }`}
+                        className={`w-6 h-6 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${dashCurrentPage === page
+                          ? 'bg-[#1E3A8A] text-white'
+                          : 'bg-white border border-slate-200 hover:bg-slate-100 text-slate-700'
+                          }`}
                       >
                         {page}
                       </button>
@@ -908,10 +725,6 @@ export default function SuperAdminDashboardPage() {
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-500">Ruang Perkuliahan:</span>
                     <span className="font-bold text-slate-800">{krsData.activeRooms} Ruangan</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/60">
-                    <span className="text-slate-500">Status Sinkronisasi:</span>
-                    <span className="font-semibold text-emerald-700">Tersinkron PostgreSQL</span>
                   </div>
                 </div>
               </div>
