@@ -283,14 +283,6 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       ],
     },
     {
-      title: 'PMB',
-      items: [
-        { name: 'Gelombang', href: '/admin/superadmin#pmb-gelombang', icon: Layers },
-        { name: 'Jalur', href: '/admin/superadmin#pmb-jalur', icon: Sliders },
-        { name: 'Pendaftar', href: '/admin/superadmin#pmb-pendaftar', icon: UserPlus },
-      ],
-    },
-    {
       title: 'LAPORAN',
       items: [
         { name: 'Laporan Akademik & PDDIKTI', href: '/admin/superadmin/laporan', icon: BarChart3 },
