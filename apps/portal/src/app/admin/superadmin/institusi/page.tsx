@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { Modal } from '@/components/ui/Modal';
+import { CompressedFileUpload } from '@/components/common/CompressedFileUpload';
 import {
   Building2,
   Landmark,
@@ -982,11 +983,13 @@ export default function SuperAdminProfilInstitusiPage() {
                   <p className="text-[11px] text-slate-500">Inisial ini akan ditampilkan di navbar, sidebar, kartu identitas, dan laporan resmi.</p>
                 </div>
 
-                <div className="border border-dashed border-slate-300 rounded-2xl p-4 bg-slate-50">
-                  <Upload className="w-6 h-6 text-slate-400 mx-auto mb-1.5" />
-                  <p className="text-xs font-semibold text-slate-700">Unggah File Logo Transparan (.PNG / .SVG)</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">Rasio 1:1, Maksimal 2MB</p>
-                </div>
+                <CompressedFileUpload
+                  label="Unggah File Logo Kampus (.PNG / .JPG / .WEBP)"
+                  sublabel="Rasio 1:1. Gambar otomatis dioptimasi dan dikompresi agar loading halaman cepat."
+                  accept="image/*"
+                  maxSizeBytes={500 * 1024}
+                  onFileReady={() => {}}
+                />
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 mt-4">

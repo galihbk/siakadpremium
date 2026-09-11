@@ -3,6 +3,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getAuthSession } from '@/lib/auth';
+import { getApiBaseUrl } from '@/lib/api';
+import { compressUploadedFile, fileToBase64, formatFileSize } from '@/lib/fileCompression';
 import {
   User,
   Camera,
@@ -400,26 +402,30 @@ export default function StudentProfilePage() {
     setKelurahan(found ? toTitleCase(found.name) : '');
   };
 
-  // Handle local file upload with instant change & auto-save
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Handle local file upload with auto-compression & instant sync
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawFile = e.target.files?.[0];
+    if (!rawFile) return;
 
-    if (!file.type.startsWith('image/')) {
+    if (!rawFile.type.startsWith('image/')) {
       setSaveError('File harus berupa gambar (JPG, PNG, atau WEBP).');
       return;
     }
 
-    if (file.size > 3 * 1024 * 1024) {
-      setSaveError('Ukuran gambar maksimal 3MB.');
-      return;
-    }
+    setSaveError(null);
+    setSaveSuccess('Mengompresi dan mengoptimasi foto profil...');
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const base64Url = event.target?.result as string;
+    try {
+      const compressResult = await compressUploadedFile(rawFile, {
+        imageOptions: {
+          maxWidthOrHeight: 800,
+          maxSizeBytes: 400 * 1024, // max 400 KB for avatar
+          initialQuality: 0.8,
+        },
+      });
+
+      const base64Url = await fileToBase64(compressResult.file);
       setAvatarUrl(base64Url);
-      setSaveError(null);
 
       // Instant sync to localStorage and navbar
       const { token, user } = getAuthSession();
@@ -431,11 +437,15 @@ export default function StudentProfilePage() {
         localStorage.setItem('siakad_user', JSON.stringify(updatedUser));
       }
       window.dispatchEvent(new Event('siakad_profile_updated'));
-      setSaveSuccess('Foto profil berhasil diubah dan diperbarui di navbar!');
+
+      const saveInfo = compressResult.wasCompressed
+        ? ` (${formatFileSize(compressResult.originalSize)} ➔ ${formatFileSize(compressResult.compressedSize)}, hemat ${compressResult.savedPercent}%)`
+        : '';
+      setSaveSuccess(`Foto profil berhasil diperbarui!${saveInfo}`);
 
       // Persist to backend in background
       try {
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        const apiBase = getApiBaseUrl();
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         if (token) headers.Authorization = `Bearer ${token}`;
         else if (user?.id) headers['x-user-id'] = user.id;
@@ -453,8 +463,9 @@ export default function StudentProfilePage() {
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err: any) {
+      setSaveError('Gagal memproses dan mengompresi foto profil.');
+    }
   };
 
   const handleRemovePhoto = () => {

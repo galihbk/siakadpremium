@@ -29,7 +29,11 @@ export function middleware(request: NextRequest) {
       url.pathname = '/pmb/login';
       return NextResponse.rewrite(url);
     }
-    if (url.pathname === '/daftar' || url.pathname === '/register') {
+    if (
+      url.pathname === '/daftar' ||
+      url.pathname === '/register' ||
+      url.pathname === '/pmb/register'
+    ) {
       url.pathname = '/pmb/daftar';
       return NextResponse.rewrite(url);
     }
@@ -38,6 +42,12 @@ export function middleware(request: NextRequest) {
       return NextResponse.rewrite(url);
     }
     return NextResponse.next();
+  }
+
+  // Global redirect/rewrite for /register or /daftar to PMB registration
+  if (url.pathname === '/daftar' || url.pathname === '/register') {
+    url.pathname = '/pmb/daftar';
+    return NextResponse.rewrite(url);
   }
 
   return NextResponse.next();

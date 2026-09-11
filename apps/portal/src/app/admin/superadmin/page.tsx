@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
+import { getApiBaseUrl } from '@/lib/api';
 import {
   Building2,
   Landmark,
@@ -42,7 +43,7 @@ import {
 
 export default function SuperAdminDashboardPage() {
   const [selectedFacultyTab, setSelectedFacultyTab] = useState<'all' | 'unggul'>('all');
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+  const apiBaseUrl = getApiBaseUrl();
 
   // 1. 6 Summary Cards (Akademik Kampus)
   const [summaryData, setSummaryData] = useState([
@@ -145,10 +146,10 @@ export default function SuperAdminDashboardPage() {
   // 4. Log Aktivitas Akademik Kampus
   const [activitiesData, setActivitiesData] = useState<any[]>([
     {
-      title: 'Koneksi Basis Data PostgreSQL',
-      detail: 'Basis data PostgreSQL siakad_premium aktif dan terhubung pada port 5434.',
+      title: 'Sinkronisasi Server Utama',
+      detail: 'Layanan basis data dan sistem akademik aktif beroperasi normal.',
       time: 'Baru saja',
-      badge: 'Database',
+      badge: 'Sistem',
       color: 'bg-[#1E3A8A]',
     },
     {

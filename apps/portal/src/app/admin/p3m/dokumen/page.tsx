@@ -31,6 +31,8 @@ import {
   AlertCircle,
   FileCheck2,
 } from 'lucide-react';
+import { CompressedFileUpload } from '@/components/common/CompressedFileUpload';
+import { formatFileSize } from '@/lib/fileCompression';
 
 export interface DocumentItem {
   id: string;
@@ -872,12 +874,18 @@ export default function BankDokumenPage() {
                   />
                 </div>
 
-                {/* Upload Zone Dummy */}
-                <div className="border-2 border-dashed border-slate-200 hover:border-[#1E3A8A] rounded-2xl p-5 text-center transition-colors cursor-pointer bg-slate-50/50">
-                  <Upload className="w-8 h-8 text-slate-400 mx-auto mb-1" />
-                  <p className="text-xs font-bold text-slate-700">Pilih berkas dari komputer atau tarik ke sini</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">Maksimal ukuran berkas 25 MB (.pdf, .docx, .xlsx, .zip)</p>
-                </div>
+                <CompressedFileUpload
+                  label="Berkas Dokumen Panduan / Borang"
+                  sublabel="Format: Dokumen PDF atau Gambar. Otomatis dikompresi agar ukuran file tetap ringan."
+                  accept=".pdf,application/pdf,image/*"
+                  maxSizeBytes={1500 * 1024}
+                  onFileReady={(file) => {
+                    setUploadForm((prev) => ({
+                      ...prev,
+                      fileSize: formatFileSize(file.size),
+                    }));
+                  }}
+                />
 
                 <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                   <button

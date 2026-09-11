@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { getApiBaseUrl } from '@/lib/api';
 import {
   ArrowLeft,
   ArrowRight,
@@ -30,7 +31,7 @@ export default function PmbLoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+  const apiBaseUrl = getApiBaseUrl();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,15 +53,23 @@ export default function PmbLoginPage() {
         }),
       });
 
-      const data = await res.json();
+      const json = await res.json();
 
-      if (!res.ok || !data?.success) {
-        throw new Error(data?.message || 'Nomor Registrasi atau Kata Sandi yang dimasukkan salah.');
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.message || 'Nomor Registrasi atau Kata Sandi yang dimasukkan salah.');
+      }
+
+      const payload = json.data !== undefined ? json.data : json;
+      const applicant = payload?.applicant || payload;
+      const token = payload?.token || json?.token || `pmb_session_${applicant?.registrationNumber || Date.now()}`;
+
+      if (!applicant || !applicant.registrationNumber) {
+        throw new Error('Data akun pendaftar tidak valid atau belum ditemukan.');
       }
 
       if (typeof window !== 'undefined') {
-        localStorage.setItem('pmb_applicant_session', JSON.stringify(data.applicant));
-        localStorage.setItem('pmb_applicant_token', data.token || `pmb_token_${data.applicant.registrationNumber}`);
+        localStorage.setItem('pmb_applicant_session', JSON.stringify(applicant));
+        localStorage.setItem('pmb_applicant_token', token);
       }
 
       router.push('/pmb/dashboard');
@@ -69,12 +78,6 @@ export default function PmbLoginPage() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleQuickDemo = () => {
-    setIdentifier('PMB20270001');
-    setPassword('Password123!');
-    setErrorMsg(null);
   };
 
   return (
@@ -216,14 +219,12 @@ export default function PmbLoginPage() {
                     <label className="text-xs font-bold text-slate-700">
                       Kata Sandi <span className="text-red-600">*</span>
                     </label>
-                    <a
-                      href="https://wa.me/6281234567890?text=Halo%20Admin%20PMB%20ITN,%20saya%20lupa%20kata%20sandi%20pendaftaran"
-                      target="_blank"
-                      rel="noreferrer"
+                    <Link
+                      href="/pmb/lupa-kata-sandi"
                       className="text-[11px] text-[#1E3A8A] hover:underline font-semibold"
                     >
                       Lupa Kata Sandi?
-                    </a>
+                    </Link>
                   </div>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -276,20 +277,6 @@ export default function PmbLoginPage() {
                   )}
                 </button>
               </form>
-
-              {/* Akun Demo Pengujian */}
-              <div className="mt-4 p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs flex items-center justify-between">
-                <span className="text-slate-500 text-[11px]">
-                  Akun Demo: <strong>PMB20270001</strong>
-                </span>
-                <button
-                  type="button"
-                  onClick={handleQuickDemo}
-                  className="text-[11px] font-bold text-[#1E3A8A] hover:underline"
-                >
-                  Gunakan Akun Ini
-                </button>
-              </div>
             </div>
 
             {/* Tautan Bawah */}

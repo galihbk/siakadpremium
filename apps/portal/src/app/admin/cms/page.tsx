@@ -167,7 +167,6 @@ export default function SuperAdminCmsPage() {
                 <Sparkles className="w-3 h-3" />
                 CMS Control Center (Super Admin)
               </span>
-              <span className="text-xs text-blue-200">Database Engine: PostgreSQL</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black tracking-tight">
               Manajemen Konten & Tampilan Landing Page Kampus
@@ -644,7 +643,7 @@ export default function SuperAdminCmsPage() {
           {/* Bottom Action Footer */}
           <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
             <span className="text-xs text-slate-500">
-              Perubahan akan langsung tersimpan di database PostgreSQL dan disajikan ke pengunjung website.
+              Perubahan akan langsung tersimpan dan disajikan ke pengunjung website.
             </span>
             <button
               type="submit"
@@ -652,7 +651,7 @@ export default function SuperAdminCmsPage() {
               className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#1E3A8A] hover:bg-[#172554] text-white text-xs font-bold rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50"
             >
               <Save className="w-4 h-4 text-[#D4A017]" />
-              <span>{isSaving ? 'Menyimpan ke Database...' : 'Simpan Perubahan'}</span>
+              <span>{isSaving ? 'Menyimpan Perubahan...' : 'Simpan Perubahan'}</span>
             </button>
           </div>
 

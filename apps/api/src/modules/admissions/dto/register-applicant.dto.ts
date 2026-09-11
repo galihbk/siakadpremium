@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class RegisterApplicantDto {
   @ApiProperty({ example: 'Siti Aisyah Rahmadani' })
@@ -17,16 +17,28 @@ export class RegisterApplicantDto {
   @IsNotEmpty()
   phone: string;
 
-  @ApiProperty({ example: 'SMAN 1 Teladan Jakarta' })
+  @ApiProperty({ example: 'SMAN 1 Teladan Jakarta', required: false })
   @IsString()
-  @IsNotEmpty()
-  highSchool: string;
+  @IsOptional()
+  highSchool?: string;
 
-  @ApiProperty({ example: 'Teknik Informatika (S1)' })
+  @ApiProperty({ example: 'Teknik Informatika (S1)', required: false })
   @IsString()
-  @IsNotEmpty()
-  chosenStudyProgram: string;
+  @IsOptional()
+  chosenStudyProgram?: string;
 
   @ApiProperty({ example: 'Jalur Prestasi Akademik', required: false })
+  @IsString()
+  @IsOptional()
   jalurPendaftaran?: string;
+
+  @ApiProperty({ example: 'MITRA2027', required: false })
+  @IsString()
+  @IsOptional()
+  affiliateCode?: string;
+
+  @ApiProperty({ example: '', required: false })
+  @IsString()
+  @IsOptional()
+  honeypot?: string;
 }

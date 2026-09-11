@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getAuthSession } from '@/lib/auth';
+import { getApiBaseUrl } from '@/lib/api';
 import {
   Wallet,
   TrendingUp,
@@ -280,7 +281,7 @@ export default function FinanceDashboardPage() {
     async function loadBackendData() {
       setIsLoadingApi(true);
       try {
-        const res = await fetch('http://localhost:3001/api/v1/finance/dashboard');
+        const res = await fetch(`${getApiBaseUrl()}/finance/dashboard`);
         if (res.ok) {
           const json = await res.json();
           if (json.data) {
@@ -335,7 +336,7 @@ export default function FinanceDashboardPage() {
   const handleVerify = async (trx: Transaction) => {
     try {
       // Send to backend API
-      fetch(`http://localhost:3001/api/v1/finance/transactions/${trx.id}/verify`, {
+      fetch(`${getApiBaseUrl()}/finance/transactions/${trx.id}/verify`, {
         method: 'POST',
       }).catch((e) => console.log('Background API call done/mocked:', e));
 
@@ -386,7 +387,7 @@ export default function FinanceDashboardPage() {
     };
 
     // Try posting to API
-    fetch('http://localhost:3001/api/v1/finance/invoices', {
+    fetch(`${getApiBaseUrl()}/finance/invoices`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newInvoice),

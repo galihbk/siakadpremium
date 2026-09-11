@@ -50,6 +50,16 @@ export class AuthService {
           student: null,
           lecturer: null,
         };
+      } else if (email === 'admin.pmb@itn.ac.id' || email === 'pmb@itn.ac.id') {
+        user = {
+          id: 'demo-pmb-id',
+          email: 'admin.pmb@itn.ac.id',
+          fullName: 'Bagus Wicaksono, S.Kom. (Panitia PMB)',
+          role: UserRole.ADMIN_PMB,
+          avatarUrl: null,
+          student: null,
+          lecturer: null,
+        };
       } else if (email === 'lp3m@itn.ac.id' || email === 'p3m@itn.ac.id') {
         user = {
           id: 'demo-lp3m-id',

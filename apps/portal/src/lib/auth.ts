@@ -2,7 +2,7 @@ export interface AuthUser {
   id: string;
   email: string;
   fullName: string;
-  role: 'SUPER_ADMIN' | 'ADMIN_BAAK' | 'ADMIN_KEUANGAN' | 'ADMIN_LP3M' | 'LP3M' | 'LECTURER' | 'STUDENT' | 'STAFF';
+  role: 'SUPER_ADMIN' | 'ADMIN_BAAK' | 'ADMIN_PMB' | 'ADMIN_KEUANGAN' | 'ADMIN_LP3M' | 'LP3M' | 'LECTURER' | 'STUDENT' | 'STAFF';
   avatarUrl?: string | null;
   studentId?: string | null;
   lecturerId?: string | null;
@@ -57,6 +57,9 @@ export function getRoleRedirectPath(role: string): string {
   switch (role) {
     case 'SUPER_ADMIN':
       return '/admin/superadmin';
+    case 'ADMIN_PMB':
+    case 'PMB':
+      return '/admin/pmb';
     case 'ADMIN_LP3M':
     case 'LP3M':
       return '/admin/p3m';
@@ -75,13 +78,18 @@ export function getRoleRedirectPath(role: string): string {
   }
 }
 
-export function getPortalRoleFromBackend(backendRole: string, email?: string): 'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' | 'lp3m' {
+export function getPortalRoleFromBackend(backendRole: string, email?: string): 'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' | 'lp3m' | 'pmb' {
+  if (email === 'admin.pmb@itn.ac.id' || email === 'pmb@itn.ac.id' || backendRole === 'ADMIN_PMB' || backendRole === 'PMB') {
+    return 'pmb';
+  }
   if (email === 'lp3m@itn.ac.id' || email === 'p3m@itn.ac.id' || backendRole === 'ADMIN_LP3M' || backendRole === 'LP3M') {
     return 'lp3m';
   }
   switch (backendRole) {
     case 'SUPER_ADMIN':
       return 'superadmin';
+    case 'ADMIN_PMB':
+      return 'pmb';
     case 'ADMIN_KEUANGAN':
     case 'FINANCE':
       return 'finance';
@@ -97,7 +105,17 @@ export function getPortalRoleFromBackend(backendRole: string, email?: string): '
 }
 
 export function isRouteAllowedForRole(pathname: string, role: string): boolean {
-  // 1. Dashboard LP3M HANYA boleh diakses oleh role LP3M (ADMIN_LP3M / LP3M) dan Super Admin
+  // 1. Dashboard PMB HANYA boleh diakses oleh role ADMIN_PMB dan Super Admin
+  if (pathname.startsWith('/admin/pmb')) {
+    return role === 'ADMIN_PMB' || role === 'SUPER_ADMIN';
+  }
+
+  // Role ADMIN_PMB HANYA boleh mengakses area PMB (/admin/pmb)
+  if (role === 'ADMIN_PMB') {
+    return pathname.startsWith('/admin/pmb');
+  }
+
+  // 2. Dashboard LP3M HANYA boleh diakses oleh role LP3M (ADMIN_LP3M / LP3M) dan Super Admin
   if (pathname.startsWith('/admin/p3m') || pathname.startsWith('/p3m')) {
     return role === 'ADMIN_LP3M' || role === 'LP3M' || role === 'SUPER_ADMIN';
   }
@@ -107,27 +125,27 @@ export function isRouteAllowedForRole(pathname: string, role: string): boolean {
     return pathname.startsWith('/admin/p3m') || pathname.startsWith('/p3m');
   }
 
-  // 2. Dashboard Keuangan HANYA boleh diakses oleh role Keuangan (ADMIN_KEUANGAN / FINANCE)
+  // 3. Dashboard Keuangan HANYA boleh diakses oleh role Keuangan (ADMIN_KEUANGAN / FINANCE)
   if (pathname.startsWith('/finance')) {
     return role === 'ADMIN_KEUANGAN' || role === 'FINANCE';
   }
 
-  // 3. Portal Dosen HANYA boleh diakses oleh role Dosen (LECTURER)
+  // 4. Portal Dosen HANYA boleh diakses oleh role Dosen (LECTURER)
   if (pathname.startsWith('/lecturer')) {
     return role === 'LECTURER';
   }
 
-  // 4. Portal Mahasiswa HANYA boleh diakses oleh role Mahasiswa (STUDENT)
+  // 5. Portal Mahasiswa HANYA boleh diakses oleh role Mahasiswa (STUDENT)
   if (pathname.startsWith('/student')) {
     return role === 'STUDENT';
   }
 
-  // 5. Role Keuangan (Finance) HANYA boleh mengakses area keuangan (/finance)
+  // 6. Role Keuangan (Finance) HANYA boleh mengakses area keuangan (/finance)
   if (role === 'ADMIN_KEUANGAN' || role === 'FINANCE') {
     return pathname.startsWith('/finance');
   }
 
-  // 6. Super Admin memiliki akses penuh ke area administrasi, master data & sistem
+  // 7. Super Admin memiliki akses penuh ke area administrasi, master data & sistem
   if (role === 'SUPER_ADMIN') {
     return true;
   }

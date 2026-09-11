@@ -5,6 +5,7 @@
 export const UserRole = {
   SUPER_ADMIN: 'SUPER_ADMIN',
   ADMIN_BAAK: 'ADMIN_BAAK',
+  ADMIN_PMB: 'ADMIN_PMB',
   ADMIN_KEUANGAN: 'ADMIN_KEUANGAN',
   ADMIN_LP3M: 'ADMIN_LP3M',
   LP3M: 'LP3M',
@@ -170,3 +171,41 @@ export interface AdminDashboardSummary {
   persentaseRegistrasiKRS: number;
   mahasiswaBaruTerdaftar: number;
 }
+
+// ==============================================================================
+// PMB (Admission) Types
+// ==============================================================================
+
+export interface AdmissionApplicantItem {
+  id: string;
+  registrationNumber: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  highSchool: string;
+  chosenStudyProgram: string;
+  jalurPendaftaran: string;
+  status: AdmissionStatus;
+  testScore?: number | null;
+  birthDate?: string | null;
+  gender?: string | null;
+  address?: string | null;
+  notes?: string | null;
+  verifiedAt?: string | null;
+  verifiedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdmissionStatsSummary {
+  totalApplicants: number;
+  pendingCount: number;
+  verifiedCount: number;
+  passedCount: number;
+  failedCount: number;
+  registeredCount: number;
+  prodiDistribution: { prodi: string; count: number }[];
+  jalurDistribution: { jalur: string; count: number }[];
+  recentApplicants: AdmissionApplicantItem[];
+}
+

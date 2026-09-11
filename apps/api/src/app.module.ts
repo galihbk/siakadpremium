@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './shared/prisma/prisma.module';
 import { RedisModule } from './shared/redis/redis.module';
+import { MailModule } from './shared/mail/mail.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { FacultiesModule } from './modules/faculties/faculties.module';
 import { StudyProgramsModule } from './modules/study-programs/study-programs.module';
@@ -27,6 +28,7 @@ import { AppService } from './app.service';
     }),
     PrismaModule,
     RedisModule,
+    MailModule,
     AuthModule,
     FacultiesModule,
     StudyProgramsModule,

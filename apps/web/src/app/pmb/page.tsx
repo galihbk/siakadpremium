@@ -1,105 +1,211 @@
-'use client';
-
-import { useState } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import {
   ArrowLeft,
   ArrowRight,
   Award,
-  BookOpen,
   Calendar,
-  CheckCircle,
   CheckCircle2,
+  ChevronDown,
   Clock,
+  DollarSign,
   Download,
-  FileCheck,
   FileText,
   GraduationCap,
-  HelpCircle,
   Laptop,
   Mail,
-  MapPin,
   Phone,
-  Search,
-  Send,
-  ShieldCheck,
   Sparkles,
-  Users,
-  RefreshCw,
   LogIn,
-  LogOut,
-  Lock,
-  User,
-  KeyRound,
-  Printer,
-  Copy,
-  Check,
-  AlertCircle,
-  Eye,
-  EyeOff,
+  Users,
 } from 'lucide-react';
 
-export default function PmbPage() {
-  // Status check states (Cek Kelulusan Cepat)
-  const [searchRegNum, setSearchRegNum] = useState('');
-  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
-  const [statusResult, setStatusResult] = useState<{
-    found: boolean;
-    name?: string;
-    prodi?: string;
-    jalur?: string;
-    statusText?: string;
-    gelombang?: string;
-    isPassed?: boolean;
-  } | null>(null);
+interface AdmissionBatch {
+  id: string;
+  name: string;
+  academicYear: string;
+  jenjang?: string;
+  startDate: string;
+  endDate: string;
+  examDate?: string;
+  announcementDate?: string;
+  registrationFee: number;
+  reRegistrationFee?: number;
+  reRegistrationFees?: Array<{
+    id?: string;
+    name: string;
+    amount: number;
+    note?: string;
+  }>;
+  quota: number;
+  availableJalur: string[];
+  status: 'OPEN' | 'UPCOMING' | 'CLOSED';
+  isDefault: boolean;
+  description?: string;
+  applicantCount?: number;
+}
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+const FALLBACK_BATCHES: AdmissionBatch[] = [
+  {
+    id: 'default-batch-1',
+    name: 'Gelombang 1 (Early Bird)',
+    academicYear: '2027/2028',
+    jenjang: 'S1',
+    startDate: '2026-08-01',
+    endDate: '2026-11-30',
+    examDate: '2026-12-05',
+    announcementDate: '2026-12-10',
+    registrationFee: 200000,
+    reRegistrationFee: 7300000,
+    reRegistrationFees: [
+      { id: 'fee-1', name: 'SPP / UKT Tetap Semester 1', amount: 3500000, note: 'Biaya kuliah pokok semester pertama' },
+      { id: 'fee-2', name: 'Biaya Pengembangan Institusi (Diskon Early Bird 50%)', amount: 2500000, note: 'Dapat diangsur 2x' },
+      { id: 'fee-3', name: 'PKKMB, Jas Almamater & Atribut Kampus', amount: 850000, note: 'Paket resmi mahasiswa baru' },
+      { id: 'fee-4', name: 'Layanan TI, Perpustakaan & Asuransi Mahasiswa', amount: 450000, note: 'Akses portal, WiFi & asuransi' },
+    ],
+    quota: 350,
+    availableJalur: [
+      'Jalur Prestasi Akademik (Bebas Tes)',
+      'Jalur Nilai Rapor & Portofolio',
+      'Jalur Mandiri Online (CBT)',
+      'KIP-K & Beasiswa Nusantara',
+    ],
+    status: 'OPEN',
+    isDefault: true,
+    description: 'Pendaftaran gelombang pembuka dengan potongan biaya formulir & beasiswa berprestasi.',
+  },
+  {
+    id: 'default-batch-2',
+    name: 'Gelombang 2 (Reguler)',
+    academicYear: '2027/2028',
+    jenjang: 'S1',
+    startDate: '2026-12-01',
+    endDate: '2027-03-31',
+    examDate: '2027-04-05',
+    announcementDate: '2027-04-10',
+    registrationFee: 250000,
+    reRegistrationFee: 9300000,
+    reRegistrationFees: [
+      { id: 'fee-1', name: 'SPP / UKT Tetap Semester 1', amount: 3500000, note: 'Biaya kuliah pokok semester pertama' },
+      { id: 'fee-2', name: 'Biaya Pengembangan Institusi (DPP)', amount: 4500000, note: 'Dapat diangsur 2x' },
+      { id: 'fee-3', name: 'PKKMB, Jas Almamater & Atribut Kampus', amount: 850000, note: 'Paket resmi mahasiswa baru' },
+      { id: 'fee-4', name: 'Layanan TI, Perpustakaan & Asuransi Mahasiswa', amount: 450000, note: 'Akses portal, WiFi & asuransi' },
+    ],
+    quota: 400,
+    availableJalur: [
+      'Jalur Mandiri Online (CBT)',
+      'Jalur Nilai Rapor & Portofolio',
+    ],
+    status: 'UPCOMING',
+    isDefault: false,
+    description: 'Pendaftaran reguler semester genap dengan seleksi CBT daring.',
+  },
+  {
+    id: 'default-batch-3',
+    name: 'Gelombang 3 (Terakhir)',
+    academicYear: '2027/2028',
+    jenjang: 'S1',
+    startDate: '2027-04-01',
+    endDate: '2027-07-31',
+    examDate: '2027-08-05',
+    announcementDate: '2027-08-10',
+    registrationFee: 300000,
+    reRegistrationFee: 10300000,
+    reRegistrationFees: [
+      { id: 'fee-1', name: 'SPP / UKT Tetap Semester 1', amount: 3500000, note: 'Biaya kuliah pokok semester pertama' },
+      { id: 'fee-2', name: 'Biaya Pengembangan Institusi (DPP Normal)', amount: 5500000, note: 'Dapat diangsur 2x' },
+      { id: 'fee-3', name: 'PKKMB, Jas Almamater & Atribut Kampus', amount: 850000, note: 'Paket resmi mahasiswa baru' },
+      { id: 'fee-4', name: 'Layanan TI, Perpustakaan & Asuransi Mahasiswa', amount: 450000, note: 'Akses portal, WiFi & asuransi' },
+    ],
+    quota: 250,
+    availableJalur: [
+      'Jalur Mandiri Online (CBT)',
+    ],
+    status: 'UPCOMING',
+    isDefault: false,
+    description: 'Gelombang penutup kuota penerimaan mahasiswa baru.',
+  },
+];
 
-  // Handle Cek Kelulusan Cepat
-  const handleCheckStatus = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchRegNum.trim()) return;
+const DEFAULT_RE_REGISTRATION_FEES_BY_JENJANG: Record<string, Array<{ name: string; amount: number; note?: string }>> = {
+  S1: [
+    { name: 'SPP / UKT Tetap Semester 1', amount: 3500000, note: 'Biaya kuliah pokok semester pertama' },
+    { name: 'Biaya Pengembangan Institusi (DPP)', amount: 2500000, note: 'Dapat diangsur 2x' },
+    { name: 'PKKMB, Jas Almamater & Atribut Kampus', amount: 850000, note: 'Paket resmi mahasiswa baru' },
+    { name: 'Layanan TI, Perpustakaan & Asuransi Mahasiswa', amount: 450000, note: 'Akses portal, WiFi & asuransi' },
+  ],
+  S2: [
+    { name: 'Biaya Matrikulasi Pascasarjana', amount: 2500000, note: 'Sekali bayar di awal' },
+    { name: 'SPP / UKT Tetap Semester 1 (S2)', amount: 6500000, note: 'Biaya kuliah semester 1' },
+    { name: 'Dana Pengembangan Akademik & Riset', amount: 3000000, note: 'Dapat diangsur 2x' },
+    { name: 'Layanan Perpustakaan Digital & Lab Riset', amount: 800000, note: 'Akses jurnal internasional' },
+  ],
+  S3: [
+    { name: 'Biaya Ujian Kualifikasi & Matrikulasi', amount: 3500000, note: 'Sekali bayar di awal' },
+    { name: 'SPP / UKT Tetap Semester 1 (S3)', amount: 10000000, note: 'Biaya kuliah semester 1' },
+    { name: 'Dana Kolaborasi Riset & Hibah Publikasi', amount: 5000000, note: 'Dapat diangsur' },
+    { name: 'Fasilitas Laboratorium Riset Doktoral', amount: 1500000, note: 'Akses fasilitas riset penuh' },
+  ],
+};
 
-    setIsCheckingStatus(true);
-    try {
-      const res = await fetch(`${apiBase}/admissions/status/${encodeURIComponent(searchRegNum.trim().toUpperCase())}`);
-      if (res.ok) {
-        const json = await res.json();
-        const payload = json.data || json;
-        if (payload && payload.found) {
-          setStatusResult({
-            found: true,
-            name: payload.fullName,
-            prodi: payload.chosenStudyProgram,
-            jalur: payload.jalurPendaftaran,
-            statusText: payload.statusText,
-            gelombang: payload.gelombang,
-            isPassed: payload.isPassed,
-          });
-          return;
-        }
-      }
-      setStatusResult({ found: false });
-    } catch {
-      const normalized = searchRegNum.trim().toUpperCase();
-      if (normalized.includes('PMB') || normalized.length >= 6) {
-        setStatusResult({
-          found: true,
-          name: 'Aisyah Rahmadani',
-          prodi: 'Teknik Informatika (S1)',
-          jalur: 'Jalur Prestasi Akademik (Bebas Tes)',
-          statusText: 'SELAMAT! ANDA DINYATAKAN LULUS SELEKSI PMB 2027',
-          gelombang: 'Gelombang 1 TA 2027/2028',
-          isPassed: true,
-        });
-      } else {
-        setStatusResult({ found: false });
-      }
-    } finally {
-      setIsCheckingStatus(false);
+async function getAdmissionBatches(): Promise<AdmissionBatch[]> {
+  try {
+    const baseUrl =
+      process.env.INTERNAL_API_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      'http://localhost:3001/api/v1';
+
+    const res = await fetch(`${baseUrl}/admissions/batches`, {
+      cache: 'no-store',
+    });
+
+    if (!res.ok) {
+      return FALLBACK_BATCHES;
     }
-  };
+
+    const json = await res.json();
+    const payload = json.data !== undefined ? json.data : json;
+    const list = Array.isArray(payload?.data)
+      ? payload.data
+      : Array.isArray(payload)
+      ? payload
+      : [];
+
+    if (list.length === 0) return FALLBACK_BATCHES;
+    return list;
+  } catch {
+    return FALLBACK_BATCHES;
+  }
+}
+
+function formatDateIndo(dateStr?: string | null): string {
+  if (!dateStr || dateStr === '-') return '-';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+function formatRupiah(amount: number): string {
+  if (!amount || amount === 0) return 'Gratis (Rp 0)';
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+export default async function PmbPage() {
+  const batches = await getAdmissionBatches();
+  const activeBatches = batches.filter((b) => b.status === 'OPEN');
+  const activeBatch = activeBatches.find((b) => b.isDefault) || activeBatches[0] || batches[0];
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 text-slate-900">
@@ -153,37 +259,30 @@ export default function PmbPage() {
 
             {/* Quick Links Desktop */}
             <nav className="hidden lg:flex items-center gap-6 text-xs sm:text-sm font-semibold text-slate-700">
+              <a href="#gelombang" className="hover:text-[#1E3A8A] transition-colors">Gelombang</a>
               <a href="#jalur" className="hover:text-[#1E3A8A] transition-colors">Jalur Masuk</a>
               <a href="#alur" className="hover:text-[#1E3A8A] transition-colors">Alur Daftar</a>
               <a href="#biaya" className="hover:text-[#1E3A8A] transition-colors">Biaya Kuliah</a>
-              <Link href="/pmb/daftar" className="hover:text-[#1E3A8A] transition-colors">Pendaftaran</Link>
+              <Link href="/pmb/daftar" className="hover:text-[#1E3A8A] transition-colors">Register Akun</Link>
               <a href="#faq" className="hover:text-[#1E3A8A] transition-colors">FAQ</a>
             </nav>
 
-            {/* Action CTA: Cek, Login, Daftar */}
-            <div className="flex items-center gap-2 sm:gap-2.5">
-              <a
-                href="#cek-kelulusan"
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-[#1E3A8A] border border-[#1E3A8A] rounded-xl hover:bg-blue-50 transition-colors"
-              >
-                <Search className="w-3.5 h-3.5" />
-                <span>Cek Kelulusan</span>
-              </a>
-
+            {/* Action CTA: Login, Daftar */}
+            <div className="flex items-center gap-3">
               <Link
                 href="/pmb/login"
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-[#172554] rounded-xl shadow-xs transition-colors"
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-bold text-[#1E3A8A] border border-[#1E3A8A] hover:bg-blue-50 rounded-xl transition-colors"
               >
-                <LogIn className="w-3.5 h-3.5 text-[#D4A017]" />
-                <span>Login PMB</span>
+                <LogIn className="w-4 h-4" />
+                <span>Masuk</span>
               </Link>
 
               <Link
                 href="/pmb/daftar"
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-bold text-slate-950 bg-[#D4A017] hover:bg-[#C59114] rounded-xl shadow-xs transition-all"
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 text-sm font-bold text-slate-950 bg-[#D4A017] hover:bg-[#C59114] rounded-xl shadow-sm transition-all"
               >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Daftar Online</span>
+                <Sparkles className="w-4 h-4" />
+                <span>Register Akun</span>
               </Link>
             </div>
 
@@ -201,9 +300,9 @@ export default function PmbPage() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
               
               <div className="lg:col-span-7 space-y-5">
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#D4A017]/20 border border-[#D4A017]/40 text-[#D4A017] text-xs font-bold tracking-wide">
+                <div className="flex items-center gap-2 text-[#D4A017] text-xs font-bold tracking-wide">
                   <span className="w-2 h-2 rounded-full bg-[#D4A017] animate-ping"></span>
-                  <span>GELOMBANG 1 DIBUKA &bull; KUOTA TERBATAS</span>
+                  <span>{activeBatch ? `${activeBatch.name.toUpperCase()} TELAH DIBUKA` : 'PENDAFTARAN MAHASISWA BARU DIBUKA'}</span>
                 </div>
 
                 <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-tight">
@@ -220,7 +319,7 @@ export default function PmbPage() {
                     className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-[#D4A017] text-slate-950 font-bold text-sm shadow-md hover:bg-[#C59114] transition-all"
                   >
                     <Sparkles className="w-4 h-4" />
-                    <span>Mulai Pendaftaran Online</span>
+                    <span>Register Akun Sekarang</span>
                     <ArrowRight className="w-4 h-4" />
                   </Link>
 
@@ -232,13 +331,81 @@ export default function PmbPage() {
                     <span>Masuk ke Akun PMB</span>
                   </Link>
 
-                  <a
-                    href="#biaya"
-                    className="inline-flex items-center gap-2 px-5 py-3.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold text-sm transition-all"
-                  >
-                    <Download className="w-4 h-4 text-[#D4A017]" />
-                    <span>Download Brosur PMB 2027</span>
-                  </a>
+                  <div className="relative group">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-2 px-5 py-3.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold text-sm transition-all cursor-pointer"
+                    >
+                      <Download className="w-4 h-4 text-[#D4A017]" />
+                      <span>Download Brosur PMB</span>
+                      <ChevronDown className="w-3.5 h-3.5 text-blue-200 group-hover:rotate-180 transition-transform" />
+                    </button>
+
+                    <div className="absolute left-0 top-full mt-2 w-72 bg-white text-slate-900 rounded-2xl shadow-2xl border border-slate-200 py-2 hidden group-hover:block z-30 animate-in fade-in slide-in-from-top-2 duration-150">
+                      <div className="px-3.5 py-1.5 border-b border-slate-100 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                        Pilih Jenjang Brosur
+                      </div>
+                      <a
+                        href="/downloads/brosur-pmb-s1.pdf"
+                        target="_blank"
+                        rel="noreferrer"
+                        download="Brosur-PMB-ITN-S1-2027.pdf"
+                        className="flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-[#1E3A8A] transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="w-7 h-7 rounded-lg bg-blue-100 text-[#1E3A8A] font-extrabold flex items-center justify-center text-[11px]">S1</span>
+                          <div>
+                            <p className="font-bold text-slate-900 leading-tight">Brosur Sarjana (S1)</p>
+                            <p className="text-[10px] text-slate-400">Teknik, Bisnis & Desain</p>
+                          </div>
+                        </div>
+                        <Download className="w-3.5 h-3.5 text-slate-400" />
+                      </a>
+                      <a
+                        href="/downloads/brosur-pmb-s2.pdf"
+                        target="_blank"
+                        rel="noreferrer"
+                        download="Brosur-PMB-ITN-S2-2027.pdf"
+                        className="flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-amber-50 hover:text-amber-900 transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="w-7 h-7 rounded-lg bg-amber-100 text-amber-900 font-extrabold flex items-center justify-center text-[11px]">S2</span>
+                          <div>
+                            <p className="font-bold text-slate-900 leading-tight">Brosur Magister (S2)</p>
+                            <p className="text-[10px] text-slate-400">Program Pascasarjana</p>
+                          </div>
+                        </div>
+                        <Download className="w-3.5 h-3.5 text-slate-400" />
+                      </a>
+                      <a
+                        href="/downloads/brosur-pmb-s3.pdf"
+                        target="_blank"
+                        rel="noreferrer"
+                        download="Brosur-PMB-ITN-S3-2027.pdf"
+                        className="flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-purple-50 hover:text-purple-900 transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="w-7 h-7 rounded-lg bg-purple-100 text-purple-900 font-extrabold flex items-center justify-center text-[11px]">S3</span>
+                          <div>
+                            <p className="font-bold text-slate-900 leading-tight">Brosur Doktoral (S3)</p>
+                            <p className="text-[10px] text-slate-400">Riset & Inovasi Tingkat Lanjut</p>
+                          </div>
+                        </div>
+                        <Download className="w-3.5 h-3.5 text-slate-400" />
+                      </a>
+                      <div className="border-t border-slate-100 my-1"></div>
+                      <a
+                        href="/downloads/brosur-pmb-2027.pdf"
+                        target="_blank"
+                        rel="noreferrer"
+                        download="Brosur-PMB-ITN-2027.pdf"
+                        className="flex items-center justify-between px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+                      >
+                        <span className="text-[11px]">Unduh Brosur Lengkap (Semua)</span>
+                        <Download className="w-3.5 h-3.5 text-slate-400" />
+                      </a>
+                    </div>
+                  </div>
                 </div>
 
                 {/* 3 Quick highlights */}
@@ -264,33 +431,40 @@ export default function PmbPage() {
                   <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                     <div>
                       <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Periode Seleksi</span>
-                      <p className="text-base font-extrabold text-[#1E3A8A]">Gelombang 1 (Early Bird)</p>
+                      <p className="text-base font-extrabold text-[#1E3A8A]">
+                        {activeBatch ? `${activeBatch.name} (Jenjang ${activeBatch.jenjang || 'S1'})` : 'Gelombang Pendaftaran'}
+                      </p>
                     </div>
-                    <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
-                      Aktif Buka
-                    </span>
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <span>{activeBatch?.status === 'OPEN' ? 'Aktif Buka' : 'Periode Berjalan'}</span>
+                    </div>
                   </div>
 
                   <div className="py-5 space-y-3.5 text-xs text-slate-600">
                     <div className="flex items-start gap-3">
                       <Calendar className="w-4 h-4 text-[#1E3A8A] shrink-0 mt-0.5" />
                       <div>
-                        <strong className="text-slate-900">1 Agustus - 30 November 2026</strong>
+                        <strong className="text-slate-900">
+                          {activeBatch ? `${formatDateIndo(activeBatch.startDate)} - ${formatDateIndo(activeBatch.endDate)}` : '1 Agustus - 30 November 2026'}
+                        </strong>
                         <p className="text-slate-500">Pendaftaran & pengunggahan berkas digital</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3">
                       <Clock className="w-4 h-4 text-[#1E3A8A] shrink-0 mt-0.5" />
                       <div>
-                        <strong className="text-slate-900">Pengumuman Setiap Hari Jumat</strong>
+                        <strong className="text-slate-900">
+                          {activeBatch?.examDate && activeBatch.examDate !== '-' ? `Ujian: ${formatDateIndo(activeBatch.examDate)}` : 'Pengumuman Setiap Hari Jumat'}
+                        </strong>
                         <p className="text-slate-500">Hasil verifikasi berkas tanpa perlu menunggu lama</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3">
                       <Award className="w-4 h-4 text-[#D4A017] shrink-0 mt-0.5" />
                       <div>
-                        <strong className="text-slate-900">Potongan UKT 25% Semester 1</strong>
-                        <p className="text-slate-500">Bagi 200 pendaftar pertama yang registrasi ulang</p>
+                        <strong className="text-slate-900">Biaya Formulir: {activeBatch ? formatRupiah(activeBatch.registrationFee) : 'Rp 200.000'}</strong>
+                        <p className="text-slate-500">Alokasi kuota {activeBatch?.quota || 350} pendaftar baru</p>
                       </div>
                     </div>
                   </div>
@@ -300,7 +474,7 @@ export default function PmbPage() {
                       href="/pmb/daftar"
                       className="w-full py-3 px-4 rounded-xl bg-[#1E3A8A] hover:bg-[#172554] text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-sm"
                     >
-                      <span>Daftar di Gelombang 1 Sekarang</span>
+                      <span>Register Akun {activeBatch?.name || 'Sekarang'}</span>
                       <ArrowRight className="w-4 h-4 text-[#D4A017]" />
                     </Link>
                     <Link
@@ -315,6 +489,187 @@ export default function PmbPage() {
               </div>
 
             </div>
+          </div>
+        </section>
+
+        {/* ========================================================================= */}
+        {/* SECTION GELOMBANG PENDAFTARAN (Ambil dari Database, Tanpa Badge) */}
+        {/* ========================================================================= */}
+        <section id="gelombang" className="py-16 sm:py-20 bg-slate-100/70 border-b border-slate-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center max-w-2xl mx-auto mb-12">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#D4A017]">
+                Jadwal & Periode Seleksi
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">
+                Gelombang Pendaftaran Aktif
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 mt-2">
+                Pilih gelombang pendaftaran yang sedang dibuka saat ini dan daftarkan akun Anda segera untuk mengamankan kuota program studi impian di Institut Teknologi Nusantara.
+              </p>
+            </div>
+
+            {activeBatches.length === 0 ? (
+              <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 p-8 max-w-xl mx-auto shadow-subtle">
+                <p className="text-sm font-bold text-slate-700">Saat ini belum ada gelombang pendaftaran yang sedang dibuka.</p>
+                <p className="text-xs text-slate-500 mt-1">Silakan cek berkala jadwal penerimaan mahasiswa baru kami.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {activeBatches.map((batch) => {
+                  const fees = (batch.reRegistrationFees && batch.reRegistrationFees.length > 0)
+                    ? batch.reRegistrationFees
+                    : (DEFAULT_RE_REGISTRATION_FEES_BY_JENJANG[batch.jenjang || 'S1'] || DEFAULT_RE_REGISTRATION_FEES_BY_JENJANG['S1']);
+                  const totalReReg = Number(batch.reRegistrationFee) > 0
+                    ? Number(batch.reRegistrationFee)
+                    : fees.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+
+                  return (
+                    <div
+                      key={batch.id}
+                      className="bg-white rounded-2xl p-6 border border-blue-300 ring-1 ring-blue-200 hover:shadow-md transition-all flex flex-col justify-between shadow-subtle"
+                    >
+                      <div>
+                        {/* Header Card: Jenjang, Tahun Akademik & Status Indikator (Tanpa Badge) */}
+                        <div className="flex items-center justify-between gap-2 pb-4 border-b border-slate-100">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-extrabold text-[#1E3A8A] bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200/70">
+                              {batch.jenjang ? `Jenjang ${batch.jenjang}` : 'Jenjang S1'}
+                            </span>
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                              TA {batch.academicYear || '2027/2028'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            <span>Sedang Dibuka</span>
+                          </div>
+                        </div>
+
+                        {/* Nama Gelombang & Deskripsi */}
+                        <div className="mt-4">
+                          <h3 className="text-lg font-extrabold text-slate-900">
+                            {batch.name}
+                          </h3>
+                          {batch.description && (
+                            <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
+                              {batch.description}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Rincian Tanggal & Ketentuan */}
+                        <div className="mt-5 space-y-3 text-xs text-slate-600 bg-slate-50 rounded-xl p-4 border border-slate-100">
+                          <div className="flex items-start gap-2.5">
+                            <Calendar className="w-4 h-4 text-[#1E3A8A] shrink-0 mt-0.5" />
+                            <div>
+                              <span className="text-[11px] text-slate-400 block">Masa Pendaftaran:</span>
+                              <strong className="text-slate-900">
+                                {formatDateIndo(batch.startDate)} &ndash; {formatDateIndo(batch.endDate)}
+                              </strong>
+                            </div>
+                          </div>
+
+                          {batch.examDate && batch.examDate !== '-' && (
+                            <div className="flex items-start gap-2.5">
+                              <Clock className="w-4 h-4 text-[#1E3A8A] shrink-0 mt-0.5" />
+                              <div>
+                                <span className="text-[11px] text-slate-400 block">Pelaksanaan Ujian / CBT:</span>
+                                <strong className="text-slate-900">{formatDateIndo(batch.examDate)}</strong>
+                              </div>
+                            </div>
+                          )}
+
+                          {batch.announcementDate && batch.announcementDate !== '-' && (
+                            <div className="flex items-start gap-2.5">
+                              <Award className="w-4 h-4 text-[#D4A017] shrink-0 mt-0.5" />
+                              <div>
+                                <span className="text-[11px] text-slate-400 block">Pengumuman Kelulusan:</span>
+                                <strong className="text-slate-900">{formatDateIndo(batch.announcementDate)}</strong>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs">
+                            <div>
+                              <span className="text-[11px] text-slate-400 block">Biaya Formulir:</span>
+                              <span className="font-extrabold text-[#1E3A8A] text-sm">
+                                {formatRupiah(batch.registrationFee)}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[11px] text-slate-400 block">Alokasi Kuota:</span>
+                              <span className="font-bold text-slate-800 flex items-center gap-1 justify-end">
+                                <Users className="w-3.5 h-3.5 text-slate-400" />
+                                <span>{batch.quota} Kursi</span>
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Rincian Biaya Daftar Ulang */}
+                          <div className="pt-2.5 border-t border-slate-200/80">
+                            <div className="flex items-center justify-between text-xs mb-1.5">
+                              <span className="font-bold text-slate-800 text-[11px] flex items-center gap-1">
+                                <DollarSign className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                                <span>Biaya Daftar Ulang:</span>
+                              </span>
+                              <span className="font-mono font-black text-[#1E3A8A] text-xs">
+                                {formatRupiah(totalReReg)}
+                              </span>
+                            </div>
+
+                            {fees && fees.length > 0 && (
+                              <div className="space-y-1 bg-white p-2.5 rounded-lg border border-slate-200/70 text-[11px]">
+                                {fees.map((fee, fIdx) => (
+                                  <div key={fIdx} className="flex items-start justify-between gap-2 text-slate-600">
+                                    <span className="truncate" title={fee.name}>
+                                      &bull; {fee.name}
+                                    </span>
+                                    <span className="font-mono font-semibold text-slate-800 shrink-0">
+                                      {formatRupiah(fee.amount)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Jalur yang Tersedia */}
+                        {batch.availableJalur && batch.availableJalur.length > 0 && (
+                          <div className="mt-4">
+                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
+                              Jalur Tersedia:
+                            </span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {batch.availableJalur.map((jalur, jIdx) => (
+                                <span
+                                  key={jIdx}
+                                  className="text-[11px] text-slate-700 bg-white border border-slate-200 px-2 py-1 rounded-md"
+                                >
+                                  {jalur}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Tombol CTA */}
+                      <div className="mt-6 pt-4 border-t border-slate-100">
+                        <Link
+                          href="/pmb/daftar"
+                          className="w-full py-2.5 px-4 rounded-xl bg-[#1E3A8A] hover:bg-[#172554] text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-sm"
+                        >
+                          <span>Daftar {batch.name}</span>
+                          <ArrowRight className="w-4 h-4 text-[#D4A017]" />
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </section>
 
@@ -493,7 +848,7 @@ export default function PmbPage() {
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-[#D4A017] hover:bg-[#C59114] text-slate-950 font-black text-sm shadow-lg shadow-amber-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
               >
                 <Sparkles className="w-4 h-4" />
-                <span>Daftar Akun Baru (Online)</span>
+                <span>Register Akun Calon Mahasiswa</span>
                 <ArrowRight className="w-4 h-4" />
               </Link>
 
@@ -508,124 +863,6 @@ export default function PmbPage() {
           </div>
         </section>
 
-        {/* ========================================================================= */}
-        {/* DEDICATED SECTION: CEK STATUS KELULUSAN CEPAT */}
-        {/* ========================================================================= */}
-        <section id="cek-kelulusan" className="py-16 sm:py-24 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6 sm:p-10">
-            
-            <div className="text-center max-w-xl mx-auto mb-8">
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#1E3A8A] flex items-center justify-center mx-auto mb-3">
-                <Search className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl sm:text-2xl font-black text-slate-900">
-                Pengumuman Hasil Seleksi PMB 2027
-              </h3>
-              <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                Masukkan Nomor Registrasi resmi yang Anda peroleh saat melakukan pendaftaran untuk melihat hasil seleksi secara instan.
-              </p>
-            </div>
-
-            {/* Form Pencarian Cepat */}
-            <form onSubmit={handleCheckStatus} className="max-w-xl mx-auto flex flex-col sm:flex-row gap-3">
-              <input
-                type="text"
-                value={searchRegNum}
-                onChange={(e) => setSearchRegNum(e.target.value)}
-                placeholder="Contoh: PMB20270001"
-                className="flex-1 px-4 py-3 rounded-xl border border-slate-300 text-xs sm:text-sm focus:border-[#1E3A8A] focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/10 font-mono uppercase"
-              />
-              <button
-                type="submit"
-                disabled={isCheckingStatus}
-                className="px-6 py-3 rounded-xl bg-[#1E3A8A] hover:bg-[#172554] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shrink-0 disabled:opacity-60 transition-all shadow-sm"
-              >
-                {isCheckingStatus ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Search className="w-4 h-4 text-[#D4A017]" />
-                )}
-                <span>{isCheckingStatus ? 'Memeriksa...' : 'Cek Kelulusan'}</span>
-              </button>
-            </form>
-
-            {/* Quick Demo Helper */}
-            <div className="max-w-xl mx-auto mt-2 text-right">
-              <button
-                type="button"
-                onClick={() => setSearchRegNum('PMB20270001')}
-                className="text-[11px] text-[#1E3A8A] hover:underline font-semibold"
-              >
-                Coba Nomor Contoh: PMB20270001
-              </button>
-            </div>
-
-            {/* Hasil Pencarian */}
-            {statusResult && (
-              <div className="max-w-xl mx-auto mt-6">
-                {statusResult.found ? (
-                  <div className="p-6 rounded-2xl bg-emerald-50 border border-emerald-200 animate-in fade-in">
-                    <div className="flex items-center gap-2 text-emerald-800 font-extrabold text-sm mb-3">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                      <span>{statusResult.statusText}</span>
-                    </div>
-
-                    <div className="bg-white p-5 rounded-xl border border-emerald-100 text-xs space-y-2.5 shadow-xs">
-                      <div className="flex justify-between border-b border-slate-100 pb-2">
-                        <span className="text-slate-400">Nama Calon Mahasiswa:</span>
-                        <span className="font-bold text-slate-900">{statusResult.name}</span>
-                      </div>
-                      <div className="flex justify-between border-b border-slate-100 pb-2">
-                        <span className="text-slate-400">Program Studi Diterima:</span>
-                        <span className="font-bold text-[#1E3A8A]">{statusResult.prodi}</span>
-                      </div>
-                      <div className="flex justify-between border-b border-slate-100 pb-2">
-                        <span className="text-slate-400">Jalur Seleksi:</span>
-                        <span className="font-semibold text-slate-700">{statusResult.jalur}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Gelombang:</span>
-                        <span className="font-semibold text-slate-700">{statusResult.gelombang}</span>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex flex-col sm:flex-row gap-3">
-                      <Link
-                        href="/pmb/login"
-                        className="flex-1 text-center py-2.5 px-4 rounded-xl bg-[#1E3A8A] hover:bg-[#172554] text-white font-bold text-xs transition-colors shadow-sm"
-                      >
-                        Masuk ke Akun untuk Cetak Bukti & Verifikasi
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => window.print()}
-                        className="py-2.5 px-4 rounded-xl bg-white border border-emerald-300 text-emerald-800 font-bold text-xs hover:bg-emerald-100 transition-colors"
-                      >
-                        Cetak Surat (PDF)
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-6 rounded-2xl bg-amber-50 border border-amber-200 text-center text-xs text-amber-900 animate-in fade-in">
-                    <p className="font-bold">Nomor Registrasi Tidak Ditemukan</p>
-                    <p className="text-amber-700 mt-1">
-                      Pastikan format nomor registrasi yang Anda masukkan benar (contoh: PMB2027xxxx). Jika baru saja mendaftar, berkas Anda mungkin sedang dalam proses verifikasi tim BAAK PMB.
-                    </p>
-                    <div className="mt-3">
-                      <Link
-                        href="/pmb/daftar"
-                        className="font-bold text-[#1E3A8A] hover:underline"
-                      >
-                        Daftar Akun Baru PMB di Sini
-                      </Link>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-          </div>
-        </section>
 
         {/* Biaya Kuliah & UKT Section */}
         <section id="biaya" className="bg-white py-16 sm:py-20 border-t border-slate-200">
@@ -658,10 +895,10 @@ export default function PmbPage() {
               </div>
 
               <div className="rounded-2xl p-6 border-2 border-[#1E3A8A] bg-blue-50/40 relative flex flex-col justify-between shadow-card">
-                <span className="absolute -top-3 left-6 px-3 py-0.5 rounded-full bg-[#D4A017] text-slate-950 text-[10px] font-extrabold">
-                  TERFAVORIT
-                </span>
                 <div>
+                  <div className="text-[11px] font-extrabold tracking-wider text-[#D4A017] uppercase mb-2">
+                    Program Studi Pilihan Utama
+                  </div>
                   <span className="text-xs font-bold uppercase tracking-wider text-[#1E3A8A]">Fakultas Teknik</span>
                   <h3 className="text-lg font-bold text-slate-900 mt-1">Elektro, Mesin, Sipil & Industri</h3>
                   <p className="text-2xl font-black text-[#1E3A8A] mt-3">Rp 4.950.000 <span className="text-xs font-normal text-slate-500">/ semester</span></p>

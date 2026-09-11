@@ -47,6 +47,7 @@ export interface UserItem {
   role:
     | 'SUPER_ADMIN'
     | 'ADMIN_BAAK'
+    | 'ADMIN_PMB'
     | 'ADMIN_KEUANGAN'
     | 'ADMIN_LP3M'
     | 'LP3M'
@@ -109,6 +110,14 @@ const ROLE_CONFIG: Record<
     borderColor: 'border-blue-200',
     icon: ShieldCheck,
     desc: 'Pengelolaan akademik, kurikulum, KRS, jadwal, dan mahasiswa.',
+  },
+  ADMIN_PMB: {
+    label: 'Admin PMB',
+    color: 'text-amber-800',
+    bgColor: 'bg-amber-50',
+    borderColor: 'border-amber-200',
+    icon: ShieldCheck,
+    desc: 'Pengelolaan pendaftaran calon mahasiswa baru, verifikasi berkas, CBT, dan kelulusan.',
   },
   ADMIN_KEUANGAN: {
     label: 'Admin Keuangan',
@@ -510,7 +519,7 @@ export default function UserManagementPage() {
               </h1>
               <p className="text-sm text-slate-300 max-w-2xl leading-relaxed">
                 Kelola seluruh akun sivitas akademika ITN, penugasan hak akses role-based, pengaturan status login, dan
-                kebijakan keamanan kata sandi terintegrasi langsung dengan database PostgreSQL.
+                kebijakan keamanan kata sandi secara terpusat.
               </p>
             </div>
 
@@ -758,7 +767,7 @@ export default function UserManagementPage() {
           <div className="bg-white rounded-2xl p-16 text-center border border-slate-200/80 shadow-sm">
             <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
             <h3 className="text-base font-bold text-slate-800">Memuat Data Pengguna...</h3>
-            <p className="text-xs text-slate-500 mt-1">Mengambil data dari PostgreSQL server.</p>
+            <p className="text-xs text-slate-500 mt-1">Sinkronisasi data akun pengguna aktif.</p>
           </div>
         ) : filteredUsers.length === 0 ? (
           <div className="bg-white rounded-2xl p-16 text-center border border-slate-200/80 shadow-sm">
@@ -1704,7 +1713,7 @@ export default function UserManagementPage() {
                   <span>Peringatan Keamanan Sistem</span>
                 </p>
                 <p>
-                  Apakah Anda yakin ingin menghapus akun pengguna berikut dari database PostgreSQL?
+                  Apakah Anda yakin ingin menghapus akun pengguna berikut dari sistem?
                 </p>
                 <div className="p-3 bg-white rounded-lg border border-rose-200 font-medium">
                   <p className="font-bold text-slate-900">{deletingUser.fullName}</p>

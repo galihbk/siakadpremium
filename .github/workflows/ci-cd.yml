@@ -103,6 +103,8 @@ jobs:
           file: ./apps/web/Dockerfile
           platforms: linux/amd64
           push: true
+          build-args: |
+            NEXT_PUBLIC_API_URL=/api/v1
           tags: ${{ steps.meta-web.outputs.tags }}
           labels: ${{ steps.meta-web.outputs.labels }}
           cache-from: type=gha
@@ -149,6 +151,8 @@ jobs:
           file: ./apps/portal/Dockerfile
           platforms: linux/amd64
           push: true
+          build-args: |
+            NEXT_PUBLIC_API_URL=/api/v1
           tags: ${{ steps.meta-portal.outputs.tags }}
           labels: ${{ steps.meta-portal.outputs.labels }}
           cache-from: type=gha
@@ -197,6 +201,10 @@ jobs:
             echo "Initializing /srv/projects/siakadpremium/.env.portal from template..."
             cp .env.portal.example /srv/projects/siakadpremium/.env.portal
           fi
+
+          # Update NEXT_PUBLIC_API_URL to /api/v1 so browser never calls localhost in production
+          sed -i 's|NEXT_PUBLIC_API_URL=http://localhost.*|NEXT_PUBLIC_API_URL=/api/v1|g' /srv/projects/siakadpremium/.env.portal 2>/dev/null || true
+          sed -i 's|NEXT_PUBLIC_API_URL=http://localhost.*|NEXT_PUBLIC_API_URL=/api/v1|g' /srv/projects/siakadpremium/.env.web 2>/dev/null || true
 
       - name: Pull Fresh Images & Restart Production Containers
         working-directory: /srv/projects/siakadpremium

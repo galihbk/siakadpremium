@@ -231,7 +231,21 @@ async function main() {
     },
   });
 
-  // 6b. Seed Pegawai Tambahan (Keuangan, IT, Dosen-Dosen)
+  // 6b. Seed Pegawai Tambahan (PMB, Keuangan, IT, Dosen-Dosen)
+  await prisma.user.upsert({
+    where: { email: 'admin.pmb@itn.ac.id' },
+    update: {
+      fullName: 'Bagus Wicaksono, S.Kom. (Panitia PMB)',
+      role: 'ADMIN_PMB' as any,
+    },
+    create: {
+      email: 'admin.pmb@itn.ac.id',
+      fullName: 'Bagus Wicaksono, S.Kom. (Panitia PMB)',
+      role: 'ADMIN_PMB' as any,
+      passwordHash: defaultHash,
+    },
+  });
+
   await prisma.user.upsert({
     where: { email: 'dewi.lestari@itn.ac.id' },
     update: {},

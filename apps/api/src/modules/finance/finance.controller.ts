@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Query, Body } from '@nestjs/common';
+﻿import { Controller, Get, Post, Param, Query, Body } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { FinanceService } from './finance.service';
 
@@ -33,5 +33,11 @@ export class FinanceController {
   @ApiOperation({ summary: 'Menerbitkan tagihan baru untuk mahasiswa' })
   async createInvoice(@Body() body: any) {
     return await this.financeService.createInvoice(body);
+  }
+
+  @Get('invoices/student/:nim')
+  @ApiOperation({ summary: 'Mendapatkan semua tagihan mahasiswa berdasarkan NIM' })
+  async getInvoicesByStudent(@Param('nim') nim: string) {
+    return await this.financeService.getInvoicesByStudent(nim);
   }
 }

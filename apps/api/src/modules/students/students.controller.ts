@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+﻿import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { StudentsService } from './students.service';
 
@@ -18,5 +18,11 @@ export class StudentsController {
   @ApiOperation({ summary: 'Mendapatkan daftar Kartu Rencana Studi (KRS) aktif semester ini' })
   async getKrs() {
     return this.studentsService.getKrs();
+  }
+
+  @Get('list')
+  @ApiOperation({ summary: 'Mendapatkan daftar semua mahasiswa dari database' })
+  async getStudentsList() {
+    return this.studentsService.getStudentsList();
   }
 }

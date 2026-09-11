@@ -11,6 +11,7 @@ generator client {
 enum Role {
   SUPER_ADMIN
   ADMIN_BAAK
+  ADMIN_PMB
   ADMIN_KEUANGAN
   ADMIN_LP3M
   LP3M
@@ -241,13 +242,62 @@ model AdmissionApplicant {
   phone               String
   highSchool          String
   chosenStudyProgram  String
+  jenjang             String?         @default("S1")
   jalurPendaftaran    String          @default("Reguler / Mandiri")
   status              AdmissionStatus @default(PENDING)
   testScore           Float?
+  birthDate           String?
+  gender              String?
+  address             String?
+  notes               String?
+  verifiedAt          DateTime?
+  verifiedBy          String?
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
 
   @@map("admission_applicants")
+}
+
+model AdmissionBatch {
+  id                  String    @id @default(uuid())
+  name                String
+  academicYear        String    @default("2027/2028")
+  jenjang             String    @default("S1")
+  startDate           String
+  endDate             String
+  examDate            String?
+  announcementDate    String?
+  registrationFee     Float     @default(0)
+  reRegistrationFee   Float     @default(0)
+  reRegistrationFees  Json?
+  quota               Int       @default(100)
+  availableJalur      String[]  @default([])
+  status              String    @default("OPEN")
+  isDefault           Boolean   @default(false)
+  description         String?   @db.Text
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@map("admission_batches")
+}
+
+model AdmissionBrochure {
+  id            String   @id @default("default-brochure")
+  jenjang       String   @default("S1")
+  title         String   @default("Brosur PMB ITN TA 2027/2028")
+  fileName      String   @default("Brosur-PMB-ITN-2027.pdf")
+  fileSize      String   @default("2.4 MB")
+  fileSizeBytes Int      @default(2516582)
+  mimeType      String   @default("application/pdf")
+  fileUrl       String   @default("/downloads/brosur-pmb-2027.pdf")
+  fileData      String?  @db.Text
+  downloadCount Int      @default(0)
+  description   String?  @default("Brosur resmi informasi pendaftaran mahasiswa baru Institut Teknologi Nusantara.")
+  isActive      Boolean  @default(true)
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
+
+  @@map("admission_brochures")
 }
 
 model LandingPageSetting {
@@ -609,5 +659,33 @@ model Lp3mBorangRecord {
   updatedAt               DateTime @updatedAt
 
   @@map("lp3m_borang_records")
+}
+
+enum PaymentStatus {
+  LUNAS
+  MENUNGGU_VERIFIKASI
+  TERTUNDA
+}
+
+model PaymentInvoice {
+  id             String        @id @default(uuid())
+  invoiceNo      String        @unique
+  nim            String
+  studentName    String
+  studyProgram   String
+  semester       Int           @default(1)
+  paymentType    String        @default("UKT / SPP")
+  amount         Float
+  paymentMethod  String        @default("BNI Virtual Account")
+  paidAt         String?
+  status         PaymentStatus @default(TERTUNDA)
+  receiptNo      String?
+  notes          String?       @db.Text
+  academicYear   String        @default("2026/2027")
+  dueDate        String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@map("payment_invoices")
 }
 

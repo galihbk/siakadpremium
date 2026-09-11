@@ -6,6 +6,7 @@ export const IS_PUBLIC_KEY = 'isPublic';
 export const ROLE_HIERARCHY: Record<UserRole, number> = {
   [UserRole.SUPER_ADMIN]: 100,
   [UserRole.ADMIN_BAAK]: 80,
+  [UserRole.ADMIN_PMB]: 80,
   [UserRole.ADMIN_KEUANGAN]: 80,
   [UserRole.ADMIN_LP3M]: 80,
   [UserRole.LP3M]: 60,
