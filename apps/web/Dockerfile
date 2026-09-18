@@ -31,7 +31,12 @@ ENV NODE_ENV=production
 ARG NEXT_PUBLIC_API_URL=/api/v1
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
+# Generate Prisma Client & build workspace packages
 RUN pnpm --filter @siakad/database db:generate
+RUN pnpm --filter @siakad/types build
+RUN pnpm --filter @siakad/utils build
+RUN pnpm --filter @siakad/auth build
+RUN pnpm --filter @siakad/database build
 RUN pnpm --filter @siakad/web build
 
 # ------------------------------------------------------------------------------

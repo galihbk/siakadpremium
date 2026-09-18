@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { getApiBaseUrl } from '@/lib/api';
 import {
   Users,
@@ -49,6 +50,23 @@ export default function PendaftarPage() {
   const [updateScoreVal, setUpdateScoreVal] = useState<string>('');
   const [updateNotesVal, setUpdateNotesVal] = useState<string>('');
   const [statusModalOpen, setStatusModalOpen] = useState(false);
+
+  // Custom Confirm/Alert Dialog State
+  const [dialogState, setDialogState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: React.ReactNode;
+    type: 'danger' | 'warning' | 'info' | 'success';
+    confirmText?: string;
+    cancelText?: string;
+    isAlert?: boolean;
+    onConfirm?: () => Promise<void> | void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'danger',
+  });
 
   // New Applicant Form
   const [formData, setFormData] = useState({
@@ -128,7 +146,14 @@ export default function PendaftarPage() {
   const handleCreateApplicant = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.fullName.trim() || !formData.email.trim() || !formData.phone.trim()) {
-      alert('Mohon lengkapi Nama, Email, dan Nomor Telepon.');
+      setDialogState({
+        isOpen: true,
+        title: 'Formulir Belum Lengkap',
+        message: 'Mohon lengkapi Nama Lengkap, Email, dan Nomor Telepon pendaftar.',
+        type: 'warning',
+        isAlert: true,
+        confirmText: 'Mengerti',
+      });
       return;
     }
 
@@ -153,7 +178,7 @@ export default function PendaftarPage() {
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Gagal menyimpan calon mahasiswa baru.');
+        throw new Error(errorData.message || 'Gagal menambahkan pendaftar baru.');
       }
 
       setFormData({
@@ -168,8 +193,23 @@ export default function PendaftarPage() {
       });
       setAddModalOpen(false);
       await fetchApplicants();
+      setDialogState({
+        isOpen: true,
+        title: 'Pendaftar Berhasil Ditambahkan',
+        message: 'Data calon mahasiswa baru telah berhasil disimpan ke database.',
+        type: 'success',
+        isAlert: true,
+        confirmText: 'Selesai',
+      });
     } catch (err: any) {
-      alert(err.message || 'Terjadi kesalahan sistem.');
+      setDialogState({
+        isOpen: true,
+        title: 'Gagal Menambahkan Pendaftar',
+        message: err.message || 'Terjadi kesalahan sistem saat menyimpan data.',
+        type: 'danger',
+        isAlert: true,
+        confirmText: 'Tutup',
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -212,31 +252,70 @@ export default function PendaftarPage() {
       setStatusModalOpen(false);
       setStatusUpdateApplicant(null);
       await fetchApplicants();
+      setDialogState({
+        isOpen: true,
+        title: 'Status Berhasil Diperbarui',
+        message: 'Perubahan status pendaftar telah tersimpan ke sistem.',
+        type: 'success',
+        isAlert: true,
+        confirmText: 'Selesai',
+      });
     } catch (err: any) {
-      alert(err.message || 'Gagal memperbarui status.');
+      setDialogState({
+        isOpen: true,
+        title: 'Gagal Memperbarui Status',
+        message: err.message || 'Gagal memperbarui status pendaftar.',
+        type: 'danger',
+        isAlert: true,
+        confirmText: 'Tutup',
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDeleteApplicant = async (id: string, name: string) => {
-    if (!window.confirm(`Hapus data pendaftar "${name}"? Tindakan ini tidak dapat dibatalkan.`)) {
-      return;
-    }
-
-    try {
-      const res = await fetch(`${apiBase}/admissions/applicants/${id}`, {
-        method: 'DELETE',
-      });
-      if (res.ok) {
-        setApplicants((prev) => prev.filter((item) => item.id !== id));
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        alert(errData.message || 'Gagal menghapus data.');
-      }
-    } catch (err) {
-      alert('Terjadi kendala saat menghapus data pendaftar.');
-    }
+  const handleDeleteApplicant = (id: string, name: string) => {
+    setDialogState({
+      isOpen: true,
+      title: 'Hapus Data Pendaftar?',
+      message: (
+        <span>
+          Apakah Anda yakin ingin menghapus data calon mahasiswa <strong className="text-slate-900 font-bold">&quot;{name}&quot;</strong>? Tindakan ini permanen dan tidak dapat dibatalkan.
+        </span>
+      ),
+      type: 'danger',
+      confirmText: 'Ya, Hapus Pendaftar',
+      cancelText: 'Batal',
+      isAlert: false,
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${apiBase}/admissions/applicants/${id}`, {
+            method: 'DELETE',
+          });
+          if (res.ok) {
+            setApplicants((prev) => prev.filter((item) => item.id !== id));
+            setDialogState((prev) => ({ ...prev, isOpen: false }));
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            setDialogState({
+              isOpen: true,
+              title: 'Gagal Menghapus Data',
+              message: errData.message || 'Gagal menghapus data pendaftar.',
+              type: 'danger',
+              isAlert: true,
+            });
+          }
+        } catch (err: any) {
+          setDialogState({
+            isOpen: true,
+            title: 'Terjadi Kendala',
+            message: err.message || 'Terjadi kendala saat menghapus data pendaftar.',
+            type: 'danger',
+            isAlert: true,
+          });
+        }
+      },
+    });
   };
 
   const handleExportCsv = () => {
@@ -283,8 +362,6 @@ export default function PendaftarPage() {
   return (
     <PortalLayout
       role="pmb"
-      userName="Bagus Wicaksono, S.Kom."
-      userIdText="Panitia PMB ITN"
       activeMenuHref="/admin/pmb/pendaftar"
     >
       <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
@@ -811,6 +888,19 @@ export default function PendaftarPage() {
             </div>
           </div>
         )}
+
+        {/* Custom Confirm & Alert Modal */}
+        <ConfirmModal
+          isOpen={dialogState.isOpen}
+          onClose={() => setDialogState((prev) => ({ ...prev, isOpen: false }))}
+          onConfirm={dialogState.onConfirm}
+          title={dialogState.title}
+          message={dialogState.message}
+          type={dialogState.type}
+          confirmText={dialogState.confirmText}
+          cancelText={dialogState.cancelText}
+          isAlert={dialogState.isAlert}
+        />
       </div>
     </PortalLayout>
   );

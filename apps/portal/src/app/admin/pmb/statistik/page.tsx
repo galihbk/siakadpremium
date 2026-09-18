@@ -148,8 +148,6 @@ export default function StatistikPage() {
   return (
     <PortalLayout
       role="pmb"
-      userName="Bagus Wicaksono, S.Kom."
-      userIdText="Panitia PMB ITN"
       activeMenuHref="/admin/pmb/statistik"
     >
       <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">

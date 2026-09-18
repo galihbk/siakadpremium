@@ -253,25 +253,23 @@ export default function PmbDaftarPage() {
     setErrorMsg(null);
 
     try {
-      const res = await fetch(`${apiBaseUrl}/admissions/register`, {
+      const res = await fetch(`${apiBaseUrl}/admissions/pmb/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fullName: formData.fullName.trim(),
           email: formData.email.trim().toLowerCase(),
-          phone: formData.phone.trim(),
-          affiliateCode: formData.affiliateCode.trim().toUpperCase() || undefined,
+          whatsapp: formData.phone.trim(),
+          password: formData.password,
           honeypot: honeypot.trim(),
-          highSchool: '-',
-          chosenStudyProgram: 'Belum Dipilih',
-          jalurPendaftaran: 'Belum Dipilih',
         }),
       });
 
-      const data = await res.json();
+      const json = await res.json();
+      const data = json.data !== undefined ? json.data : json;
 
-      if (!res.ok || !data) {
-        throw new Error(data?.message || 'Gagal mendaftarkan akun calon mahasiswa.');
+      if (!res.ok || (!data?.success && !json?.success)) {
+        throw new Error(data?.message || json?.message || 'Gagal mendaftarkan akun calon mahasiswa.');
       }
 
       setRegisteredEmail(formData.email.trim().toLowerCase());

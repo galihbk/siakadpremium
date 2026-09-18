@@ -65,6 +65,8 @@ interface AffiliateSummary {
   totalCommissionAll: number;
 }
 
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
+
 export default function PmbAffiliatePage() {
   const [affiliates, setAffiliates] = useState<AffiliatePartner[]>([]);
   const [summary, setSummary] = useState<AffiliateSummary>({
@@ -78,6 +80,22 @@ export default function PmbAffiliatePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+
+  // Custom Modal Alert / Confirm
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: React.ReactNode;
+    type?: 'danger' | 'warning' | 'info' | 'success';
+    confirmText?: string;
+    cancelText?: string;
+    isAlert?: boolean;
+    onConfirm?: () => Promise<void> | void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+  });
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<'partners' | 'referrals'>('partners');
@@ -151,16 +169,42 @@ export default function PmbAffiliatePage() {
     }, 2500);
   };
 
-  const handleToggleStatus = async (code: string) => {
-    try {
-      const res = await fetch(`${apiBaseUrl}/admissions/affiliates/${encodeURIComponent(code)}/toggle`, {
-        method: 'PATCH',
-      });
-      if (!res.ok) throw new Error('Gagal mengubah status mitra.');
-      fetchAffiliates();
-    } catch (err: any) {
-      alert(err.message || 'Terjadi gangguan saat mengubah status.');
-    }
+  const handleToggleStatus = (code: string, currentStatus: boolean, partnerName: string) => {
+    setModalConfig({
+      isOpen: true,
+      title: currentStatus ? 'Nonaktifkan Mitra Affiliate?' : 'Aktifkan Mitra Affiliate?',
+      message: (
+        <div>
+          <p>
+            Anda akan mengubah status mitra <strong className="font-bold text-slate-900">{partnerName}</strong> ({code}) menjadi{' '}
+            <span className={`font-bold ${currentStatus ? 'text-rose-600' : 'text-emerald-600'}`}>
+              {currentStatus ? 'Nonaktif' : 'Aktif'}
+            </span>.
+          </p>
+        </div>
+      ),
+      type: currentStatus ? 'warning' : 'info',
+      confirmText: currentStatus ? 'Ya, Nonaktifkan' : 'Ya, Aktifkan',
+      cancelText: 'Batal',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${apiBaseUrl}/admissions/affiliates/${encodeURIComponent(code)}/toggle`, {
+            method: 'PATCH',
+          });
+          if (!res.ok) throw new Error('Gagal mengubah status mitra.');
+          await fetchAffiliates();
+        } catch (err: any) {
+          setModalConfig({
+            isOpen: true,
+            title: 'Gagal Mengubah Status',
+            message: err.message || 'Terjadi gangguan saat mengubah status mitra.',
+            type: 'danger',
+            isAlert: true,
+            confirmText: 'Tutup',
+          });
+        }
+      },
+    });
   };
 
   const handleAddPartnerSubmit = async (e: React.FormEvent) => {
@@ -312,8 +356,6 @@ export default function PmbAffiliatePage() {
   return (
     <PortalLayout
       role="pmb"
-      userName="Bagus Wicaksono, S.Kom."
-      userIdText="Panitia PMB ITN"
       activeMenuHref="/admin/pmb/affiliate"
     >
       <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
@@ -602,7 +644,7 @@ export default function PmbAffiliatePage() {
 
                         <td className="py-3 px-4 text-center">
                           <button
-                            onClick={() => handleToggleStatus(partner.code)}
+                            onClick={() => handleToggleStatus(partner.code, partner.isActive, partner.partnerName)}
                             className="cursor-pointer"
                             title="Klik untuk ubah status aktif/non-aktif"
                           >
@@ -947,6 +989,18 @@ export default function PmbAffiliatePage() {
           </div>
         )}
 
+        {/* Custom Confirmation / Alert Modal */}
+        <ConfirmModal
+          isOpen={modalConfig.isOpen}
+          title={modalConfig.title}
+          message={modalConfig.message}
+          type={modalConfig.type}
+          confirmText={modalConfig.confirmText}
+          cancelText={modalConfig.cancelText}
+          isAlert={modalConfig.isAlert}
+          onConfirm={modalConfig.onConfirm}
+          onClose={() => setModalConfig((prev) => ({ ...prev, isOpen: false }))}
+        />
       </div>
     </PortalLayout>
   );

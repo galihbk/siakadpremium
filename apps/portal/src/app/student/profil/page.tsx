@@ -334,7 +334,16 @@ export default function StudentProfilePage() {
           `https://www.emsifa.com/api-wilayah-indonesia/api/villages/${selectedDistrictId}.json`
         );
         if (res.ok) {
-          const data: RegionItem[] = await res.json();
+          let data: RegionItem[] = await res.json();
+          if (selectedDistrictId === '3301030') {
+            if (!data.some((v) => v.name?.toUpperCase() === 'BENER')) {
+              data.push({
+                id: '3301030012',
+                name: 'BENER',
+              });
+              data.sort((a, b) => a.name.localeCompare(b.name));
+            }
+          }
           setVillages(data);
 
           // Find matching initial village (e.g. "SUKAPURA")

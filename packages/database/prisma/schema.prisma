@@ -119,6 +119,8 @@ model StudyProgram {
   students      Student[]
   lecturers     Lecturer[]
   courses       Course[]
+  admissionApplications AdmissionApplication[]
+  feeRules              FeeRule[]
 
   @@map("study_programs")
 }
@@ -165,6 +167,19 @@ model Student {
   studyProgram      StudyProgram       @relation(fields: [studyProgramId], references: [id], onDelete: Restrict)
   advisorLecturer   Lecturer?          @relation("AcademicAdvisor", fields: [advisorLecturerId], references: [id], onDelete: SetNull)
   enrollments       CourseEnrollment[]
+  admissionApplications AdmissionApplication[]
+
+  // Relasi Master PMB (Ditetapkan saat konversi PMB)
+  registrationTypeId String?
+  trackId            String?
+  classId            String?
+  waveId             String?
+
+  registrationType   AdmissionRegistrationType? @relation(fields: [registrationTypeId], references: [id], onDelete: SetNull)
+  track              AdmissionTrack?            @relation(fields: [trackId], references: [id], onDelete: SetNull)
+  admissionClass     AdmissionClass?            @relation(fields: [classId], references: [id], onDelete: SetNull)
+  wave               AdmissionBatch?            @relation(fields: [waveId], references: [id], onDelete: SetNull)
+  feeAssignments     StudentFeeAssignment[]
 
   @@map("students")
 }
@@ -234,6 +249,202 @@ model CourseEnrollment {
   @@map("course_enrollments")
 }
 
+model PmbAccount {
+  id              String                 @id @default(uuid())
+  fullName        String
+  email           String                 @unique
+  whatsapp        String
+  passwordHash    String
+  isEmailVerified Boolean                @default(true)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  applications    AdmissionApplication[]
+
+  @@map("pmb_accounts")
+}
+
+model AdmissionBatch {
+  id           String                 @id @default(uuid())
+  name         String                 // e.g. "Gelombang 1"
+  academicYear String                 @default("2027/2028")
+  jenjang      String                 @default("S1")
+  startDate    String                 // e.g. "2026-08-01"
+  endDate      String                 // e.g. "2026-11-30"
+  status            String                 @default("OPEN") // "OPEN", "UPCOMING", "CLOSED"
+  quota             Int?                   @default(100)
+  registrationFee   Float?                 @default(250000)
+  reRegistrationFee Float?                 @default(7300000)
+  description       String?                @db.Text
+  isDefault         Boolean                @default(false)
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  applications AdmissionApplication[]
+  students     Student[]
+  feeRules     FeeRule[]
+
+  @@map("admission_batches")
+}
+
+model PmbFeeConfig {
+  id                String   @id @default(uuid())
+  jenjang           String   @default("SEMUA")
+  registrationFee   Float    @default(250000)
+  reRegistrationFee Float    @default(7300000)
+  description       String?  @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("pmb_fee_configs")
+}
+
+model AdmissionRegistrationType {
+  id          String                 @id @default(uuid())
+  code        String                 @unique // e.g. "NON_KIP", "KIPK", "MITRA"
+  name        String                 // e.g. "NON-KIP (Reguler Mandiri)", "KIP-Kuliah (Beasiswa)"
+  description String?                @db.Text
+  badge       String?                // e.g. "Beasiswa Penuh", "Umum Mandiri"
+  isKip       Boolean                @default(false)
+  isActive    Boolean                @default(true)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  applications AdmissionApplication[]
+  students     Student[]
+  feeRules     FeeRule[]
+
+  @@map("admission_registration_types")
+}
+
+model AdmissionTrack {
+  id          String                 @id @default(uuid())
+  code        String                 @unique // e.g. "REGULER", "TRANSFER", "PRESTASI", "KIPK"
+  name        String                 // e.g. "Jalur Reguler", "Jalur Prestasi", "Jalur KIP-Kuliah"
+  description String?                @db.Text
+  isActive    Boolean                @default(true)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  applications AdmissionApplication[]
+  students     Student[]
+  feeRules     FeeRule[]
+
+  @@map("admission_tracks")
+}
+
+model AdmissionClass {
+  id          String                 @id @default(uuid())
+  code        String                 @unique // e.g. "REGULER", "KARYAWAN"
+  name        String                 // e.g. "Kelas Reguler (Pagi)", "Kelas Karyawan (Sore/Malam)"
+  description String?                @db.Text
+  isActive    Boolean                @default(true)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  applications AdmissionApplication[]
+  students     Student[]
+  feeRules     FeeRule[]
+
+  @@map("admission_classes")
+}
+
+model AdmissionApplication {
+  id                 String             @id @default(uuid())
+  accountId          String
+  waveId             String?
+  registrationTypeId String?
+  trackId            String?
+  classId            String?
+  studyProgramId     String?
+  isKip              Boolean            @default(false)
+
+  // Nomor Pendaftaran dibuat HANYA saat status = SUBMITTED
+  registrationNumber String?            @unique // e.g. "PMB-2027-000123"
+
+  // Status Alur PMB
+  formStatus         String             @default("DRAFT") // "DRAFT", "SUBMITTED"
+  verificationStatus String             @default("UNVERIFIED") // "UNVERIFIED", "VERIFIED", "REJECTED"
+  verificationNote   String?            @db.Text
+  verifiedAt         DateTime?
+  verifiedBy         String?
+
+  selectionStatus    String             @default("PENDING_SELECTION") // "PENDING_SELECTION", "PASSED", "FAILED", "RESERVE"
+  testScore          Float?
+  selectionNotes     String?            @db.Text
+  selectionDate      DateTime?
+
+  // Data Pribadi
+  nik                String?
+  fullName           String
+  birthPlace         String?
+  birthDate          String?
+  gender             String?
+  religion           String?
+  phone              String
+  email              String
+  address            String?            @db.Text
+
+  // Data Sekolah / Riwayat Pendidikan
+  schoolName         String?
+  npsn               String?
+  nisn               String?
+  graduationYear     String?
+  major              String?
+
+  // Orang Tua / Wali
+  parentName         String?
+  parentPhone        String?
+  parentJob          String?
+  parentIncome       String?
+
+  // Berkas Dokumen
+  fileKtp            String?
+  fileKk             String?
+  fileIjazah         String?
+  fileFoto           String?
+  fileTambahan       String?
+
+  // Hubungan dengan Mahasiswa Resmi (jika sudah daftar ulang lunas & dikonversi)
+  studentId          String?
+  nim                String?
+
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  account            PmbAccount                  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  wave               AdmissionBatch?             @relation(fields: [waveId], references: [id], onDelete: SetNull)
+  registrationType   AdmissionRegistrationType?  @relation(fields: [registrationTypeId], references: [id], onDelete: SetNull)
+  track              AdmissionTrack?             @relation(fields: [trackId], references: [id], onDelete: SetNull)
+  admissionClass     AdmissionClass?             @relation(fields: [classId], references: [id], onDelete: SetNull)
+  studyProgram       StudyProgram?      @relation(fields: [studyProgramId], references: [id], onDelete: SetNull)
+  student            Student?           @relation(fields: [studentId], references: [id], onDelete: SetNull)
+
+  payments           AdmissionPayment[]
+
+  @@map("admission_applications")
+}
+
+model AdmissionPayment {
+  id            String               @id @default(uuid())
+  applicationId String
+  type          String               // "REGISTRATION", "RE_REGISTRATION"
+  amount        Float
+  status        String               @default("PENDING") // "PENDING", "VERIFYING", "PAID"
+  paymentMethod String?              @default("Transfer Bank")
+  proofUrl      String?
+  notes         String?
+  paidAt        DateTime?
+  verifiedAt    DateTime?
+  verifiedBy    String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  application   AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@map("admission_payments")
+}
+
 model AdmissionApplicant {
   id                  String          @id @default(uuid())
   registrationNumber  String          @unique // e.g. "PMB20270001"
@@ -256,29 +467,6 @@ model AdmissionApplicant {
   updatedAt           DateTime        @updatedAt
 
   @@map("admission_applicants")
-}
-
-model AdmissionBatch {
-  id                  String    @id @default(uuid())
-  name                String
-  academicYear        String    @default("2027/2028")
-  jenjang             String    @default("S1")
-  startDate           String
-  endDate             String
-  examDate            String?
-  announcementDate    String?
-  registrationFee     Float     @default(0)
-  reRegistrationFee   Float     @default(0)
-  reRegistrationFees  Json?
-  quota               Int       @default(100)
-  availableJalur      String[]  @default([])
-  status              String    @default("OPEN")
-  isDefault           Boolean   @default(false)
-  description         String?   @db.Text
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-
-  @@map("admission_batches")
 }
 
 model AdmissionBrochure {
@@ -683,9 +871,123 @@ model PaymentInvoice {
   notes          String?       @db.Text
   academicYear   String        @default("2026/2027")
   dueDate        String?
+  ruleCode       String?
+  ruleName       String?
+  originalAmount Float?
+  totalDiscount  Float         @default(0)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
+  items          PaymentInvoiceItem[]
+
   @@map("payment_invoices")
 }
+
+// ==============================================================================
+// MASTER KOMPONEN BIAYA & ATURAN PEMBIAYAAN (FEE RULES ENGINE)
+// ==============================================================================
+
+model FeeComponent {
+  id            String               @id @default(uuid())
+  code          String               @unique // e.g. "SPP", "SKS", "PRAKTIKUM", "UJIAN", "REGISTRASI", "WISUDA"
+  name          String               // e.g. "SPP / Uang Kuliah Tunggal", "Biaya SKS Perkuliahan"
+  defaultAmount Float                // Tarif dasar standar (Rp)
+  category      String               @default("SEMESTER") // "SEMESTER", "PER_SKS", "SEKALI_BAYAR"
+  description   String?              @db.Text
+  isActive      Boolean              @default(true)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  ruleItems     FeeRuleItem[]
+  invoiceItems  PaymentInvoiceItem[]
+
+  @@map("fee_components")
+}
+
+model FeeRule {
+  id                 String                     @id @default(uuid())
+  name               String                     // e.g. "Aturan Beasiswa KIP-Kuliah"
+  code               String                     @unique // e.g. "RULE_KIP"
+  description        String?                    @db.Text
+  priority           Int                        @default(10) // Prioritas: angka makin besar makin prioritas
+  academicYear       String?                    // null = berlaku untuk semua tahun akademik
+  isActive           Boolean                    @default(true)
+
+  // Kondisi opsional pencocokan rule
+  registrationTypeId String?
+  trackId            String?
+  classId            String?
+  studyProgramId     String?
+  waveId             String?
+
+  registrationType   AdmissionRegistrationType? @relation(fields: [registrationTypeId], references: [id], onDelete: SetNull)
+  track              AdmissionTrack?            @relation(fields: [trackId], references: [id], onDelete: SetNull)
+  admissionClass     AdmissionClass?            @relation(fields: [classId], references: [id], onDelete: SetNull)
+  studyProgram       StudyProgram?              @relation(fields: [studyProgramId], references: [id], onDelete: SetNull)
+  wave               AdmissionBatch?            @relation(fields: [waveId], references: [id], onDelete: SetNull)
+
+  ruleItems          FeeRuleItem[]
+  assignments        StudentFeeAssignment[]
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  @@map("fee_rules")
+}
+
+model FeeRuleItem {
+  id             String       @id @default(uuid())
+  feeRuleId      String
+  feeComponentId String
+  actionType     String       @default("NORMAL") // "NORMAL", "BEBAS", "DISKON_PERSENTASE", "DISKON_NOMINAL", "TARIF_KHUSUS"
+  amountValue    Float?       // Nilai diskon persen / diskon nominal / tarif khusus
+  notes          String?      @db.Text
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  feeRule        FeeRule      @relation(fields: [feeRuleId], references: [id], onDelete: Cascade)
+  feeComponent   FeeComponent @relation(fields: [feeComponentId], references: [id], onDelete: Restrict)
+
+  @@unique([feeRuleId, feeComponentId])
+  @@map("fee_rule_items")
+}
+
+model StudentFeeAssignment {
+  id           String    @id @default(uuid())
+  studentId    String
+  feeRuleId    String?
+  academicYear String    // e.g. "2026/2027"
+  schemeName   String    // e.g. "Skema Beasiswa KIP-Kuliah", "Skema Reguler Mandiri"
+  snapshotData Json      // Snapshot rincian aturan & komponen saat penetapan dilakukan
+  notes        String?   @db.Text
+  assignedAt   DateTime  @default(now())
+  assignedBy   String?   @default("SISTEM_PMB")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  student      Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  feeRule      FeeRule?  @relation(fields: [feeRuleId], references: [id], onDelete: SetNull)
+
+  @@index([studentId, academicYear])
+  @@map("student_fee_assignments")
+}
+
+model PaymentInvoiceItem {
+  id             String         @id @default(uuid())
+  invoiceId      String
+  feeComponentId String?
+  componentName  String
+  baseAmount     Float
+  actionType     String         @default("NORMAL") // "NORMAL", "BEBAS", "DISKON_PERSENTASE", "DISKON_NOMINAL", "TARIF_KHUSUS"
+  actionValue    Float?
+  discountAmount Float          @default(0)
+  finalAmount    Float
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  invoice        PaymentInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  feeComponent   FeeComponent?  @relation(fields: [feeComponentId], references: [id], onDelete: SetNull)
+
+  @@map("payment_invoice_items")
+}
+
 

@@ -21,12 +21,29 @@ import {
   Building,
 } from 'lucide-react';
 import { AdmissionApplicantItem } from '@siakad/types';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 export default function VerifikasiPage() {
   const [applicants, setApplicants] = useState<AdmissionApplicantItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+
+  // Custom Modal Alert / Confirm
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: React.ReactNode;
+    type?: 'danger' | 'warning' | 'info' | 'success';
+    confirmText?: string;
+    cancelText?: string;
+    isAlert?: boolean;
+    onConfirm?: () => Promise<void> | void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+  });
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -126,8 +143,25 @@ export default function VerifikasiPage() {
       setVerifyModalOpen(false);
       setSelectedApplicant(null);
       await fetchApplicants();
+      setModalConfig({
+        isOpen: true,
+        title: actionType === 'APPROVE' ? 'Berkas Berhasil Disetujui' : 'Berkas Telah Ditolak',
+        message: actionType === 'APPROVE' 
+          ? 'Status calon mahasiswa kini telah terverifikasi dan dapat melanjutkan ke tahap berikutnya.'
+          : 'Status calon mahasiswa telah diubah menjadi belum memenuhi syarat berkas.',
+        type: actionType === 'APPROVE' ? 'success' : 'warning',
+        isAlert: true,
+        confirmText: 'Selesai',
+      });
     } catch (err: any) {
-      alert(err.message || 'Terjadi kesalahan sistem.');
+      setModalConfig({
+        isOpen: true,
+        title: 'Gagal Memproses Verifikasi',
+        message: err.message || 'Terjadi kesalahan sistem.',
+        type: 'danger',
+        isAlert: true,
+        confirmText: 'Tutup',
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -136,8 +170,6 @@ export default function VerifikasiPage() {
   return (
     <PortalLayout
       role="pmb"
-      userName="Bagus Wicaksono, S.Kom."
-      userIdText="Panitia PMB ITN"
       activeMenuHref="/admin/pmb/verifikasi"
     >
       <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
@@ -443,6 +475,19 @@ export default function VerifikasiPage() {
             </div>
           </div>
         )}
+
+        {/* Custom Confirmation / Alert Modal */}
+        <ConfirmModal
+          isOpen={modalConfig.isOpen}
+          title={modalConfig.title}
+          message={modalConfig.message}
+          type={modalConfig.type}
+          confirmText={modalConfig.confirmText}
+          cancelText={modalConfig.cancelText}
+          isAlert={modalConfig.isAlert}
+          onConfirm={modalConfig.onConfirm}
+          onClose={() => setModalConfig((prev) => ({ ...prev, isOpen: false }))}
+        />
       </div>
     </PortalLayout>
   );

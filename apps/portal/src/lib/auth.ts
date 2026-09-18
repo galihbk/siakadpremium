@@ -125,9 +125,9 @@ export function isRouteAllowedForRole(pathname: string, role: string): boolean {
     return pathname.startsWith('/admin/p3m') || pathname.startsWith('/p3m');
   }
 
-  // 3. Dashboard Keuangan HANYA boleh diakses oleh role Keuangan (ADMIN_KEUANGAN / FINANCE)
+  // 3. Dashboard Keuangan diakses oleh role Keuangan (ADMIN_KEUANGAN / FINANCE) dan Super Admin
   if (pathname.startsWith('/finance')) {
-    return role === 'ADMIN_KEUANGAN' || role === 'FINANCE';
+    return role === 'ADMIN_KEUANGAN' || role === 'FINANCE' || role === 'SUPER_ADMIN';
   }
 
   // 4. Portal Dosen HANYA boleh diakses oleh role Dosen (LECTURER)

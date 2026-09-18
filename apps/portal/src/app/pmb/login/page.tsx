@@ -44,7 +44,7 @@ export default function PmbLoginPage() {
     setErrorMsg(null);
 
     try {
-      const res = await fetch(`${apiBaseUrl}/admissions/login`, {
+      const res = await fetch(`${apiBaseUrl}/admissions/pmb/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -55,20 +55,36 @@ export default function PmbLoginPage() {
 
       const json = await res.json();
 
-      if (!res.ok || !json?.success) {
-        throw new Error(json?.message || 'Nomor Registrasi atau Kata Sandi yang dimasukkan salah.');
+      if (!res.ok || (!json?.success && !json?.data?.success)) {
+        // Fallback to legacy login if needed
+        const legacyRes = await fetch(`${apiBaseUrl}/admissions/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identifier: identifier.trim(), password: password.trim() }),
+        });
+        const legacyJson = await legacyRes.json();
+        if (!legacyRes.ok || !legacyJson?.success) {
+          throw new Error(json?.message || legacyJson?.message || 'Nomor Registrasi / Email atau Kata Sandi yang dimasukkan salah.');
+        }
+        const legacyPayload = legacyJson.data !== undefined ? legacyJson.data : legacyJson;
+        const legacyApplicant = legacyPayload?.applicant || legacyPayload;
+        const legacyToken = legacyPayload?.token || legacyJson?.token || `pmb_session_${Date.now()}`;
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('pmb_account_session', JSON.stringify(legacyApplicant));
+          localStorage.setItem('pmb_applicant_session', JSON.stringify(legacyApplicant));
+          localStorage.setItem('pmb_applicant_token', legacyToken);
+        }
+        router.push('/pmb/dashboard');
+        return;
       }
 
       const payload = json.data !== undefined ? json.data : json;
-      const applicant = payload?.applicant || payload;
-      const token = payload?.token || json?.token || `pmb_session_${applicant?.registrationNumber || Date.now()}`;
-
-      if (!applicant || !applicant.registrationNumber) {
-        throw new Error('Data akun pendaftar tidak valid atau belum ditemukan.');
-      }
+      const account = payload?.account || payload;
+      const token = payload?.token || `pmb_token_${account?.id || Date.now()}`;
 
       if (typeof window !== 'undefined') {
-        localStorage.setItem('pmb_applicant_session', JSON.stringify(applicant));
+        localStorage.setItem('pmb_account_session', JSON.stringify(account));
+        localStorage.setItem('pmb_applicant_session', JSON.stringify(account));
         localStorage.setItem('pmb_applicant_token', token);
       }
 
@@ -287,7 +303,7 @@ export default function PmbLoginPage() {
                   href="/pmb/daftar"
                   className="font-bold text-[#1E3A8A] hover:underline ml-1"
                 >
-                  Daftar Calon Mahasiswa Baru
+                  Daftar
                 </Link>
               </p>
               <div>

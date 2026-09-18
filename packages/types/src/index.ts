@@ -176,6 +176,172 @@ export interface AdminDashboardSummary {
 // PMB (Admission) Types
 // ==============================================================================
 
+export interface PmbAccountItem {
+  id: string;
+  fullName: string;
+  email: string;
+  whatsapp: string;
+  isEmailVerified: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdmissionBatchItem {
+  id: string;
+  name: string;
+  academicYear: string;
+  jenjang: string;
+  startDate: string;
+  endDate: string;
+  status: 'OPEN' | 'UPCOMING' | 'CLOSED';
+  quota?: number | null;
+  description?: string | null;
+  registrationFee?: number | null;
+  reRegistrationFee?: number | null;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PmbFeeConfigItem {
+  id: string;
+  jenjang: string;
+  registrationFee: number;
+  reRegistrationFee: number;
+  description?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AdmissionRegistrationTypeItem {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  badge?: string | null;
+  isKip: boolean;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AdmissionTrackItem {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AdmissionClassItem {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AdmissionPaymentItem {
+  id: string;
+  applicationId: string;
+  type: 'REGISTRATION' | 'RE_REGISTRATION';
+  amount: number;
+  status: 'PENDING' | 'VERIFYING' | 'PAID';
+  paymentMethod?: string | null;
+  proofUrl?: string | null;
+  notes?: string | null;
+  paidAt?: string | null;
+  verifiedAt?: string | null;
+  verifiedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdmissionApplicationItem {
+  id: string;
+  accountId: string;
+  waveId?: string | null;
+  registrationTypeId?: string | null;
+  trackId?: string | null;
+  classId?: string | null;
+  studyProgramId?: string | null;
+  isKip: boolean;
+  registrationNumber?: string | null;
+  formStatus: 'DRAFT' | 'SUBMITTED';
+  verificationStatus: 'UNVERIFIED' | 'VERIFIED' | 'REJECTED';
+  verificationNote?: string | null;
+  verifiedAt?: string | null;
+  verifiedBy?: string | null;
+  selectionStatus: 'PENDING_SELECTION' | 'PASSED' | 'FAILED' | 'RESERVE';
+  testScore?: number | null;
+  selectionNotes?: string | null;
+  selectionDate?: string | null;
+  nik?: string | null;
+  fullName: string;
+  birthPlace?: string | null;
+  birthDate?: string | null;
+  gender?: string | null;
+  religion?: string | null;
+  phone: string;
+  email: string;
+  address?: string | null;
+  schoolName?: string | null;
+  npsn?: string | null;
+  graduationYear?: string | null;
+  major?: string | null;
+  parentName?: string | null;
+  parentPhone?: string | null;
+  parentJob?: string | null;
+  parentIncome?: string | null;
+  fileKtp?: string | null;
+  fileKk?: string | null;
+  fileIjazah?: string | null;
+  fileFoto?: string | null;
+  fileTambahan?: string | null;
+  studentId?: string | null;
+  nim?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  account?: PmbAccountItem;
+  wave?: AdmissionBatchItem;
+  registrationType?: AdmissionRegistrationTypeItem;
+  track?: AdmissionTrackItem;
+  admissionClass?: AdmissionClassItem;
+  studyProgram?: {
+    id: string;
+    code: string;
+    name: string;
+    degreeLevel: string;
+    faculty?: { name: string };
+  };
+  payments?: AdmissionPaymentItem[];
+}
+
+export interface AdmissionStatsSummary {
+  totalApplicants: number;
+  pendingCount: number;
+  verifiedCount: number;
+  registeredCount: number;
+  unpaidRegistrationCount?: number;
+  paidRegistrationCount?: number;
+  unverifiedDocsCount?: number;
+  verifiedDocsCount?: number;
+  pendingSelectionCount?: number;
+  passedCount: number;
+  failedCount: number;
+  pendingReRegistrationCount?: number;
+  paidReRegistrationCount?: number;
+  registeredStudentsCount?: number;
+  prodiDistribution: { prodi: string; count: number }[];
+  jalurDistribution: { jalur: string; count: number }[];
+  recentApplicants?: any[];
+}
+
+// Backward compatibility item
 export interface AdmissionApplicantItem {
   id: string;
   registrationNumber: string;
@@ -197,15 +363,89 @@ export interface AdmissionApplicantItem {
   updatedAt: string;
 }
 
-export interface AdmissionStatsSummary {
-  totalApplicants: number;
-  pendingCount: number;
-  verifiedCount: number;
-  passedCount: number;
-  failedCount: number;
-  registeredCount: number;
-  prodiDistribution: { prodi: string; count: number }[];
-  jalurDistribution: { jalur: string; count: number }[];
-  recentApplicants: AdmissionApplicantItem[];
+// ==============================================================================
+// Fee Rules Engine & Finance Types
+// ==============================================================================
+
+export type FeeActionType = 'NORMAL' | 'BEBAS' | 'DISKON_PERSENTASE' | 'DISKON_NOMINAL' | 'TARIF_KHUSUS';
+
+export interface FeeComponentItem {
+  id: string;
+  code: string;
+  name: string;
+  defaultAmount: number;
+  category: string;
+  description?: string | null;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
+
+export interface FeeRuleItemDetail {
+  id: string;
+  feeRuleId: string;
+  feeComponentId: string;
+  actionType: FeeActionType;
+  amountValue?: number | null;
+  notes?: string | null;
+  feeComponent?: FeeComponentItem;
+}
+
+export interface FeeRuleItem {
+  id: string;
+  name: string;
+  code: string;
+  description?: string | null;
+  priority: number;
+  academicYear?: string | null;
+  isActive: boolean;
+  registrationTypeId?: string | null;
+  trackId?: string | null;
+  classId?: string | null;
+  studyProgramId?: string | null;
+  waveId?: string | null;
+  registrationType?: AdmissionRegistrationTypeItem | null;
+  track?: AdmissionTrackItem | null;
+  admissionClass?: AdmissionClassItem | null;
+  studyProgram?: { id: string; name: string; code: string } | null;
+  wave?: AdmissionBatchItem | null;
+  ruleItems: FeeRuleItemDetail[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface StudentFeeAssignmentItem {
+  id: string;
+  studentId: string;
+  feeRuleId?: string | null;
+  academicYear: string;
+  schemeName: string;
+  snapshotData: any;
+  notes?: string | null;
+  assignedAt: string;
+  assignedBy?: string | null;
+  student?: {
+    id: string;
+    nim: string;
+    user?: { fullName: string };
+    studyProgram?: { name: string };
+    registrationType?: { code: string; name: string } | null;
+    track?: { code: string; name: string } | null;
+    admissionClass?: { code: string; name: string } | null;
+  };
+  feeRule?: FeeRuleItem | null;
+}
+
+export interface PaymentInvoiceItemDetail {
+  id: string;
+  invoiceId: string;
+  feeComponentId?: string | null;
+  componentName: string;
+  baseAmount: number;
+  actionType: FeeActionType;
+  actionValue?: number | null;
+  discountAmount: number;
+  finalAmount: number;
+}
+
 

@@ -2,7 +2,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { getApiBaseUrl } from '@/lib/api';
+import { getAuthSession } from '@/lib/auth';
 import {
   LayoutDashboard,
   Users,
@@ -40,7 +42,7 @@ import { AdmissionApplicantItem, AdmissionStatsSummary } from '@siakad/types';
 
 export default function AdminPmbDashboardPage() {
   // Navigation Tabs
-  const [activeTab, setActiveTab] = useState<'ringkasan' | 'pendaftar' | 'verifikasi' | 'seleksi' | 'kelulusan' | 'statistik'>('ringkasan');
+  const [activeTab, setActiveTab] = useState<'ringkasan' | 'pendaftar' | 'verifikasi' | 'kelulusan' | 'statistik'>('ringkasan');
 
   // Live Database States
   const [applicants, setApplicants] = useState<AdmissionApplicantItem[]>([]);
@@ -79,6 +81,23 @@ export default function AdminPmbDashboardPage() {
   const [updateScoreVal, setUpdateScoreVal] = useState<string>('');
   const [updateNotesVal, setUpdateNotesVal] = useState<string>('');
   const [statusModalOpen, setStatusModalOpen] = useState(false);
+
+  // Dialog State (Custom Confirm & Alert)
+  const [dialogState, setDialogState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: React.ReactNode;
+    type: 'danger' | 'warning' | 'info' | 'success';
+    confirmText?: string;
+    cancelText?: string;
+    isAlert?: boolean;
+    onConfirm?: () => Promise<void> | void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'danger',
+  });
 
   const apiBase = getApiBaseUrl();
 
@@ -144,7 +163,6 @@ export default function AdminPmbDashboardPage() {
     return applicants.filter((app) => {
       // Tab specific filter
       if (activeTab === 'verifikasi' && app.status !== 'PENDING') return false;
-      if (activeTab === 'seleksi' && !['VERIFIED', 'PASSED', 'FAILED'].includes(app.status)) return false;
       if (activeTab === 'kelulusan' && !['PASSED', 'REGISTERED'].includes(app.status)) return false;
 
       // Status dropdown filter
@@ -175,19 +193,27 @@ export default function AdminPmbDashboardPage() {
   const handleCreateApplicant = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.fullName || !formData.email || !formData.phone) {
-      alert('Nama, email, dan nomor HP wajib diisi.');
+      setDialogState({
+        isOpen: true,
+        title: 'Formulir Belum Lengkap',
+        message: 'Nama lengkap, email, dan nomor HP wajib diisi.',
+        type: 'warning',
+        isAlert: true,
+        confirmText: 'Mengerti',
+      });
       return;
     }
 
     setIsSubmitting(true);
     try {
+      const { user: authUser } = getAuthSession();
       const res = await fetch(`${apiBase}/admissions/applicants`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
           testScore: formData.testScore ? parseFloat(formData.testScore) : null,
-          verifiedBy: 'Bagus Wicaksono, S.Kom. (Admin PMB)',
+          verifiedBy: authUser?.fullName || 'Panitia PMB ITN',
         }),
       });
 
@@ -196,7 +222,6 @@ export default function AdminPmbDashboardPage() {
         throw new Error(errJson.message || 'Gagal menambahkan pendaftar ke database.');
       }
 
-      alert('Berhasil mendaftarkan calon mahasiswa ke database!');
       setAddModalOpen(false);
       setFormData({
         fullName: '',
@@ -209,8 +234,23 @@ export default function AdminPmbDashboardPage() {
         notes: '',
       });
       await fetchData();
+      setDialogState({
+        isOpen: true,
+        title: 'Pendaftar Berhasil Didaftarkan',
+        message: 'Calon mahasiswa baru berhasil disimpan ke dalam database PMB.',
+        type: 'success',
+        isAlert: true,
+        confirmText: 'Selesai',
+      });
     } catch (err: any) {
-      alert(err.message || 'Gagal menyimpan data.');
+      setDialogState({
+        isOpen: true,
+        title: 'Gagal Menyimpan Data',
+        message: err.message || 'Terjadi kesalahan sistem saat menyimpan data.',
+        type: 'danger',
+        isAlert: true,
+        confirmText: 'Tutup',
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -232,6 +272,7 @@ export default function AdminPmbDashboardPage() {
 
     setIsSubmitting(true);
     try {
+      const { user: authUser } = getAuthSession();
       const res = await fetch(`${apiBase}/admissions/applicants/${statusUpdateApplicant.id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -239,7 +280,7 @@ export default function AdminPmbDashboardPage() {
           status: updateStatusVal,
           testScore: updateScoreVal ? parseFloat(updateScoreVal) : undefined,
           notes: updateNotesVal,
-          verifiedBy: 'Bagus Wicaksono, S.Kom. (Admin PMB)',
+          verifiedBy: authUser?.fullName || 'Panitia PMB ITN',
         }),
       });
 
@@ -248,72 +289,154 @@ export default function AdminPmbDashboardPage() {
         throw new Error(errJson.message || 'Gagal memperbarui status pendaftar.');
       }
 
-      alert(`Status pendaftar ${statusUpdateApplicant.fullName} berhasil diperbarui menjadi ${updateStatusVal}!`);
+      const updatedName = statusUpdateApplicant.fullName;
+      const newStatus = updateStatusVal;
       setStatusModalOpen(false);
       await fetchData();
+      setDialogState({
+        isOpen: true,
+        title: 'Status Berhasil Diperbarui',
+        message: `Status pendaftar "${updatedName}" berhasil diperbarui menjadi ${newStatus}.`,
+        type: 'success',
+        isAlert: true,
+        confirmText: 'Selesai',
+      });
     } catch (err: any) {
-      alert(err.message || 'Gagal memperbarui status.');
+      setDialogState({
+        isOpen: true,
+        title: 'Gagal Memperbarui Status',
+        message: err.message || 'Gagal memperbarui status pendaftar.',
+        type: 'danger',
+        isAlert: true,
+        confirmText: 'Tutup',
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   // Quick Action: Verifikasi Berkas (PENDING -> VERIFIED)
-  const handleQuickVerify = async (app: AdmissionApplicantItem) => {
-    if (!confirm(`Konfirmasi verifikasi kelengkapan berkas pendaftar ${app.fullName} (${app.registrationNumber})?`)) return;
-
-    try {
-      const res = await fetch(`${apiBase}/admissions/applicants/${app.id}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: 'VERIFIED',
-          notes: 'Berkas digital telah diperiksa dan dinyatakan memenuhi syarat administrasi.',
-          verifiedBy: 'Bagus Wicaksono, S.Kom. (Admin PMB)',
-        }),
-      });
-
-      if (!res.ok) throw new Error('Gagal memverifikasi berkas.');
-      await fetchData();
-    } catch (err: any) {
-      alert(err.message || 'Gagal memverifikasi berkas.');
-    }
+  const handleQuickVerify = (app: AdmissionApplicantItem) => {
+    setDialogState({
+      isOpen: true,
+      title: 'Verifikasi Berkas Pendaftar?',
+      message: (
+        <span>
+          Konfirmasi verifikasi kelengkapan berkas digital pendaftar{' '}
+          <strong className="text-slate-900 font-bold">&quot;{app.fullName}&quot;</strong> ({app.registrationNumber})?
+        </span>
+      ),
+      type: 'info',
+      confirmText: 'Ya, Verifikasi Berkas',
+      cancelText: 'Batal',
+      isAlert: false,
+      onConfirm: async () => {
+        try {
+          const { user: authUser } = getAuthSession();
+          const res = await fetch(`${apiBase}/admissions/applicants/${app.id}/status`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              status: 'VERIFIED',
+              notes: 'Berkas digital telah diperiksa dan dinyatakan memenuhi syarat administrasi.',
+              verifiedBy: authUser?.fullName || 'Panitia PMB ITN',
+            }),
+          });
+          if (!res.ok) throw new Error('Gagal memverifikasi berkas.');
+          setDialogState((prev) => ({ ...prev, isOpen: false }));
+          await fetchData();
+        } catch (err: any) {
+          setDialogState({
+            isOpen: true,
+            title: 'Gagal Memverifikasi Berkas',
+            message: err.message || 'Gagal memverifikasi berkas pendaftar.',
+            type: 'danger',
+            isAlert: true,
+          });
+        }
+      },
+    });
   };
 
   // Quick Action: Konversi Menjadi Mahasiswa Aktif SIAKAD
-  const handleConvertToStudent = async (app: AdmissionApplicantItem) => {
-    if (!confirm(`Terbitkan Nomor Induk Mahasiswa (NIM) resmi dan konversi ${app.fullName} menjadi Mahasiswa Aktif ITN di database?`)) return;
-
-    try {
-      const res = await fetch(`${apiBase}/admissions/applicants/${app.id}/convert-to-student`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message || 'Gagal mengonversi menjadi mahasiswa.');
-
-      alert(json.message || `Berhasil! Mahasiswa resmi diterbitkan dengan NIM: ${json.nim}`);
-      await fetchData();
-    } catch (err: any) {
-      alert(err.message || 'Terjadi kesalahan saat konversi mahasiswa.');
-    }
+  const handleConvertToStudent = (app: AdmissionApplicantItem) => {
+    setDialogState({
+      isOpen: true,
+      title: 'Terbitkan NIM & Mahasiswa Aktif?',
+      message: (
+        <span>
+          Terbitkan Nomor Induk Mahasiswa (NIM) resmi dan konversi{' '}
+          <strong className="text-slate-900 font-bold">&quot;{app.fullName}&quot;</strong> menjadi Mahasiswa Aktif ITN di database akademik?
+        </span>
+      ),
+      type: 'success',
+      confirmText: 'Ya, Terbitkan NIM',
+      cancelText: 'Batal',
+      isAlert: false,
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${apiBase}/admissions/applicants/${app.id}/convert-to-student`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+          });
+          const json = await res.json();
+          if (!res.ok) throw new Error(json.message || 'Gagal mengonversi menjadi mahasiswa.');
+          await fetchData();
+          setDialogState({
+            isOpen: true,
+            title: 'Berhasil Menerbitkan Mahasiswa!',
+            message: json.message || `Mahasiswa resmi diterbitkan dengan NIM: ${json.nim}`,
+            type: 'success',
+            isAlert: true,
+            confirmText: 'Selesai',
+          });
+        } catch (err: any) {
+          setDialogState({
+            isOpen: true,
+            title: 'Gagal Konversi Mahasiswa',
+            message: err.message || 'Terjadi kesalahan saat konversi mahasiswa.',
+            type: 'danger',
+            isAlert: true,
+          });
+        }
+      },
+    });
   };
 
   // Delete applicant
-  const handleDeleteApplicant = async (app: AdmissionApplicantItem) => {
-    if (!confirm(`Peringatan: Anda yakin ingin menghapus data calon mahasiswa ${app.fullName} (${app.registrationNumber}) secara permanen dari database?`)) return;
-
-    try {
-      const res = await fetch(`${apiBase}/admissions/applicants/${app.id}`, {
-        method: 'DELETE',
-      });
-
-      if (!res.ok) throw new Error('Gagal menghapus data.');
-      await fetchData();
-    } catch (err: any) {
-      alert(err.message || 'Gagal menghapus data.');
-    }
+  const handleDeleteApplicant = (app: AdmissionApplicantItem) => {
+    setDialogState({
+      isOpen: true,
+      title: 'Hapus Calon Mahasiswa?',
+      message: (
+        <span>
+          Apakah Anda yakin ingin menghapus data calon mahasiswa{' '}
+          <strong className="text-slate-900 font-bold">&quot;{app.fullName}&quot;</strong> ({app.registrationNumber}) secara permanen dari database?
+        </span>
+      ),
+      type: 'danger',
+      confirmText: 'Ya, Hapus Permanen',
+      cancelText: 'Batal',
+      isAlert: false,
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${apiBase}/admissions/applicants/${app.id}`, {
+            method: 'DELETE',
+          });
+          if (!res.ok) throw new Error('Gagal menghapus data.');
+          setDialogState((prev) => ({ ...prev, isOpen: false }));
+          await fetchData();
+        } catch (err: any) {
+          setDialogState({
+            isOpen: true,
+            title: 'Gagal Menghapus Data',
+            message: err.message || 'Gagal menghapus data pendaftar.',
+            type: 'danger',
+            isAlert: true,
+          });
+        }
+      },
+    });
   };
 
   // Helper status badge renderer
@@ -366,8 +489,6 @@ export default function AdminPmbDashboardPage() {
   return (
     <PortalLayout
       role="pmb"
-      userName="Bagus Wicaksono, S.Kom."
-      userIdText="Panitia PMB ITN"
       activeMenuHref="/admin/pmb"
     >
       <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
@@ -433,7 +554,6 @@ export default function AdminPmbDashboardPage() {
             { id: 'ringkasan', label: 'Ringkasan & KPI', icon: LayoutDashboard },
             { id: 'pendaftar', label: `Semua Pendaftar (${applicants.length})`, icon: Users },
             { id: 'verifikasi', label: `Verifikasi Berkas (${stats?.pendingCount ?? 0})`, icon: CheckCircle2 },
-            { id: 'seleksi', label: 'Ujian & Skor CBT', icon: Award },
             { id: 'kelulusan', label: `Kelulusan & Registrasi (${(stats?.passedCount ?? 0) + (stats?.registeredCount ?? 0)})`, icon: GraduationCap },
             { id: 'statistik', label: 'Rekapitulasi & Statistik', icon: BarChart3 },
           ].map((tab) => {
@@ -1298,6 +1418,18 @@ export default function AdminPmbDashboardPage() {
           </div>
         )}
 
+        {/* Custom Confirm & Alert Modal */}
+        <ConfirmModal
+          isOpen={dialogState.isOpen}
+          onClose={() => setDialogState((prev) => ({ ...prev, isOpen: false }))}
+          onConfirm={dialogState.onConfirm}
+          title={dialogState.title}
+          message={dialogState.message}
+          type={dialogState.type}
+          confirmText={dialogState.confirmText}
+          cancelText={dialogState.cancelText}
+          isAlert={dialogState.isAlert}
+        />
       </div>
     </PortalLayout>
   );

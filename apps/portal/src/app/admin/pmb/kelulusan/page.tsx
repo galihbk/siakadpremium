@@ -20,12 +20,29 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { AdmissionApplicantItem } from '@siakad/types';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 export default function KelulusanPage() {
   const [applicants, setApplicants] = useState<AdmissionApplicantItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+
+  // Custom Modal Alert / Confirm
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: React.ReactNode;
+    type?: 'danger' | 'warning' | 'info' | 'success';
+    confirmText?: string;
+    cancelText?: string;
+    isAlert?: boolean;
+    onConfirm?: () => Promise<void> | void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+  });
 
   // Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -133,42 +150,98 @@ export default function KelulusanPage() {
       setDecisionModalOpen(false);
       setSelectedApplicant(null);
       await fetchApplicants();
+      setModalConfig({
+        isOpen: true,
+        title: 'Keputusan Berhasil Disimpan',
+        message: 'Status seleksi pendaftar berhasil diperbarui di sistem PMB.',
+        type: 'success',
+        isAlert: true,
+        confirmText: 'Selesai',
+      });
     } catch (err: any) {
-      alert(err.message || 'Terjadi kesalahan sistem.');
+      setModalConfig({
+        isOpen: true,
+        title: 'Gagal Menyimpan Keputusan',
+        message: err.message || 'Terjadi kesalahan sistem saat menyimpan keputusan.',
+        type: 'danger',
+        isAlert: true,
+        confirmText: 'Tutup',
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   // Convert to Active Student (Issuance of NIM)
-  const handleConvertToStudent = async (applicant: AdmissionApplicantItem) => {
-    if (
-      !window.confirm(
-        `Terbitkan Nomor Induk Mahasiswa (NIM) resmi untuk "${applicant.fullName}"?\n\nTindakan ini akan membuat akun mahasiswa aktif di sistem akademik.`,
-      )
-    ) {
-      return;
-    }
+  const handleConvertToStudent = (applicant: AdmissionApplicantItem) => {
+    setModalConfig({
+      isOpen: true,
+      title: 'Terbitkan NIM Resmi?',
+      message: (
+        <div>
+          <p>
+            Terbitkan Nomor Induk Mahasiswa (NIM) resmi untuk{' '}
+            <strong className="text-slate-900 font-bold">"{applicant.fullName}"</strong>?
+          </p>
+          <p className="mt-2 text-xs text-slate-500">
+            Tindakan ini akan mengonversi calon mahasiswa menjadi mahasiswa aktif resmi di sistem akademik Siakad.
+          </p>
+        </div>
+      ),
+      type: 'info',
+      confirmText: 'Terbitkan NIM',
+      cancelText: 'Batal',
+      onConfirm: async () => {
+        setIsSubmitting(true);
+        try {
+          const res = await fetch(`${apiBase}/admissions/applicants/${applicant.id}/convert-to-student`, {
+            method: 'POST',
+          });
 
-    setIsSubmitting(true);
-    try {
-      const res = await fetch(`${apiBase}/admissions/applicants/${applicant.id}/convert-to-student`, {
-        method: 'POST',
-      });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.message || 'Gagal menerbitkan NIM mahasiswa.');
+          }
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.message || 'Gagal menerbitkan NIM mahasiswa.');
-      }
+          const json = await res.json();
+          await fetchApplicants();
 
-      const json = await res.json();
-      alert(`Selamat! Registrasi ulang berhasil.\nNIM Baru: ${json.data?.student?.nim || 'Berhasil diterbitkan'}\nStatus: Mahasiswa Aktif.`);
-      await fetchApplicants();
-    } catch (err: any) {
-      alert(err.message || 'Gagal memproses registrasi ulang.');
-    } finally {
-      setIsSubmitting(false);
-    }
+          setModalConfig({
+            isOpen: true,
+            title: 'Registrasi Ulang Berhasil!',
+            message: (
+              <div className="space-y-2">
+                <p className="text-slate-700">Selamat! Mahasiswa baru berhasil diaktifkan ke dalam sistem akademik.</p>
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">NIM Baru:</span>
+                    <span className="font-bold text-emerald-800 font-mono text-sm">{json.data?.student?.nim || 'Berhasil Diterbitkan'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Status:</span>
+                    <span className="font-bold text-emerald-700">Mahasiswa Aktif</span>
+                  </div>
+                </div>
+              </div>
+            ),
+            type: 'success',
+            isAlert: true,
+            confirmText: 'Selesai',
+          });
+        } catch (err: any) {
+          setModalConfig({
+            isOpen: true,
+            title: 'Gagal Memproses Registrasi',
+            message: err.message || 'Gagal memproses registrasi ulang calon mahasiswa.',
+            type: 'danger',
+            isAlert: true,
+            confirmText: 'Tutup',
+          });
+        } finally {
+          setIsSubmitting(false);
+        }
+      },
+    });
   };
 
   const renderStatus = (status: string) => {
@@ -189,8 +262,6 @@ export default function KelulusanPage() {
   return (
     <PortalLayout
       role="pmb"
-      userName="Bagus Wicaksono, S.Kom."
-      userIdText="Panitia PMB ITN"
       activeMenuHref="/admin/pmb/kelulusan"
     >
       <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
@@ -628,6 +699,19 @@ export default function KelulusanPage() {
             </div>
           </div>
         )}
+
+        {/* Custom Confirmation / Alert Modal */}
+        <ConfirmModal
+          isOpen={modalConfig.isOpen}
+          title={modalConfig.title}
+          message={modalConfig.message}
+          type={modalConfig.type}
+          confirmText={modalConfig.confirmText}
+          cancelText={modalConfig.cancelText}
+          isAlert={modalConfig.isAlert}
+          onConfirm={modalConfig.onConfirm}
+          onClose={() => setModalConfig((prev) => ({ ...prev, isOpen: false }))}
+        />
       </div>
     </PortalLayout>
   );

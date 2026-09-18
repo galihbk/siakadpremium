@@ -23,25 +23,17 @@ interface AdmissionBatch {
   id: string;
   name: string;
   academicYear: string;
-  jenjang?: string;
+  jenjang: string;
   startDate: string;
   endDate: string;
-  examDate?: string;
-  announcementDate?: string;
-  registrationFee: number;
-  reRegistrationFee?: number;
-  reRegistrationFees?: Array<{
-    id?: string;
-    name: string;
-    amount: number;
-    note?: string;
-  }>;
   quota: number;
-  availableJalur: string[];
   status: 'OPEN' | 'UPCOMING' | 'CLOSED';
   isDefault: boolean;
   description?: string;
   applicantCount?: number;
+  examDate?: string;
+  announcementDate?: string;
+  availableJalur?: string[];
 }
 
 const FALLBACK_BATCHES: AdmissionBatch[] = [
@@ -52,26 +44,10 @@ const FALLBACK_BATCHES: AdmissionBatch[] = [
     jenjang: 'S1',
     startDate: '2026-08-01',
     endDate: '2026-11-30',
-    examDate: '2026-12-05',
-    announcementDate: '2026-12-10',
-    registrationFee: 200000,
-    reRegistrationFee: 7300000,
-    reRegistrationFees: [
-      { id: 'fee-1', name: 'SPP / UKT Tetap Semester 1', amount: 3500000, note: 'Biaya kuliah pokok semester pertama' },
-      { id: 'fee-2', name: 'Biaya Pengembangan Institusi (Diskon Early Bird 50%)', amount: 2500000, note: 'Dapat diangsur 2x' },
-      { id: 'fee-3', name: 'PKKMB, Jas Almamater & Atribut Kampus', amount: 850000, note: 'Paket resmi mahasiswa baru' },
-      { id: 'fee-4', name: 'Layanan TI, Perpustakaan & Asuransi Mahasiswa', amount: 450000, note: 'Akses portal, WiFi & asuransi' },
-    ],
     quota: 350,
-    availableJalur: [
-      'Jalur Prestasi Akademik (Bebas Tes)',
-      'Jalur Nilai Rapor & Portofolio',
-      'Jalur Mandiri Online (CBT)',
-      'KIP-K & Beasiswa Nusantara',
-    ],
     status: 'OPEN',
     isDefault: true,
-    description: 'Pendaftaran gelombang pembuka dengan potongan biaya formulir & beasiswa berprestasi.',
+    description: 'Pendaftaran gelombang pembuka tahun akademik 2027/2028.',
   },
   {
     id: 'default-batch-2',
@@ -80,24 +56,10 @@ const FALLBACK_BATCHES: AdmissionBatch[] = [
     jenjang: 'S1',
     startDate: '2026-12-01',
     endDate: '2027-03-31',
-    examDate: '2027-04-05',
-    announcementDate: '2027-04-10',
-    registrationFee: 250000,
-    reRegistrationFee: 9300000,
-    reRegistrationFees: [
-      { id: 'fee-1', name: 'SPP / UKT Tetap Semester 1', amount: 3500000, note: 'Biaya kuliah pokok semester pertama' },
-      { id: 'fee-2', name: 'Biaya Pengembangan Institusi (DPP)', amount: 4500000, note: 'Dapat diangsur 2x' },
-      { id: 'fee-3', name: 'PKKMB, Jas Almamater & Atribut Kampus', amount: 850000, note: 'Paket resmi mahasiswa baru' },
-      { id: 'fee-4', name: 'Layanan TI, Perpustakaan & Asuransi Mahasiswa', amount: 450000, note: 'Akses portal, WiFi & asuransi' },
-    ],
     quota: 400,
-    availableJalur: [
-      'Jalur Mandiri Online (CBT)',
-      'Jalur Nilai Rapor & Portofolio',
-    ],
     status: 'UPCOMING',
     isDefault: false,
-    description: 'Pendaftaran reguler semester genap dengan seleksi CBT daring.',
+    description: 'Pendaftaran reguler mahasiswa baru.',
   },
   {
     id: 'default-batch-3',
@@ -106,46 +68,12 @@ const FALLBACK_BATCHES: AdmissionBatch[] = [
     jenjang: 'S1',
     startDate: '2027-04-01',
     endDate: '2027-07-31',
-    examDate: '2027-08-05',
-    announcementDate: '2027-08-10',
-    registrationFee: 300000,
-    reRegistrationFee: 10300000,
-    reRegistrationFees: [
-      { id: 'fee-1', name: 'SPP / UKT Tetap Semester 1', amount: 3500000, note: 'Biaya kuliah pokok semester pertama' },
-      { id: 'fee-2', name: 'Biaya Pengembangan Institusi (DPP Normal)', amount: 5500000, note: 'Dapat diangsur 2x' },
-      { id: 'fee-3', name: 'PKKMB, Jas Almamater & Atribut Kampus', amount: 850000, note: 'Paket resmi mahasiswa baru' },
-      { id: 'fee-4', name: 'Layanan TI, Perpustakaan & Asuransi Mahasiswa', amount: 450000, note: 'Akses portal, WiFi & asuransi' },
-    ],
     quota: 250,
-    availableJalur: [
-      'Jalur Mandiri Online (CBT)',
-    ],
     status: 'UPCOMING',
     isDefault: false,
     description: 'Gelombang penutup kuota penerimaan mahasiswa baru.',
   },
 ];
-
-const DEFAULT_RE_REGISTRATION_FEES_BY_JENJANG: Record<string, Array<{ name: string; amount: number; note?: string }>> = {
-  S1: [
-    { name: 'SPP / UKT Tetap Semester 1', amount: 3500000, note: 'Biaya kuliah pokok semester pertama' },
-    { name: 'Biaya Pengembangan Institusi (DPP)', amount: 2500000, note: 'Dapat diangsur 2x' },
-    { name: 'PKKMB, Jas Almamater & Atribut Kampus', amount: 850000, note: 'Paket resmi mahasiswa baru' },
-    { name: 'Layanan TI, Perpustakaan & Asuransi Mahasiswa', amount: 450000, note: 'Akses portal, WiFi & asuransi' },
-  ],
-  S2: [
-    { name: 'Biaya Matrikulasi Pascasarjana', amount: 2500000, note: 'Sekali bayar di awal' },
-    { name: 'SPP / UKT Tetap Semester 1 (S2)', amount: 6500000, note: 'Biaya kuliah semester 1' },
-    { name: 'Dana Pengembangan Akademik & Riset', amount: 3000000, note: 'Dapat diangsur 2x' },
-    { name: 'Layanan Perpustakaan Digital & Lab Riset', amount: 800000, note: 'Akses jurnal internasional' },
-  ],
-  S3: [
-    { name: 'Biaya Ujian Kualifikasi & Matrikulasi', amount: 3500000, note: 'Sekali bayar di awal' },
-    { name: 'SPP / UKT Tetap Semester 1 (S3)', amount: 10000000, note: 'Biaya kuliah semester 1' },
-    { name: 'Dana Kolaborasi Riset & Hibah Publikasi', amount: 5000000, note: 'Dapat diangsur' },
-    { name: 'Fasilitas Laboratorium Riset Doktoral', amount: 1500000, note: 'Akses fasilitas riset penuh' },
-  ],
-};
 
 async function getAdmissionBatches(): Promise<AdmissionBatch[]> {
   try {
@@ -461,10 +389,10 @@ export default async function PmbPage() {
                       </div>
                     </div>
                     <div className="flex items-start gap-3">
-                      <Award className="w-4 h-4 text-[#D4A017] shrink-0 mt-0.5" />
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                       <div>
-                        <strong className="text-slate-900">Biaya Formulir: {activeBatch ? formatRupiah(activeBatch.registrationFee) : 'Rp 200.000'}</strong>
-                        <p className="text-slate-500">Alokasi kuota {activeBatch?.quota || 350} pendaftar baru</p>
+                        <strong className="text-slate-900">Pendaftaran & Formulir: 100% GRATIS</strong>
+                        <p className="text-slate-500">Nomor pendaftaran resmi terbit langsung setelah submit formulir</p>
                       </div>
                     </div>
                   </div>
@@ -516,15 +444,7 @@ export default async function PmbPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {activeBatches.map((batch) => {
-                  const fees = (batch.reRegistrationFees && batch.reRegistrationFees.length > 0)
-                    ? batch.reRegistrationFees
-                    : (DEFAULT_RE_REGISTRATION_FEES_BY_JENJANG[batch.jenjang || 'S1'] || DEFAULT_RE_REGISTRATION_FEES_BY_JENJANG['S1']);
-                  const totalReReg = Number(batch.reRegistrationFee) > 0
-                    ? Number(batch.reRegistrationFee)
-                    : fees.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-
-                  return (
+                {activeBatches.map((batch) => (
                     <div
                       key={batch.id}
                       className="bg-white rounded-2xl p-6 border border-blue-300 ring-1 ring-blue-200 hover:shadow-md transition-all flex flex-col justify-between shadow-subtle"
@@ -590,48 +510,20 @@ export default async function PmbPage() {
                             </div>
                           )}
 
-                          <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs">
+                          <div className="pt-3 border-t border-slate-200/80 flex items-center justify-between text-xs">
                             <div>
-                              <span className="text-[11px] text-slate-400 block">Biaya Formulir:</span>
-                              <span className="font-extrabold text-[#1E3A8A] text-sm">
-                                {formatRupiah(batch.registrationFee)}
+                              <span className="text-[11px] text-slate-400 block">Pendaftaran Formulir:</span>
+                              <span className="font-extrabold text-emerald-600 text-xs uppercase">
+                                100% GRATIS
                               </span>
                             </div>
                             <div className="text-right">
                               <span className="text-[11px] text-slate-400 block">Alokasi Kuota:</span>
                               <span className="font-bold text-slate-800 flex items-center gap-1 justify-end">
                                 <Users className="w-3.5 h-3.5 text-slate-400" />
-                                <span>{batch.quota} Kursi</span>
+                                <span>{batch.quota || 100} Kursi</span>
                               </span>
                             </div>
-                          </div>
-
-                          {/* Rincian Biaya Daftar Ulang */}
-                          <div className="pt-2.5 border-t border-slate-200/80">
-                            <div className="flex items-center justify-between text-xs mb-1.5">
-                              <span className="font-bold text-slate-800 text-[11px] flex items-center gap-1">
-                                <DollarSign className="w-3.5 h-3.5 text-[#1E3A8A]" />
-                                <span>Biaya Daftar Ulang:</span>
-                              </span>
-                              <span className="font-mono font-black text-[#1E3A8A] text-xs">
-                                {formatRupiah(totalReReg)}
-                              </span>
-                            </div>
-
-                            {fees && fees.length > 0 && (
-                              <div className="space-y-1 bg-white p-2.5 rounded-lg border border-slate-200/70 text-[11px]">
-                                {fees.map((fee, fIdx) => (
-                                  <div key={fIdx} className="flex items-start justify-between gap-2 text-slate-600">
-                                    <span className="truncate" title={fee.name}>
-                                      &bull; {fee.name}
-                                    </span>
-                                    <span className="font-mono font-semibold text-slate-800 shrink-0">
-                                      {formatRupiah(fee.amount)}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
                           </div>
                         </div>
 
@@ -666,8 +558,7 @@ export default async function PmbPage() {
                         </Link>
                       </div>
                     </div>
-                  );
-                })}
+                  ))}
               </div>
             )}
           </div>

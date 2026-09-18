@@ -13,12 +13,14 @@ import { MailService } from '../../shared/mail/mail.service';
 import { RegisterApplicantDto } from './dto/register-applicant.dto';
 import { QueryApplicantsDto, UpdateApplicantStatusDto } from './dto/admin-applicant.dto';
 import { AdmissionStatus, AdmissionStatsSummary } from '@siakad/types';
+import { PmbService } from './pmb.service';
 
 @Injectable()
 export class AdmissionsService {
   constructor(
     private prisma: PrismaService,
     private mailService: MailService,
+    private pmbService: PmbService,
   ) {}
 
   /**
@@ -453,23 +455,72 @@ export class AdmissionsService {
     const skip = (Number(page) - 1) * Number(limit);
     const take = Number(limit);
 
-    const where: any = {};
-
-    if (status && status !== 'ALL') {
-      where.status = status;
-    }
-
-    if (prodi && prodi !== 'ALL') {
-      where.chosenStudyProgram = { contains: prodi, mode: 'insensitive' };
-    }
-
-    if (jalur && jalur !== 'ALL') {
-      where.jalurPendaftaran = { contains: jalur, mode: 'insensitive' };
-    }
-
+    // 1. Ambil pendaftar dari modul PMB baru (AdmissionApplication)
+    const newAppsWhere: any = { formStatus: 'SUBMITTED' };
     if (search && search.trim()) {
       const term = search.trim();
-      where.OR = [
+      newAppsWhere.OR = [
+        { registrationNumber: { contains: term, mode: 'insensitive' } },
+        { fullName: { contains: term, mode: 'insensitive' } },
+        { email: { contains: term, mode: 'insensitive' } },
+        { phone: { contains: term } },
+        { schoolName: { contains: term, mode: 'insensitive' } },
+      ];
+    }
+    if (status && status !== 'ALL') {
+      if (status === 'PENDING') newAppsWhere.verificationStatus = 'UNVERIFIED';
+      else if (status === 'VERIFIED') newAppsWhere.verificationStatus = 'VERIFIED';
+      else if (status === 'PASSED') newAppsWhere.selectionStatus = 'PASSED';
+      else if (status === 'FAILED') newAppsWhere.selectionStatus = 'FAILED';
+      else if (status === 'REGISTERED') newAppsWhere.studentId = { not: null };
+    }
+
+    const newApps = await this.prisma.admissionApplication.findMany({
+      where: newAppsWhere,
+      include: {
+        account: true,
+        studyProgram: true,
+        track: true,
+        wave: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const formattedNewApps = newApps.map((a) => {
+      let st = 'PENDING';
+      if (a.studentId) st = 'REGISTERED';
+      else if (a.selectionStatus === 'PASSED') st = 'PASSED';
+      else if (a.selectionStatus === 'FAILED') st = 'FAILED';
+      else if (a.verificationStatus === 'VERIFIED') st = 'VERIFIED';
+
+      return {
+        id: a.id,
+        registrationNumber: a.registrationNumber || '-',
+        fullName: a.fullName || a.account?.fullName || '-',
+        email: a.email || a.account?.email || '-',
+        phone: a.phone || a.account?.whatsapp || '-',
+        highSchool: a.schoolName || '-',
+        chosenStudyProgram: a.studyProgram?.name || 'Belum Dipilih',
+        jalurPendaftaran: a.track?.name || 'Jalur Reguler',
+        status: st as any,
+        testScore: a.testScore,
+        birthDate: a.birthDate,
+        gender: a.gender,
+        address: a.address,
+        notes: a.selectionNotes || a.verificationNote,
+        verifiedAt: a.verifiedAt?.toISOString() || null,
+        createdAt: a.createdAt,
+      };
+    });
+
+    // 2. Ambil dari legacy jika ada
+    const legacyWhere: any = {};
+    if (status && status !== 'ALL') legacyWhere.status = status;
+    if (prodi && prodi !== 'ALL') legacyWhere.chosenStudyProgram = { contains: prodi, mode: 'insensitive' };
+    if (jalur && jalur !== 'ALL') legacyWhere.jalurPendaftaran = { contains: jalur, mode: 'insensitive' };
+    if (search && search.trim()) {
+      const term = search.trim();
+      legacyWhere.OR = [
         { registrationNumber: { contains: term, mode: 'insensitive' } },
         { fullName: { contains: term, mode: 'insensitive' } },
         { email: { contains: term, mode: 'insensitive' } },
@@ -478,18 +529,17 @@ export class AdmissionsService {
       ];
     }
 
-    const [applicants, total] = await Promise.all([
-      this.prisma.admissionApplicant.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take,
-      }),
-      this.prisma.admissionApplicant.count({ where }),
-    ]);
+    const legacyApplicants = await this.prisma.admissionApplicant.findMany({
+      where: legacyWhere,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const combined = [...formattedNewApps, ...legacyApplicants];
+    const total = combined.length;
+    const paginated = combined.slice(skip, skip + take);
 
     return {
-      data: applicants,
+      data: paginated,
       meta: {
         total,
         page: Number(page),
@@ -579,15 +629,13 @@ export class AdmissionsService {
       tanggalBuka: activeBatch?.startDate || '1 Agustus 2026',
       tanggalTutup: activeBatch?.endDate || '30 November 2026',
       totalPendaftar: stats.totalApplicants,
-      totalLolosSeleksi: stats.passedCount + stats.registeredCount,
-      jalurTersedia: (activeBatch?.availableJalur && activeBatch.availableJalur.length > 0)
-        ? activeBatch.availableJalur
-        : [
-            'Jalur Prestasi Akademik & Lomba',
-            'Jalur Nilai Rapor & Portofolio',
-            'Jalur Mandiri Online (CBT)',
-            'KIP-K & Beasiswa Nusantara',
-          ],
+      totalLolosSeleksi: (stats.passedCount || 0) + (stats.registeredCount || 0),
+      jalurTersedia: [
+        'Jalur Prestasi Akademik & Lomba',
+        'Jalur Nilai Rapor & Portofolio',
+        'Jalur Mandiri Online (CBT)',
+        'KIP-K & Beasiswa Nusantara',
+      ],
       stats,
     };
   }
@@ -600,6 +648,43 @@ export class AdmissionsService {
       where: { id },
     });
     if (!applicant) {
+      const app = await this.prisma.admissionApplication.findUnique({
+        where: { id },
+        include: { account: true, studyProgram: true, track: true, wave: true, payments: true },
+      });
+      if (app) {
+        let st = 'PENDING';
+        if (app.studentId) st = 'REGISTERED';
+        else if (app.selectionStatus === 'PASSED') st = 'PASSED';
+        else if (app.selectionStatus === 'FAILED') st = 'FAILED';
+        else if (app.verificationStatus === 'VERIFIED') st = 'VERIFIED';
+
+        return {
+          id: app.id,
+          registrationNumber: app.registrationNumber || '-',
+          fullName: app.fullName || app.account?.fullName || '-',
+          email: app.email || app.account?.email || '-',
+          phone: app.phone || app.account?.whatsapp || '-',
+          highSchool: app.schoolName || '-',
+          chosenStudyProgram: app.studyProgram?.name || 'Belum Dipilih',
+          jalurPendaftaran: app.track?.name || 'Jalur Reguler',
+          status: st as any,
+          testScore: app.testScore,
+          birthDate: app.birthDate,
+          gender: app.gender,
+          address: app.address,
+          notes: app.selectionNotes || app.verificationNote,
+          verifiedAt: app.verifiedAt?.toISOString() || null,
+          documents: {
+            fileKtp: app.fileKtp,
+            fileKk: app.fileKk,
+            fileIjazah: app.fileIjazah,
+            fileFoto: app.fileFoto,
+            fileTambahan: app.fileTambahan,
+          },
+          payments: app.payments,
+        };
+      }
       throw new NotFoundException('Data pendaftar tidak ditemukan di database.');
     }
     return applicant;
@@ -613,6 +698,32 @@ export class AdmissionsService {
       where: { id },
     });
     if (!applicant) {
+      const app = await this.prisma.admissionApplication.findUnique({ where: { id } });
+      if (app) {
+        if (dto.status === 'VERIFIED') {
+          return this.pmbService.verifyDocument(id, {
+            status: 'VERIFIED',
+            verifiedBy: dto.verifiedBy || 'Admin PMB',
+          });
+        } else if (dto.status === 'PASSED' || dto.status === 'FAILED') {
+          return this.pmbService.setSelectionDecision(id, {
+            selectionStatus: dto.status as any,
+            testScore: dto.testScore,
+            selectionNotes: dto.notes,
+          });
+        } else if (dto.status === 'REGISTERED') {
+          return this.pmbService.convertToStudent(id);
+        }
+
+        return this.prisma.admissionApplication.update({
+          where: { id },
+          data: {
+            ...(dto.testScore !== undefined ? { testScore: dto.testScore } : {}),
+            ...(dto.notes !== undefined ? { selectionNotes: dto.notes } : {}),
+            ...(dto.verifiedBy ? { verifiedBy: dto.verifiedBy, verifiedAt: new Date() } : {}),
+          },
+        });
+      }
       throw new NotFoundException('Data calon mahasiswa tidak ditemukan.');
     }
 
@@ -724,6 +835,11 @@ export class AdmissionsService {
       where: { id },
     });
     if (!applicant) {
+      const app = await this.prisma.admissionApplication.findUnique({ where: { id } });
+      if (app) {
+        await this.prisma.admissionApplication.delete({ where: { id } });
+        return { success: true, message: `Pendaftar ${app.fullName} (${app.registrationNumber}) berhasil dihapus.` };
+      }
       throw new NotFoundException('Data calon mahasiswa tidak ditemukan.');
     }
 
@@ -739,6 +855,10 @@ export class AdmissionsService {
       where: { id },
     });
     if (!applicant) {
+      const app = await this.prisma.admissionApplication.findUnique({ where: { id } });
+      if (app) {
+        return this.pmbService.convertToStudent(id);
+      }
       throw new NotFoundException('Data calon mahasiswa tidak ditemukan.');
     }
 
@@ -871,6 +991,27 @@ export class AdmissionsService {
 
     if (!applicant) {
       throw new NotFoundException('Nomor Registrasi atau Email pendaftar tidak ditemukan di database.');
+    }
+
+    // Auto-sync ke tabel pmb_accounts agar kompatibel penuh dengan dashboard PMB
+    try {
+      await this.prisma.pmbAccount.upsert({
+        where: { email: applicant.email.toLowerCase() },
+        update: {
+          fullName: applicant.fullName,
+          whatsapp: applicant.phone || '081200000000',
+        },
+        create: {
+          id: applicant.id,
+          fullName: applicant.fullName,
+          email: applicant.email.toLowerCase(),
+          whatsapp: applicant.phone || '081200000000',
+          passwordHash: 'legacy_account_sync',
+          isEmailVerified: true,
+        },
+      });
+    } catch (e) {
+      // ignore sync error
     }
 
     return {
@@ -1103,25 +1244,6 @@ export class AdmissionsService {
    * Mengambil daftar gelombang pendaftaran langsung dari tabel admission_batches di PostgreSQL
    */
   async getBatches() {
-    const defaultS1EarlyFees = [
-      { id: 'fee-1', name: 'SPP / UKT Tetap Semester 1', amount: 3500000, note: 'Biaya kuliah pokok semester pertama' },
-      { id: 'fee-2', name: 'Biaya Pengembangan Institusi (Diskon Early Bird 50%)', amount: 2500000, note: 'Dapat diangsur 2x' },
-      { id: 'fee-3', name: 'PKKMB, Jas Almamater & Atribut Kampus', amount: 850000, note: 'Paket resmi mahasiswa baru' },
-      { id: 'fee-4', name: 'Layanan TI, Perpustakaan & Asuransi Mahasiswa', amount: 450000, note: 'Akses portal, WiFi & asuransi' },
-    ];
-    const defaultS1RegulerFees = [
-      { id: 'fee-1', name: 'SPP / UKT Tetap Semester 1', amount: 3500000, note: 'Biaya kuliah pokok semester pertama' },
-      { id: 'fee-2', name: 'Biaya Pengembangan Institusi (DPP)', amount: 4500000, note: 'Dapat diangsur 2x' },
-      { id: 'fee-3', name: 'PKKMB, Jas Almamater & Atribut Kampus', amount: 850000, note: 'Paket resmi mahasiswa baru' },
-      { id: 'fee-4', name: 'Layanan TI, Perpustakaan & Asuransi Mahasiswa', amount: 450000, note: 'Akses portal, WiFi & asuransi' },
-    ];
-    const defaultS1FinalFees = [
-      { id: 'fee-1', name: 'SPP / UKT Tetap Semester 1', amount: 3500000, note: 'Biaya kuliah pokok semester pertama' },
-      { id: 'fee-2', name: 'Biaya Pengembangan Institusi (DPP Normal)', amount: 5500000, note: 'Dapat diangsur 2x' },
-      { id: 'fee-3', name: 'PKKMB, Jas Almamater & Atribut Kampus', amount: 850000, note: 'Paket resmi mahasiswa baru' },
-      { id: 'fee-4', name: 'Layanan TI, Perpustakaan & Asuransi Mahasiswa', amount: 450000, note: 'Akses portal, WiFi & asuransi' },
-    ];
-
     // Inisialisasi awal ke database jika tabel masih kosong
     const count = await this.prisma.admissionBatch.count();
     if (count === 0) {
@@ -1133,21 +1255,10 @@ export class AdmissionsService {
             jenjang: 'S1',
             startDate: '2026-08-01',
             endDate: '2026-11-30',
-            examDate: '2026-12-05',
-            announcementDate: '2026-12-10',
-            registrationFee: 200000,
-            reRegistrationFee: 7300000,
-            reRegistrationFees: defaultS1EarlyFees,
             quota: 350,
-            availableJalur: [
-              'Jalur Prestasi Akademik (Bebas Tes)',
-              'Jalur Nilai Rapor & Portofolio',
-              'Jalur Mandiri Online (CBT)',
-              'KIP-K & Beasiswa Nusantara',
-            ],
             status: 'OPEN',
             isDefault: true,
-            description: 'Pendaftaran gelombang pembuka dengan potongan biaya formulir & beasiswa berprestasi.',
+            description: 'Pendaftaran gelombang pembuka tahun akademik 2027/2028.',
           },
           {
             name: 'Gelombang 2 (Reguler)',
@@ -1155,19 +1266,10 @@ export class AdmissionsService {
             jenjang: 'S1',
             startDate: '2026-12-01',
             endDate: '2027-03-31',
-            examDate: '2027-04-05',
-            announcementDate: '2027-04-10',
-            registrationFee: 250000,
-            reRegistrationFee: 9300000,
-            reRegistrationFees: defaultS1RegulerFees,
             quota: 400,
-            availableJalur: [
-              'Jalur Mandiri Online (CBT)',
-              'Jalur Nilai Rapor & Portofolio',
-            ],
             status: 'UPCOMING',
             isDefault: false,
-            description: 'Pendaftaran reguler semester genap dengan seleksi CBT daring.',
+            description: 'Pendaftaran reguler mahasiswa baru.',
           },
           {
             name: 'Gelombang 3 (Terakhir)',
@@ -1175,13 +1277,7 @@ export class AdmissionsService {
             jenjang: 'S1',
             startDate: '2027-04-01',
             endDate: '2027-07-31',
-            examDate: '2027-08-05',
-            announcementDate: '2027-08-10',
-            registrationFee: 300000,
-            reRegistrationFee: 10300000,
-            reRegistrationFees: defaultS1FinalFees,
             quota: 250,
-            availableJalur: ['Jalur Mandiri Online (CBT)'],
             status: 'UPCOMING',
             isDefault: false,
             description: 'Gelombang penutup kuota penerimaan mahasiswa baru.',
@@ -1190,63 +1286,47 @@ export class AdmissionsService {
       });
     }
 
-    const [batches, totalApplicants] = await Promise.all([
+    const [batches, totalApplicants, studyPrograms] = await Promise.all([
       this.prisma.admissionBatch.findMany({
         orderBy: [{ isDefault: 'desc' }, { startDate: 'asc' }],
       }),
       this.prisma.admissionApplicant.count(),
+      this.prisma.studyProgram.findMany({
+        select: { degreeLevel: true },
+        distinct: ['degreeLevel'],
+      }),
     ]);
 
     const activeBatch =
       batches.find((b) => b.isDefault) || batches.find((b) => b.status === 'OPEN') || batches[0];
 
-    const data = batches.map((b: any) => {
-      let fees = Array.isArray(b.reRegistrationFees) && b.reRegistrationFees.length > 0
-        ? b.reRegistrationFees
-        : null;
+    const data = batches.map((b) => ({
+      ...b,
+      applicantCount: b.isDefault ? totalApplicants : 0,
+    }));
 
-      if (!fees) {
-        const j = b.jenjang?.toUpperCase() || 'S1';
-        if (j === 'S2') {
-          fees = [
-            { id: 'fee-1', name: 'Biaya Matrikulasi Pascasarjana', amount: 2500000, note: 'Sekali bayar di awal' },
-            { id: 'fee-2', name: 'SPP / UKT Tetap Semester 1 (S2)', amount: 6500000, note: 'Biaya kuliah semester 1' },
-            { id: 'fee-3', name: 'Dana Pengembangan Akademik & Riset', amount: 3000000, note: 'Dapat diangsur 2x' },
-            { id: 'fee-4', name: 'Layanan Perpustakaan Digital & Lab Riset', amount: 800000, note: 'Akses jurnal internasional' },
-          ];
-        } else if (j === 'S3') {
-          fees = [
-            { id: 'fee-1', name: 'Biaya Ujian Kualifikasi & Matrikulasi', amount: 3500000, note: 'Sekali bayar' },
-            { id: 'fee-2', name: 'SPP / UKT Tetap Semester 1 (S3)', amount: 10000000, note: 'Biaya kuliah semester 1' },
-            { id: 'fee-3', name: 'Dana Kolaborasi Riset & Hibah Publikasi', amount: 5000000, note: 'Dapat diangsur' },
-            { id: 'fee-4', name: 'Fasilitas Laboratorium Riset Doktoral', amount: 1500000, note: 'Akses fasilitas riset penuh' },
-          ];
-        } else {
-          const isEarly = b.name.toLowerCase().includes('early') || b.name.toLowerCase().includes('1');
-          const isReg = b.name.toLowerCase().includes('2');
-          fees = isEarly ? defaultS1EarlyFees : isReg ? defaultS1RegulerFees : defaultS1FinalFees;
-        }
-      }
-
-      const totalReReg = Number(b.reRegistrationFee) > 0
-        ? Number(b.reRegistrationFee)
-        : fees.reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0);
-
-      return {
-        ...b,
-        reRegistrationFee: totalReReg,
-        reRegistrationFees: fees,
-        applicantCount: b.isDefault ? totalApplicants : 0,
-      };
+    // Ambil daftar jenjang unik langsung dari database (admission_batches & study_programs)
+    const jenjangSet = new Set<string>();
+    batches.forEach((b) => {
+      if (b.jenjang?.trim()) jenjangSet.add(b.jenjang.trim().toUpperCase());
     });
+    studyPrograms.forEach((p) => {
+      if (p.degreeLevel) jenjangSet.add(p.degreeLevel.toUpperCase());
+    });
+    if (jenjangSet.size === 0) {
+      ['S1', 'S2', 'S3', 'D3'].forEach((j) => jenjangSet.add(j));
+    }
+    const order: Record<string, number> = { D3: 1, D4: 2, S1: 3, S2: 4, S3: 5, PROFESI: 6 };
+    const jenjangList = Array.from(jenjangSet).sort((a, b) => (order[a] || 99) - (order[b] || 99));
 
     return {
       summary: {
         totalBatches: batches.length,
         activeBatchName: activeBatch ? activeBatch.name : '-',
-        totalQuota: batches.reduce((acc, curr) => acc + curr.quota, 0),
+        totalQuota: batches.reduce((acc, curr) => acc + (curr.quota || 0), 0),
         totalApplicants,
       },
+      availableJenjang: ['Semua', ...jenjangList],
       data,
     };
   }
@@ -1268,11 +1348,6 @@ export class AdmissionsService {
       });
     }
 
-    const reRegistrationFees = Array.isArray(data.reRegistrationFees) ? data.reRegistrationFees : [];
-    const reRegistrationFee = data.reRegistrationFee !== undefined && Number(data.reRegistrationFee) > 0
-      ? Number(data.reRegistrationFee)
-      : reRegistrationFees.reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0);
-
     const newBatch = await this.prisma.admissionBatch.create({
       data: {
         name: data.name.trim(),
@@ -1280,16 +1355,9 @@ export class AdmissionsService {
         jenjang: data.jenjang?.trim() || 'S1',
         startDate: data.startDate,
         endDate: data.endDate,
-        examDate: data.examDate || '-',
-        announcementDate: data.announcementDate || '-',
-        registrationFee: Number(data.registrationFee) || 0,
-        reRegistrationFee,
-        reRegistrationFees,
         quota: Number(data.quota) || 100,
-        availableJalur:
-          Array.isArray(data.availableJalur) && data.availableJalur.length > 0
-            ? data.availableJalur
-            : ['Jalur Mandiri Online (CBT)'],
+        registrationFee: data.registrationFee !== undefined && data.registrationFee !== null ? Number(data.registrationFee) : 250000,
+        reRegistrationFee: data.reRegistrationFee !== undefined && data.reRegistrationFee !== null ? Number(data.reRegistrationFee) : 7300000,
         status: data.status || 'UPCOMING',
         isDefault,
         description: data.description?.trim() || '',
@@ -1327,24 +1395,9 @@ export class AdmissionsService {
     if (data.jenjang) updateData.jenjang = data.jenjang.trim();
     if (data.startDate) updateData.startDate = data.startDate;
     if (data.endDate) updateData.endDate = data.endDate;
-    if (data.examDate !== undefined) updateData.examDate = data.examDate;
-    if (data.announcementDate !== undefined) updateData.announcementDate = data.announcementDate;
-    if (data.registrationFee !== undefined) updateData.registrationFee = Number(data.registrationFee);
-    if (data.reRegistrationFees !== undefined) {
-      updateData.reRegistrationFees = data.reRegistrationFees;
-      if (data.reRegistrationFee === undefined && Array.isArray(data.reRegistrationFees)) {
-        updateData.reRegistrationFee = data.reRegistrationFees.reduce(
-          (sum: number, item: any) => sum + (Number(item.amount) || 0),
-          0,
-        );
-      }
-    }
-    if (data.reRegistrationFee !== undefined) {
-      updateData.reRegistrationFee = Number(data.reRegistrationFee);
-    }
     if (data.quota !== undefined) updateData.quota = Number(data.quota);
-    if (data.availableJalur && Array.isArray(data.availableJalur))
-      updateData.availableJalur = data.availableJalur;
+    if (data.registrationFee !== undefined && data.registrationFee !== null) updateData.registrationFee = Number(data.registrationFee);
+    if (data.reRegistrationFee !== undefined && data.reRegistrationFee !== null) updateData.reRegistrationFee = Number(data.reRegistrationFee);
     if (data.status) updateData.status = data.status;
     if (data.description !== undefined) updateData.description = data.description;
     if (data.isDefault !== undefined) updateData.isDefault = Boolean(data.isDefault);

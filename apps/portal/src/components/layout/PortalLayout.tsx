@@ -11,6 +11,7 @@ import {
   getRoleRedirectPath,
   AuthUser,
 } from '@/lib/auth';
+import { getApiBaseUrl } from '@/lib/api';
 import {
   GraduationCap,
   LayoutDashboard,
@@ -68,8 +69,8 @@ import {
 interface PortalLayoutProps {
   children: React.ReactNode;
   role: 'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' | 'lp3m' | 'pmb';
-  userName: string;
-  userIdText: string;
+  userName?: string;
+  userIdText?: string;
   activeMenuHref?: string;
 }
 
@@ -84,6 +85,13 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
   const [isVerifying, setIsVerifying] = useState(true);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const profileDropdownRef = React.useRef<HTMLDivElement>(null);
+
+  // Edit Profile Modal State
+  const [editProfileModalOpen, setEditProfileModalOpen] = useState(false);
+  const [editFullName, setEditFullName] = useState('');
+  const [editAvatarUrl, setEditAvatarUrl] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileSuccessMsg, setProfileSuccessMsg] = useState('');
 
   const toggleSidebar = () => {
     setSidebarOpen((prev) => {
@@ -175,6 +183,58 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
   const handleLogout = () => {
     clearAuthSession();
     router.push('/login');
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editFullName.trim()) return;
+
+    setIsSavingProfile(true);
+    try {
+      const { user } = getAuthSession();
+      const updatedUser: AuthUser = {
+        ...(user || {
+          id: 'user-' + Date.now(),
+          email: displayId.includes('@') ? displayId : 'admin.pmb@itn.ac.id',
+          role: 'ADMIN_PMB',
+        }),
+        fullName: editFullName.trim(),
+        avatarUrl: editAvatarUrl.trim() || null,
+      };
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('siakad_user', JSON.stringify(updatedUser));
+        window.dispatchEvent(new Event('siakad_profile_updated'));
+      }
+      setCurrentUser(updatedUser);
+
+      try {
+        const apiBase = getApiBaseUrl();
+        await fetch(`${apiBase}/auth/me`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': updatedUser.id,
+          },
+          body: JSON.stringify({
+            fullName: updatedUser.fullName,
+            avatarUrl: updatedUser.avatarUrl,
+          }),
+        });
+      } catch {
+        // local state update is sufficient if backend is in dev mode
+      }
+
+      setProfileSuccessMsg('Profil berhasil diperbarui!');
+      setTimeout(() => {
+        setEditProfileModalOpen(false);
+        setProfileSuccessMsg('');
+      }, 700);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   const studentNavGroups = [
@@ -309,6 +369,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         { name: 'Penerimaan SPP & UKT', href: '/finance/penerimaan', icon: CreditCard },
         { name: 'Daftar Tagihan Mahasiswa', href: '/finance/tagihan', icon: FileText },
         { name: 'Verifikasi Pembayaran', href: '/finance/verifikasi', icon: ShieldCheck },
+        { name: 'Aturan Biaya Perkuliahan', href: '/finance/aturan-pembiayaan', icon: BookOpen },
       ],
     },
     {
@@ -361,10 +422,11 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       title: 'SELEKSI & PENDAFTARAN',
       items: [
         { name: 'Gelombang Pendaftaran', href: '/admin/pmb/gelombang', icon: CalendarDays },
+        { name: 'Jalur, Jenis & Kelas', href: '/admin/pmb/jalur', icon: Layers },
         { name: 'Data Calon Mahasiswa', href: '/admin/pmb/pendaftar', icon: Users },
         { name: 'Verifikasi Berkas', href: '/admin/pmb/verifikasi', icon: CheckCircle2 },
-        { name: 'Ujian & Seleksi CBT', href: '/admin/pmb/seleksi', icon: Award },
         { name: 'Kelulusan & Registrasi', href: '/admin/pmb/kelulusan', icon: GraduationCap },
+        { name: 'Pembayaran & Keuangan', href: '/admin/pmb/biaya', icon: CreditCard },
         { name: 'Data Affiliate', href: '/admin/pmb/affiliate', icon: Share2 },
       ],
     },
@@ -412,7 +474,22 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                 ? 'Panitia PMB (Admissions)'
                 : 'Administrator BAAK';
 
-  const displayName = currentUser?.fullName || userName;
+  const defaultNameByRole =
+    effectiveRole === 'student'
+      ? 'Mahasiswa ITN'
+      : effectiveRole === 'lecturer'
+        ? 'Dosen Pengajar ITN'
+        : effectiveRole === 'superadmin'
+          ? 'Super Administrator'
+          : effectiveRole === 'finance'
+            ? 'Biro Keuangan'
+            : effectiveRole === 'lp3m'
+              ? 'Pengelola / Reviewer LP3M'
+              : effectiveRole === 'pmb'
+                ? 'Panitia PMB ITN'
+                : 'Administrator BAAK';
+
+  const displayName = currentUser?.fullName || userName || defaultNameByRole;
   const displayAvatar = currentUser?.avatarUrl;
   const displayId =
     currentUser?.email ||
@@ -535,10 +612,20 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         {/* User Card Bottom */}
         <div className="p-4 border-t border-slate-800 bg-[#0A0F1D] shrink-0">
           <div className="flex items-center justify-between">
-            <Link
-              href={effectiveRole === 'student' ? '/student/profil' : effectiveRole === 'lecturer' ? '/lecturer' : '/admin'}
-              className="flex items-center gap-2.5 overflow-hidden group hover:opacity-90 transition-opacity"
-              title="Lihat Profil"
+            <button
+              type="button"
+              onClick={() => {
+                if (effectiveRole === 'student') {
+                  router.push('/student/profil');
+                } else {
+                  setEditFullName(currentUser?.fullName || displayName);
+                  setEditAvatarUrl(currentUser?.avatarUrl || '');
+                  setProfileSuccessMsg('');
+                  setEditProfileModalOpen(true);
+                }
+              }}
+              className="flex items-center gap-2.5 overflow-hidden group hover:opacity-90 transition-opacity text-left cursor-pointer"
+              title="Lihat & Edit Profil"
             >
               <div className="w-8 h-8 rounded-full overflow-hidden bg-[#1E3A8A] border border-[#D4A017] text-white flex items-center justify-center font-bold text-xs shrink-0">
                 {displayAvatar ? (
@@ -553,7 +640,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                 </p>
                 <p className="text-[10px] text-slate-400 truncate">{displayId}</p>
               </div>
-            </Link>
+            </button>
             <button
               onClick={handleLogout}
               className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
@@ -652,7 +739,9 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                             ? 'Super Admin'
                             : effectiveRole === 'finance'
                               ? 'Biro Keuangan'
-                              : 'Admin BAAK'}
+                              : effectiveRole === 'pmb'
+                                ? 'Panitia PMB'
+                                : 'Admin BAAK'}
                   </span>
                 </div>
 
@@ -681,7 +770,17 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                         <p className="text-xs font-bold text-slate-900 truncate">{displayName}</p>
                         <p className="text-[11px] text-slate-500 truncate">{displayId}</p>
                         <span className="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-[#1E3A8A]">
-                          {effectiveRole === 'student' ? 'Mahasiswa Aktif' : effectiveRole === 'finance' ? 'Biro Keuangan' : effectiveRole.toUpperCase()}
+                          {effectiveRole === 'student'
+                            ? 'Mahasiswa Aktif'
+                            : effectiveRole === 'finance'
+                              ? 'Biro Keuangan'
+                              : effectiveRole === 'pmb'
+                                ? 'Panitia PMB'
+                                : effectiveRole === 'lp3m'
+                                  ? 'LP3M'
+                                  : effectiveRole === 'superadmin'
+                                    ? 'Super Admin'
+                                    : 'Admin BAAK'}
                         </span>
                       </div>
                     </div>
@@ -689,14 +788,31 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
 
                   {/* Menu Links */}
                   <div className="px-2 py-1.5 space-y-1">
-                    <Link
-                      href={effectiveRole === 'student' ? '/student/profil' : effectiveRole === 'lecturer' ? '/lecturer' : effectiveRole === 'finance' ? '/finance' : '/admin'}
-                      onClick={() => setProfileDropdownOpen(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:text-[#1E3A8A] hover:bg-blue-50/70 rounded-xl transition-all"
-                    >
-                      <User className="w-4 h-4 text-slate-400" />
-                      <span>Lihat & Ganti Profil</span>
-                    </Link>
+                    {effectiveRole === 'student' ? (
+                      <Link
+                        href="/student/profil"
+                        onClick={() => setProfileDropdownOpen(false)}
+                        className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:text-[#1E3A8A] hover:bg-blue-50/70 rounded-xl transition-all"
+                      >
+                        <User className="w-4 h-4 text-slate-400" />
+                        <span>Lihat & Ganti Profil</span>
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProfileDropdownOpen(false);
+                          setEditFullName(currentUser?.fullName || displayName);
+                          setEditAvatarUrl(currentUser?.avatarUrl || '');
+                          setProfileSuccessMsg('');
+                          setEditProfileModalOpen(true);
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:text-[#1E3A8A] hover:bg-blue-50/70 rounded-xl transition-all text-left cursor-pointer"
+                      >
+                        <User className="w-4 h-4 text-slate-400" />
+                        <span>Lihat & Ganti Profil</span>
+                      </button>
+                    )}
 
                     {effectiveRole === 'student' && (
                       <Link
@@ -745,6 +861,119 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         {/* Page Content */}
         <main className="p-4 sm:p-8 flex-1 overflow-auto">{children}</main>
       </div>
+
+      {/* Modal Edit Profil Pengguna */}
+      {editProfileModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Pengaturan Profil Pengguna</h3>
+                <p className="text-xs text-slate-500">Perbarui identitas profil yang tampil di sistem</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditProfileModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-200/60 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProfile} className="p-6 space-y-4">
+              {profileSuccessMsg && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{profileSuccessMsg}</span>
+                </div>
+              )}
+
+              {/* Avatar Preview */}
+              <div className="flex items-center gap-4 p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                <div className="w-14 h-14 rounded-full overflow-hidden bg-[#1E3A8A] border-2 border-[#D4A017] text-white flex items-center justify-center font-bold text-lg shrink-0 shadow-sm">
+                  {editAvatarUrl.trim() ? (
+                    <img
+                      src={editAvatarUrl.trim()}
+                      alt={editFullName || displayName}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    (editFullName || displayName).charAt(0).toUpperCase()
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="block text-xs font-bold text-slate-900 truncate">
+                    {editFullName || displayName}
+                  </span>
+                  <span className="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-[#1E3A8A]">
+                    {effectiveRole === 'pmb' ? 'Panitia PMB' : roleLabel}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Nama Lengkap & Gelar
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editFullName}
+                  onChange={(e) => setEditFullName(e.target.value)}
+                  placeholder="Masukkan nama lengkap Anda..."
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Email Akun (Identitas)
+                </label>
+                <input
+                  type="text"
+                  disabled
+                  value={displayId}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  URL Foto Avatar (Opsional)
+                </label>
+                <input
+                  type="url"
+                  value={editAvatarUrl}
+                  onChange={(e) => setEditAvatarUrl(e.target.value)}
+                  placeholder="https://example.com/avatar.jpg"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Kosongkan jika ingin menggunakan inisial nama otomatis.</p>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditProfileModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingProfile || !editFullName.trim()}
+                  className="px-4 py-2 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-[#172554] rounded-xl transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+                >
+                  {isSavingProfile ? 'Menyimpan...' : 'Simpan Perubahan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
