@@ -350,7 +350,7 @@ export default function PmbGelombangPage() {
       role="pmb"
       activeMenuHref="/admin/pmb/gelombang"
     >
-      <div className="space-y-6 max-w-7xl mx-auto pb-12">
+      <div className="w-full space-y-6 pb-12">
         {/* HEADER */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
           <div className="flex items-start gap-4">
@@ -684,10 +684,11 @@ export default function PmbGelombangPage() {
             </table>
           </div>
         </div>
+      </div>
 
         {/* MODAL TAMBAH / EDIT GELOMBANG (TERMASUK BIAYA PENDAFTARAN & DAFTAR ULANG) */}
         {modalOpen && (
-          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in !m-0">
             <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden">
               {/* MODAL HEADER */}
               <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
@@ -936,7 +937,6 @@ export default function PmbGelombangPage() {
           cancelText={dialogState.cancelText}
           isAlert={dialogState.isAlert}
         />
-      </div>
     </PortalLayout>
   );
 }

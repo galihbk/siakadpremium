@@ -172,7 +172,7 @@ export default function VerifikasiPage() {
       role="pmb"
       activeMenuHref="/admin/pmb/verifikasi"
     >
-      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+      <div className="w-full space-y-6">
         {/* Header */}
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-subtle p-5 sm:p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -417,78 +417,78 @@ export default function VerifikasiPage() {
             ))
           )}
         </div>
+      </div>
 
-        {/* Modal Konfirmasi Verifikasi */}
-        {verifyModalOpen && selectedApplicant && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 className="text-base font-bold text-slate-900">
-                  {actionType === 'APPROVE' ? 'Setujui Verifikasi Berkas' : 'Tolak Berkas Pendaftar'}
-                </h3>
-                <button
-                  onClick={() => setVerifyModalOpen(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+      {/* Modal Konfirmasi Verifikasi */}
+      {verifyModalOpen && selectedApplicant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150 !m-0">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-base font-bold text-slate-900">
+                {actionType === 'APPROVE' ? 'Setujui Verifikasi Berkas' : 'Tolak Berkas Pendaftar'}
+              </h3>
+              <button
+                onClick={() => setVerifyModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleExecuteVerification} className="space-y-3.5 text-xs">
+              <div className="p-3 bg-slate-50 rounded-xl space-y-1">
+                <p className="font-bold text-slate-900 text-sm">{selectedApplicant.fullName}</p>
+                <p className="text-slate-500 font-mono text-[11px]">{selectedApplicant.registrationNumber}</p>
+                <p className="text-slate-600 font-medium">{selectedApplicant.chosenStudyProgram}</p>
               </div>
 
-              <form onSubmit={handleExecuteVerification} className="space-y-3.5 text-xs">
-                <div className="p-3 bg-slate-50 rounded-xl space-y-1">
-                  <p className="font-bold text-slate-900 text-sm">{selectedApplicant.fullName}</p>
-                  <p className="text-slate-500 font-mono text-[11px]">{selectedApplicant.registrationNumber}</p>
-                  <p className="text-slate-600 font-medium">{selectedApplicant.chosenStudyProgram}</p>
-                </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Catatan Hasil Verifikasi</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={actionNotes}
+                  onChange={(e) => setActionNotes(e.target.value)}
+                  placeholder="Berikan alasan atau catatan verifikasi..."
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 text-xs"
+                />
+              </div>
 
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Catatan Hasil Verifikasi</label>
-                  <textarea
-                    rows={3}
-                    required
-                    value={actionNotes}
-                    onChange={(e) => setActionNotes(e.target.value)}
-                    placeholder="Berikan alasan atau catatan verifikasi..."
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 text-xs"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setVerifyModalOpen(false)}
-                    className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition-colors"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className={`px-5 py-2 rounded-xl text-white font-bold transition-colors disabled:opacity-50 ${
-                      actionType === 'APPROVE' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'
-                    }`}
-                  >
-                    {isSubmitting ? 'Memproses...' : actionType === 'APPROVE' ? 'Setujui Berkas' : 'Tolak Berkas'}
-                  </button>
-                </div>
-              </form>
-            </div>
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setVerifyModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className={`px-5 py-2 rounded-xl text-white font-bold transition-colors disabled:opacity-50 ${
+                    actionType === 'APPROVE' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'
+                  }`}
+                >
+                  {isSubmitting ? 'Memproses...' : actionType === 'APPROVE' ? 'Setujui Berkas' : 'Tolak Berkas'}
+                </button>
+              </div>
+            </form>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Custom Confirmation / Alert Modal */}
-        <ConfirmModal
-          isOpen={modalConfig.isOpen}
-          title={modalConfig.title}
-          message={modalConfig.message}
-          type={modalConfig.type}
-          confirmText={modalConfig.confirmText}
-          cancelText={modalConfig.cancelText}
-          isAlert={modalConfig.isAlert}
-          onConfirm={modalConfig.onConfirm}
-          onClose={() => setModalConfig((prev) => ({ ...prev, isOpen: false }))}
-        />
-      </div>
+      {/* Custom Confirmation / Alert Modal */}
+      <ConfirmModal
+        isOpen={modalConfig.isOpen}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        type={modalConfig.type}
+        confirmText={modalConfig.confirmText}
+        cancelText={modalConfig.cancelText}
+        isAlert={modalConfig.isAlert}
+        onConfirm={modalConfig.onConfirm}
+        onClose={() => setModalConfig((prev) => ({ ...prev, isOpen: false }))}
+      />
     </PortalLayout>
   );
 }

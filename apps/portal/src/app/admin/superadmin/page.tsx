@@ -180,12 +180,11 @@ export default function SuperAdminDashboardPage() {
     { name: 'Program Studi', icon: GraduationCap, href: '/admin/superadmin/prodi' },
     { name: 'Kurikulum & MK', icon: BookOpen, href: '/admin/superadmin/mata-kuliah' },
     { name: 'Gedung & Ruang', icon: DoorOpen, href: '/admin/superadmin/gedung' },
-    { name: 'Tahun Akademik', icon: Calendar, href: '/admin/superadmin/tahun-akademik' },
-    { name: 'Periode Semester', icon: Clock, href: '/admin/superadmin/semester' },
-    { name: 'Jadwal Kuliah', icon: CalendarDays, href: '/admin/superadmin/jadwal' },
+    { name: 'Tahun Akademik', icon: Calendar, href: '/admin/tahun-akademik' },
+    { name: 'Jadwal Kuliah', icon: CalendarDays, href: '/admin/jadwal' },
     { name: 'Data Dosen', icon: UserCheck, href: '/admin/superadmin/dosen' },
     { name: 'Data Pegawai', icon: Briefcase, href: '/admin/superadmin/pegawai' },
-    { name: 'Pelaporan PDDIKTI', icon: ShieldCheck, href: '/admin/superadmin/laporan' },
+    { name: 'Pelaporan PDDIKTI', icon: ShieldCheck, href: '/admin/laporan' },
     { name: 'Manajemen User', icon: Users, href: '/admin/superadmin/users' },
   ];
 
@@ -299,7 +298,7 @@ export default function SuperAdminDashboardPage() {
       userName="Bambang Pratama, S.Kom., M.Cs."
       userIdText="Kepala BAAK & Sistem Akademik Kampus"
     >
-      <div className="space-y-6 max-w-7xl mx-auto">
+      <div className="w-full space-y-6">
         {/* 1. Hero Section: Pusat Kendali Akademik Kampus */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden">
           <div className="max-w-3xl">

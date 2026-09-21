@@ -1,4 +1,4 @@
-﻿import { Injectable, NotFoundException } from '@nestjs/common';
+﻿import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 
 @Injectable()
@@ -75,12 +75,30 @@ export class FinanceService {
     return { summary, transactions: mapped };
   }
 
+  /**
+   * KRS yang masih DRAFT (menunggu pembayaran UKT) baru resmi diajukan ke Dosen PA
+   * begitu tagihan semester itu LUNAS.
+   */
+  private async promoteKrsAfterPayment(nim: string, academicYear: string) {
+    const [student, year] = await Promise.all([
+      this.prisma.student.findUnique({ where: { nim } }),
+      this.prisma.academicYear.findFirst({ where: { name: academicYear } }),
+    ]);
+    if (!student || !year) return;
+
+    await this.prisma.courseEnrollment.updateMany({
+      where: { studentId: student.id, academicYearId: year.id, status: 'DRAFT' },
+      data: { status: 'SUBMITTED' },
+    });
+  }
+
   async verifyTransaction(id: string) {
     const trx = await this.prisma.paymentInvoice.findUnique({ where: { id } });
     if (!trx) throw new NotFoundException(`Transaksi dengan ID "${id}" tidak ditemukan.`);
     const receiptNo = `KWT/ITN/${new Date().getFullYear()}/${Date.now().toString().slice(-4)}`;
     const paidAt = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) + ', Kasir Diverifikasi';
     const updated = await this.prisma.paymentInvoice.update({ where: { id }, data: { status: 'LUNAS', receiptNo, paidAt } });
+    await this.promoteKrsAfterPayment(trx.nim, trx.academicYear);
     await this.prisma.systemAuditLog.create({ data: { action: 'FINANCE_VERIFY', detail: `Verifikasi ${trx.invoiceNo} (${trx.studentName}) Rp ${trx.amount}`, userEmail: 'keuangan@itn.ac.id' } }).catch(() => null);
     return { success: true, message: `Pembayaran ${trx.studentName} berhasil diverifikasi LUNAS.`, data: { ...updated, status: 'LUNAS' } };
   }
@@ -102,6 +120,51 @@ export class FinanceService {
     });
     await this.prisma.systemAuditLog.create({ data: { action: 'FINANCE_INVOICE_CREATE', detail: `Invoice ${invoiceNo} untuk ${dto.studentName}`, userEmail: 'keuangan@itn.ac.id' } }).catch(() => null);
     return { success: true, message: `Tagihan berhasil dibuat.`, data: newTrx };
+  }
+
+  private static readonly MANUAL_TRANSFER_CHANNEL = 'Transfer Bank Manual';
+
+  async submitStudentPayment(id: string, dto: { channel: string; proofUrl?: string }) {
+    const trx = await this.prisma.paymentInvoice.findUnique({ where: { id } });
+    if (!trx) throw new NotFoundException(`Tagihan dengan ID "${id}" tidak ditemukan.`);
+    if (trx.status === 'LUNAS') {
+      return { success: true, message: 'Tagihan ini sudah lunas.', data: { ...trx, status: 'LUNAS' } };
+    }
+
+    if (dto.channel === FinanceService.MANUAL_TRANSFER_CHANNEL) {
+      if (!dto.proofUrl) {
+        throw new BadRequestException('Bukti transfer wajib diunggah untuk metode Transfer Bank Manual.');
+      }
+      const updated = await this.prisma.paymentInvoice.update({
+        where: { id },
+        data: {
+          status: 'MENUNGGU_VERIFIKASI',
+          paymentMethod: dto.channel,
+          notes: `Bukti transfer diunggah mahasiswa: ${dto.proofUrl}`,
+        },
+      });
+      await this.prisma.systemAuditLog
+        .create({ data: { action: 'FINANCE_PAYMENT_SUBMITTED', detail: `${trx.studentName} mengunggah bukti transfer untuk ${trx.invoiceNo}`, userEmail: trx.nim } })
+        .catch(() => null);
+      return {
+        success: true,
+        message: 'Bukti pembayaran berhasil dikirim, menunggu verifikasi Biro Keuangan.',
+        data: { ...updated, status: 'MENUNGGU VERIFIKASI' },
+      };
+    }
+
+    // Kanal otomatis (VA/QRIS/Host-to-Host): disimulasikan langsung lunas layaknya notifikasi gateway pembayaran
+    const receiptNo = `KWT/ITN/${new Date().getFullYear()}/${Date.now().toString().slice(-4)}`;
+    const paidAt = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) + `, ${dto.channel}`;
+    const updated = await this.prisma.paymentInvoice.update({
+      where: { id },
+      data: { status: 'LUNAS', receiptNo, paidAt, paymentMethod: dto.channel },
+    });
+    await this.promoteKrsAfterPayment(trx.nim, trx.academicYear);
+    await this.prisma.systemAuditLog
+      .create({ data: { action: 'FINANCE_PAYMENT_AUTO', detail: `${trx.studentName} membayar ${trx.invoiceNo} via ${dto.channel}`, userEmail: trx.nim } })
+      .catch(() => null);
+    return { success: true, message: `Pembayaran via ${dto.channel} berhasil, tagihan LUNAS.`, data: { ...updated, status: 'LUNAS' } };
   }
 
   async getInvoicesByStudent(nim: string) {

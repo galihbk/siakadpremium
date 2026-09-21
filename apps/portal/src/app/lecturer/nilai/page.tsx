@@ -75,7 +75,11 @@ function LecturerNilaiContent() {
     const fetchClasses = async () => {
       setIsLoading(true);
       try {
-        const res = await fetch(`${apiBase}/academic/grades/classes`);
+        const lecturerId = (user as any)?.lecturerId;
+        const url = lecturerId
+          ? `${apiBase}/academic/grades/classes?lecturerId=${lecturerId}`
+          : `${apiBase}/academic/grades/classes`;
+        const res = await fetch(url);
         if (res.ok) {
           const json = await res.json();
           const list = json.data || [];
@@ -125,9 +129,18 @@ function LecturerNilaiContent() {
     fetchClassDetails();
   }, [selectedClassId]);
 
+  const weights = classInfo?.weights || { tugas: 20, uts: 30, uas: 40, kehadiran: 10 };
+
   // Calculate scores
   const calculateRow = (attendance: number, assignment: number, midterm: number, finalExam: number) => {
-    const total = Number((attendance * 0.1 + assignment * 0.2 + midterm * 0.3 + finalExam * 0.4).toFixed(1));
+    const total = Number(
+      (
+        attendance * (weights.kehadiran / 100) +
+        assignment * (weights.tugas / 100) +
+        midterm * (weights.uts / 100) +
+        finalExam * (weights.uas / 100)
+      ).toFixed(1),
+    );
     let letter = 'E';
     let point = 0.0;
 
@@ -147,7 +160,7 @@ function LecturerNilaiContent() {
   // Handle Score Input Change
   const handleScoreChange = (
     index: number,
-    field: 'attendance' | 'assignment' | 'midterm' | 'finalExam',
+    field: 'assignment' | 'midterm' | 'finalExam',
     value: number
   ) => {
     const clampedVal = Math.max(0, Math.min(100, isNaN(value) ? 0 : value));
@@ -234,7 +247,7 @@ function LecturerNilaiContent() {
   // Export CSV
   const handleExportCsv = () => {
     if (!classInfo || students.length === 0) return;
-    let csv = 'No,NIM,Nama Mahasiswa,Presensi (10%),Tugas (20%),UTS (30%),UAS (40%),Nilai Akhir,Huruf Mutu,Bobot IPK,Status\n';
+    let csv = `No,NIM,Nama Mahasiswa,Presensi (${weights.kehadiran}%),Tugas (${weights.tugas}%),UTS (${weights.uts}%),UAS (${weights.uas}%),Nilai Akhir,Huruf Mutu,Bobot IPK,Status\n`;
     students.forEach((s, idx) => {
       csv += `${idx + 1},"${s.nim}","${s.studentName}",${s.attendance},${s.assignment},${s.midterm},${s.finalExam},${s.totalScore},${s.gradeLetter},${s.gradePoint},${s.status}\n`;
     });
@@ -368,11 +381,11 @@ function LecturerNilaiContent() {
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#1E3A8A] shrink-0" />
               <span>
-                Rumus Evaluasi Resmi:{' '}
-                <strong className="text-[#1E3A8A]">Presensi 10%</strong> +{' '}
-                <strong className="text-[#1E3A8A]">Tugas 20%</strong> +{' '}
-                <strong className="text-[#1E3A8A]">UTS 30%</strong> +{' '}
-                <strong className="text-[#1E3A8A]">UAS 40%</strong>
+                Rumus Evaluasi {classInfo?.weights ? 'Kelas Ini' : 'Resmi (Default)'}:{' '}
+                <strong className="text-[#1E3A8A]">Presensi {weights.kehadiran}%</strong> +{' '}
+                <strong className="text-[#1E3A8A]">Tugas {weights.tugas}%</strong> +{' '}
+                <strong className="text-[#1E3A8A]">UTS {weights.uts}%</strong> +{' '}
+                <strong className="text-[#1E3A8A]">UAS {weights.uas}%</strong>
               </span>
             </div>
 
@@ -424,10 +437,10 @@ function LecturerNilaiContent() {
                   <tr>
                     <th className="py-3.5 px-4 w-12 text-center">No</th>
                     <th className="py-3.5 px-4">NIM & Nama Mahasiswa</th>
-                    <th className="py-3.5 px-3 text-center w-28">Presensi (10%)</th>
-                    <th className="py-3.5 px-3 text-center w-28">Tugas (20%)</th>
-                    <th className="py-3.5 px-3 text-center w-28">UTS (30%)</th>
-                    <th className="py-3.5 px-3 text-center w-28">UAS (40%)</th>
+                    <th className="py-3.5 px-3 text-center w-28">Presensi ({weights.kehadiran}%)</th>
+                    <th className="py-3.5 px-3 text-center w-28">Tugas ({weights.tugas}%)</th>
+                    <th className="py-3.5 px-3 text-center w-28">UTS ({weights.uts}%)</th>
+                    <th className="py-3.5 px-3 text-center w-28">UAS ({weights.uas}%)</th>
                     <th className="py-3.5 px-3 text-center w-28">Nilai Akhir</th>
                     <th className="py-3.5 px-3 text-center w-24">Huruf Mutu</th>
                     <th className="py-3.5 px-4 text-center w-24">Status</th>
@@ -443,16 +456,14 @@ function LecturerNilaiContent() {
                         <div className="text-xs text-slate-500 font-mono mt-0.5">NIM: {st.nim}</div>
                       </td>
 
-                      {/* Presensi */}
+                      {/* Presensi (readonly, dihitung otomatis dari data kehadiran) */}
                       <td className="py-3 px-3 text-center">
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={st.attendance}
-                          onChange={(e) => handleScoreChange(index, 'attendance', parseFloat(e.target.value))}
-                          className="w-20 text-center px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-[#1E3A8A]"
-                        />
+                        <span
+                          title="Dihitung otomatis dari data Absensi Perkuliahan"
+                          className="inline-flex w-20 items-center justify-center px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 font-mono font-bold"
+                        >
+                          {st.attendance}
+                        </span>
                       </td>
 
                       {/* Tugas */}

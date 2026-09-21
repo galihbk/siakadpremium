@@ -6,6 +6,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import {
   RegisterPmbAccountDto,
@@ -22,6 +23,9 @@ import {
   CreateClassDto,
 } from './dto/pmb.dto';
 import { FeeRulesService } from '../finance/fee-rules.service';
+import { StorageService } from '../storage/storage.service';
+import { MailService } from '../../shared/mail/mail.service';
+import { AdmissionStatus } from '@siakad/types';
 
 function toTitleCase(str?: string | null): string | undefined {
   if (!str || typeof str !== 'string') return undefined;
@@ -51,7 +55,108 @@ export class PmbService {
   constructor(
     private prisma: PrismaService,
     private feeRulesService: FeeRulesService,
+    private storageService: StorageService,
+    private mailService: MailService,
   ) {}
+
+  /**
+   * Helper konversi file/base64 dokumen PMB ke Storage (Local Server Disk atau Cloudflare R2)
+   */
+  private async processFileField(
+    fileData?: string | null,
+    folder: string = 'pmb-docs',
+    fileNamePrefix: string = 'doc',
+  ): Promise<string | undefined> {
+    if (!fileData) return undefined;
+    const trimmed = fileData.trim();
+    if (!trimmed) return undefined;
+
+    // Jika sudah berupa URL (http/https), biarkan
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+
+    // Jika berupa base64 data URI, upload via StorageService (local/cloud)
+    if (trimmed.startsWith('data:')) {
+      try {
+        const uploadRes = await this.storageService.uploadBase64({
+          base64Data: trimmed,
+          folder,
+          fileName: fileNamePrefix,
+        });
+        return uploadRes.url;
+      } catch (err: any) {
+        console.warn(`[PMB Upload] Gagal memproses ${fileNamePrefix}:`, err?.message || err);
+        return trimmed; // fallback
+      }
+    }
+
+    return trimmed;
+  }
+
+  /** Helper generate password awal student berdasarkan Tanggal Lahir (Format DDMMYYYY) */
+  private generateBirthDatePassword(birthDateInput?: string | Date | null): string {
+    if (!birthDateInput) return '17092005';
+    try {
+      if (birthDateInput instanceof Date) {
+        const d = birthDateInput.getDate().toString().padStart(2, '0');
+        const m = (birthDateInput.getMonth() + 1).toString().padStart(2, '0');
+        const y = birthDateInput.getFullYear().toString();
+        return `${d}${m}${y}`;
+      }
+
+      const s = String(birthDateInput).trim();
+      // YYYY-MM-DD
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+        const parts = s.split('T')[0].split('-');
+        return `${parts[2]}${parts[1]}${parts[0]}`;
+      }
+      // DD-MM-YYYY or DD/MM/YYYY
+      if (/^\d{2}[-\/]\d{2}[-\/]\d{4}/.test(s)) {
+        const parts = s.split(/[-\/]/);
+        return `${parts[0]}${parts[1]}${parts[2]}`;
+      }
+      const parsed = new Date(s);
+      if (!isNaN(parsed.getTime())) {
+        const d = parsed.getDate().toString().padStart(2, '0');
+        const m = (parsed.getMonth() + 1).toString().padStart(2, '0');
+        const y = parsed.getFullYear().toString();
+        return `${d}${m}${y}`;
+      }
+    } catch (err) {
+      console.error('Error parsing birthDate for password:', err);
+    }
+    return '17092005';
+  }
+
+
+  private parseAddressString(fullAddress?: string | null): Record<string, string> {
+    if (!fullAddress) return {};
+    const result: Record<string, string> = {};
+
+    const provMatch = fullAddress.match(/Prov\.?\s*([^,]+)/i);
+    if (provMatch) result.province = provMatch[1].trim();
+
+    const cityMatch = fullAddress.match(/(Kabupaten|Kota|Kab\.?)\s*([^,]+)/i);
+    if (cityMatch) result.city = cityMatch[2].trim();
+
+    const kecMatch = fullAddress.match(/Kec\.?\s*([^,]+)/i);
+    if (kecMatch) result.kecamatan = kecMatch[1].trim();
+
+    const kelMatch = fullAddress.match(/(Kel\.\/desa|Kelurahan)\s*([^,]+)/i);
+    if (kelMatch) result.kelurahan = kelMatch[2].trim();
+
+    const posMatch = fullAddress.match(/Kode\s*Pos\s*(\d+)/i);
+    if (posMatch) result.postalCode = posMatch[1].trim();
+
+    const rtrwMatch = fullAddress.match(/Rt\/rw:\s*([0-9\s\/]+)/i);
+    if (rtrwMatch) result.rtRw = rtrwMatch[1].trim();
+
+    const streetMatch = fullAddress.split(/,\s*(Rt\/rw:|Kel\.\/desa|Kelurahan|Kec\.|Kabupaten|Kota|Prov\.|Kode Pos)/i)[0];
+    if (streetMatch) result.streetAddress = streetMatch.trim();
+
+    return result;
+  }
 
   // ===========================================================================
   // 1. AKUN PMB (CALON MAHASISWA)
@@ -60,7 +165,7 @@ export class PmbService {
   /**
    * Pendaftaran Akun PMB baru (Belum membuat nomor pendaftaran atau NIM)
    */
-  async registerAccount(dto: RegisterPmbAccountDto) {
+  async registerAccount(dto: RegisterPmbAccountDto, originUrl?: string) {
     if (dto.honeypot && dto.honeypot.trim().length > 0) {
       throw new BadRequestException('Pendaftaran tidak dapat diproses oleh sistem keamanan.');
     }
@@ -68,12 +173,28 @@ export class PmbService {
     const emailTrimmed = dto.email.trim().toLowerCase();
     const whatsappTrimmed = dto.whatsapp.trim();
 
-    // Cek apakah email sudah terdaftar di pmb_accounts
+    // Cek apakah email sudah terdaftar di pmb_accounts atau admission_applicants
     const existing = await this.prisma.pmbAccount.findUnique({
       where: { email: emailTrimmed },
     });
 
-    if (existing) {
+    const existingApplicant = await this.prisma.admissionApplicant.findFirst({
+      where: { email: { equals: emailTrimmed, mode: 'insensitive' } },
+    });
+
+    if (existing || existingApplicant) {
+      const isUnverified = (existing && !existing.isEmailVerified) ||
+                           (existingApplicant && !existingApplicant.verifiedAt);
+
+      if (isUnverified) {
+        throw new ConflictException({
+          statusCode: 409,
+          isUnverified: true,
+          email: emailTrimmed,
+          message: `Email ${dto.email} sudah terdaftar tetapi BELUM DIVERIFIKASI. Silakan cek email Anda atau klik tombol verifikasi di bawah untuk melakukan verifikasi.`,
+        });
+      }
+
       throw new ConflictException(`Email ${dto.email} sudah terdaftar. Silakan login ke akun PMB Anda.`);
     }
 
@@ -87,13 +208,54 @@ export class PmbService {
         email: emailTrimmed,
         whatsapp: whatsappTrimmed,
         passwordHash,
-        isEmailVerified: true,
+        isEmailVerified: false,
       },
     });
 
+    // Generate token verifikasi dan entri AdmissionApplicant
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 jam
+
+    const count = await this.prisma.admissionApplicant.count();
+    let regNumber = `PMB2027${String(count + 1).padStart(4, '0')}`;
+    const numExists = await this.prisma.admissionApplicant.findUnique({
+      where: { registrationNumber: regNumber },
+    });
+    if (numExists) {
+      regNumber = `PMB2027${Math.floor(1000 + Math.random() * 9000)}`;
+    }
+
+    const metadata = {
+      verificationToken,
+      tokenExpiry: tokenExpiry.toISOString(),
+      isEmailVerified: false,
+      lastResendAt: new Date().toISOString(),
+    };
+
+    await this.prisma.admissionApplicant.create({
+      data: {
+        registrationNumber: regNumber,
+        fullName: dto.fullName.trim(),
+        email: emailTrimmed,
+        phone: whatsappTrimmed,
+        highSchool: '-',
+        chosenStudyProgram: 'Belum Dipilih',
+        jalurPendaftaran: 'Jalur Mandiri Online (CBT)',
+        status: AdmissionStatus.PENDING,
+        notes: JSON.stringify(metadata),
+      },
+    });
+
+    const baseUrl = originUrl || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const verificationUrl = `${baseUrl.replace(/\/+$/, '')}/pmb/verifikasi-email?token=${verificationToken}&email=${encodeURIComponent(emailTrimmed)}`;
+
+    // Kirim email verifikasi secara asinkron via MailService
+    await this.mailService.sendVerificationEmail(emailTrimmed, account.fullName, verificationUrl);
+
     return {
       success: true,
-      message: 'Akun pendaftaran PMB berhasil dibuat. Silakan login untuk melengkapi formulir pendaftaran.',
+      requiresVerification: true,
+      message: `Akun pendaftaran PMB berhasil dibuat. Tautan verifikasi telah dikirim ke ${emailTrimmed}. Silakan periksa kotak masuk atau folder spam email Anda.`,
       account: {
         id: account.id,
         fullName: account.fullName,
@@ -157,12 +319,21 @@ export class PmbService {
         }
       }
 
-      throw new UnauthorizedException('Email atau nomor WhatsApp tidak terdaftar di sistem PMB.');
+      throw new UnauthorizedException('Email, Nomor Registrasi, atau Nomor WhatsApp tidak terdaftar di sistem PMB.');
     }
 
     const isValidPassword = await bcrypt.compare(dto.password, account.passwordHash);
     if (!isValidPassword) {
       throw new UnauthorizedException('Kata sandi yang Anda masukkan salah.');
+    }
+
+    if (!account.isEmailVerified) {
+      throw new UnauthorizedException({
+        statusCode: 401,
+        isUnverified: true,
+        email: account.email,
+        message: 'Akun Anda belum diverifikasi. Silakan periksa email Anda dan klik tautan verifikasi sebelum masuk.',
+      });
     }
 
     const activeApplication = account.applications[0] || null;
@@ -332,12 +503,22 @@ export class PmbService {
       throw new NotFoundException('Akun PMB tidak ditemukan.');
     }
 
+    if (account.isEmailVerified === false) {
+      throw new UnauthorizedException({
+        statusCode: 401,
+        isUnverified: true,
+        email: account.email,
+        message: 'Akun Anda belum diverifikasi. Silakan periksa email Anda dan klik tautan verifikasi sebelum mengakses formulir.',
+      });
+    }
+
     return {
       account: {
         id: account.id,
         fullName: account.fullName,
         email: account.email,
         whatsapp: account.whatsapp,
+        isEmailVerified: account.isEmailVerified,
       },
       application: account.applications[0] || null,
     };
@@ -353,8 +534,8 @@ export class PmbService {
   async getFormOptions() {
     const [waves, registrationTypes, tracks, classes, studyPrograms] = await Promise.all([
       this.prisma.admissionBatch.findMany({
-        where: { status: 'OPEN' },
-        orderBy: { isDefault: 'desc' },
+        where: { status: { in: ['OPEN', 'UPCOMING'] } },
+        orderBy: [{ isDefault: 'desc' }, { startDate: 'asc' }],
       }),
       this.prisma.admissionRegistrationType.findMany({
         where: { isActive: true },
@@ -461,6 +642,16 @@ export class PmbService {
       where: { accountId: account.id },
     });
 
+    // Proses dan upload berkas dokumen ke Storage aktif (Local atau Cloudflare R2)
+    const [fileKtp, fileKk, fileIjazah, fileFoto, fileKip, fileTambahan] = await Promise.all([
+      this.processFileField(dto.fileKtp, 'pmb-docs/ktp', `ktp_${account.id.slice(0, 8)}`),
+      this.processFileField(dto.fileKk, 'pmb-docs/kk', `kk_${account.id.slice(0, 8)}`),
+      this.processFileField(dto.fileIjazah, 'pmb-docs/ijazah', `ijazah_${account.id.slice(0, 8)}`),
+      this.processFileField(dto.fileFoto, 'pmb-docs/foto', `foto_${account.id.slice(0, 8)}`),
+      this.processFileField(dto.fileKip, 'pmb-docs/kip', `kip_${account.id.slice(0, 8)}`),
+      this.processFileField(dto.fileTambahan, 'pmb-docs/tambahan', `tambahan_${account.id.slice(0, 8)}`),
+    ]);
+
     const payload = {
       waveId: dto.waveId || undefined,
       registrationTypeId: dto.registrationTypeId || undefined,
@@ -477,20 +668,37 @@ export class PmbService {
       phone: (dto.phone || account.whatsapp).trim(),
       email: (dto.email || account.email).trim().toLowerCase(),
       address: toTitleCase(dto.address),
+      streetAddress: toTitleCase(dto.streetAddress) || undefined,
+      rtRw: dto.rtRw || undefined,
+      dusun: toTitleCase(dto.dusun) || undefined,
+      kelurahan: toTitleCase(dto.kelurahan) || undefined,
+      kecamatan: toTitleCase(dto.kecamatan) || undefined,
+      city: toTitleCase(dto.city) || undefined,
+      province: toTitleCase(dto.province) || undefined,
+      postalCode: dto.postalCode || undefined,
       schoolName: toTitleCase(dto.schoolName),
       npsn: dto.npsn || undefined,
       nisn: dto.nisn || undefined,
       graduationYear: dto.graduationYear || undefined,
       major: toTitleCase(dto.major),
-      parentName: toTitleCase(dto.parentName),
-      parentPhone: dto.parentPhone || undefined,
-      parentJob: toTitleCase(dto.parentJob),
-      parentIncome: dto.parentIncome || undefined,
-      fileKtp: dto.fileKtp || undefined,
-      fileKk: dto.fileKk || undefined,
-      fileIjazah: dto.fileIjazah || undefined,
-      fileFoto: dto.fileFoto || undefined,
-      fileTambahan: dto.fileTambahan || undefined,
+      parentName: toTitleCase(dto.parentName) || toTitleCase(dto.fatherName) || toTitleCase(dto.motherName),
+      parentPhone: dto.parentPhone || dto.fatherPhone || dto.motherPhone || undefined,
+      parentJob: toTitleCase(dto.parentJob) || toTitleCase(dto.fatherJob) || toTitleCase(dto.motherJob) || undefined,
+      parentIncome: dto.parentIncome || dto.fatherIncome || dto.motherIncome || undefined,
+      fatherName: toTitleCase(dto.fatherName),
+      fatherPhone: dto.fatherPhone || undefined,
+      fatherJob: toTitleCase(dto.fatherJob) || undefined,
+      fatherIncome: dto.fatherIncome || undefined,
+      motherName: toTitleCase(dto.motherName),
+      motherPhone: dto.motherPhone || undefined,
+      motherJob: toTitleCase(dto.motherJob) || undefined,
+      motherIncome: dto.motherIncome || undefined,
+      fileKtp: fileKtp || app?.fileKtp || undefined,
+      fileKk: fileKk || app?.fileKk || undefined,
+      fileIjazah: fileIjazah || app?.fileIjazah || undefined,
+      fileFoto: fileFoto || app?.fileFoto || undefined,
+      fileKip: fileKip || app?.fileKip || undefined,
+      fileTambahan: fileTambahan || app?.fileTambahan || undefined,
     };
 
     if (app) {
@@ -586,19 +794,36 @@ export class PmbService {
       phone: (dto.phone || account.whatsapp).trim(),
       email: (dto.email || account.email).trim().toLowerCase(),
       address: toTitleCase(dto.address),
+      streetAddress: toTitleCase(dto.streetAddress) || undefined,
+      rtRw: dto.rtRw || undefined,
+      dusun: toTitleCase(dto.dusun) || undefined,
+      kelurahan: toTitleCase(dto.kelurahan) || undefined,
+      kecamatan: toTitleCase(dto.kecamatan) || undefined,
+      city: toTitleCase(dto.city) || undefined,
+      province: toTitleCase(dto.province) || undefined,
+      postalCode: dto.postalCode || undefined,
       schoolName: toTitleCase(dto.schoolName),
       npsn: dto.npsn || undefined,
       nisn: dto.nisn || undefined,
       graduationYear: dto.graduationYear || undefined,
       major: toTitleCase(dto.major),
-      parentName: toTitleCase(dto.parentName),
-      parentPhone: dto.parentPhone || undefined,
-      parentJob: toTitleCase(dto.parentJob),
-      parentIncome: dto.parentIncome || undefined,
+      parentName: toTitleCase(dto.parentName) || toTitleCase(dto.fatherName) || toTitleCase(dto.motherName),
+      parentPhone: dto.parentPhone || dto.fatherPhone || dto.motherPhone || undefined,
+      parentJob: toTitleCase(dto.parentJob) || toTitleCase(dto.fatherJob) || toTitleCase(dto.motherJob) || undefined,
+      parentIncome: dto.parentIncome || dto.fatherIncome || dto.motherIncome || undefined,
+      fatherName: toTitleCase(dto.fatherName),
+      fatherPhone: dto.fatherPhone || undefined,
+      fatherJob: toTitleCase(dto.fatherJob) || undefined,
+      fatherIncome: dto.fatherIncome || undefined,
+      motherName: toTitleCase(dto.motherName),
+      motherPhone: dto.motherPhone || undefined,
+      motherJob: toTitleCase(dto.motherJob) || undefined,
+      motherIncome: dto.motherIncome || undefined,
       fileKtp: dto.fileKtp || undefined,
       fileKk: dto.fileKk || undefined,
       fileIjazah: dto.fileIjazah || undefined,
       fileFoto: dto.fileFoto || undefined,
+      fileKip: dto.fileKip || undefined,
       fileTambahan: dto.fileTambahan || undefined,
     };
 
@@ -679,11 +904,20 @@ export class PmbService {
       throw new NotFoundException('Tagihan pembayaran tidak ditemukan.');
     }
 
+    let proofUrl = dto.proofUrl;
+    if (proofUrl) {
+      proofUrl = await this.processFileField(
+        proofUrl,
+        'pmb-payments',
+        `payment_${paymentId.slice(0, 8)}`,
+      );
+    }
+
     const updated = await this.prisma.admissionPayment.update({
       where: { id: paymentId },
       data: {
         status: 'VERIFYING',
-        proofUrl: dto.proofUrl || undefined,
+        proofUrl: proofUrl || undefined,
         paymentMethod: dto.paymentMethod || payment.paymentMethod,
         notes: dto.notes || undefined,
         paidAt: new Date(),
@@ -773,22 +1007,40 @@ export class PmbService {
         studyProgram: true,
         track: true,
         wave: true,
+        payments: true,
       },
       orderBy: { createdAt: 'desc' },
       take: 8,
     });
-    const recentApplicants = recentApps.map((a) => ({
-      id: a.id,
-      registrationNumber: a.registrationNumber || '-',
-      fullName: a.fullName || a.account?.fullName || '-',
-      email: a.email || a.account?.email || '-',
-      phone: a.phone || a.account?.whatsapp || '-',
-      highSchool: a.schoolName || '-',
-      chosenStudyProgram: a.studyProgram?.name || '-',
-      jalurPendaftaran: a.track?.name || '-',
-      status: a.studentId ? 'REGISTERED' : a.selectionStatus === 'PASSED' ? 'PASSED' : a.selectionStatus === 'FAILED' ? 'FAILED' : a.verificationStatus === 'VERIFIED' ? 'VERIFIED' : 'PENDING',
-      createdAt: a.createdAt,
-    }));
+    const recentApplicants = recentApps.map((a) => {
+      const reRegPayment = a.payments?.find((p) => p.type === 'RE_REGISTRATION');
+      const isVerifyingReReg = reRegPayment?.status === 'VERIFYING';
+      const isReRegPaid = reRegPayment?.status === 'PAID';
+      const st = a.studentId || isReRegPaid
+        ? 'REGISTERED'
+        : isVerifyingReReg
+        ? 'VERIFYING_RE_REGISTRATION'
+        : a.selectionStatus === 'PASSED'
+        ? 'PASSED'
+        : a.selectionStatus === 'FAILED'
+        ? 'FAILED'
+        : a.verificationStatus === 'VERIFIED'
+        ? 'VERIFIED'
+        : 'PENDING';
+
+      return {
+        id: a.id,
+        registrationNumber: a.registrationNumber || '-',
+        fullName: a.fullName || a.account?.fullName || '-',
+        email: a.email || a.account?.email || '-',
+        phone: a.phone || a.account?.whatsapp || '-',
+        highSchool: a.schoolName || '-',
+        chosenStudyProgram: a.studyProgram?.name || '-',
+        jalurPendaftaran: a.track?.name || '-',
+        status: st,
+        createdAt: a.createdAt,
+      };
+    });
 
     return {
       totalApplicants: totalSubmitted,
@@ -946,15 +1198,50 @@ export class PmbService {
       where: { id: paymentId },
       data: {
         status: dto.status,
+        ...(dto.notes ? { notes: dto.notes } : {}),
         verifiedAt: dto.status === 'PAID' ? new Date() : null,
         verifiedBy: dto.verifiedBy || 'Admin PMB',
       },
     });
 
+    if (dto.status === 'PAID' && payment.type === 'REGISTRATION') {
+      await this.prisma.admissionApplication.update({
+        where: { id: payment.applicationId },
+        data: {
+          verificationStatus: 'UNVERIFIED',
+        },
+      });
+    }
+
+    let studentResult: any = null;
+    if (dto.status === 'PAID' && payment.type === 'RE_REGISTRATION') {
+      // Pastikan status kelulusan diset PASSED
+      await this.prisma.admissionApplication.update({
+        where: { id: payment.applicationId },
+        data: {
+          selectionStatus: 'PASSED',
+        },
+      });
+
+      // Otomatis terbitkan NIM, Akun Student & Data Mahasiswa Aktif di tabel Student
+      try {
+        const convertRes = await this.convertToStudent(payment.applicationId);
+        studentResult = convertRes?.data || null;
+      } catch (err: any) {
+        console.error('Otomatis konversi mahasiswa saat verifikasi pembayaran:', err);
+      }
+    }
+
     return {
       success: true,
-      message: dto.status === 'PAID' ? 'Pembayaran telah divalidasi LUNAS.' : 'Status pembayaran diperbarui.',
+      message:
+        dto.status === 'PAID' && payment.type === 'RE_REGISTRATION'
+          ? `Pembayaran Daftar Ulang disetujui LUNAS! Calon mahasiswa resmi dikonversi ke tabel Mahasiswa dengan NIM: ${studentResult?.nim || 'Terbit'}.`
+          : dto.status === 'PAID'
+          ? 'Pembayaran telah divalidasi LUNAS.'
+          : 'Status pembayaran diperbarui.',
       payment: updated,
+      student: studentResult,
     };
   }
 
@@ -1032,6 +1319,9 @@ export class PmbService {
         testScore: dto.testScore !== undefined ? dto.testScore : app.testScore,
         selectionNotes: dto.selectionNotes || undefined,
         selectionDate: new Date(),
+        ...(dto.selectionStatus === 'PASSED' && app.verificationStatus !== 'VERIFIED'
+          ? { verificationStatus: 'VERIFIED', verifiedAt: app.verifiedAt || new Date() }
+          : {}),
       },
     });
 
@@ -1066,6 +1356,69 @@ export class PmbService {
       message: `Keputusan seleksi berhasil disimpan: ${dto.selectionStatus}.`,
       application: updated,
     };
+  }
+
+  /**
+   * Generator NIM Dinamis berbasis Konfigurasi Format NIM di Database
+   */
+  private async generateNimForApplication(prodi: any, app: any): Promise<string> {
+    const studentCount = await this.prisma.student.count({
+      where: { studyProgramId: prodi.id },
+    });
+    const totalStudents = await this.prisma.student.count();
+    const seq = studentCount + 1;
+    const currentYear = new Date().getFullYear();
+    const year4Digit = String(currentYear);
+    const year2Digit = year4Digit.slice(-2);
+    const prodiCleanCode = (prodi.code || '115').replace(/[^0-9]/g, '').slice(-3).padStart(3, '0');
+
+    // Tentukan kode jalur PMB (1: Reguler, 2: Beasiswa, 3: Transfer, 4: Internasional)
+    let jalurCode = '1';
+    if (app.registrationTypeId) {
+      if (String(app.registrationTypeId).includes('2') || String(app.registrationTypeId).toLowerCase().includes('beasiswa')) {
+        jalurCode = '2';
+      } else if (String(app.registrationTypeId).includes('3') || String(app.registrationTypeId).toLowerCase().includes('transfer')) {
+        jalurCode = '3';
+      }
+    }
+
+    // Ambil format dari DB setting
+    let formatPattern = '{ANGKATAN_2DIGIT}{KODE_PRODI_3DIGIT}{NO_URUT_4DIGIT}';
+    try {
+      const dbSetting = await this.prisma.landingPageSetting.findUnique({
+        where: { id: 'default-setting' },
+      });
+      if (dbSetting?.nimFormat) {
+        formatPattern = dbSetting.nimFormat;
+      }
+    } catch (err) {
+      console.warn('Fallback NIM format pattern:', err);
+    }
+
+    if (formatPattern.includes('{')) {
+      return formatPattern
+        .replace('{INSTITUSI}', '27')
+        .replace('{ANGKATAN_4DIGIT}', year4Digit)
+        .replace('{ANGKATAN_2DIGIT}', year2Digit)
+        .replace('{KODE_FAKULTAS}', '01')
+        .replace('{KODE_PRODI_3DIGIT}', prodiCleanCode)
+        .replace('{KODE_PRODI}', prodiCleanCode)
+        .replace('{KODE_JALUR}', jalurCode)
+        .replace(/{NO_URUT_\dDIGIT}/g, String(seq).padStart(4, '0'))
+        .replace('{NO_URUT}', String(seq).padStart(4, '0'));
+    }
+
+    // Jika formatPattern berupa string digit (contoh "272611510001" atau "261150001" atau "2615001")
+    if (/^\d+$/.test(formatPattern)) {
+      if (formatPattern.length === 10 || formatPattern.length === 12) {
+        return `27${year2Digit}${prodiCleanCode}${jalurCode}${String(seq).padStart(4, '0')}`;
+      } else if (formatPattern.length === 7) {
+        return `${year2Digit}${prodiCleanCode.slice(-2)}${String(seq).padStart(3, '0')}`;
+      }
+    }
+
+    // Default fallback format: 27 + Angkatan 2-digit + Kode Prodi + Urutan 4-digit
+    return `27${year2Digit}${prodiCleanCode}${String(totalStudents + 1).padStart(4, '0')}`;
   }
 
   /**
@@ -1111,63 +1464,151 @@ export class PmbService {
     const prodi = await this.prisma.studyProgram.findUnique({ where: { id: prodiId } });
     if (!prodi) throw new BadRequestException('Program studi tidak ditemukan.');
 
-    // Generate NIM resmi: Tahun (27) + Kode Prodi (e.g. dikti/code) + urutan
-    const studentCount = await this.prisma.student.count();
-    const cleanCode = (prodi.code || '115').replace(/[^0-9]/g, '').slice(-3).padStart(3, '0');
-    const nim = `27${cleanCode}${String(studentCount + 1).padStart(4, '0')}`;
+    // Generate NIM resmi berdasarkan format terkonfigurasi di database
+    const nim = await this.generateNimForApplication(prodi, app);
 
     // Cek User akun portal
     let user = await this.prisma.user.findUnique({
       where: { email: app.email },
     });
 
-    const initialPassword = 'Password123!';
-    const passwordHash = await bcrypt.hash(initialPassword, 10);
+  const initialPassword = this.generateBirthDatePassword(app.birthDate);
+  const passwordHash = await bcrypt.hash(initialPassword, 10);
 
-    if (!user) {
-      user = await this.prisma.user.create({
-        data: {
-          email: app.email,
-          fullName: app.fullName,
-          role: 'STUDENT' as any,
-          passwordHash,
-          isActive: true,
-        },
-      });
-    }
+  if (!user) {
+    user = await this.prisma.user.create({
+      data: {
+        email: app.email,
+        fullName: app.fullName,
+        role: 'STUDENT' as any,
+        passwordHash,
+        isActive: true,
+      },
+    });
+  } else {
+    user = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        role: 'STUDENT' as any,
+        passwordHash,
+        isActive: true,
+      },
+    });
+  }
 
-    // Buat record Student (biodata diambil dari PMB tanpa meminta ulang + simpan referensi PMB lengkap)
+    // Buat record Student (biodata lengkap dari PMB dipindahkan seluruhnya)
+    const parsedAddr = this.parseAddressString(app.address);
+    const resolvedStreet = (app as any).streetAddress || parsedAddr.streetAddress || app.address;
+    const resolvedRtRw = (app as any).rtRw || parsedAddr.rtRw;
+    const resolvedDusun = (app as any).dusun || parsedAddr.dusun;
+    const resolvedKelurahan = (app as any).kelurahan || parsedAddr.kelurahan;
+    const resolvedKecamatan = (app as any).kecamatan || parsedAddr.kecamatan;
+    const resolvedCity = (app as any).city || parsedAddr.city;
+    const resolvedProvince = (app as any).province || parsedAddr.province;
+    const resolvedPostalCode = (app as any).postalCode || parsedAddr.postalCode;
+
+    const advisor = await this.prisma.lecturer.findFirst({
+      where: { studyProgramId: prodi.id },
+    }) || await this.prisma.lecturer.findFirst();
+
+    const isParentAsGuardian = app.parentName && (app.parentName === app.fatherName || app.parentName === app.motherName);
+    const resolvedGuardianName = (app as any).guardianName || (isParentAsGuardian ? null : app.parentName) || null;
+    const resolvedGuardianPhone = (app as any).guardianPhone || (isParentAsGuardian ? null : app.parentPhone) || null;
+    const resolvedGuardianJob = (app as any).guardianJob || (isParentAsGuardian ? null : app.parentJob) || null;
+
     const student = await this.prisma.student.upsert({
       where: { nim },
       update: {
+        advisorLecturerId: advisor?.id || undefined,
         status: 'ACTIVE' as any,
         phone: app.phone,
         nik: app.nik,
+        nisn: app.nisn,
+        noKk: (app as any).noKk,
         address: app.address,
+        streetAddress: resolvedStreet,
+        rtRw: resolvedRtRw,
+        dusun: resolvedDusun,
+        kelurahan: resolvedKelurahan,
+        kecamatan: resolvedKecamatan,
+        city: resolvedCity,
+        province: resolvedProvince,
+        postalCode: resolvedPostalCode,
+        birthPlace: app.birthPlace,
+        birthDate: app.birthDate ? new Date(app.birthDate) : undefined,
+        gender: app.gender === 'Perempuan' ? 'FEMALE' : 'MALE',
+        religion: app.religion,
         registrationTypeId: app.registrationTypeId,
         trackId: app.trackId,
         classId: app.classId,
         waveId: app.waveId,
+        // Data Sekolah Asal
+        schoolName: app.schoolName,
+        npsn: app.npsn,
+        graduationYear: app.graduationYear,
+        major: app.major,
+        // Data Orang Tua / Wali
+        fatherName: app.fatherName,
+        fatherPhone: app.fatherPhone,
+        fatherJob: app.fatherJob,
+        fatherIncome: app.fatherIncome,
+        motherName: app.motherName,
+        motherPhone: app.motherPhone,
+        motherJob: app.motherJob,
+        motherIncome: app.motherIncome,
+        guardianName: resolvedGuardianName,
+        guardianPhone: resolvedGuardianPhone,
+        guardianJob: resolvedGuardianJob,
       },
       create: {
         userId: user.id,
         studyProgramId: prodi.id,
+        advisorLecturerId: advisor?.id || undefined,
         nim,
         entryYear: 2027,
         currentSemester: 1,
         status: 'ACTIVE' as any,
         phone: app.phone,
         nik: app.nik,
+        nisn: app.nisn,
+        noKk: (app as any).noKk,
         address: app.address,
+        streetAddress: resolvedStreet,
+        rtRw: resolvedRtRw,
+        dusun: resolvedDusun,
+        kelurahan: resolvedKelurahan,
+        kecamatan: resolvedKecamatan,
+        city: resolvedCity,
+        province: resolvedProvince,
+        postalCode: resolvedPostalCode,
         birthPlace: app.birthPlace,
         birthDate: app.birthDate ? new Date(app.birthDate) : undefined,
         gender: app.gender === 'Perempuan' ? 'FEMALE' : 'MALE',
+        religion: app.religion,
         registrationTypeId: app.registrationTypeId,
         trackId: app.trackId,
         classId: app.classId,
         waveId: app.waveId,
+        // Data Sekolah Asal
+        schoolName: app.schoolName,
+        npsn: app.npsn,
+        graduationYear: app.graduationYear,
+        major: app.major,
+        // Data Orang Tua / Wali
+        fatherName: app.fatherName,
+        fatherPhone: app.fatherPhone,
+        fatherJob: app.fatherJob,
+        fatherIncome: app.fatherIncome,
+        motherName: app.motherName,
+        motherPhone: app.motherPhone,
+        motherJob: app.motherJob,
+        motherIncome: app.motherIncome,
+        guardianName: resolvedGuardianName,
+        guardianPhone: resolvedGuardianPhone,
+        guardianJob: resolvedGuardianJob,
       },
     });
+
 
     // Update pendaftaran: hubungkan studentId & NIM
     await this.prisma.admissionApplication.update({
@@ -1182,19 +1623,16 @@ export class PmbService {
     let feeAssignmentResult: any = null;
     let semesterInvoiceResult: any = null;
     try {
+      const activeYear = await this.prisma.academicYear.findFirst({ where: { isActive: true } });
+      const academicYear = activeYear?.name || '2026/2027';
+
+      // Hanya menetapkan skema pembiayaan (rule/diskon) mahasiswa. Tagihan UKT semester 1
+      // baru diterbitkan otomatis saat mahasiswa mengajukan KRS (lihat StudentsService.submitKrs).
       feeAssignmentResult = await this.feeRulesService.assignStudentFeePolicy({
         studentId: student.id,
-        academicYear: '2027/2028',
+        academicYear,
         assignedBy: 'SISTEM_KONVERSI_PMB',
         notes: `Penetapan otomatis jalur PMB: ${app.fullName} (${nim})`,
-      });
-
-      // Terbitkan tagihan semester 1 resmi berbasis aturan yang telah ditetapkan
-      semesterInvoiceResult = await this.feeRulesService.generateStudentSemesterInvoice({
-        studentId: student.id,
-        semester: 1,
-        academicYear: '2027/2028',
-        dueDate: '30 September 2027',
       });
     } catch (feeError) {
       console.error('Peringatan: Gagal generate aturan pembiayaan otomatis saat konversi:', feeError);
@@ -1204,9 +1642,12 @@ export class PmbService {
       success: true,
       message: `Calon mahasiswa berhasil dikonversi menjadi Mahasiswa Resmi dengan NIM ${nim} dan skema pembiayaan telah ditetapkan.`,
       data: {
+        id: student.id,
+        userId: user.id,
         studentId: student.id,
         nim,
         fullName: app.fullName,
+        email: user.email,
         studyProgram: prodi.name,
         feeScheme: feeAssignmentResult?.assignment?.schemeName || 'Reguler Mandiri',
         semesterInvoice: semesterInvoiceResult

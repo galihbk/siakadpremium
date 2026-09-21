@@ -92,37 +92,6 @@ export class AcademicController {
     return this.academicService.deleteCurriculum(id);
   }
 
-  // ================= SEMESTERS (SEMESTER PERIODS) =================
-  @Get('semesters')
-  @ApiOperation({ summary: 'Mendapatkan daftar periode semester dari basis data' })
-  async getSemesters() {
-    return this.academicService.getSemesters();
-  }
-
-  @Get('semesters/:id')
-  @ApiOperation({ summary: 'Mendapatkan detail periode semester' })
-  async getSemester(@Param('id') id: string) {
-    return this.academicService.getSemester(id);
-  }
-
-  @Post('semesters')
-  @ApiOperation({ summary: 'Menambahkan periode semester baru' })
-  async createSemester(@Body() body: any) {
-    return this.academicService.createSemester(body);
-  }
-
-  @Put('semesters/:id')
-  @ApiOperation({ summary: 'Memperbarui data periode semester' })
-  async updateSemester(@Param('id') id: string, @Body() body: any) {
-    return this.academicService.updateSemester(id, body);
-  }
-
-  @Delete('semesters/:id')
-  @ApiOperation({ summary: 'Menghapus periode semester' })
-  async deleteSemester(@Param('id') id: string) {
-    return this.academicService.deleteSemester(id);
-  }
-
   // ================= ACADEMIC YEARS (TAHUN AKADEMIK) =================
   @Get('years')
   @ApiOperation({ summary: 'Mendapatkan daftar tahun akademik dari basis data' })
@@ -219,6 +188,16 @@ export class AcademicController {
     return this.academicService.deleteSchedule(id);
   }
 
+  // ================= PRESENSI & KEHADIRAN (ADMIN OVERVIEW) =================
+  @Get('attendance-overview')
+  @ApiOperation({ summary: 'Mendapatkan rekap kehadiran seluruh kelas (untuk monitoring BAAK/superadmin)' })
+  async getAttendanceOverview(
+    @Query('academicYearId') academicYearId?: string,
+    @Query('studyProgramId') studyProgramId?: string,
+  ) {
+    return this.academicService.getAttendanceOverview({ academicYearId, studyProgramId });
+  }
+
   // ================= INPUT & PENGELOLAAN NILAI (GRADES) =================
   @Get('grades/summary')
   @ApiOperation({ summary: 'Mendapatkan ringkasan rekapitulasi nilai akademik' })
@@ -249,8 +228,64 @@ export class AcademicController {
 
   @Post('grades/lock')
   @ApiOperation({ summary: 'Mengunci atau membuka akses pengisian nilai semester' })
-  async toggleGradeLock(@Body() body?: { semesterId?: string }) {
-    return this.academicService.toggleGradeLock(body?.semesterId);
+  async toggleGradeLock(@Body() body?: { academicYearId?: string }) {
+    return this.academicService.toggleGradeLock(body?.academicYearId);
+  }
+
+  // ================= BUKA/TUTUP PERIODE KRS =================
+  @Get('krs-status')
+  @ApiOperation({ summary: 'Mendapatkan status buka/tutup periode KRS tahun akademik aktif' })
+  async getKrsStatus() {
+    return this.academicService.getKrsStatus();
+  }
+
+  @Post('krs-status/toggle')
+  @ApiOperation({ summary: 'Membuka atau menutup periode pengisian KRS' })
+  async toggleKrsOpen(@Body() body?: { academicYearId?: string }) {
+    return this.academicService.toggleKrsOpen(body?.academicYearId);
+  }
+
+  // ================= SKALA NILAI (GRADE SCALE) =================
+  @Get('grade-scale/groups')
+  @ApiOperation({ summary: 'Mendapatkan daftar grup skala nilai (dikelompokkan per tahun akademik/semester)' })
+  async getGradeScaleGroups() {
+    return this.academicService.getGradeScaleGroups();
+  }
+
+  @Post('grade-scale/groups')
+  @ApiOperation({ summary: 'Membuat grup skala nilai baru untuk suatu tahun akademik' })
+  async createGradeScaleGroup(@Body() body: { academicYearId?: string; label?: string; cloneFromVersionId?: string }) {
+    return this.academicService.createGradeScaleGroup(body || {});
+  }
+
+  @Delete('grade-scale/groups/:id')
+  @ApiOperation({ summary: 'Menghapus grup skala nilai (tidak berlaku untuk grup tahun akademik aktif)' })
+  async deleteGradeScaleGroup(@Param('id') id: string) {
+    return this.academicService.deleteGradeScaleGroup(id);
+  }
+
+  @Get('grade-scale')
+  @ApiOperation({ summary: 'Mendapatkan baris skala nilai suatu grup (default: grup tahun akademik aktif)' })
+  async getGradeScales(@Query('versionId') versionId?: string) {
+    return this.academicService.getGradeScales(versionId);
+  }
+
+  @Post('grade-scale')
+  @ApiOperation({ summary: 'Menambah baris skala nilai baru ke suatu grup' })
+  async createGradeScale(@Body() body: any) {
+    return this.academicService.createGradeScale(body);
+  }
+
+  @Put('grade-scale/:id')
+  @ApiOperation({ summary: 'Memperbarui baris skala nilai' })
+  async updateGradeScale(@Param('id') id: string, @Body() body: any) {
+    return this.academicService.updateGradeScale(id, body);
+  }
+
+  @Delete('grade-scale/:id')
+  @ApiOperation({ summary: 'Menghapus baris skala nilai' })
+  async deleteGradeScale(@Param('id') id: string) {
+    return this.academicService.deleteGradeScale(id);
   }
 }
 

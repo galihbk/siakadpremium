@@ -347,8 +347,8 @@ export default async function PmbPage() {
                     <p className="text-[11px] text-blue-300">KIP-K & Peduli Cendekia</p>
                   </div>
                   <div>
-                    <p className="font-extrabold text-white text-base sm:text-lg">CBT Fleksibel</p>
-                    <p className="text-[11px] text-blue-300">Ujian Mandiri Daring</p>
+                    <p className="font-extrabold text-white text-base sm:text-lg">Proses Cepat</p>
+                    <p className="text-[11px] text-blue-300">Seleksi Berkas Langsung</p>
                   </div>
                 </div>
               </div>
@@ -494,7 +494,7 @@ export default async function PmbPage() {
                             <div className="flex items-start gap-2.5">
                               <Clock className="w-4 h-4 text-[#1E3A8A] shrink-0 mt-0.5" />
                               <div>
-                                <span className="text-[11px] text-slate-400 block">Pelaksanaan Ujian / CBT:</span>
+                                <span className="text-[11px] text-slate-400 block">Verifikasi Berkas:</span>
                                 <strong className="text-slate-900">{formatDateIndo(batch.examDate)}</strong>
                               </div>
                             </div>
@@ -636,14 +636,14 @@ export default async function PmbPage() {
                 <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center mb-4">
                   <Laptop className="w-6 h-6" />
                 </div>
-                <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wide">Tes Online</span>
-                <h3 className="text-base font-bold text-slate-900 mt-0.5">Jalur Mandiri Online (CBT)</h3>
+                <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wide">Pendaftaran Reguler</span>
+                <h3 className="text-base font-bold text-slate-900 mt-0.5">Jalur Reguler Online</h3>
                 <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-                  Ujian seleksi berbasis komputer (TPA & Bahasa Inggris) yang dapat dikerjakan secara fleksibel dari rumah.
+                  Pendaftaran mudah dan cepat tanpa ujian tertulis. Cukup unggah berkas dan data diri Anda secara daring.
                 </p>
                 <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-500 space-y-1">
-                  <p>&bull; Jadwal Tes Bebas Pilih</p>
-                  <p>&bull; Hasil Skor Langsung Keluar</p>
+                  <p>&bull; Proses Seleksi Cepat</p>
+                  <p>&bull; Peluang Diterima Tinggi</p>
                 </div>
               </div>
               <Link
@@ -699,7 +699,7 @@ export default async function PmbPage() {
               {[
                 { step: '01', title: 'Buat Akun PMB', desc: 'Isi formulir pendaftaran online dengan data diri dan program studi impian Anda.' },
                 { step: '02', title: 'Unggah Berkas', desc: 'Upload file digital scan rapor, ijazah/SKL, dan sertifikat prestasi yang dimiliki.' },
-                { step: '03', title: 'Verifikasi & Tes', desc: 'Verifikasi berkas atau ikuti ujian CBT online mandiri dari mana saja.' },
+                { step: '03', title: 'Verifikasi Berkas', desc: 'Tim panitia memverifikasi dokumen pendaftaran dan data diri Anda.' },
                 { step: '04', title: 'Pengumuman', desc: 'Cek status kelulusan di portal PMB atau via notifikasi WhatsApp resmi.' },
                 { step: '05', title: 'Registrasi Ulang', desc: 'Konfirmasi penerimaan, peroleh Nomor Induk Mahasiswa (NIM), dan masuk SIAKAD.' },
               ].map((item, idx) => (
@@ -828,7 +828,7 @@ export default async function PmbPage() {
           <div className="space-y-3.5">
             {[
               { q: 'Apakah lulusan SMK dapat mendaftar di program studi keteknikan ITN?', a: 'Sangat bisa. Lulusan SMK rumpun teknik maupun non-teknik memiliki peluang yang sama untuk diterima di seluruh prodi sarjana ITN dengan kurikulum matrikulasi dasar.' },
-              { q: 'Bagaimana mekanisme ujian CBT online mandiri?', a: 'Ujian CBT diselenggarakan secara daring menggunakan sistem tes proctoring ITN. Anda dapat memilih waktu ujian fleksibel dalam rentang 3 hari setelah menyelesaikan pendaftaran online.' },
+              { q: 'Bagaimana mekanisme seleksi pendaftar baru?', a: 'Seleksi dilakukan secara administratif melalui verifikasi berkas dan kelayakan data pendaftar tanpa ujian tertulis/CBT yang rumit. Hasil seleksi diumumkan secara transparan di dashboard PMB Anda.' },
               { q: 'Apakah ada keringanan atau skema cicilan pembayaran UKT?', a: 'Ya, ITN menyediakan fasilitas cicilan biaya UKT 3 tahap per semester tanpa bunga tambahan yang dapat diajukan melalui Biro Keuangan Kampus.' },
             ].map((item, idx) => (
               <div key={idx} className="bg-white rounded-xl p-5 border border-slate-200 shadow-subtle text-xs">

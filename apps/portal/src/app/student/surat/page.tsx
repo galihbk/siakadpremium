@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
+import { getAuthSession, AuthUser } from '@/lib/auth';
 import {
   Mail,
   FileText,
@@ -280,10 +281,21 @@ export default function LayananSuratPage() {
     window.print();
   };
 
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+
+  useEffect(() => {
+    const { user } = getAuthSession();
+    if (user) {
+      setCurrentUser(user);
+    }
+  }, []);
+
+  const studentName = currentUser?.fullName || 'Mahasiswa ITN';
+
   return (
     <PortalLayout
       role="student"
-      userName="Muhammad Rizky Pratama"
+      userName={studentName}
       userIdText="NIM: 2311501001 • Teknik Informatika"
     >
       <div className="space-y-6">
@@ -772,7 +784,7 @@ export default function LayananSuratPage() {
                   <span>Pemohon Terdaftar:</span>
                 </p>
                 <p className="text-[11px] text-blue-800">
-                  Muhammad Rizky Pratama (NIM: 2311501001) &bull; S1 Teknik Informatika &bull; Dosen PA: Dr. Bayu Wicaksono, M.Kom.
+                  {studentName} (NIM: 2311501001) &bull; S1 Teknik Informatika &bull; Dosen PA: Dr. Bayu Wicaksono, M.Kom.
                 </p>
               </div>
 
@@ -869,7 +881,7 @@ export default function LayananSuratPage() {
                 <div className="pl-6 space-y-1.5 font-sans text-xs">
                   <div className="grid grid-cols-3 gap-2">
                     <span className="font-semibold text-slate-600">Nama Lengkap</span>
-                    <span className="col-span-2 font-bold text-slate-900">: Muhammad Rizky Pratama</span>
+                    <span className="col-span-2 font-bold text-slate-900">: {studentName}</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     <span className="font-semibold text-slate-600">Nomor Induk Mahasiswa (NIM)</span>

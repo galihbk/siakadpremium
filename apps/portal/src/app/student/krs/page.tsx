@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
+import Link from 'next/link';
 import {
   FileText,
   BookOpen,
@@ -17,24 +18,50 @@ import {
   Search,
   RefreshCw,
   Database,
+  CreditCard,
+  Lock,
+  ChevronDown,
 } from 'lucide-react';
 import { getAuthSession } from '@/lib/auth';
 import { getApiBaseUrl } from '@/lib/api';
 
 interface MataKuliah {
   id: string;
+  courseId: string;
   kode: string;
   nama: string;
+  className: string;
   sks: number;
   semester: number;
   dosen: string;
   hari: string;
   jam: string;
   ruang: string;
-  status: 'DISETUJUI' | 'MENUNGGU' | 'DITOLAK';
+  quota: number;
+  enrolledCount: number;
+  isFull: boolean;
+  status?: 'BELUM_BAYAR' | 'MENUNGGU' | 'DISETUJUI';
+}
+
+interface Tagihan {
+  invoiceNo: string;
+  amount: number;
+  status: string;
+  dueDate: string;
 }
 
 const HARI_ORDER: Record<string, number> = { Senin: 1, Selasa: 2, Rabu: 3, Kamis: 4, Jumat: 5, Sabtu: 6 };
+
+function authHeaders(): Record<string, string> {
+  const { token, user } = getAuthSession();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  else if (user?.id) headers['x-user-id'] = user.id;
+  return headers;
+}
+
+const formatRupiah = (v: number) =>
+  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v);
 
 export default function StudentKRSPage() {
   const [userName, setUserName] = useState('Mahasiswa');
@@ -44,7 +71,56 @@ export default function StudentKRSPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [invoice, setInvoice] = useState<Tagihan | null>(null);
+  const [expandedSemesters, setExpandedSemesters] = useState<Set<number>>(new Set());
+  const [hasAutoExpanded, setHasAutoExpanded] = useState(false);
+  const [krsPeriodOpen, setKrsPeriodOpen] = useState(true);
+
+  // Terkunci (tidak bisa diedit lagi) kalau KRS sudah resmi diajukan ke PA (SUBMITTED) atau disetujui (APPROVED).
+  // Selama masih DRAFT (belum bayar UKT), pilihan matkul masih bebas diubah.
+  const isLocked = courses.some((m) => m.status === 'MENUNGGU' || m.status === 'DISETUJUI');
+  const hasDraftInvoice = invoice && invoice.status !== 'LUNAS';
+
+  const applyKrsData = (data: any[]) => {
+    const mapped: MataKuliah[] = data.map((c: any) => ({
+      id: c.id,
+      courseId: c.courseId || c.id,
+      kode: c.code,
+      nama: c.name,
+      className: c.className || 'Kelas A',
+      sks: c.sks || 3,
+      semester: c.semester || 1,
+      dosen: c.dosen || 'Tim Dosen Pengampu',
+      hari: c.hari || '-',
+      jam: c.jam || '-',
+      ruang: c.ruang || '-',
+      quota: c.quota ?? 40,
+      enrolledCount: c.enrolledCount ?? 0,
+      isFull: Boolean(c.isFull),
+      status: c.status === 'APPROVED' ? 'DISETUJUI' : c.status === 'SUBMITTED' ? 'MENUNGGU' : c.status === 'DRAFT' ? 'BELUM_BAYAR' : undefined,
+    }));
+    setCourses(mapped);
+    const alreadyTaken = mapped.filter((m) => m.status).map((m) => m.id);
+    setSelectedIds(alreadyTaken);
+  };
+
+  const loadInvoice = async (nim: string) => {
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/finance/invoices/student/${nim}`);
+      if (res.ok) {
+        const json = await res.json();
+        const list = Array.isArray(json.data) ? json.data : [];
+        const krsInvoice = list.find((t: any) => (t.paymentType || '').startsWith('UKT / SPP Semester'));
+        setInvoice(
+          krsInvoice
+            ? { invoiceNo: krsInvoice.invoiceNo, amount: Number(krsInvoice.amount), status: krsInvoice.status, dueDate: krsInvoice.dueDate }
+            : null,
+        );
+      }
+    } catch {
+      // biarkan invoice tetap null kalau gagal
+    }
+  };
 
   useEffect(() => {
     const { user } = getAuthSession();
@@ -56,34 +132,55 @@ export default function StudentKRSPage() {
     async function loadKrs() {
       setLoading(true);
       try {
-        const res = await fetch(`${getApiBaseUrl()}/students/krs`);
+        const res = await fetch(`${getApiBaseUrl()}/students/krs`, { headers: authHeaders() });
         if (res.ok) {
           const json = await res.json();
           if (Array.isArray(json.data) && json.data.length > 0) {
-            const mapped: MataKuliah[] = json.data.map((c: any, index: number) => ({
-              id: c.id || String(index + 1),
-              kode: c.code,
-              nama: c.name,
-              sks: c.sks || 3,
-              semester: c.semester || 5,
-              dosen: c.dosen || 'Tim Dosen Pengampu',
-              hari: c.hari !== '-' ? c.hari : ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'][index % 5],
-              jam: c.jam !== '-' ? c.jam : ['08:00-10:30', '10:30-13:00', '13:00-15:30'][index % 3],
-              ruang: c.ruang !== '-' ? c.ruang : `Ruang Teori ${201 + (index % 5)}`,
-              status: c.status === 'APPROVED' ? 'DISETUJUI' : 'MENUNGGU',
-            }));
-            setCourses(mapped);
-            // Default select courses
-            setSelectedIds(mapped.slice(0, 4).map((m) => m.id));
+            applyKrsData(json.data);
           }
         }
+        const nim = user?.nim || (user as any)?.student?.nim;
+        if (nim) await loadInvoice(nim);
       } catch (err) {
         console.warn('Gagal memuat KRS dari database:', err);
       } finally {
         setLoading(false);
       }
     }
+
+    async function loadCurrentSemester() {
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/auth/me`, { headers: authHeaders() });
+        if (res.ok) {
+          const json = await res.json();
+          const data = json?.data || json;
+          const currentSemester = data?.student?.currentSemester;
+          if (currentSemester) {
+            setExpandedSemesters(new Set([currentSemester]));
+          }
+        }
+      } catch {
+        // biarkan default (semua tertutup, di-fallback saat data matkul dimuat)
+      } finally {
+        setHasAutoExpanded(true);
+      }
+    }
+
+    async function loadKrsStatus() {
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/academic/krs-status`);
+        if (res.ok) {
+          const json = await res.json();
+          setKrsPeriodOpen(json?.isKrsOpen !== false);
+        }
+      } catch {
+        // gagal cek status -- biarkan default terbuka, backend tetap validasi saat submit
+      }
+    }
+
     loadKrs();
+    loadCurrentSemester();
+    loadKrsStatus();
   }, []);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
@@ -94,44 +191,118 @@ export default function StudentKRSPage() {
   const totalSKS = courses.filter((m) => selectedIds.includes(m.id)).reduce((a, m) => a + m.sks, 0);
   const maxSKS = 24;
 
+  // Satu mata kuliah cuma boleh satu kelas terpilih (radio per courseId) --
+  // pilih kelas lain di matkul yang sama otomatis mengganti pilihan sebelumnya.
   const toggle = (id: string) => {
-    if (isSubmitted) return;
+    if (isLocked) return;
     const mk = courses.find((m) => m.id === id);
     if (!mk) return;
     if (selectedIds.includes(id)) {
       setSelectedIds((prev) => prev.filter((x) => x !== id));
-    } else {
-      const newTotal = totalSKS + mk.sks;
-      if (newTotal > maxSKS) {
-        showToast(`Tidak dapat menambah. Batas maksimal ${maxSKS} SKS.`, 'error');
-        return;
-      }
-      setSelectedIds((prev) => [...prev, id]);
+      return;
     }
+    if (mk.isFull) {
+      showToast(`Kelas ${mk.className} untuk ${mk.nama} sudah penuh (${mk.enrolledCount}/${mk.quota}). Pilih kelas lain.`, 'error');
+      return;
+    }
+    const otherClassOfSameCourse = courses.find(
+      (m) => m.courseId === mk.courseId && selectedIds.includes(m.id),
+    );
+    const totalWithoutSwapped = otherClassOfSameCourse
+      ? totalSKS - otherClassOfSameCourse.sks
+      : totalSKS;
+    const newTotal = totalWithoutSwapped + mk.sks;
+    if (newTotal > maxSKS) {
+      showToast(`Tidak dapat menambah. Batas maksimal ${maxSKS} SKS.`, 'error');
+      return;
+    }
+    setSelectedIds((prev) => [...prev.filter((x) => x !== otherClassOfSameCourse?.id), id]);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (!krsPeriodOpen) {
+      showToast('Periode pengisian KRS sedang ditutup oleh BAAK', 'error');
+      return;
+    }
     if (selectedIds.length === 0) {
       showToast('Pilih minimal 1 mata kuliah terlebih dahulu', 'error');
       return;
     }
     setSubmitting(true);
-    setTimeout(() => {
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/students/krs`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ courseIds: selectedIds }),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok && Array.isArray(json?.data?.courses)) {
+        applyKrsData(json.data.courses);
+        if (json.data.invoice) {
+          setInvoice({
+            invoiceNo: json.data.invoice.invoiceNo,
+            amount: Number(json.data.invoice.amount),
+            status: json.data.invoice.status,
+            dueDate: json.data.invoice.dueDate,
+          });
+        }
+        showToast('Tagihan KRS berhasil dihitung & disimpan. Silakan lanjut ke pembayaran UKT.');
+      } else {
+        showToast(json?.message || 'Gagal menyimpan pilihan KRS. Silakan coba lagi.', 'error');
+      }
+    } catch (err) {
+      showToast('Gagal terhubung ke server. Silakan coba lagi.', 'error');
+    } finally {
       setSubmitting(false);
-      setIsSubmitted(true);
-      showToast('KRS berhasil diajukan untuk persetujuan PA ke database!');
-    }, 1200);
-  };
-
-  const handleReset = () => {
-    setIsSubmitted(false);
-    setSelectedIds([]);
-    showToast('KRS berhasil direset');
+    }
   };
 
   const selected = courses
     .filter((m) => selectedIds.includes(m.id))
     .sort((a, b) => HARI_ORDER[a.hari] - (HARI_ORDER[b.hari] || 9));
+
+  // Kelompokkan per semester supaya mahasiswa semester atas yang mau mengulang
+  // matkul semester bawah tetap bisa menemukannya
+  const coursesBySemester = courses.reduce((acc: Record<number, MataKuliah[]>, mk) => {
+    (acc[mk.semester] = acc[mk.semester] || []).push(mk);
+    return acc;
+  }, {});
+  const semesterKeys = Object.keys(coursesBySemester)
+    .map(Number)
+    .sort((a, b) => a - b);
+
+  // Kelompokkan tiap semester lagi per mata kuliah, supaya kelas paralel (Kelas A/B/C)
+  // ditampilkan sebagai pilihan di dalam satu card, bukan card terpisah -- daftarnya
+  // bisa panjang sekali kalau tiap kelas jadi card sendiri.
+  const groupByCourse = (list: MataKuliah[]) => {
+    const map = new Map<string, { courseId: string; kode: string; nama: string; sks: number; classes: MataKuliah[] }>();
+    for (const mk of list) {
+      const entry = map.get(mk.courseId) || { courseId: mk.courseId, kode: mk.kode, nama: mk.nama, sks: mk.sks, classes: [] };
+      entry.classes.push(mk);
+      map.set(mk.courseId, entry);
+    }
+    return Array.from(map.values());
+  };
+
+  // Fallback: kalau semester aktif mahasiswa tidak diketahui/tidak ada di daftar,
+  // buka semester pertama saja secara default
+  useEffect(() => {
+    if (!hasAutoExpanded || loading || semesterKeys.length === 0) return;
+    setExpandedSemesters((prev) => {
+      if (prev.size > 0) return prev;
+      return new Set([semesterKeys[0]]);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasAutoExpanded, loading, semesterKeys.join(',')]);
+
+  const toggleSemester = (semNum: number) => {
+    setExpandedSemesters((prev) => {
+      const next = new Set(prev);
+      if (next.has(semNum)) next.delete(semNum);
+      else next.add(semNum);
+      return next;
+    });
+  };
 
   return (
     <PortalLayout role="student" userName={userName} userIdText={userId}>
@@ -190,11 +361,11 @@ export default function StudentKRSPage() {
           {/* Available MK */}
           <div className="lg:col-span-2 space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-700">Daftar Mata Kuliah Tersedia (Database)</h2>
+              <h2 className="text-sm font-bold text-slate-700">Daftar Mata Kuliah Tersedia</h2>
               {loading && (
                 <div className="flex items-center gap-1.5 text-xs text-blue-600 font-semibold">
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>Sinkronisasi DB...</span>
+                  <span>Menyinkronkan...</span>
                 </div>
               )}
             </div>
@@ -205,56 +376,103 @@ export default function StudentKRSPage() {
                 <p className="text-xs">Memuat kurikulum &amp; kelas perkuliahan aktif...</p>
               </div>
             ) : (
-              courses.map((mk) => {
-                const isSelected = selectedIds.includes(mk.id);
+              semesterKeys.map((semNum) => {
+                const isExpanded = expandedSemesters.has(semNum);
+                const selectedInSem = coursesBySemester[semNum].filter((m) => selectedIds.includes(m.id)).length;
                 return (
-                  <div
-                    key={mk.id}
-                    onClick={() => toggle(mk.id)}
-                    className={`bg-white rounded-xl border-2 p-4 cursor-pointer transition-all hover:shadow-md ${
-                      isSelected
-                        ? 'border-blue-500 bg-blue-50/30'
-                        : 'border-slate-200 hover:border-slate-300'
-                    } ${isSubmitted ? 'cursor-default' : ''}`}
+                <div key={semNum} className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => toggleSemester(semNum)}
+                    className="w-full flex items-center gap-2 pt-1 text-left"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
+                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
+                    <span className="text-xs font-bold text-white bg-[#1E3A8A] px-2.5 py-1 rounded-lg">
+                      Semester {semNum}
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      {coursesBySemester[semNum].length} mata kuliah
+                      {selectedInSem > 0 ? ` • ${selectedInSem} dipilih` : ''}
+                    </span>
+                    <div className="flex-1 border-t border-dashed border-slate-200" />
+                  </button>
+
+                  {isExpanded && groupByCourse(coursesBySemester[semNum]).map((grp) => {
+                    const selectedClass = grp.classes.find((c) => selectedIds.includes(c.id));
+                    return (
+                      <div key={grp.courseId} className="bg-white rounded-xl border-2 border-slate-200 p-4">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-mono font-bold text-slate-500">{mk.kode}</span>
+                          <span className="text-xs font-mono font-bold text-slate-500">{grp.kode}</span>
                           <span
                             className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
-                              mk.sks === 2 ? 'bg-blue-100 text-blue-700' : 'bg-violet-100 text-violet-700'
+                              grp.sks === 2 ? 'bg-blue-100 text-blue-700' : 'bg-violet-100 text-violet-700'
                             }`}
                           >
-                            {mk.sks} SKS
+                            {grp.sks} SKS
                           </span>
-                          {mk.status === 'MENUNGGU' ? (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700">
-                              Draft Pengajuan
+                          {selectedClass?.status === 'BELUM_BAYAR' ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-slate-100 text-slate-600">
+                              Menunggu Pembayaran UKT
                             </span>
-                          ) : (
+                          ) : selectedClass?.status === 'MENUNGGU' ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700">
+                              Menunggu Persetujuan PA
+                            </span>
+                          ) : selectedClass?.status === 'DISETUJUI' ? (
                             <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700">
                               Disetujui PA
                             </span>
-                          )}
+                          ) : null}
                         </div>
-                        <p className="text-sm font-bold text-slate-800 mt-1">{mk.nama}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">{mk.dosen}</p>
-                        {mk.hari !== '-' && (
-                          <p className="text-xs text-slate-400 mt-0.5">
-                            {mk.hari} · {mk.jam} · {mk.ruang}
-                          </p>
-                        )}
+                        <p className="text-sm font-bold text-slate-800 mt-1">{grp.nama}</p>
+
+                        <div className="flex flex-wrap gap-2 mt-2.5">
+                          {grp.classes.map((mk) => {
+                            const isSelected = selectedIds.includes(mk.id);
+                            const isDisabled = (mk.isFull && !isSelected) || (isLocked && !isSelected);
+                            return (
+                              <button
+                                key={mk.id}
+                                type="button"
+                                disabled={isDisabled}
+                                onClick={() => toggle(mk.id)}
+                                className={`text-left rounded-lg border-2 px-3 py-2 transition-all min-w-[160px] ${
+                                  isDisabled
+                                    ? 'opacity-50 cursor-not-allowed bg-slate-50 border-slate-200'
+                                    : isSelected
+                                    ? 'border-blue-500 bg-blue-50/40'
+                                    : 'border-slate-200 hover:border-slate-300 cursor-pointer'
+                                } ${isLocked && !isSelected ? 'cursor-default' : ''}`}
+                              >
+                                <div className="flex items-center gap-1.5">
+                                  <div
+                                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                                      isSelected ? 'bg-blue-600 border-blue-600' : 'border-slate-300'
+                                    }`}
+                                  >
+                                    {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
+                                  </div>
+                                  <span className="text-xs font-bold text-slate-800">{mk.className}</span>
+                                  <span
+                                    className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold ml-auto ${
+                                      mk.isFull ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-500'
+                                    }`}
+                                  >
+                                    {mk.isFull ? 'Penuh' : `${mk.enrolledCount}/${mk.quota}`}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 mt-0.5">{mk.dosen}</p>
+                                {mk.hari !== '-' && (
+                                  <p className="text-[11px] text-slate-400">{mk.hari} · {mk.jam}</p>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <div
-                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${
-                          isSelected ? 'bg-blue-600 border-blue-600' : 'border-slate-300'
-                        }`}
-                      >
-                        {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
-                      </div>
-                    </div>
-                  </div>
+                    );
+                  })}
+                </div>
                 );
               })
             )}
@@ -285,7 +503,7 @@ export default function StudentKRSPage() {
                           <p className="text-slate-400">{mk.hari !== '-' ? `${mk.hari} ${mk.jam}` : '-'}</p>
                         </div>
                         <span className="font-bold text-slate-600 shrink-0">{mk.sks} SKS</span>
-                        {!isSubmitted && (
+                        {!isLocked && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -307,42 +525,79 @@ export default function StudentKRSPage() {
               </div>
             </div>
 
-            {isSubmitted ? (
+            {!krsPeriodOpen && !isLocked && (
+              <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-center mb-3">
+                <p className="text-sm font-bold text-rose-800">Periode KRS Sedang Ditutup</p>
+                <p className="text-xs text-rose-600 mt-1">
+                  Pengajuan/perubahan KRS belum bisa dilakukan. Silakan hubungi BAAK untuk informasi jadwal.
+                </p>
+              </div>
+            )}
+
+            {isLocked ? (
               <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center">
                 <Check className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
                 <p className="text-sm font-bold text-emerald-800">KRS Telah Diajukan</p>
-                <p className="text-xs text-emerald-600 mt-1">Menunggu persetujuan Dosen Pembimbing Akademik</p>
+                <p className="text-xs text-emerald-600 mt-1">
+                  {courses.some((m) => m.status === 'DISETUJUI')
+                    ? 'Disetujui Dosen Pembimbing Akademik'
+                    : 'Menunggu persetujuan Dosen Pembimbing Akademik'}
+                </p>
+              </div>
+            ) : hasDraftInvoice ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center gap-2 text-amber-800">
+                  <CreditCard className="w-4 h-4" />
+                  <p className="text-sm font-bold">Tagihan UKT Semester Ini</p>
+                </div>
+                <p className="text-xl font-black text-amber-900">{formatRupiah(invoice!.amount)}</p>
+                <p className="text-xs text-amber-700">
+                  {invoice!.status === 'MENUNGGU_VERIFIKASI'
+                    ? 'Bukti transfer sudah dikirim, menunggu verifikasi Biro Keuangan.'
+                    : 'Bayar tagihan ini dulu sebelum KRS bisa diajukan ke Dosen PA.'}
+                </p>
+                {invoice!.status !== 'MENUNGGU_VERIFIKASI' && (
+                  <Link
+                    href="/student/keuangan"
+                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-amber-600 text-white text-sm font-bold rounded-xl hover:bg-amber-700 transition-colors"
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    Bayar Sekarang
+                  </Link>
+                )}
                 <button
-                  onClick={handleReset}
-                  className="mt-3 text-xs text-slate-500 underline hover:text-slate-700 transition-colors"
+                  onClick={handleSubmit}
+                  disabled={submitting || selectedIds.length === 0 || !krsPeriodOpen}
+                  className="w-full flex items-center justify-center gap-2 py-2 border border-amber-300 text-amber-800 text-xs font-semibold rounded-xl hover:bg-amber-100 transition-colors disabled:opacity-50"
                 >
-                  Reset &amp; Isi Ulang
+                  {submitting ? <Clock className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                  Perbarui Tagihan (Pilihan Berubah)
                 </button>
               </div>
             ) : (
               <button
                 onClick={handleSubmit}
-                disabled={submitting || selectedIds.length === 0}
+                disabled={submitting || selectedIds.length === 0 || !krsPeriodOpen}
                 className="w-full flex items-center justify-center gap-2 py-3 bg-[#1E3A8A] text-white text-sm font-bold rounded-2xl hover:bg-[#1e40af] transition-colors disabled:opacity-50 shadow-sm"
               >
                 {submitting ? (
                   <>
                     <Clock className="w-4 h-4 animate-spin" />
-                    Mengajukan ke Database...
+                    Menghitung Tagihan...
                   </>
                 ) : (
                   <>
                     <FileText className="w-4 h-4" />
-                    Ajukan KRS
+                    Hitung &amp; Simpan Tagihan KRS
                   </>
                 )}
               </button>
             )}
 
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-2">
-              <Info className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-              <p className="text-xs text-amber-700">
-                KRS yang telah diajukan tersimpan di basis data kampus dan perlu disetujui oleh Dosen PA sebelum resmi berlaku.
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-start gap-2">
+              <Lock className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+              <p className="text-xs text-slate-600">
+                Pilih mata kuliah lalu hitung tagihan UKT (SPP + biaya per SKS). Setelah tagihan <strong>lunas &amp; diverifikasi Biro Keuangan</strong>, KRS otomatis diajukan resmi ke Dosen PA.
               </p>
             </div>
           </div>

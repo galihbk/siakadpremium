@@ -296,272 +296,534 @@ export class LecturersService {
     };
   }
 
-  async getTeachingSchedule() {
-    return [
-      { id: 'c1', mataKuliah: 'Rekayasa Perangkat Lunak', kelas: 'TIF-5A', hari: 'Senin', waktu: '08.00 - 10.30 WIB', ruang: 'Lab Komputasi 3', jumlahMahasiswa: 35 },
-      { id: 'c2', mataKuliah: 'Rekayasa Perangkat Lunak', kelas: 'TIF-5B', hari: 'Senin', waktu: '13.00 - 15.30 WIB', ruang: 'Lab Komputasi 3', jumlahMahasiswa: 34 },
-      { id: 'c3', mataKuliah: 'Arsitektur Perangkat Lunak Enterprise', kelas: 'TIF-7A', hari: 'Rabu', waktu: '08.00 - 10.30 WIB', ruang: 'Ruang Seminar 204', jumlahMahasiswa: 28 },
-      { id: 'c4', mataKuliah: 'Bimbingan Tugas Akhir / Skripsi', kelas: 'SKRIPSI', hari: 'Kamis', waktu: '10.00 - 14.00 WIB', ruang: 'Ruang Dosen FIK', jumlahMahasiswa: 12 },
-    ];
+  async getTeachingSchedule(lecturerId: string | undefined) {
+    if (!lecturerId) return [];
+
+    const activeYear = await this.prisma.academicYear.findFirst({ where: { isActive: true } });
+    const classes = await this.prisma.courseClass.findMany({
+      where: {
+        lecturerId,
+        ...(activeYear ? { academicYearId: activeYear.id } : {}),
+      },
+      include: {
+        course: { include: { studyProgram: true } },
+        room: { include: { building: true } },
+        lecturer: { include: { user: true } },
+        academicYear: true,
+        _count: { select: { enrollments: { where: { status: { not: 'REJECTED' } } } } },
+      },
+      orderBy: [{ day: 'asc' }, { startTime: 'asc' }],
+    });
+
+    return classes.map((cc) => ({
+      id: cc.id,
+      courseCode: cc.course.code,
+      courseName: cc.course.name,
+      className: cc.className,
+      sks: cc.course.sks || cc.course.totalSks || 3,
+      studyProgramName: cc.course.studyProgram?.name || cc.course.studyProgramName || '-',
+      semester: cc.course.semester,
+      academicYear: cc.academicYear?.name || '-',
+      day: cc.day,
+      timeSlot: `${cc.startTime} - ${cc.endTime} WIB`,
+      roomName: cc.room?.name || '-',
+      buildingName: cc.room?.building?.name || '',
+      lecturerName: cc.lecturer?.user?.fullName || '-',
+      lecturerNidn: cc.lecturer?.nidn || '-',
+      enrolledCount: cc._count?.enrollments || 0,
+      quota: cc.quota,
+    }));
+  }
+
+  private async assertClassOwnedByLecturer(classId: string, lecturerId: string | undefined) {
+    if (!lecturerId) {
+      throw new BadRequestException('Dosen tidak teridentifikasi. Silakan login ulang.');
+    }
+    const cc = await this.prisma.courseClass.findUnique({ where: { id: classId }, include: { course: true } });
+    if (!cc) {
+      throw new NotFoundException(`Kelas dengan ID "${classId}" tidak ditemukan.`);
+    }
+    if (cc.lecturerId !== lecturerId) {
+      throw new BadRequestException('Kelas ini bukan kelas yang Anda ajar.');
+    }
+    return cc;
+  }
+
+  // ================= ABSENSI PERKULIAHAN =================
+  async getAttendance(lecturerId: string | undefined, classId: string, meetingNumber: number) {
+    const cc = await this.assertClassOwnedByLecturer(classId, lecturerId);
+
+    const roster = await this.prisma.courseEnrollment.findMany({
+      where: { courseClassId: classId, status: { in: ['SUBMITTED', 'APPROVED'] } },
+      include: { student: { include: { user: true } } },
+      orderBy: { student: { nim: 'asc' } },
+    });
+
+    const session = await this.prisma.attendanceSession.findUnique({
+      where: { courseClassId_meetingNumber: { courseClassId: classId, meetingNumber } },
+      include: { records: true },
+    });
+    const recordByStudent = new Map((session?.records || []).map((r) => [r.studentId, r]));
+
+    return {
+      classId,
+      courseCode: cc.course.code,
+      courseName: cc.course.name,
+      className: cc.className,
+      meetingNumber,
+      date: session?.date || null,
+      topic: session?.topic || '',
+      students: roster.map((e) => ({
+        studentId: e.studentId,
+        nim: e.student.nim,
+        fullName: e.student.user.fullName,
+        status: recordByStudent.get(e.studentId)?.status || 'ALFA',
+        notes: recordByStudent.get(e.studentId)?.notes || '',
+      })),
+    };
+  }
+
+  async saveAttendance(
+    lecturerId: string | undefined,
+    classId: string,
+    payload: { meetingNumber: number; date?: string; topic?: string; records: Array<{ studentId: string; status: string; notes?: string }> },
+  ) {
+    await this.assertClassOwnedByLecturer(classId, lecturerId);
+
+    const session = await this.prisma.attendanceSession.upsert({
+      where: { courseClassId_meetingNumber: { courseClassId: classId, meetingNumber: Number(payload.meetingNumber) } },
+      create: {
+        courseClassId: classId,
+        meetingNumber: Number(payload.meetingNumber),
+        date: payload.date ? new Date(payload.date) : new Date(),
+        topic: payload.topic || null,
+      },
+      update: {
+        date: payload.date ? new Date(payload.date) : undefined,
+        topic: payload.topic !== undefined ? payload.topic : undefined,
+      },
+    });
+
+    for (const r of payload.records || []) {
+      await this.prisma.attendanceRecord.upsert({
+        where: { attendanceSessionId_studentId: { attendanceSessionId: session.id, studentId: r.studentId } },
+        create: { attendanceSessionId: session.id, studentId: r.studentId, status: r.status as any, notes: r.notes || null },
+        update: { status: r.status as any, notes: r.notes || null },
+      });
+    }
+
+    return { success: true, message: `Absensi pertemuan ke-${payload.meetingNumber} berhasil disimpan.` };
+  }
+
+  async getAttendanceRecap(lecturerId: string | undefined, classId: string) {
+    const cc = await this.assertClassOwnedByLecturer(classId, lecturerId);
+
+    const roster = await this.prisma.courseEnrollment.findMany({
+      where: { courseClassId: classId, status: { in: ['SUBMITTED', 'APPROVED'] } },
+      include: { student: { include: { user: true } } },
+      orderBy: { student: { nim: 'asc' } },
+    });
+
+    const sessions = await this.prisma.attendanceSession.findMany({
+      where: { courseClassId: classId },
+      include: { records: true },
+      orderBy: { meetingNumber: 'asc' },
+    });
+    const totalMeetings = sessions.length;
+
+    const students = roster.map((e) => {
+      const counts: Record<string, number> = { HADIR: 0, IZIN: 0, SAKIT: 0, ALFA: 0 };
+      for (const s of sessions) {
+        const rec = s.records.find((r) => r.studentId === e.studentId);
+        const status = rec?.status || 'ALFA';
+        counts[status] = (counts[status] || 0) + 1;
+      }
+      const percentage = totalMeetings > 0 ? Math.round((counts.HADIR / totalMeetings) * 100) : 0;
+      return {
+        studentId: e.studentId,
+        nim: e.student.nim,
+        fullName: e.student.user.fullName,
+        ...counts,
+        percentage,
+      };
+    });
+
+    return { classId, courseName: cc.course.name, className: cc.className, totalMeetings, students };
+  }
+
+  // ================= KONTRAK KULIAH (RPS) =================
+  async getCourseContract(lecturerId: string | undefined, classId: string): Promise<any> {
+    const cc = await this.assertClassOwnedByLecturer(classId, lecturerId);
+    const contract = await this.prisma.courseContract.findUnique({
+      where: { courseClassId: classId },
+      include: { weeks: { orderBy: { weekNumber: 'asc' } } },
+    });
+    return {
+      classId,
+      courseCode: cc.course.code,
+      courseName: cc.course.name,
+      className: cc.className,
+      contract: contract || null,
+    };
+  }
+
+  async saveCourseContract(lecturerId: string | undefined, classId: string, payload: any) {
+    await this.assertClassOwnedByLecturer(classId, lecturerId);
+
+    const contract = await this.prisma.courseContract.upsert({
+      where: { courseClassId: classId },
+      create: {
+        courseClassId: classId,
+        description: payload.description || null,
+        learningOutcomes: payload.learningOutcomes || null,
+        references: payload.references || null,
+        assessmentWeights: payload.assessmentWeights || undefined,
+        isPublished: Boolean(payload.isPublished),
+      },
+      update: {
+        description: payload.description || null,
+        learningOutcomes: payload.learningOutcomes || null,
+        references: payload.references || null,
+        assessmentWeights: payload.assessmentWeights || undefined,
+        isPublished: Boolean(payload.isPublished),
+      },
+    });
+
+    await this.prisma.courseContractWeek.deleteMany({ where: { contractId: contract.id } });
+    const weeks = Array.isArray(payload.weeks) ? payload.weeks : [];
+    for (const w of weeks) {
+      if (!w.topic) continue;
+      await this.prisma.courseContractWeek.create({
+        data: {
+          contractId: contract.id,
+          weekNumber: Number(w.weekNumber),
+          topic: w.topic,
+          method: w.method || null,
+          indicator: w.indicator || null,
+        },
+      });
+    }
+
+    return { success: true, message: 'Kontrak kuliah berhasil disimpan.' };
+  }
+
+  // ================= UPLOAD RPS (BERKAS) =================
+  async getRps(lecturerId: string | undefined, classId: string): Promise<any> {
+    const cc = await this.assertClassOwnedByLecturer(classId, lecturerId);
+    const contract = await this.prisma.courseContract.findUnique({
+      where: { courseClassId: classId },
+      select: { rpsFileUrl: true, rpsFileName: true, rpsUploadedAt: true },
+    });
+    return {
+      classId,
+      courseCode: cc.course.code,
+      courseName: cc.course.name,
+      className: cc.className,
+      rpsFileUrl: contract?.rpsFileUrl || null,
+      rpsFileName: contract?.rpsFileName || null,
+      rpsUploadedAt: contract?.rpsUploadedAt || null,
+    };
+  }
+
+  async saveRps(lecturerId: string | undefined, classId: string, payload: { fileUrl: string; fileName: string }) {
+    await this.assertClassOwnedByLecturer(classId, lecturerId);
+    if (!payload.fileUrl) {
+      throw new BadRequestException('Berkas RPS wajib diunggah.');
+    }
+
+    await this.prisma.courseContract.upsert({
+      where: { courseClassId: classId },
+      create: {
+        courseClassId: classId,
+        rpsFileUrl: payload.fileUrl,
+        rpsFileName: payload.fileName || null,
+        rpsUploadedAt: new Date(),
+      },
+      update: {
+        rpsFileUrl: payload.fileUrl,
+        rpsFileName: payload.fileName || null,
+        rpsUploadedAt: new Date(),
+      },
+    });
+
+    return { success: true, message: 'Berkas RPS berhasil diunggah.' };
   }
 
   // ================= MAHASISWA BIMBINGAN (ADVISEES) =================
-  private static adviseesStore: any[] = [
-    {
-      id: 'mhs-1',
-      nim: '2311501001',
-      fullName: 'Muhammad Rizky Pratama',
-      gender: 'Laki-laki',
-      angkatan: 2023,
-      currentSemester: 5,
-      studyProgramName: 'Teknik Informatika',
-      facultyName: 'Fakultas Ilmu Komputer',
-      ipk: 3.82,
-      totalSksLulus: 84,
-      sksSemesterIni: 21,
-      krsStatus: 'Menunggu Persetujuan',
-      phone: '0812-3456-7890',
-      email: 'rizky.pratama@mhs.itn.ac.id',
-      statusBimbingan: 'KRS',
-      skripsiTitle: null,
-      skripsiProgress: null,
-      courses: [
-        { code: 'TIF-301', name: 'Rekayasa Perangkat Lunak', sks: 3, class: 'TIF-5A', schedule: 'Senin, 08.00 - 10.30' },
-        { code: 'TIF-302', name: 'Pemrograman Web Berbasis Komponen', sks: 3, class: 'TIF-5A', schedule: 'Selasa, 10.00 - 12.30' },
-        { code: 'TIF-303', name: 'Kecerdasan Buatan & Machine Learning', sks: 3, class: 'TIF-5A', schedule: 'Rabu, 08.00 - 10.30' },
-        { code: 'TIF-304', name: 'Keamanan Jaringan & Kriptografi', sks: 3, class: 'TIF-5B', schedule: 'Kamis, 13.00 - 15.30' },
-        { code: 'TIF-305', name: 'Cloud Computing & DevOps', sks: 3, class: 'TIF-5A', schedule: 'Jumat, 08.00 - 10.30' },
-        { code: 'MKDU-006', name: 'Kewirausahaan Berbasis Teknologi', sks: 2, class: 'REG-A', schedule: 'Jumat, 13.30 - 15.10' },
-        { code: 'TIF-306', name: 'Kapita Selekta Informatika', sks: 4, class: 'TIF-5A', schedule: 'Sabtu, 09.00 - 12.20' },
-      ],
-      consultations: [
-        { id: 'cs-1', date: '25 Agustus 2026', topic: 'Penyusunan Rencana Studi Semester 5', note: 'Direkomendasikan mengambil peminatan Software Engineering & Cloud.' },
-      ],
-    },
-    {
-      id: 'mhs-2',
-      nim: '2311501045',
-      fullName: 'Nadia Salsabila Putri',
-      gender: 'Perempuan',
-      angkatan: 2023,
-      currentSemester: 5,
-      studyProgramName: 'Teknik Informatika',
-      facultyName: 'Fakultas Ilmu Komputer',
-      ipk: 3.91,
-      totalSksLulus: 88,
-      sksSemesterIni: 22,
-      krsStatus: 'Menunggu Persetujuan',
-      phone: '0813-9876-5432',
-      email: 'nadia.salsabila@mhs.itn.ac.id',
-      statusBimbingan: 'KRS',
-      skripsiTitle: null,
-      skripsiProgress: null,
-      courses: [
-        { code: 'TIF-301', name: 'Rekayasa Perangkat Lunak', sks: 3, class: 'TIF-5A', schedule: 'Senin, 08.00 - 10.30' },
-        { code: 'TIF-302', name: 'Pemrograman Web Berbasis Komponen', sks: 3, class: 'TIF-5A', schedule: 'Selasa, 10.00 - 12.30' },
-        { code: 'TIF-303', name: 'Kecerdasan Buatan & Machine Learning', sks: 3, class: 'TIF-5A', schedule: 'Rabu, 08.00 - 10.30' },
-        { code: 'TIF-304', name: 'Keamanan Jaringan & Kriptografi', sks: 3, class: 'TIF-5A', schedule: 'Kamis, 08.00 - 10.30' },
-        { code: 'TIF-305', name: 'Cloud Computing & DevOps', sks: 3, class: 'TIF-5A', schedule: 'Jumat, 08.00 - 10.30' },
-        { code: 'TIF-307', name: 'Etika Profesi & Hukum Siber', sks: 3, class: 'TIF-5B', schedule: 'Jumat, 14.00 - 16.30' },
-        { code: 'TIF-306', name: 'Kapita Selekta Informatika', sks: 4, class: 'TIF-5A', schedule: 'Sabtu, 09.00 - 12.20' },
-      ],
-      consultations: [
-        { id: 'cs-2', date: '26 Agustus 2026', topic: 'Rencana Magang Bersertifikat Kampus Merdeka', note: 'Mahasiswa memenuhi kualifikasi IPK untuk program MSIB Kemendikbud.' },
-      ],
-    },
-    {
-      id: 'mhs-3',
-      nim: '2211501012',
-      fullName: 'Fajar Nugroho Wicaksono',
-      gender: 'Laki-laki',
-      angkatan: 2022,
-      currentSemester: 7,
-      studyProgramName: 'Teknik Informatika',
-      facultyName: 'Fakultas Ilmu Komputer',
-      ipk: 3.65,
-      totalSksLulus: 124,
-      sksSemesterIni: 18,
-      krsStatus: 'Disetujui',
-      phone: '0815-1122-3344',
-      email: 'fajar.nugroho@mhs.itn.ac.id',
-      statusBimbingan: 'Skripsi',
-      skripsiTitle: 'Implementasi Arsitektur Microservices pada Sistem Informasi Layanan Publik Terdistribusi',
-      skripsiProgress: 'Pengajuan Ujian Proposal Skripsi',
-      courses: [
-        { code: 'TIF-401', name: 'Metodologi Penelitian & Penulisan Ilmiah', sks: 3, class: 'TIF-7A', schedule: 'Senin, 10.00 - 12.30' },
-        { code: 'TIF-402', name: 'Tugas Akhir / Proposal Skripsi', sks: 4, class: 'SKRIPSI', schedule: 'Kamis, 10.00 - 14.00' },
-        { code: 'TIF-702', name: 'Arsitektur Perangkat Lunak Enterprise', sks: 3, class: 'TIF-7A', schedule: 'Rabu, 08.00 - 10.30' },
-      ],
-      consultations: [
-        { id: 'cs-3', date: '20 Agustus 2026', topic: 'Konsultasi Bab 1 & 2 Proposal Skripsi', note: 'Revisi latar belakang masalah dan tinjauan pustaka terkini disetujui.' },
-      ],
-    },
-    {
-      id: 'mhs-4',
-      nim: '2211501024',
-      fullName: 'Aulia Rahmadani',
-      gender: 'Perempuan',
-      angkatan: 2022,
-      currentSemester: 7,
-      studyProgramName: 'Teknik Informatika',
-      facultyName: 'Fakultas Ilmu Komputer',
-      ipk: 3.74,
-      totalSksLulus: 128,
-      sksSemesterIni: 16,
-      krsStatus: 'Disetujui',
-      phone: '0812-7766-5544',
-      email: 'aulia.rahmadani@mhs.itn.ac.id',
-      statusBimbingan: 'Skripsi',
-      skripsiTitle: 'Penerapan Model Deep Learning untuk Deteksi Dini Anomali Trafik Jaringan Kampus',
-      skripsiProgress: 'Bimbingan Bab 3 & 4 (Hasil Eksperimen)',
-      courses: [
-        { code: 'TIF-402', name: 'Tugas Akhir / Skripsi', sks: 6, class: 'SKRIPSI', schedule: 'Kamis, 10.00 - 14.00' },
-        { code: 'TIF-702', name: 'Arsitektur Perangkat Lunak Enterprise', sks: 3, class: 'TIF-7A', schedule: 'Rabu, 08.00 - 10.30' },
-      ],
-      consultations: [
-        { id: 'cs-4', date: '18 Agustus 2026', topic: 'Diskusi Dataset Pengujian Model', note: 'Dataset NSL-KDD dan CICIDS2017 disetujui untuk simulasi evaluasi akurasi.' },
-      ],
-    },
-    {
-      id: 'mhs-5',
-      nim: '2411501008',
-      fullName: 'Dimas Aditya Saputra',
-      gender: 'Laki-laki',
-      angkatan: 2024,
-      currentSemester: 3,
-      studyProgramName: 'Teknik Informatika',
-      facultyName: 'Fakultas Ilmu Komputer',
-      ipk: 3.55,
-      totalSksLulus: 42,
-      sksSemesterIni: 20,
-      krsStatus: 'Disetujui',
-      phone: '0813-4455-6677',
-      email: 'dimas.aditya@mhs.itn.ac.id',
-      statusBimbingan: 'KRS',
-      skripsiTitle: null,
-      skripsiProgress: null,
-      courses: [
-        { code: 'TIF-201', name: 'Algoritma & Pemrograman Lanjut', sks: 4, class: 'TIF-3A', schedule: 'Selasa, 08.00 - 11.20' },
-        { code: 'TIF-202', name: 'Struktur Data & Kompleksitas Algoritma', sks: 3, class: 'TIF-3A', schedule: 'Senin, 13.00 - 15.30' },
-        { code: 'TIF-203', name: 'Sistem Operasi & Shell Scripting', sks: 3, class: 'TIF-3B', schedule: 'Rabu, 10.00 - 12.30' },
-      ],
-      consultations: [
-        { id: 'cs-5', date: '22 Agustus 2026', topic: 'Evaluasi Indeks Prestasi Semester 2', note: 'Nilai matematika diskrit dan pemrograman meningkat dengan baik.' },
-      ],
-    },
-    {
-      id: 'mhs-6',
-      nim: '2411501033',
-      fullName: 'Citra Ayu Lestari',
-      gender: 'Perempuan',
-      angkatan: 2024,
-      currentSemester: 3,
-      studyProgramName: 'Teknik Informatika',
-      facultyName: 'Fakultas Ilmu Komputer',
-      ipk: 3.78,
-      totalSksLulus: 44,
-      sksSemesterIni: 21,
-      krsStatus: 'Menunggu Persetujuan',
-      phone: '0819-2233-4455',
-      email: 'citra.ayu@mhs.itn.ac.id',
-      statusBimbingan: 'KRS',
-      skripsiTitle: null,
-      skripsiProgress: null,
-      courses: [
-        { code: 'TIF-201', name: 'Algoritma & Pemrograman Lanjut', sks: 4, class: 'TIF-3A', schedule: 'Selasa, 08.00 - 11.20' },
-        { code: 'TIF-202', name: 'Struktur Data & Kompleksitas Algoritma', sks: 3, class: 'TIF-3A', schedule: 'Senin, 13.00 - 15.30' },
-        { code: 'TIF-203', name: 'Sistem Operasi & Shell Scripting', sks: 3, class: 'TIF-3A', schedule: 'Rabu, 10.00 - 12.30' },
-      ],
-      consultations: [],
-    },
-    {
-      id: 'mhs-7',
-      nim: '2111501005',
-      fullName: 'Bagas Pratama Putra',
-      gender: 'Laki-laki',
-      angkatan: 2021,
-      currentSemester: 9,
-      studyProgramName: 'Teknik Informatika',
-      facultyName: 'Fakultas Ilmu Komputer',
-      ipk: 3.42,
-      totalSksLulus: 138,
-      sksSemesterIni: 6,
-      krsStatus: 'Disetujui',
-      phone: '0811-2233-9988',
-      email: 'bagas.pratama@mhs.itn.ac.id',
-      statusBimbingan: 'Skripsi',
-      skripsiTitle: 'Sistem Pendukung Keputusan Penentuan Kelayakan Akreditasi Menggunakan Metode TOPSIS',
-      skripsiProgress: 'Siap Ujian Sidang Skripsi',
-      courses: [
-        { code: 'TIF-499', name: 'Ujian Sidang Sarjana / Skripsi', sks: 6, class: 'SKRIPSI', schedule: 'Kamis, 10.00 - 14.00' },
-      ],
-      consultations: [
-        { id: 'cs-6', date: '15 Agustus 2026', topic: 'Pengecekan Plagiarisme Turnitin & Kelayakan Sidang', note: 'Skor Turnitin 12% (Lolos). Berkas pendaftaran sidang skripsi ditandatangani.' },
-      ],
-    },
-  ];
+  private async mapAdviseeStudent(s: any) {
+    const enrollments = s.enrollments || [];
+    const hasSubmitted = enrollments.some((e: any) => e.status === 'SUBMITTED');
+    const hasApproved = enrollments.some((e: any) => e.status === 'APPROVED');
+    const allApproved = enrollments.length > 0 && enrollments.every((e: any) => e.status === 'APPROVED');
+    const krsStatus: 'Menunggu Persetujuan' | 'Disetujui' | 'Draft' | 'Belum Mengisi' = hasSubmitted
+      ? 'Menunggu Persetujuan'
+      : allApproved
+      ? 'Disetujui'
+      : hasApproved
+      ? 'Disetujui'
+      : enrollments.length > 0
+      ? 'Draft'
+      : 'Belum Mengisi';
 
-  async getAdvisees(query?: { angkatan?: number; status?: string; search?: string }) {
-    let list = [...LecturersService.adviseesStore];
+    const graded = enrollments.filter((e: any) => e.gradePoint !== null && e.gradePoint !== undefined);
+    const ipk = graded.length > 0
+      ? Math.round((graded.reduce((a: number, e: any) => a + (e.gradePoint || 0), 0) / graded.length) * 100) / 100
+      : 0;
+    const totalSksLulus = graded
+      .filter((e: any) => (e.gradePoint || 0) >= 2.0)
+      .reduce((sum: number, e: any) => sum + (e.course?.sks || 3), 0);
+    const sksSemesterIni = enrollments.reduce((sum: number, e: any) => sum + (e.course?.sks || 3), 0);
 
+    return {
+      id: s.id,
+      nim: s.nim,
+      fullName: s.user.fullName,
+      gender: s.gender === 'FEMALE' ? 'Perempuan' : 'Laki-laki',
+      angkatan: s.entryYear,
+      currentSemester: s.currentSemester,
+      studyProgramName: s.studyProgram?.name || '-',
+      facultyName: s.studyProgram?.faculty?.name || '-',
+      ipk,
+      totalSksLulus,
+      sksSemesterIni,
+      krsStatus,
+      phone: s.phone || '-',
+      email: s.user.email,
+      statusBimbingan: 'KRS' as const,
+      skripsiTitle: null,
+      skripsiProgress: null,
+      courses: enrollments.map((e: any) => ({
+        code: e.course?.code || '-',
+        name: e.course?.name || '-',
+        sks: e.course?.sks || 3,
+        class: e.courseClass?.className || '-',
+        schedule: e.courseClass ? `${e.courseClass.day}, ${e.courseClass.startTime} - ${e.courseClass.endTime}` : '-',
+        status: e.status,
+      })),
+      consultations: [] as any[],
+    };
+  }
+
+  /**
+   * Detail lengkap satu mahasiswa bimbingan: biodata diri, alamat, data sekolah asal,
+   * data orang tua/wali, jalur masuk PMB, dan riwayat KRS di semua tahun akademik.
+   */
+  async getAdviseeDetail(lecturerId: string | undefined, studentId: string) {
+    if (!lecturerId) {
+      throw new BadRequestException('Dosen tidak teridentifikasi. Silakan login ulang.');
+    }
+
+    const student = await this.prisma.student.findFirst({
+      where: { OR: [{ id: studentId }, { nim: studentId }] },
+      include: {
+        user: true,
+        studyProgram: { include: { faculty: true } },
+        advisorLecturer: { include: { user: true } },
+        registrationType: true,
+        track: true,
+        admissionClass: true,
+        enrollments: {
+          include: { course: true, courseClass: true, academicYear: true },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+    if (!student) {
+      throw new NotFoundException(`Mahasiswa dengan ID atau NIM "${studentId}" tidak ditemukan.`);
+    }
+    if (student.advisorLecturerId !== lecturerId) {
+      throw new BadRequestException('Mahasiswa ini bukan mahasiswa bimbingan Anda.');
+    }
+
+    const graded = student.enrollments.filter((e) => e.gradePoint !== null && e.gradePoint !== undefined);
+    const ipk = graded.length > 0
+      ? Math.round((graded.reduce((a, e) => a + (e.gradePoint || 0), 0) / graded.length) * 100) / 100
+      : 0;
+    const totalSksLulus = graded
+      .filter((e) => (e.gradePoint || 0) >= 2.0)
+      .reduce((sum, e) => sum + (e.course?.sks || 3), 0);
+
+    // Kelompokkan riwayat KRS per tahun akademik
+    const historyMap = new Map<string, { academicYear: string; courses: any[] }>();
+    for (const e of student.enrollments) {
+      const key = e.academicYearId;
+      const entry = historyMap.get(key) || { academicYear: e.academicYear?.name || '-', courses: [] };
+      entry.courses.push({
+        code: e.course?.code || '-',
+        name: e.course?.name || '-',
+        sks: e.course?.sks || 3,
+        class: e.courseClass?.className || '-',
+        status: e.status,
+        gradeLetter: e.gradeLetter,
+        gradePoint: e.gradePoint,
+      });
+      historyMap.set(key, entry);
+    }
+
+    const fullAddress = [
+      student.streetAddress,
+      student.rtRw ? `RT/RW ${student.rtRw}` : null,
+      student.dusun,
+      student.kelurahan ? `Kel. ${student.kelurahan}` : null,
+      student.kecamatan ? `Kec. ${student.kecamatan}` : null,
+      student.city,
+      student.province,
+      student.postalCode,
+    ].filter(Boolean).join(', ') || student.address || '-';
+
+    return {
+      id: student.id,
+      nim: student.nim,
+      fullName: student.user.fullName,
+      email: student.user.email,
+      gender: student.gender === 'FEMALE' ? 'Perempuan' : 'Laki-laki',
+      birthPlace: student.birthPlace || '-',
+      birthDate: student.birthDate,
+      phone: student.phone || '-',
+      nik: student.nik || '-',
+      nisn: student.nisn || '-',
+      religion: student.religion || '-',
+      address: fullAddress,
+
+      studyProgramName: student.studyProgram?.name || '-',
+      facultyName: student.studyProgram?.faculty?.name || '-',
+      degreeLevel: student.studyProgram?.degreeLevel || '-',
+      entryYear: student.entryYear,
+      currentSemester: student.currentSemester,
+      status: student.status,
+      advisorLecturerName: student.advisorLecturer?.user?.fullName || 'Belum Ditentukan',
+
+      registrationType: student.registrationType?.name || '-',
+      track: student.track?.name || '-',
+      admissionClass: student.admissionClass?.name || '-',
+
+      schoolName: student.schoolName || '-',
+      npsn: student.npsn || '-',
+      graduationYear: student.graduationYear || '-',
+      major: student.major || '-',
+
+      fatherName: student.fatherName || '-',
+      fatherPhone: student.fatherPhone || '-',
+      fatherJob: student.fatherJob || '-',
+      motherName: student.motherName || '-',
+      motherPhone: student.motherPhone || '-',
+      motherJob: student.motherJob || '-',
+      guardianName: student.guardianName || null,
+      guardianPhone: student.guardianPhone || null,
+      guardianJob: student.guardianJob || null,
+
+      ipk,
+      totalSksLulus,
+      academicHistory: Array.from(historyMap.values()),
+    };
+  }
+
+  async getAdvisees(lecturerId: string | undefined, query?: { angkatan?: number; status?: string; search?: string }) {
+    if (!lecturerId) {
+      return { summary: { totalStudents: 0, pendingKrs: 0, approvedKrs: 0, thesisStudents: 0 }, students: [] };
+    }
+
+    const activeYear = await this.prisma.academicYear.findFirst({ where: { isActive: true } });
+
+    const where: any = { advisorLecturerId: lecturerId };
+    if (query?.angkatan) where.entryYear = query.angkatan;
+    if (query?.search) {
+      where.OR = [
+        { user: { fullName: { contains: query.search, mode: 'insensitive' } } },
+        { nim: { contains: query.search } },
+      ];
+    }
+
+    const allAdvisees = await this.prisma.student.findMany({
+      where: { advisorLecturerId: lecturerId },
+      include: {
+        user: true,
+        studyProgram: { include: { faculty: true } },
+        enrollments: activeYear
+          ? { where: { academicYearId: activeYear.id }, include: { course: true, courseClass: true } }
+          : false,
+      },
+    });
+    const allMapped = await Promise.all(allAdvisees.map((s) => this.mapAdviseeStudent(s)));
+
+    const totalStudents = allMapped.length;
+    const pendingKrs = allMapped.filter((m) => m.krsStatus === 'Menunggu Persetujuan').length;
+    const approvedKrs = allMapped.filter((m) => m.krsStatus === 'Disetujui').length;
+    // Bimbingan skripsi belum ada modelnya di database -- semua mahasiswa masih tercatat status 'KRS'
+    const thesisStudents = 0;
+
+    let list = allMapped;
     if (query?.angkatan && Number(query.angkatan) > 0) {
       list = list.filter((m) => m.angkatan === Number(query.angkatan));
     }
     if (query?.status && query.status !== 'Semua') {
-      if (query.status === 'KRS Menunggu') {
-        list = list.filter((m) => m.krsStatus === 'Menunggu Persetujuan');
-      } else if (query.status === 'KRS Disetujui') {
-        list = list.filter((m) => m.krsStatus === 'Disetujui');
-      } else if (query.status === 'Bimbingan Skripsi') {
-        list = list.filter((m) => m.statusBimbingan === 'Skripsi');
-      }
+      if (query.status === 'KRS Menunggu') list = list.filter((m) => m.krsStatus === 'Menunggu Persetujuan');
+      else if (query.status === 'KRS Disetujui') list = list.filter((m) => m.krsStatus === 'Disetujui');
+      else if (query.status === 'Bimbingan Skripsi') list = [];
     }
     if (query?.search) {
       const q = query.search.toLowerCase();
       list = list.filter((m) => m.fullName.toLowerCase().includes(q) || m.nim.includes(q));
     }
 
-    const totalStudents = LecturersService.adviseesStore.length;
-    const pendingKrs = LecturersService.adviseesStore.filter((m) => m.krsStatus === 'Menunggu Persetujuan').length;
-    const approvedKrs = LecturersService.adviseesStore.filter((m) => m.krsStatus === 'Disetujui').length;
-    const thesisStudents = LecturersService.adviseesStore.filter((m) => m.statusBimbingan === 'Skripsi').length;
-
     return {
-      summary: {
-        totalStudents,
-        pendingKrs,
-        approvedKrs,
-        thesisStudents,
-      },
+      summary: { totalStudents, pendingKrs, approvedKrs, thesisStudents },
       students: list,
     };
   }
 
-  async approveStudentKrs(studentId: string, note?: string) {
-    const student = LecturersService.adviseesStore.find((m) => m.id === studentId || m.nim === studentId);
+  async approveStudentKrs(lecturerId: string | undefined, studentId: string, note?: string) {
+    if (!lecturerId) {
+      throw new BadRequestException('Dosen tidak teridentifikasi. Silakan login ulang.');
+    }
+    const student = await this.prisma.student.findFirst({
+      where: { OR: [{ id: studentId }, { nim: studentId }] },
+      include: { user: true },
+    });
     if (!student) {
       throw new NotFoundException(`Mahasiswa dengan ID atau NIM "${studentId}" tidak ditemukan.`);
     }
-
-    student.krsStatus = 'Disetujui';
-    if (note) {
-      student.consultations.unshift({
-        id: `cs-${Date.now()}`,
-        date: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-        topic: 'Validasi & Persetujuan KRS Online',
-        note,
-      });
+    if (student.advisorLecturerId !== lecturerId) {
+      throw new BadRequestException('Mahasiswa ini bukan mahasiswa bimbingan Anda.');
     }
+
+    const activeYear = await this.prisma.academicYear.findFirst({ where: { isActive: true } });
+    if (!activeYear) {
+      throw new NotFoundException('Tidak ada tahun akademik aktif saat ini.');
+    }
+
+    await this.prisma.courseEnrollment.updateMany({
+      where: { studentId: student.id, academicYearId: activeYear.id, status: 'SUBMITTED' },
+      data: { status: 'APPROVED' },
+    });
+
+    if (note) {
+      await this.prisma.systemAuditLog
+        .create({ data: { action: 'PA_APPROVE_KRS', detail: `${note} (KRS ${student.nim} disetujui Dosen PA)`, userEmail: student.user.email } })
+        .catch(() => null);
+    }
+
+    const refreshed = await this.prisma.student.findUnique({
+      where: { id: student.id },
+      include: {
+        user: true,
+        studyProgram: { include: { faculty: true } },
+        enrollments: { where: { academicYearId: activeYear.id }, include: { course: true, courseClass: true } },
+      },
+    });
 
     return {
       success: true,
-      message: `KRS mahasiswa ${student.fullName} (${student.nim}) berhasil disetujui resmi oleh Dosen PA.`,
-      data: student,
+      message: `KRS mahasiswa ${student.user.fullName} (${student.nim}) berhasil disetujui resmi oleh Dosen PA.`,
+      data: await this.mapAdviseeStudent(refreshed),
     };
   }
 
-  async addAdviseeConsultation(studentId: string, payload: { topic: string; note: string }) {
-    const student = LecturersService.adviseesStore.find((m) => m.id === studentId || m.nim === studentId);
+  async addAdviseeConsultation(lecturerId: string | undefined, studentId: string, payload: { topic: string; note: string }) {
+    const student = await this.prisma.student.findFirst({
+      where: { OR: [{ id: studentId }, { nim: studentId }] },
+      include: { user: true },
+    });
     if (!student) {
       throw new NotFoundException(`Mahasiswa dengan ID atau NIM "${studentId}" tidak ditemukan.`);
     }
@@ -573,7 +835,9 @@ export class LecturersService {
       note: payload.note,
     };
 
-    student.consultations.unshift(newConsultation);
+    await this.prisma.systemAuditLog
+      .create({ data: { action: 'PA_CONSULTATION', detail: `${newConsultation.topic}: ${newConsultation.note} (mahasiswa ${student.nim})`, userEmail: student.user.email } })
+      .catch(() => null);
 
     return {
       success: true,

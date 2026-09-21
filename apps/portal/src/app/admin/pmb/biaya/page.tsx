@@ -176,17 +176,17 @@ export default function AdminPmbBiayaPage() {
       });
 
       if (!res.ok) {
-        const errJson = await res.json();
+        const errJson = await res.json().catch(() => ({}));
         throw new Error(errJson.message || 'Gagal memverifikasi pembayaran.');
       }
 
       setDialogState({
         isOpen: true,
-        title: targetStatus === 'PAID' ? 'Pembayaran Lunas!' : 'Status Diperbarui',
+        title: targetStatus === 'PAID' ? 'Pembayaran Lunas & NIM Diterbitkan!' : 'Status Diperbarui',
         message:
           targetStatus === 'PAID'
             ? 'Pembayaran berhasil diverifikasi LUNAS di database!'
-            : 'Status pembayaran berhasil diubah menjadi BELUM BAYAR.',
+            : 'Status pembayaran berhasil diubah menjadi PENDING.',
         type: targetStatus === 'PAID' ? 'success' : 'info',
         isAlert: true,
       });
@@ -521,10 +521,11 @@ export default function AdminPmbBiayaPage() {
             </div>
           )}
         </div>
+      </div>
 
         {/* Verification Modal */}
         {selectedPayment && (
-          <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 !m-0">
             <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 space-y-4">
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                 <div>
@@ -647,7 +648,6 @@ export default function AdminPmbBiayaPage() {
           cancelText={dialogState.cancelText}
           isAlert={dialogState.isAlert}
         />
-      </div>
     </PortalLayout>
   );
 }

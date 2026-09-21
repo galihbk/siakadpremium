@@ -150,7 +150,7 @@ export default function StatistikPage() {
       role="pmb"
       activeMenuHref="/admin/pmb/statistik"
     >
-      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+      <div className="w-full space-y-6">
         {/* Header */}
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-subtle p-5 sm:p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>

@@ -117,7 +117,7 @@ const ROLE_CONFIG: Record<
     bgColor: 'bg-amber-50',
     borderColor: 'border-amber-200',
     icon: ShieldCheck,
-    desc: 'Pengelolaan pendaftaran calon mahasiswa baru, verifikasi berkas, CBT, dan kelulusan.',
+    desc: 'Pengelolaan pendaftaran calon mahasiswa baru, verifikasi berkas, dan kelulusan.',
   },
   ADMIN_KEUANGAN: {
     label: 'Admin Keuangan',

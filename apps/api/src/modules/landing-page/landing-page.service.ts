@@ -107,6 +107,10 @@ export class LandingPageService {
         update: data,
         create: {
           id: 'default-setting',
+          rectorSpeech: DEFAULT_SETTINGS.rectorSpeech,
+          rectorName: DEFAULT_SETTINGS.rectorName,
+          rectorTitle: DEFAULT_SETTINGS.rectorTitle,
+          rectorQuote: DEFAULT_SETTINGS.rectorQuote,
           ...data,
         },
       });

@@ -3,11 +3,11 @@ import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
 
 export class LoginDto {
   @ApiProperty({
-    example: 'admin@itn.ac.id',
-    description: 'Alamat email akun terdaftar',
+    example: '270010016',
+    description: 'NIM, NIDN, atau Email kampus terdaftar',
   })
-  @IsEmail({}, { message: 'Format email tidak valid' })
-  @IsNotEmpty({ message: 'Email tidak boleh kosong' })
+  @IsString({ message: 'NIM / NIDN / Email harus berupa teks' })
+  @IsNotEmpty({ message: 'NIM / NIDN / Email tidak boleh kosong' })
   email: string;
 
   @ApiProperty({

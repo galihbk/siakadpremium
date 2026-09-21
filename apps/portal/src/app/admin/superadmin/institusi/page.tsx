@@ -331,7 +331,7 @@ export default function SuperAdminProfilInstitusiPage() {
         userName="Bambang Pratama, S.Kom., M.Cs."
         userIdText="Kepala BAAK & Sistem Akademik Kampus"
       >
-        <div className="flex flex-col items-center justify-center min-h-[450px] bg-white rounded-3xl border border-slate-200 p-8 text-center max-w-7xl mx-auto shadow-xs">
+        <div className="flex flex-col items-center justify-center min-h-[450px] bg-white rounded-3xl border border-slate-200 p-8 text-center w-full shadow-xs">
           {loading ? (
             <>
               <div className="w-16 h-16 rounded-3xl bg-blue-50 text-[#1E3A8A] flex items-center justify-center mb-4 shadow-sm">
@@ -371,7 +371,7 @@ export default function SuperAdminProfilInstitusiPage() {
       userName="Bambang Pratama, S.Kom., M.Cs."
       userIdText="Kepala BAAK & Sistem Akademik Kampus"
     >
-      <div className="space-y-6 max-w-7xl mx-auto">
+      <div className="w-full space-y-6">
         {/* Toast Notification */}
         {toastMessage && (
           <div className="fixed bottom-6 right-6 z-50 bg-[#0F172A] text-white px-5 py-3.5 rounded-2xl shadow-2xl border border-blue-500/30 flex items-center gap-3 animate-fade-in">

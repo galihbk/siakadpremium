@@ -1,7 +1,10 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
+import { getAuthSession, AuthUser } from '@/lib/auth';
+import { getApiBaseUrl } from '@/lib/api';
 import {
   Calendar,
   Clock,
@@ -228,11 +231,66 @@ export default function JadwalKuliahPage() {
     window.print();
   };
 
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [studentProfile, setStudentProfile] = useState<{
+    nim?: string;
+    studyProgram?: string;
+    faculty?: string;
+    advisorName?: string;
+    enrollments?: any[];
+    isLoaded?: boolean;
+  }>({});
+
+  useEffect(() => {
+    const { token, user } = getAuthSession();
+    if (user) {
+      setCurrentUser(user);
+    }
+    async function fetchProfile() {
+      try {
+        const apiBase = getApiBaseUrl();
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+        else if (user?.id) headers['x-user-id'] = user.id;
+
+        const res = await fetch(`${apiBase}/auth/me`, { headers });
+        if (res.ok) {
+          const raw = await res.json();
+          const data = raw?.data || raw;
+          if (data.fullName && user) {
+            setCurrentUser({ ...user, fullName: data.fullName });
+          }
+          if (data.student) {
+            setStudentProfile({
+              nim: data.student.nim,
+              studyProgram: data.student.studyProgram?.name,
+              faculty: data.student.studyProgram?.faculty?.name,
+              advisorName: data.student.advisorLecturer?.user?.fullName,
+              enrollments: data.student.enrollments || [],
+              isLoaded: true,
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Gagal memuat profil mahasiswa:', err);
+      }
+    }
+    fetchProfile();
+  }, []);
+
+  const studentName = currentUser?.fullName || 'Mahasiswa ITN';
+  const displayNim = studentProfile.nim || 'Mahasiswa';
+  const displayProdi = studentProfile.studyProgram || 'Program Studi';
+  const displayFaculty = studentProfile.faculty || 'Institut Teknologi Nusantara';
+  const displayAdvisor = studentProfile.advisorName || 'Dr. Aris Sudrajat, S.Ds., M.Ds.';
+
+  const hasEnrollments = Array.isArray(studentProfile.enrollments) && studentProfile.enrollments.length > 0;
+
   return (
     <PortalLayout
       role="student"
-      userName="Muhammad Rizky Pratama"
-      userIdText="NIM: 2311501001 • Teknik Informatika"
+      userName={studentName}
+      userIdText={`NIM: ${displayNim} • ${displayProdi}`}
     >
       <div className="space-y-6">
         
@@ -288,8 +346,8 @@ export default function JadwalKuliahPage() {
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-subtle flex items-center justify-between">
             <div>
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Total SKS Aktif</span>
-              <p className="text-2xl font-black text-[#1E3A8A] mt-1">14 SKS</p>
-              <p className="text-xs text-slate-500 mt-0.5">5 Mata Kuliah Terdaftar</p>
+              <p className="text-2xl font-black text-[#1E3A8A] mt-1">{hasEnrollments ? '14 SKS' : '0 SKS'}</p>
+              <p className="text-xs text-slate-500 mt-0.5">{hasEnrollments ? '5 Mata Kuliah Terdaftar' : '0 Mata Kuliah Terdaftar'}</p>
             </div>
             <div className="w-12 h-12 rounded-xl bg-blue-50 text-[#1E3A8A] flex items-center justify-center font-bold">
               <BookOpen className="w-6 h-6" />
@@ -300,8 +358,8 @@ export default function JadwalKuliahPage() {
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-subtle flex items-center justify-between">
             <div>
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Hari Perkuliahan</span>
-              <p className="text-2xl font-black text-slate-900 mt-1">5 Hari</p>
-              <p className="text-xs text-slate-500 mt-0.5">Senin s/d Jumat</p>
+              <p className="text-2xl font-black text-slate-900 mt-1">{hasEnrollments ? '5 Hari' : '0 Hari'}</p>
+              <p className="text-xs text-slate-500 mt-0.5">{hasEnrollments ? 'Senin s/d Jumat' : 'Belum Ada Jadwal'}</p>
             </div>
             <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
               <Calendar className="w-6 h-6" />
@@ -312,7 +370,7 @@ export default function JadwalKuliahPage() {
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-subtle flex items-center justify-between">
             <div>
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Jam Tatap Muka</span>
-              <p className="text-2xl font-black text-emerald-700 mt-1">12.5 Jam</p>
+              <p className="text-2xl font-black text-emerald-700 mt-1">{hasEnrollments ? '12.5 Jam' : '0 Jam'}</p>
               <p className="text-xs text-slate-500 mt-0.5">Alokasi Waktu per Minggu</p>
             </div>
             <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
@@ -325,7 +383,7 @@ export default function JadwalKuliahPage() {
             <div>
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Syarat Presensi UAS</span>
               <p className="text-2xl font-black text-[#D4A017] mt-1">Min. 75%</p>
-              <p className="text-xs text-slate-500 mt-0.5">Kehadiran Saat Ini: 100%</p>
+              <p className="text-xs text-slate-500 mt-0.5">{hasEnrollments ? 'Kehadiran Saat Ini: 100%' : 'Belum Ada Perkuliahan'}</p>
             </div>
             <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
               <CheckCircle2 className="w-6 h-6" />
@@ -438,18 +496,37 @@ export default function JadwalKuliahPage() {
           </div>
           <div className="grid grid-cols-2 gap-4 mt-4 pt-3 border-t border-slate-300 text-xs">
             <div>
-              <p><strong>Nama Mahasiswa:</strong> Muhammad Rizky Pratama</p>
-              <p><strong>NIM:</strong> 2311501001</p>
+              <p><strong>Nama Mahasiswa:</strong> {studentName}</p>
+              <p><strong>NIM:</strong> {displayNim}</p>
             </div>
             <div>
-              <p><strong>Program Studi:</strong> S1 - Teknik Informatika</p>
-              <p><strong>Dosen PA:</strong> Dr. Bayu Wicaksono, M.Kom.</p>
+              <p><strong>Program Studi:</strong> {displayProdi}</p>
+              <p><strong>Dosen PA:</strong> {displayAdvisor}</p>
             </div>
           </div>
         </div>
 
         {/* MAIN CONTENT AREA */}
-        {filteredJadwal.length === 0 ? (
+        {!hasEnrollments ? (
+          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-subtle">
+            <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#1E3A8A]">
+              <Calendar className="w-7 h-7 text-[#1E3A8A]/70" />
+            </div>
+            <h3 className="text-base font-bold text-slate-800">Belum Ada Jadwal Perkuliahan Aktif</h3>
+            <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto mt-1 leading-relaxed">
+              Anda belum mengisi Kartu Rencana Studi (KRS) untuk Semester 1 (Gasal 2026/2027). Jadwal perkuliahan akan otomatis tertera setelah rencana studi Anda disetujui Dosen Pembimbing Akademik ({displayAdvisor}).
+            </p>
+            <div className="mt-5 flex justify-center">
+              <Link
+                href="/student/krs"
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#1E3A8A] text-white text-xs font-bold rounded-xl shadow-xs hover:bg-[#172554] transition-colors"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Buka Pengisian KRS</span>
+              </Link>
+            </div>
+          </div>
+        ) : filteredJadwal.length === 0 ? (
           <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-subtle">
             <Calendar className="w-12 h-12 text-slate-300 mx-auto mb-3" />
             <h3 className="text-base font-bold text-slate-700">Tidak ada jadwal ditemukan</h3>

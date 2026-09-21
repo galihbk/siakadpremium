@@ -69,6 +69,9 @@ export const DegreeLevel = {
 export type DegreeLevel = (typeof DegreeLevel)[keyof typeof DegreeLevel];
 
 export const AdmissionStatus = {
+  UNPAID: 'UNPAID',
+  VERIFYING_PAYMENT: 'VERIFYING_PAYMENT',
+  VERIFYING_RE_REGISTRATION: 'VERIFYING_RE_REGISTRATION',
   PENDING: 'PENDING',
   VERIFIED: 'VERIFIED',
   PASSED: 'PASSED',
@@ -116,6 +119,8 @@ export interface AuthUser {
   avatarUrl?: string | null;
   studentId?: string | null;
   lecturerId?: string | null;
+  nim?: string | null;
+  student?: { id: string; nim: string } | null;
 }
 
 export interface JwtTokenPayload {
@@ -170,6 +175,15 @@ export interface AdminDashboardSummary {
   totalFakultas: number;
   persentaseRegistrasiKRS: number;
   mahasiswaBaruTerdaftar: number;
+  facultyList: {
+    id: string;
+    name: string;
+    code: string;
+    studyProgramsCount: number;
+    studentsCount: number;
+    lecturersCount: number;
+    accreditation: string;
+  }[];
 }
 
 // ==============================================================================
@@ -297,10 +311,19 @@ export interface AdmissionApplicationItem {
   parentPhone?: string | null;
   parentJob?: string | null;
   parentIncome?: string | null;
+  fatherName?: string | null;
+  fatherPhone?: string | null;
+  fatherJob?: string | null;
+  fatherIncome?: string | null;
+  motherName?: string | null;
+  motherPhone?: string | null;
+  motherJob?: string | null;
+  motherIncome?: string | null;
   fileKtp?: string | null;
   fileKk?: string | null;
   fileIjazah?: string | null;
   fileFoto?: string | null;
+  fileKip?: string | null;
   fileTambahan?: string | null;
   studentId?: string | null;
   nim?: string | null;
@@ -398,6 +421,7 @@ export interface FeeRuleItem {
   description?: string | null;
   priority: number;
   academicYear?: string | null;
+  billingMode?: 'UKT' | 'PER_SKS';
   isActive: boolean;
   registrationTypeId?: string | null;
   trackId?: string | null;

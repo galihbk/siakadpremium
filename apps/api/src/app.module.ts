@@ -17,6 +17,7 @@ import { BuildingsModule } from './modules/buildings/buildings.module';
 import { FinanceModule } from './modules/finance/finance.module';
 import { Lp3mModule } from './modules/lp3m/lp3m.module';
 import { UsersModule } from './modules/users/users.module';
+import { StorageModule } from './modules/storage/storage.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -43,6 +44,7 @@ import { AppService } from './app.service';
     FinanceModule,
     Lp3mModule,
     UsersModule,
+    StorageModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -290,7 +290,7 @@ export default function SuperAdminGedungPage() {
       userName="Bambang Pratama, S.Kom., M.Cs."
       userIdText="Kepala BAAK & Sistem Akademik Kampus"
     >
-      <div className="space-y-6 max-w-7xl mx-auto">
+      <div className="w-full space-y-6">
         {/* Toast Notification */}
         {toastMessage && (
           <div className="fixed bottom-6 right-6 z-50 bg-[#0F172A] text-white px-5 py-3.5 rounded-2xl shadow-2xl border border-blue-500/30 flex items-center gap-3 animate-fade-in">

@@ -59,6 +59,14 @@ export class SaveApplicationDraftDto {
   @IsOptional() @IsString() phone?: string;
   @IsOptional() @IsString() email?: string;
   @IsOptional() @IsString() address?: string;
+  @IsOptional() @IsString() streetAddress?: string;
+  @IsOptional() @IsString() rtRw?: string;
+  @IsOptional() @IsString() dusun?: string;
+  @IsOptional() @IsString() kelurahan?: string;
+  @IsOptional() @IsString() kecamatan?: string;
+  @IsOptional() @IsString() city?: string;
+  @IsOptional() @IsString() province?: string;
+  @IsOptional() @IsString() postalCode?: string;
 
   @IsOptional() @IsString() schoolName?: string;
   @IsOptional() @IsString() npsn?: string;
@@ -70,11 +78,20 @@ export class SaveApplicationDraftDto {
   @IsOptional() @IsString() parentPhone?: string;
   @IsOptional() @IsString() parentJob?: string;
   @IsOptional() @IsString() parentIncome?: string;
+  @IsOptional() @IsString() fatherName?: string;
+  @IsOptional() @IsString() fatherPhone?: string;
+  @IsOptional() @IsString() fatherJob?: string;
+  @IsOptional() @IsString() fatherIncome?: string;
+  @IsOptional() @IsString() motherName?: string;
+  @IsOptional() @IsString() motherPhone?: string;
+  @IsOptional() @IsString() motherJob?: string;
+  @IsOptional() @IsString() motherIncome?: string;
 
   @IsOptional() @IsString() fileKtp?: string;
   @IsOptional() @IsString() fileKk?: string;
   @IsOptional() @IsString() fileIjazah?: string;
   @IsOptional() @IsString() fileFoto?: string;
+  @IsOptional() @IsString() fileKip?: string;
   @IsOptional() @IsString() fileTambahan?: string;
 }
 
@@ -92,6 +109,7 @@ export class VerifyDocumentDto {
 
 export class VerifyPaymentDto {
   @IsString() @IsNotEmpty() status: 'PAID' | 'PENDING';
+  @IsOptional() @IsString() notes?: string;
   @IsOptional() @IsString() verifiedBy?: string;
 }
 

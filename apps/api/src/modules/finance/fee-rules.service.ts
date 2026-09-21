@@ -132,6 +132,7 @@ export class FeeRulesService {
     description?: string;
     priority?: number;
     academicYear?: string | null;
+    billingMode?: 'UKT' | 'PER_SKS';
     isActive?: boolean;
     registrationTypeId?: string | null;
     trackId?: string | null;
@@ -159,6 +160,7 @@ export class FeeRulesService {
           description: dto.description,
           priority: dto.priority !== undefined ? Number(dto.priority) : 10,
           academicYear: dto.academicYear || null,
+          billingMode: dto.billingMode || 'UKT',
           isActive: dto.isActive !== undefined ? Boolean(dto.isActive) : true,
           registrationTypeId: dto.registrationTypeId || null,
           trackId: dto.trackId || null,
@@ -204,6 +206,7 @@ export class FeeRulesService {
       description?: string;
       priority?: number;
       academicYear?: string | null;
+      billingMode?: 'UKT' | 'PER_SKS';
       isActive?: boolean;
       registrationTypeId?: string | null;
       trackId?: string | null;
@@ -228,6 +231,7 @@ export class FeeRulesService {
       if (dto.description !== undefined) updateData.description = dto.description;
       if (dto.priority !== undefined) updateData.priority = Number(dto.priority);
       if (dto.academicYear !== undefined) updateData.academicYear = dto.academicYear || null;
+      if (dto.billingMode !== undefined) updateData.billingMode = dto.billingMode;
       if (dto.isActive !== undefined) updateData.isActive = Boolean(dto.isActive);
       if (dto.registrationTypeId !== undefined) updateData.registrationTypeId = dto.registrationTypeId || null;
       if (dto.trackId !== undefined) updateData.trackId = dto.trackId || null;
@@ -386,31 +390,42 @@ export class FeeRulesService {
   /**
    * Menghitung tagihan per komponen berdasarkan aturan pembiayaan
    */
-  async calculateFees(rule: any, categoryFilter: string = 'SEMESTER') {
-    const components = await this.prisma.feeComponent.findMany({
-      where: {
-        isActive: true,
-        ...(categoryFilter ? { category: categoryFilter } : {}),
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+  async calculateFees(
+    rule: any,
+    categoryFilter: string = 'SEMESTER',
+    sksMultiplier: number = 1,
+    perSksComponentCode: string | null = null,
+  ) {
+    // Kalau aturan spesifik diketahui, HANYA komponen yang eksplisit dicentang/dilampirkan
+    // ke aturan itu (rule.ruleItems) yang ditagihkan -- komponen lain diabaikan sepenuhnya.
+    // Kalau tidak ada aturan sama sekali (rule null), pakai tarif normal kampus di semua komponen aktif.
+    let componentEntries: Array<{ comp: any; ruleItem: any | null }>;
+    if (rule) {
+      componentEntries = (rule.ruleItems || [])
+        .filter((item: any) => item.feeComponent?.isActive)
+        .map((item: any) => ({ comp: item.feeComponent, ruleItem: item }));
+    } else {
+      const components = await this.prisma.feeComponent.findMany({
+        where: { isActive: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      componentEntries = components.map((comp) => ({ comp, ruleItem: null }));
+    }
 
-    const ruleItemsMap = new Map<string, any>();
-    if (rule && rule.ruleItems) {
-      for (const item of rule.ruleItems) {
-        ruleItemsMap.set(item.feeComponentId, item);
-      }
+    if (categoryFilter) {
+      componentEntries = componentEntries.filter(({ comp }) => comp.category === categoryFilter);
     }
 
     let totalBaseAmount = 0;
     let totalDiscount = 0;
     let totalFinalAmount = 0;
 
-    const lineItems = components.map((comp) => {
-      const ruleItem = ruleItemsMap.get(comp.id);
+    const lineItems = componentEntries.map(({ comp, ruleItem }) => {
       const actionType = ruleItem?.actionType || 'NORMAL';
       const amountValue = ruleItem?.amountValue !== undefined && ruleItem?.amountValue !== null ? Number(ruleItem.amountValue) : null;
-      const baseAmount = Number(comp.defaultAmount) || 0;
+      const unitAmount = Number(comp.defaultAmount) || 0;
+      const isPerSks = categoryFilter === 'PER_SKS' || (perSksComponentCode !== null && comp.code === perSksComponentCode);
+      const baseAmount = isPerSks ? unitAmount * sksMultiplier : unitAmount;
 
       let discountAmount = 0;
       let finalAmount = baseAmount;
@@ -482,12 +497,15 @@ export class FeeRulesService {
     studyProgramId?: string | null;
     waveId?: string | null;
     academicYear?: string | null;
+    totalSks?: number | null;
   }) {
     const matchResult = await this.findMatchingRule(criteria);
     const rule = matchResult?.rule || null;
     const specificity = matchResult?.specificity || 0;
 
-    const calculation = await this.calculateFees(rule);
+    const perSksCode = rule?.billingMode === 'PER_SKS' ? 'SKS' : null;
+    const totalSks = Number(criteria.totalSks) || 20;
+    const calculation = await this.calculateFees(rule, 'SEMESTER', totalSks, perSksCode);
 
     return {
       matchedRule: rule
@@ -530,6 +548,18 @@ export class FeeRulesService {
     });
 
     if (!student) throw new NotFoundException('Data mahasiswa tidak ditemukan.');
+
+    // Cegah duplikat: kalau penetapan pembiayaan untuk tahun akademik ini sudah ada, pakai yang lama
+    const existingAssignment = await this.prisma.studentFeeAssignment.findFirst({
+      where: { studentId: data.studentId, academicYear: data.academicYear },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (existingAssignment) {
+      return {
+        assignment: existingAssignment,
+        calculation: (existingAssignment.snapshotData as any)?.calculation || null,
+      };
+    }
 
     let rule: any = null;
     if (data.customRuleId) {
@@ -598,6 +628,7 @@ export class FeeRulesService {
     semester: number;
     academicYear?: string;
     dueDate?: string;
+    totalSks?: number;
   }) {
     const student = await this.prisma.student.findUnique({
       where: { id: params.studentId },
@@ -613,6 +644,18 @@ export class FeeRulesService {
     if (!student) throw new NotFoundException('Data mahasiswa tidak ditemukan.');
 
     const academicYear = params.academicYear || '2026/2027';
+    const totalSks = Number(params.totalSks) || 0;
+
+    // Kalau tagihan semester ini untuk mahasiswa ini sudah pernah diterbitkan:
+    // - sudah LUNAS -> jangan diubah, kembalikan apa adanya.
+    // - masih TERTUNDA -> update nominalnya mengikuti pilihan SKS terbaru (lanjut ke bawah).
+    const existingInvoice = await this.prisma.paymentInvoice.findFirst({
+      where: { nim: student.nim, semester: Number(params.semester), academicYear },
+      include: { items: true },
+    });
+    if (existingInvoice && existingInvoice.status !== 'TERTUNDA') {
+      return existingInvoice;
+    }
 
     // Cari penetapan pembiayaan aktif untuk mahasiswa ini
     let assignment = await this.prisma.studentFeeAssignment.findFirst({
@@ -621,8 +664,6 @@ export class FeeRulesService {
       include: { feeRule: { include: { ruleItems: { include: { feeComponent: true } } } } },
     });
 
-    // Jika belum ada assignment, lakukan penetapan sekarang
-    let calculation: any;
     if (!assignment) {
       const assigned = await this.assignStudentFeePolicy({
         studentId: student.id,
@@ -630,46 +671,51 @@ export class FeeRulesService {
         assignedBy: 'SISTEM_TAGIHAN_OTOMATIS',
       });
       assignment = assigned.assignment as any;
-      calculation = assigned.calculation;
-    } else {
-      // Gunakan snapshot jika tersedia, atau hitung ulang dari snapshot
-      calculation = (assignment.snapshotData as any)?.calculation;
-      if (!calculation) {
-        calculation = await this.calculateFees(assignment.feeRule);
-      }
     }
 
-    const invoiceNo = `INV/${new Date().getFullYear()}/SEM${params.semester}/${Math.floor(10000 + Math.random() * 90000)}`;
+    // Mode UKT: semua komponen SEMESTER flat apa adanya.
+    // Mode PER_SKS: komponen berkode 'SKS' dihitung sebagai tarif per-kredit x totalSks, komponen lain tetap flat.
+    const perSksCode = assignment.feeRule?.billingMode === 'PER_SKS' ? 'SKS' : null;
+    const calculation = await this.calculateFees(assignment.feeRule, 'SEMESTER', totalSks, perSksCode);
+
+    const invoiceData = {
+      nim: student.nim,
+      studentName: student.user.fullName,
+      studyProgram: student.studyProgram.name,
+      semester: Number(params.semester),
+      paymentType: `UKT / SPP Semester ${params.semester} (${academicYear})${totalSks > 0 ? ` • ${totalSks} SKS` : ''}`,
+      amount: calculation.totalFinalAmount,
+      originalAmount: calculation.totalBaseAmount,
+      totalDiscount: calculation.totalDiscount,
+      ruleCode: calculation.ruleCode,
+      ruleName: calculation.ruleName,
+      status: (calculation.totalFinalAmount === 0 ? 'LUNAS' : 'TERTUNDA') as any,
+      paidAt: calculation.totalFinalAmount === 0 ? new Date().toLocaleDateString('id-ID') : null,
+      receiptNo: calculation.totalFinalAmount === 0 ? `KWT/BEBAS/${Date.now().toString().slice(-6)}` : null,
+      paymentMethod: calculation.totalFinalAmount === 0 ? 'Beasiswa / Pembebasan Biaya' : 'BNI Virtual Account',
+      dueDate: params.dueDate || '30 September 2026',
+      academicYear,
+      notes: `Diterbitkan berdasarkan ${calculation.ruleName}`,
+    };
 
     return this.prisma.$transaction(async (tx) => {
-      const invoice = await tx.paymentInvoice.create({
-        data: {
-          invoiceNo,
-          nim: student.nim,
-          studentName: student.user.fullName,
-          studyProgram: student.studyProgram.name,
-          semester: Number(params.semester),
-          paymentType: `UKT / SPP Semester ${params.semester} (${academicYear})`,
-          amount: calculation.totalFinalAmount,
-          originalAmount: calculation.totalBaseAmount,
-          totalDiscount: calculation.totalDiscount,
-          ruleCode: calculation.ruleCode,
-          ruleName: calculation.ruleName,
-          status: calculation.totalFinalAmount === 0 ? 'LUNAS' : 'TERTUNDA',
-          paidAt: calculation.totalFinalAmount === 0 ? new Date().toLocaleDateString('id-ID') : null,
-          receiptNo: calculation.totalFinalAmount === 0 ? `KWT/BEBAS/${Date.now().toString().slice(-6)}` : null,
-          paymentMethod: calculation.totalFinalAmount === 0 ? 'Beasiswa / Pembebasan Biaya' : 'BNI Virtual Account',
-          dueDate: params.dueDate || '30 September 2026',
-          academicYear,
-          notes: `Diterbitkan berdasarkan ${calculation.ruleName}`,
-        },
-      });
+      let invoiceId: string;
+
+      if (existingInvoice) {
+        await tx.paymentInvoice.update({ where: { id: existingInvoice.id }, data: invoiceData });
+        await tx.paymentInvoiceItem.deleteMany({ where: { invoiceId: existingInvoice.id } });
+        invoiceId = existingInvoice.id;
+      } else {
+        const invoiceNo = `INV/${new Date().getFullYear()}/SEM${params.semester}/${Math.floor(10000 + Math.random() * 90000)}`;
+        const invoice = await tx.paymentInvoice.create({ data: { invoiceNo, ...invoiceData } });
+        invoiceId = invoice.id;
+      }
 
       // Simpan rincian item tagihan (PaymentInvoiceItem)
       for (const item of calculation.lineItems) {
         await tx.paymentInvoiceItem.create({
           data: {
-            invoiceId: invoice.id,
+            invoiceId,
             feeComponentId: item.feeComponentId,
             componentName: item.name,
             baseAmount: item.baseAmount,
@@ -682,7 +728,7 @@ export class FeeRulesService {
       }
 
       return tx.paymentInvoice.findUnique({
-        where: { id: invoice.id },
+        where: { id: invoiceId },
         include: { items: true },
       });
     });

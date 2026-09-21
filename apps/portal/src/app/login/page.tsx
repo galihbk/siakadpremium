@@ -12,7 +12,7 @@ import { saveAuthSession, getAuthSession, getRoleRedirectPath } from '@/lib/auth
 import { getApiBaseUrl } from '@/lib/api';
 
 const loginSchema = z.object({
-  email: z.string().email('Format email tidak valid'),
+  email: z.string().min(3, 'NIM / NIDN / Email / Username minimal 3 karakter'),
   password: z.string().min(6, 'Password minimal 6 karakter'),
 });
 
@@ -134,16 +134,16 @@ export default function LoginPage() {
           <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Email Kampus atau Akun Resmi
+                NIM / NIDN / Email Kampus atau Username
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                   <Mail className="w-4 h-4" />
                 </div>
                 <input
-                  type="email"
+                  type="text"
                   {...register('email')}
-                  placeholder="nama@itn.ac.id"
+                  placeholder="Masukkan NIM, NIDN, atau Email (contoh: 270010016)"
                   className="block w-full pl-9 pr-3 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A] focus:ring-1 focus:ring-[#1E3A8A]"
                 />
               </div>

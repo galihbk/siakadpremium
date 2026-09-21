@@ -1,9 +1,18 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getAuthSession } from '@/lib/auth';
+
+function authHeaders(): Record<string, string> {
+  const { token, user } = getAuthSession();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  else if (user?.lecturerId) headers['x-lecturer-id'] = user.lecturerId;
+  return headers;
+}
 import {
   Users,
   CheckCircle2,
@@ -83,7 +92,6 @@ export default function LecturerBimbinganPage() {
   // Modal states
   const [krsModalStudent, setKrsModalStudent] = useState<AdviseeStudent | null>(null);
   const [consultModalStudent, setConsultModalStudent] = useState<AdviseeStudent | null>(null);
-  const [detailModalStudent, setDetailModalStudent] = useState<AdviseeStudent | null>(null);
 
   // Form states inside modals
   const [approvalNote, setApprovalNote] = useState('');
@@ -110,7 +118,7 @@ export default function LecturerBimbinganPage() {
       if (selectedStatus !== 'Semua') params.append('status', selectedStatus);
       if (searchTerm.trim()) params.append('search', searchTerm.trim());
 
-      const res = await fetch(`${apiBase}/lecturers/advisees?${params.toString()}`);
+      const res = await fetch(`${apiBase}/lecturers/advisees?${params.toString()}`, { headers: authHeaders() });
       if (res.ok) {
         const json = await res.json();
         const data = json.data || json;
@@ -161,7 +169,7 @@ export default function LecturerBimbinganPage() {
     try {
       const res = await fetch(`${apiBase}/lecturers/advisees/${krsModalStudent.id}/approve-krs`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({ note: approvalNote }),
       });
 
@@ -202,7 +210,7 @@ export default function LecturerBimbinganPage() {
         `${apiBase}/lecturers/advisees/${consultModalStudent.id}/consultations`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: authHeaders(),
           body: JSON.stringify({ topic: newTopic, note: newNote }),
         }
       );
@@ -637,13 +645,13 @@ export default function LecturerBimbinganPage() {
                           </button>
 
                           {/* Detail Profil & Skripsi */}
-                          <button
-                            onClick={() => setDetailModalStudent(m)}
-                            className="p-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all cursor-pointer"
+                          <Link
+                            href={`/lecturer/bimbingan/${m.id}`}
+                            className="p-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all cursor-pointer inline-flex items-center justify-center"
                             title="Lihat Detail Profil Akademik"
                           >
                             <Eye className="w-4 h-4 text-slate-600" />
-                          </button>
+                          </Link>
                         </div>
                       </td>
                     </tr>
@@ -655,7 +663,7 @@ export default function LecturerBimbinganPage() {
         </div>
 
         {/* MODAL 1: VALIDASI & RENCANA STUDI (KRS) */}
-        {krsModalStudent && (
+        {krsModalStudent && createPortal(
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
               {/* Modal Header */}
@@ -829,11 +837,12 @@ export default function LecturerBimbinganPage() {
                 )}
               </div>
             </div>
-          </div>
+          </div>,
+          document.body,
         )}
 
         {/* MODAL 2: CATATAN KONSULTASI & BIMBINGAN */}
-        {consultModalStudent && (
+        {consultModalStudent && createPortal(
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
               {/* Modal Header */}
@@ -960,135 +969,8 @@ export default function LecturerBimbinganPage() {
                 </button>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* MODAL 3: DETAIL PROFIL & SKRIPSI MAHASISWA */}
-        {detailModalStudent && (
-          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-              {/* Modal Header */}
-              <div className="bg-gradient-to-r from-[#1E3A8A] to-[#1E40AF] px-6 py-5 text-white flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-white/20 text-white font-bold text-base flex items-center justify-center border-2 border-white/40">
-                    {detailModalStudent.fullName.charAt(0)}
-                  </div>
-                  <div>
-                    <h3 className="font-extrabold text-base">{detailModalStudent.fullName}</h3>
-                    <p className="text-xs text-blue-100 font-mono">NIM: {detailModalStudent.nim}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setDetailModalStudent(null)}
-                  className="p-1 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="p-6 space-y-4 text-xs">
-                {/* Academic Highlights */}
-                <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">
-                      Program Studi
-                    </span>
-                    <strong className="text-slate-800">{detailModalStudent.studyProgramName}</strong>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">
-                      Fakultas
-                    </span>
-                    <strong className="text-slate-800">{detailModalStudent.facultyName}</strong>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">
-                      Semester Aktif
-                    </span>
-                    <strong className="text-slate-800">
-                      Semester {detailModalStudent.currentSemester} (Angkatan{' '}
-                      {detailModalStudent.angkatan})
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">
-                      Indeks Prestasi Kumulatif
-                    </span>
-                    <strong className="text-[#1E3A8A] text-sm">
-                      {detailModalStudent.ipk.toFixed(2)} / 4.00
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">
-                      Total SKS Lulus
-                    </span>
-                    <strong className="text-slate-800">
-                      {detailModalStudent.totalSksLulus} SKS
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">
-                      Beban Semester Ini
-                    </span>
-                    <strong className="text-emerald-700">
-                      {detailModalStudent.sksSemesterIni} SKS
-                    </strong>
-                  </div>
-                </div>
-
-                {/* Thesis / Skripsi Info (if applicable) */}
-                {detailModalStudent.skripsiTitle && (
-                  <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl space-y-2">
-                    <span className="text-[10px] font-bold text-[#1E3A8A] uppercase tracking-wider block flex items-center gap-1.5">
-                      <GraduationCap className="w-3.5 h-3.5" />
-                      <span>Bimbingan Tugas Akhir / Skripsi</span>
-                    </span>
-                    <div>
-                      <span className="text-[10px] text-slate-500 font-bold uppercase block">
-                        Judul Skripsi
-                      </span>
-                      <p className="font-bold text-slate-900 leading-snug">
-                        &quot;{detailModalStudent.skripsiTitle}&quot;
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-500 font-bold uppercase block">
-                        Tahapan / Progres
-                      </span>
-                      <span className="inline-block mt-0.5 px-2.5 py-0.5 rounded-full font-bold text-[11px] bg-[#1E3A8A] text-white">
-                        {detailModalStudent.skripsiProgress}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Contact Details */}
-                <div className="space-y-2 pt-2 border-t border-slate-100">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase block">
-                    Kontak Mahasiswa
-                  </span>
-                  <div className="flex items-center gap-2 text-slate-700">
-                    <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span>{detailModalStudent.email}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-700">
-                    <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span>{detailModalStudent.phone}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Modal Footer */}
-              <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex justify-end">
-                <button
-                  onClick={() => setDetailModalStudent(null)}
-                  className="px-5 py-2 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-[#172554] rounded-xl transition-colors cursor-pointer"
-                >
-                  Tutup
-                </button>
-              </div>
-            </div>
-          </div>
+          </div>,
+          document.body,
         )}
       </div>
     </PortalLayout>

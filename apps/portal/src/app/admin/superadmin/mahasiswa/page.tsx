@@ -29,6 +29,9 @@ import {
   Calendar,
   Sparkles,
   BookOpen,
+  ArrowUpDown,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 
 export interface StudentItem {
@@ -256,8 +259,26 @@ export default function SuperAdminMahasiswaPage() {
     fetchDbStudents();
   }, []);
 
-  const filteredStudents = useMemo(() => {
-    return students.filter((s) => {
+  // Sorting State
+  type SortField = 'nim' | 'fullName' | 'studyProgram' | 'entryYear' | 'ipk' | 'status';
+  const [sortField, setSortField] = useState<SortField>('nim');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
+  const filteredAndSortedStudents = useMemo(() => {
+    const filtered = students.filter((s) => {
       if (filterProdi !== 'ALL' && !s.studyProgram.includes(filterProdi)) return false;
       if (filterAngkatan !== 'ALL' && s.entryYear !== Number(filterAngkatan)) return false;
       if (filterStatus !== 'ALL' && s.status !== filterStatus) return false;
@@ -272,7 +293,34 @@ export default function SuperAdminMahasiswaPage() {
       }
       return true;
     });
-  }, [students, searchQuery, filterProdi, filterAngkatan, filterStatus]);
+
+    return filtered.sort((a, b) => {
+      let valA: any = a[sortField];
+      let valB: any = b[sortField];
+      if (typeof valA === 'string') {
+        valA = valA.toLowerCase();
+        valB = valB.toLowerCase();
+      }
+      if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+      if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [students, searchQuery, filterProdi, filterAngkatan, filterStatus, sortField, sortOrder]);
+
+  // Reset page to 1 when filters or sorting change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterProdi, filterAngkatan, filterStatus, sortField, sortOrder, itemsPerPage]);
+
+  const totalItems = filteredAndSortedStudents.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+  const startIndex = totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+  const endIndex = Math.min(currentPage * itemsPerPage, totalItems);
+
+  const paginatedStudents = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredAndSortedStudents.slice(start, start + itemsPerPage);
+  }, [filteredAndSortedStudents, currentPage, itemsPerPage]);
 
   // Handle Save (Create / Update)
   const handleSaveStudent = (e: React.FormEvent) => {
@@ -374,7 +422,7 @@ export default function SuperAdminMahasiswaPage() {
       userIdText="Super Administrator"
       activeMenuHref="/admin/superadmin/mahasiswa"
     >
-      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+      <div className="w-full space-y-6">
         
         {/* Header Section */}
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-subtle p-5 sm:p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -513,26 +561,98 @@ export default function SuperAdminMahasiswaPage() {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-100/70 text-slate-600 font-bold border-b border-slate-200 uppercase tracking-wider text-[10px]">
                 <tr>
-                  <th className="px-5 py-3.5">NIM</th>
-                  <th className="px-5 py-3.5">Nama Mahasiswa & Kontak</th>
-                  <th className="px-5 py-3.5">Program Studi</th>
-                  <th className="px-5 py-3.5 text-center">Angkatan / Smstr</th>
-                  <th className="px-5 py-3.5 text-center">IPK / SKS</th>
-                  <th className="px-5 py-3.5">Status</th>
-                  <th className="px-5 py-3.5 text-right">Aksi</th>
+                  <th
+                    onClick={() => handleSort('nim')}
+                    className="px-5 py-3.5 cursor-pointer hover:bg-slate-200/80 transition-colors select-none whitespace-nowrap"
+                  >
+                    <div className="inline-flex items-center gap-1">
+                      <span>NIM</span>
+                      {sortField === 'nim' ? (
+                        sortOrder === 'asc' ? <ChevronUp className="w-3.5 h-3.5 text-[#1E3A8A]" /> : <ChevronDown className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 opacity-30" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort('fullName')}
+                    className="px-5 py-3.5 cursor-pointer hover:bg-slate-200/80 transition-colors select-none whitespace-nowrap"
+                  >
+                    <div className="inline-flex items-center gap-1">
+                      <span>Nama Mahasiswa & Kontak</span>
+                      {sortField === 'fullName' ? (
+                        sortOrder === 'asc' ? <ChevronUp className="w-3.5 h-3.5 text-[#1E3A8A]" /> : <ChevronDown className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 opacity-30" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort('studyProgram')}
+                    className="px-5 py-3.5 cursor-pointer hover:bg-slate-200/80 transition-colors select-none whitespace-nowrap"
+                  >
+                    <div className="inline-flex items-center gap-1">
+                      <span>Program Studi</span>
+                      {sortField === 'studyProgram' ? (
+                        sortOrder === 'asc' ? <ChevronUp className="w-3.5 h-3.5 text-[#1E3A8A]" /> : <ChevronDown className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 opacity-30" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort('entryYear')}
+                    className="px-5 py-3.5 text-center cursor-pointer hover:bg-slate-200/80 transition-colors select-none whitespace-nowrap"
+                  >
+                    <div className="inline-flex items-center justify-center gap-1">
+                      <span>Angkatan / Smstr</span>
+                      {sortField === 'entryYear' ? (
+                        sortOrder === 'asc' ? <ChevronUp className="w-3.5 h-3.5 text-[#1E3A8A]" /> : <ChevronDown className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 opacity-30" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort('ipk')}
+                    className="px-5 py-3.5 text-center cursor-pointer hover:bg-slate-200/80 transition-colors select-none whitespace-nowrap"
+                  >
+                    <div className="inline-flex items-center justify-center gap-1">
+                      <span>IPK / SKS</span>
+                      {sortField === 'ipk' ? (
+                        sortOrder === 'asc' ? <ChevronUp className="w-3.5 h-3.5 text-[#1E3A8A]" /> : <ChevronDown className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 opacity-30" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort('status')}
+                    className="px-5 py-3.5 cursor-pointer hover:bg-slate-200/80 transition-colors select-none whitespace-nowrap"
+                  >
+                    <div className="inline-flex items-center gap-1">
+                      <span>Status</span>
+                      {sortField === 'status' ? (
+                        sortOrder === 'asc' ? <ChevronUp className="w-3.5 h-3.5 text-[#1E3A8A]" /> : <ChevronDown className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 opacity-30" />
+                      )}
+                    </div>
+                  </th>
+                  <th className="px-5 py-3.5 text-right whitespace-nowrap">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredStudents.length === 0 ? (
+                {paginatedStudents.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-5 py-12 text-center text-slate-400">
                       Tidak ditemukan mahasiswa dengan kriteria pencarian saat ini.
                     </td>
                   </tr>
                 ) : (
-                  filteredStudents.map((s) => (
+                  paginatedStudents.map((s) => (
                     <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-5 py-3.5 font-mono font-bold text-[#1E3A8A]">
+                      <td className="px-5 py-3.5 font-mono font-bold text-[#1E3A8A] whitespace-nowrap">
                         {s.nim}
                       </td>
                       <td className="px-5 py-3.5">
@@ -543,17 +663,17 @@ export default function SuperAdminMahasiswaPage() {
                         <p className="font-semibold text-slate-800">{s.studyProgram}</p>
                         <p className="text-[10px] text-slate-400">{s.faculty}</p>
                       </td>
-                      <td className="px-5 py-3.5 text-center font-medium text-slate-700">
+                      <td className="px-5 py-3.5 text-center font-medium text-slate-700 whitespace-nowrap">
                         {s.entryYear} / Smtr {s.currentSemester}
                       </td>
-                      <td className="px-5 py-3.5 text-center">
+                      <td className="px-5 py-3.5 text-center whitespace-nowrap">
                         <span className="font-bold text-emerald-700">{s.ipk.toFixed(2)}</span>
                         <span className="text-slate-400 text-[10px] ml-1">({s.sksTotal} SKS)</span>
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="px-5 py-3.5 whitespace-nowrap">
                         {renderStatusBadge(s.status)}
                       </td>
-                      <td className="px-5 py-3.5 text-right">
+                      <td className="px-5 py-3.5 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => {
@@ -586,6 +706,65 @@ export default function SuperAdminMahasiswaPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Pagination Footer */}
+          <div className="px-5 py-3.5 bg-slate-50/80 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-600">
+            <div className="flex flex-wrap items-center gap-4">
+              <span>
+                Menampilkan <strong className="text-slate-900">{startIndex}</strong> - <strong className="text-slate-900">{endIndex}</strong> dari <strong className="text-slate-900">{totalItems}</strong> mahasiswa
+              </span>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-500">Tampilkan:</span>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                  className="px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs font-semibold focus:outline-none focus:border-[#1E3A8A] cursor-pointer"
+                >
+                  <option value={10}>10 baris</option>
+                  <option value={25}>25 baris</option>
+                  <option value={50}>50 baris</option>
+                  <option value={100}>100 baris</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white font-semibold transition-colors flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>Sebelumnya</span>
+              </button>
+
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`w-7 h-7 rounded-lg font-bold transition-all text-xs cursor-pointer ${
+                      currentPage === pageNum
+                        ? 'bg-[#1E3A8A] text-white shadow-2xs'
+                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                disabled={currentPage === totalPages || totalPages === 0}
+                className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white font-semibold transition-colors flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed"
+              >
+                <span>Selanjutnya</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
 

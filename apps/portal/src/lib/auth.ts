@@ -6,6 +6,8 @@ export interface AuthUser {
   avatarUrl?: string | null;
   studentId?: string | null;
   lecturerId?: string | null;
+  nim?: string | null;
+  student?: { id: string; nim: string } | null;
 }
 
 const TOKEN_KEY = 'siakad_token';
@@ -33,7 +35,17 @@ export function getAuthSession(): { token: string | null; user: AuthUser | null 
 
   if (userStr) {
     try {
-      user = JSON.parse(userStr);
+      const raw = JSON.parse(userStr);
+      // Toleran terhadap format lama: field 'name' vs 'fullName'
+      if (raw && typeof raw === 'object') {
+        if (!raw.fullName && raw.name) {
+          raw.fullName = raw.name;
+        }
+        // Pastikan role ada — jika tidak ada, hapus sesi
+        if (raw.role && raw.id) {
+          user = raw as AuthUser;
+        }
+      }
     } catch {
       user = null;
     }
@@ -41,6 +53,7 @@ export function getAuthSession(): { token: string | null; user: AuthUser | null 
 
   return { token, user };
 }
+
 
 export function clearAuthSession() {
   if (typeof window === 'undefined') return;
@@ -105,13 +118,13 @@ export function getPortalRoleFromBackend(backendRole: string, email?: string): '
 }
 
 export function isRouteAllowedForRole(pathname: string, role: string): boolean {
-  // 1. Dashboard PMB HANYA boleh diakses oleh role ADMIN_PMB dan Super Admin
+  // 1. Dashboard PMB boleh diakses oleh role ADMIN_PMB, PMB, ADMIN_BAAK, ADMIN, STAFF, dan Super Admin
   if (pathname.startsWith('/admin/pmb')) {
-    return role === 'ADMIN_PMB' || role === 'SUPER_ADMIN';
+    return role === 'ADMIN_PMB' || role === 'PMB' || role === 'ADMIN_BAAK' || role === 'ADMIN' || role === 'STAFF' || role === 'SUPER_ADMIN';
   }
 
-  // Role ADMIN_PMB HANYA boleh mengakses area PMB (/admin/pmb)
-  if (role === 'ADMIN_PMB') {
+  // Role ADMIN_PMB / PMB HANYA boleh mengakses area PMB (/admin/pmb)
+  if (role === 'ADMIN_PMB' || role === 'PMB') {
     return pathname.startsWith('/admin/pmb');
   }
 
@@ -151,9 +164,6 @@ export function isRouteAllowedForRole(pathname: string, role: string): boolean {
   }
 
   if (pathname.startsWith('/admin/superadmin')) {
-    if (pathname === '/admin/superadmin/laporan') {
-      return role === 'SUPER_ADMIN' || role === 'ADMIN_BAAK';
-    }
     return role === 'SUPER_ADMIN';
   }
 

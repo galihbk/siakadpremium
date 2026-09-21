@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getApiBaseUrl } from '@/lib/api';
@@ -33,6 +33,23 @@ export default function PmbLoginPage() {
 
   const apiBaseUrl = getApiBaseUrl();
 
+  // Jika sudah memiliki session login PMB yang aktif, langsung alihkan ke dashboard
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const session = localStorage.getItem('pmb_account_session') || localStorage.getItem('pmb_applicant_session');
+      if (session) {
+        try {
+          const parsed = JSON.parse(session);
+          if (parsed && (parsed.id || parsed.email)) {
+            router.replace('/pmb/dashboard');
+          }
+        } catch (err) {
+          console.error('Gagal membaca session PMB:', err);
+        }
+      }
+    }
+  }, [router]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier.trim()) {
@@ -56,26 +73,7 @@ export default function PmbLoginPage() {
       const json = await res.json();
 
       if (!res.ok || (!json?.success && !json?.data?.success)) {
-        // Fallback to legacy login if needed
-        const legacyRes = await fetch(`${apiBaseUrl}/admissions/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ identifier: identifier.trim(), password: password.trim() }),
-        });
-        const legacyJson = await legacyRes.json();
-        if (!legacyRes.ok || !legacyJson?.success) {
-          throw new Error(json?.message || legacyJson?.message || 'Nomor Registrasi / Email atau Kata Sandi yang dimasukkan salah.');
-        }
-        const legacyPayload = legacyJson.data !== undefined ? legacyJson.data : legacyJson;
-        const legacyApplicant = legacyPayload?.applicant || legacyPayload;
-        const legacyToken = legacyPayload?.token || legacyJson?.token || `pmb_session_${Date.now()}`;
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('pmb_account_session', JSON.stringify(legacyApplicant));
-          localStorage.setItem('pmb_applicant_session', JSON.stringify(legacyApplicant));
-          localStorage.setItem('pmb_applicant_token', legacyToken);
-        }
-        router.push('/pmb/dashboard');
-        return;
+        throw new Error(json?.message || 'Nomor Registrasi / Email atau Kata Sandi yang dimasukkan salah.');
       }
 
       const payload = json.data !== undefined ? json.data : json;
@@ -200,11 +198,22 @@ export default function PmbLoginPage() {
 
               {/* Notifikasi Error */}
               {errorMsg && (
-                <div className="mb-5 p-3 rounded-lg bg-red-50 border border-red-200 flex items-start gap-2 text-xs text-red-800">
-                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-semibold">Login Gagal:</span> {errorMsg}
+                <div className="mb-5 p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 shadow-2xs">
+                  <div className="flex items-start gap-2.5">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold">Login Gagal:</span> {errorMsg}
+                    </div>
                   </div>
+                  {(errorMsg.toLowerCase().includes('diverifikasi') || errorMsg.toLowerCase().includes('verifikasi')) && (
+                    <Link
+                      href={`/pmb/daftar?unverified=true&email=${encodeURIComponent(identifier)}`}
+                      className="shrink-0 px-3.5 py-1.5 rounded-lg bg-[#1E3A8A] hover:bg-blue-900 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-2xs"
+                    >
+                      <Mail className="w-3.5 h-3.5 text-[#D4A017]" />
+                      <span>Ke Halaman Verifikasi &rarr;</span>
+                    </Link>
+                  )}
                 </div>
               )}
 
@@ -212,7 +221,7 @@ export default function PmbLoginPage() {
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Nomor Registrasi PMB atau Email <span className="text-red-600">*</span>
+                    Nomor Registrasi PMB, Email, atau WhatsApp <span className="text-red-600">*</span>
                   </label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -221,12 +230,12 @@ export default function PmbLoginPage() {
                       required
                       value={identifier}
                       onChange={(e) => setIdentifier(e.target.value)}
-                      placeholder="Contoh: PMB20270001 atau aisyah.pmb@gmail.com"
+                      placeholder="Contoh: net.galih7@gmail.com, PMB20270001, atau 08123456789"
                       className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-[#1E3A8A] focus:ring-1 focus:ring-[#1E3A8A] transition-colors"
                     />
                   </div>
                   <span className="text-[11px] text-slate-400 mt-1 block">
-                    Gunakan nomor pendaftaran resmi (format: PMB2027xxxx).
+                    Gunakan email aktif, nomor pendaftaran resmi (PMB2027xxxx), atau WhatsApp yang Anda gunakan saat mendaftar.
                   </span>
                 </div>
 

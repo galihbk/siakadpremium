@@ -52,19 +52,18 @@ export function middleware(request: NextRequest) {
 
   // 3. Batasi akses halaman jika peran (role) tidak sesuai
   if (token && role) {
-    // 3a. HANYA Panitia PMB (role ADMIN_PMB) dan Super Admin yang boleh membuka /admin/pmb
-    if (pathname.startsWith('/admin/pmb') && !['ADMIN_PMB', 'SUPER_ADMIN'].includes(role)) {
+    // 3a. HANYA Panitia PMB (role ADMIN_PMB / PMB), Admin BAAK, dan Super Admin yang boleh membuka /admin/pmb
+    if (pathname.startsWith('/admin/pmb') && !['ADMIN_PMB', 'PMB', 'ADMIN_BAAK', 'STAFF', 'SUPER_ADMIN'].includes(role)) {
       let home = '/login';
       if (['ADMIN_KEUANGAN', 'FINANCE'].includes(role)) home = '/finance';
       else if (['ADMIN_LP3M', 'LP3M'].includes(role)) home = '/admin/p3m';
-      else if (['ADMIN_BAAK', 'STAFF'].includes(role)) home = '/admin';
       else if (role === 'LECTURER') home = '/lecturer';
       else if (role === 'STUDENT') home = '/student';
       return NextResponse.redirect(new URL(home, request.url));
     }
 
-    // 3b. Role ADMIN_PMB HANYA boleh membuka /admin/pmb (jika mencoba ke rute admin lain, kembalikan ke /admin/pmb)
-    if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/pmb') && role === 'ADMIN_PMB') {
+    // 3b. Role ADMIN_PMB / PMB HANYA boleh membuka /admin/pmb (jika mencoba ke rute admin lain, kembalikan ke /admin/pmb)
+    if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/pmb') && ['ADMIN_PMB', 'PMB'].includes(role)) {
       return NextResponse.redirect(new URL('/admin/pmb', request.url));
     }
 

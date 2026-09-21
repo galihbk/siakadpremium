@@ -64,6 +64,10 @@ import {
   ChevronDown,
   CheckCircle2,
   Wallet,
+  Hash,
+  ClipboardCheck,
+  FileSignature,
+  UploadCloud,
 } from 'lucide-react';
 
 interface PortalLayoutProps {
@@ -83,6 +87,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
     'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' | 'lp3m' | 'pmb'
   >(role);
   const [isVerifying, setIsVerifying] = useState(true);
+  const [isAuthorized, setIsAuthorized] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const profileDropdownRef = React.useRef<HTMLDivElement>(null);
 
@@ -158,7 +163,11 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
 
     // 1. Kalo belum login: KELUARKAN dan arahkan ke /login
     if (!token || !user) {
-      router.replace('/login');
+      setIsVerifying(false);
+      setIsAuthorized(false);
+      if (typeof window !== 'undefined') {
+        window.location.replace('/login');
+      }
       return;
     }
 
@@ -173,12 +182,17 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
     const isAllowed = isRouteAllowedForRole(pathname, user.role);
     if (!isAllowed) {
       const target = getRoleRedirectPath(user.role);
-      router.replace(target);
+      setIsAuthorized(false);
+      setIsVerifying(false);
+      if (typeof window !== 'undefined' && target !== pathname) {
+        window.location.replace(target);
+      }
       return;
     }
 
+    setIsAuthorized(true);
     setIsVerifying(false);
-  }, [pathname, router]);
+  }, [pathname]);
 
   const handleLogout = () => {
     clearAuthSession();
@@ -269,6 +283,9 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       title: 'PENGAJARAN & NILAI',
       items: [
         { name: 'Jadwal Mengajar', href: '/lecturer/jadwal', icon: Calendar },
+        { name: 'Absensi Perkuliahan', href: '/lecturer/absensi', icon: ClipboardCheck },
+        { name: 'Kontrak Kuliah', href: '/lecturer/kontrak', icon: FileSignature },
+        { name: 'Upload RPS', href: '/lecturer/rps', icon: UploadCloud },
         { name: 'Input Nilai Semester', href: '/lecturer/nilai', icon: Award },
       ],
     },
@@ -286,18 +303,28 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
 
   const adminNavGroups = [
     {
+      title: 'DASHBOARD',
+      items: [{ name: 'Dashboard BAAK', href: '/admin', icon: LayoutDashboard }],
+    },
+    {
       title: 'ADMINISTRASI AKADEMIK',
       items: [
-        { name: 'Dashboard BAAK', href: '/admin', icon: LayoutDashboard },
         { name: 'Data Mahasiswa', href: '/admin/mahasiswa', icon: Users },
         { name: 'Data Dosen', href: '/admin/dosen', icon: UserCheck },
         { name: 'Kurikulum & Mata Kuliah', href: '/admin/kurikulum', icon: BookOpen },
+        { name: 'Master Kurikulum', href: '/admin/master-kurikulum', icon: Layers },
+        { name: 'Tahun Akademik', href: '/admin/tahun-akademik', icon: Calendar },
+        { name: 'Jadwal', href: '/admin/jadwal', icon: CalendarDays },
+        { name: 'KRS', href: '/admin/krs', icon: FileText },
+        { name: 'Nilai', href: '/admin/nilai', icon: Award },
+        { name: 'Skala Nilai', href: '/admin/skala-nilai', icon: Award },
+        { name: 'Presensi', href: '/admin/presensi', icon: UserCheck },
       ],
     },
     {
       title: 'PELAPORAN & INTEGRASI',
       items: [
-        { name: 'Pelaporan PDDIKTI', href: '/admin/superadmin/laporan', icon: ShieldCheck },
+        { name: 'Pelaporan PDDIKTI', href: '/admin/laporan', icon: ShieldCheck },
       ],
     },
   ];
@@ -313,22 +340,11 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         { name: 'Profil Institusi', href: '/admin/superadmin/institusi', icon: Building2 },
         { name: 'Fakultas', href: '/admin/superadmin/fakultas', icon: Landmark },
         { name: 'Program Studi', href: '/admin/superadmin/prodi', icon: GraduationCap },
-        { name: 'Kurikulum', href: '/admin/superadmin/kurikulum', icon: FileText },
+        { name: 'Kurikulum', href: '/admin/master-kurikulum', icon: FileText },
         { name: 'Mata Kuliah', href: '/admin/superadmin/mata-kuliah', icon: BookOpen },
         { name: 'Gedung', href: '/admin/superadmin/gedung', icon: Building2 },
         { name: 'Ruang', href: '/admin/superadmin/ruang', icon: DoorOpen },
         { name: 'Kalender Akademik', href: '/admin/superadmin/kalender', icon: CalendarDays },
-      ],
-    },
-    {
-      title: 'AKADEMIK',
-      items: [
-        { name: 'Tahun Akademik', href: '/admin/superadmin/tahun-akademik', icon: Calendar },
-        { name: 'Semester', href: '/admin/superadmin/semester', icon: Clock },
-        { name: 'Jadwal', href: '/admin/superadmin/jadwal', icon: CalendarDays },
-        { name: 'KRS', href: '/admin/superadmin/krs', icon: FileText },
-        { name: 'Nilai', href: '/admin/superadmin/nilai', icon: Award },
-        { name: 'Presensi', href: '/admin/superadmin/presensi', icon: UserCheck },
       ],
     },
     {
@@ -338,18 +354,18 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         { name: 'Dosen', href: '/admin/superadmin/dosen', icon: UserCheck },
         { name: 'Pegawai', href: '/admin/superadmin/pegawai', icon: Briefcase },
         { name: 'User', href: '/admin/superadmin/users', icon: User },
-        { name: 'Role & Permission', href: '/admin/superadmin/roles', icon: ShieldCheck },
       ],
     },
     {
       title: 'LAPORAN',
       items: [
-        { name: 'Laporan Akademik & PDDIKTI', href: '/admin/superadmin/laporan', icon: BarChart3 },
+        { name: 'Laporan Akademik & PDDIKTI', href: '/admin/laporan', icon: BarChart3 },
       ],
     },
     {
       title: 'PENGATURAN SISTEM',
       items: [
+        { name: 'Format NIM', href: '/admin/superadmin/format-nim', icon: Hash },
         { name: 'Pengaturan Sistem', href: '/admin/superadmin/pengaturan', icon: Settings },
         { name: 'Logout', href: '#logout', icon: LogOut, isLogout: true },
       ],
@@ -517,6 +533,25 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
     );
   }
 
+  // Jika user tidak memiliki akses, tampilkan layar kosong saat redirect berlangsung
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen bg-[#0F172A] flex flex-col items-center justify-center p-4 text-center">
+        <div className="w-9 h-9 rounded-full border-2 border-slate-700 border-t-rose-500 animate-spin mb-3"></div>
+        <p className="text-white font-medium text-xs tracking-wide mb-6">Mengalihkan halaman...</p>
+        <button
+          onClick={() => {
+            clearAuthSession();
+            window.location.replace('/login');
+          }}
+          className="text-[11px] text-slate-500 hover:text-rose-400 underline underline-offset-2 transition-colors cursor-pointer"
+        >
+          Keluar / Ganti Akun
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex bg-slate-50">
       {/* Mobile Sidebar Overlay */}
@@ -560,11 +595,25 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                 </p>
                 {group.items.map((item) => {
                   const Icon = item.icon;
+                  const isDashboardRoute = [
+                    '/student',
+                    '/lecturer',
+                    '/admin',
+                    '/admin/superadmin',
+                    '/finance',
+                    '/admin/p3m',
+                    '/admin/pmb',
+                  ].includes(item.href);
+
                   const isActive = activeMenuHref
                     ? item.href === activeMenuHref
                     : item.href === pathname
                       ? true
-                      : item.href !== '/' && !item.href.includes('?') && !item.href.includes('#') && pathname.startsWith(item.href + '/');
+                      : !isDashboardRoute &&
+                        item.href !== '/' &&
+                        !item.href.includes('?') &&
+                        !item.href.includes('#') &&
+                        pathname.startsWith(item.href + '/');
 
                   if ((item as any).isLogout) {
                     return (

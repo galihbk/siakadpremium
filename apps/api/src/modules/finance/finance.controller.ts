@@ -28,9 +28,15 @@ export class FinanceController {
   }
 
   @Post('transactions/:id/verify')
-  @ApiOperation({ summary: 'Verifikasi pembayaran manual mahasiswa menjadi Lunas' })
+  @ApiOperation({ summary: 'Verifikasi pembayaran manual mahasiswa menjadi Lunas (aksi Biro Keuangan)' })
   async verifyTransaction(@Param('id') id: string) {
     return await this.financeService.verifyTransaction(id);
+  }
+
+  @Post('transactions/:id/submit-payment')
+  @ApiOperation({ summary: 'Mahasiswa mengirim pembayaran (kanal otomatis) atau mengunggah bukti transfer manual' })
+  async submitStudentPayment(@Param('id') id: string, @Body() body: { channel: string; proofUrl?: string }) {
+    return await this.financeService.submitStudentPayment(id, body);
   }
 
   @Post('invoices')

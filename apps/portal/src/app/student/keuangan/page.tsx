@@ -52,10 +52,16 @@ export default function StudentKeuanganPage() {
   const fetchInvoices = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${getApiBaseUrl()}/finance/transactions`);
+      const { user } = getAuthSession();
+      const nim = user?.nim || user?.student?.nim;
+      if (!nim) {
+        setTagihanList([]);
+        return;
+      }
+      const res = await fetch(`${getApiBaseUrl()}/finance/invoices/student/${nim}`);
       if (res.ok) {
         const json = await res.json();
-        const trxs = json.data?.transactions;
+        const trxs = json.data;
         if (Array.isArray(trxs) && trxs.length > 0) {
           const mapped: Tagihan[] = trxs.map((t: any) => ({
             id: t.id,
@@ -111,15 +117,45 @@ export default function StudentKeuanganPage() {
 
   const handleConfirmPay = async () => {
     if (!selectedTagihan) return;
+    const isManualTransfer = payChannel === 'Transfer Bank Manual';
+    if (isManualTransfer && !receiptFile) {
+      showToast('Unggah bukti transfer terlebih dahulu untuk metode ini.');
+      return;
+    }
+
     setPaying(true);
     try {
-      // Call real backend endpoint to verify / update transaction
-      await fetch(`${getApiBaseUrl()}/finance/transactions/${selectedTagihan.id}/verify`, {
+      let proofUrl: string | undefined;
+      if (isManualTransfer && receiptFile) {
+        const formData = new FormData();
+        formData.append('file', receiptFile);
+        const uploadRes = await fetch(`${getApiBaseUrl()}/storage/upload?folder=payment-proofs`, {
+          method: 'POST',
+          body: formData,
+        });
+        const uploadJson = await uploadRes.json().catch(() => null);
+        if (!uploadRes.ok || !uploadJson?.data?.url) {
+          showToast(uploadJson?.message || 'Gagal mengunggah bukti transfer.');
+          setPaying(false);
+          return;
+        }
+        proofUrl = uploadJson.data.url;
+      }
+
+      const res = await fetch(`${getApiBaseUrl()}/finance/transactions/${selectedTagihan.id}/submit-payment`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel: payChannel, proofUrl }),
       });
-      showToast(`Tagihan ${selectedTagihan.invoiceNo} berhasil dibayar via ${payChannel}! Status lunas tercatat di DB.`);
-      setShowPayModal(false);
-      await fetchInvoices();
+      const json = await res.json().catch(() => null);
+      if (res.ok) {
+        showToast(json?.message || `Pembayaran ${selectedTagihan.invoiceNo} berhasil diproses.`);
+        setShowPayModal(false);
+        setReceiptFile(null);
+        await fetchInvoices();
+      } else {
+        showToast(json?.message || 'Gagal memproses pembayaran.');
+      }
     } catch (err) {
       showToast(`Gagal memproses pembayaran: ${err}`);
     } finally {
@@ -195,7 +231,7 @@ export default function StudentKeuanganPage() {
         {/* Table Tagihan */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-            <h2 className="font-bold text-slate-800 text-sm sm:text-base">Daftar Tagihan Mahasiswa (Database)</h2>
+            <h2 className="font-bold text-slate-800 text-sm sm:text-base">Daftar Tagihan Mahasiswa</h2>
             <span className="text-xs text-slate-400">{tagihanList.length} transaksi tercatat</span>
           </div>
 

@@ -226,8 +226,9 @@ export class AdmissionsController {
 
   @Post('pmb/register')
   @ApiOperation({ summary: 'Daftar Akun PMB (Nama, Email, WhatsApp, Password)' })
-  async pmbRegister(@Body() dto: RegisterPmbAccountDto) {
-    return this.pmbService.registerAccount(dto);
+  async pmbRegister(@Body() dto: RegisterPmbAccountDto, @Req() req: any) {
+    const origin = req.headers?.origin || (req.headers?.referer ? new URL(req.headers.referer).origin : undefined);
+    return this.pmbService.registerAccount(dto, origin);
   }
 
   @Post('pmb/login')

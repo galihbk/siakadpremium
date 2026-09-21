@@ -48,6 +48,23 @@ export default function PmbDaftarPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // Jika sudah memiliki session login PMB yang aktif, langsung alihkan ke dashboard
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const session = localStorage.getItem('pmb_account_session') || localStorage.getItem('pmb_applicant_session');
+      if (session) {
+        try {
+          const parsed = JSON.parse(session);
+          if (parsed && (parsed.id || parsed.email)) {
+            router.replace('/pmb/dashboard');
+          }
+        } catch (err) {
+          console.error('Gagal membaca session PMB:', err);
+        }
+      }
+    }
+  }, [router]);
+
   // State Verifikasi Email & Cooldown 60 Detik
   const [isVerificationSent, setIsVerificationSent] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState('');
@@ -98,7 +115,7 @@ export default function PmbDaftarPage() {
 
   const apiBaseUrl = getApiBaseUrl();
 
-  // Membaca parameter affiliate/ref dari URL jika calon pendaftar membuka link referral
+  // Membaca parameter affiliate/ref atau unverified email dari URL
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -106,6 +123,14 @@ export default function PmbDaftarPage() {
       if (ref) {
         const sanitizedRef = ref.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
         setFormData((prev) => ({ ...prev, affiliateCode: sanitizedRef }));
+      }
+
+      const emailParam = params.get('email');
+      const isUnverifiedParam = params.get('unverified');
+      if (emailParam && (isUnverifiedParam === 'true' || params.has('unverified'))) {
+        setRegisteredEmail(emailParam.trim().toLowerCase());
+        setIsVerificationSent(true);
+        setResendCooldown(60);
       }
     }
   }, []);
@@ -269,7 +294,19 @@ export default function PmbDaftarPage() {
       const data = json.data !== undefined ? json.data : json;
 
       if (!res.ok || (!data?.success && !json?.success)) {
-        throw new Error(data?.message || json?.message || 'Gagal mendaftarkan akun calon mahasiswa.');
+        const msg = data?.message || json?.message || '';
+        const isUnverifiedErr =
+          res.status === 409 &&
+          (json?.isUnverified || json?.response?.isUnverified || msg.toLowerCase().includes('belum diverifikasi'));
+
+        if (isUnverifiedErr) {
+          setRegisteredEmail(formData.email.trim().toLowerCase());
+          setIsVerificationSent(true);
+          setResendCooldown(60);
+          return;
+        }
+
+        throw new Error(msg || 'Gagal mendaftarkan akun calon mahasiswa.');
       }
 
       setRegisteredEmail(formData.email.trim().toLowerCase());
@@ -435,9 +472,25 @@ export default function PmbDaftarPage() {
             </div>
 
             {errorMsg && (
-              <div className="mb-6 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-800 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                <span>{errorMsg}</span>
+              <div className="mb-6 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <span className="font-medium">{errorMsg}</span>
+                </div>
+                {(errorMsg.toLowerCase().includes('diverifikasi') || errorMsg.toLowerCase().includes('verifikasi')) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRegisteredEmail(formData.email.trim().toLowerCase());
+                      setIsVerificationSent(true);
+                      setResendCooldown(60);
+                    }}
+                    className="shrink-0 px-3.5 py-1.5 rounded-lg bg-[#1E3A8A] hover:bg-blue-900 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                  >
+                    <Mail className="w-3.5 h-3.5 text-[#D4A017]" />
+                    <span>Verifikasi Email Sekarang &rarr;</span>
+                  </button>
+                )}
               </div>
             )}
 

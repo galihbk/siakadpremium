@@ -358,7 +358,7 @@ export default function PmbAffiliatePage() {
       role="pmb"
       activeMenuHref="/admin/pmb/affiliate"
     >
-      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+      <div className="w-full space-y-6">
         
         {/* Header Title */}
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-subtle p-5 sm:p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -761,10 +761,11 @@ export default function PmbAffiliatePage() {
             </div>
           </div>
         )}
+      </div>
 
         {/* MODAL DETAIL MITRA */}
         {detailModalOpen && selectedPartner && (
-          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in !m-0">
             <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200">
               <div className="p-5 sm:p-6 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white">
                 <div>
@@ -872,7 +873,7 @@ export default function PmbAffiliatePage() {
 
         {/* MODAL TAMBAH MITRA AFFILIATE */}
         {addModalOpen && (
-          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in !m-0">
             <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
               <div className="p-5 border-b border-slate-200 flex items-center justify-between">
                 <h2 className="text-base font-black text-slate-900">
@@ -1001,7 +1002,6 @@ export default function PmbAffiliatePage() {
           onConfirm={modalConfig.onConfirm}
           onClose={() => setModalConfig((prev) => ({ ...prev, isOpen: false }))}
         />
-      </div>
     </PortalLayout>
   );
 }

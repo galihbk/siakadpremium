@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { getApiBaseUrl } from '@/lib/api';
@@ -70,15 +71,13 @@ export default function AdminPmbDashboardPage() {
     phone: '',
     highSchool: '',
     chosenStudyProgram: 'Teknik Informatika (S1)',
-    jalurPendaftaran: 'Jalur Mandiri Online (CBT)',
-    testScore: '',
+    jalurPendaftaran: 'Jalur Reguler',
     notes: '',
   });
 
   // Edit / Status Update State
   const [statusUpdateApplicant, setStatusUpdateApplicant] = useState<AdmissionApplicantItem | null>(null);
   const [updateStatusVal, setUpdateStatusVal] = useState<string>('VERIFIED');
-  const [updateScoreVal, setUpdateScoreVal] = useState<string>('');
   const [updateNotesVal, setUpdateNotesVal] = useState<string>('');
   const [statusModalOpen, setStatusModalOpen] = useState(false);
 
@@ -128,8 +127,8 @@ export default function AdminPmbDashboardPage() {
         setStats(jsonStats.data || jsonStats);
       }
     } catch (err: any) {
-      console.error('Error loading PMB data from database:', err);
-      setApiError(err.message || 'Tidak dapat terhubung ke database API PMB.');
+      console.error('Error loading PMB data:', err);
+      setApiError(err.message || 'Tidak dapat terhubung ke server PMB.');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -212,7 +211,6 @@ export default function AdminPmbDashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          testScore: formData.testScore ? parseFloat(formData.testScore) : null,
           verifiedBy: authUser?.fullName || 'Panitia PMB ITN',
         }),
       });
@@ -229,15 +227,14 @@ export default function AdminPmbDashboardPage() {
         phone: '',
         highSchool: '',
         chosenStudyProgram: 'Teknik Informatika (S1)',
-        jalurPendaftaran: 'Jalur Mandiri Online (CBT)',
-        testScore: '',
+        jalurPendaftaran: 'Jalur Reguler',
         notes: '',
       });
       await fetchData();
       setDialogState({
         isOpen: true,
         title: 'Pendaftar Berhasil Didaftarkan',
-        message: 'Calon mahasiswa baru berhasil disimpan ke dalam database PMB.',
+        message: 'Calon mahasiswa baru berhasil disimpan ke dalam sistem PMB.',
         type: 'success',
         isAlert: true,
         confirmText: 'Selesai',
@@ -260,7 +257,6 @@ export default function AdminPmbDashboardPage() {
   const openStatusModal = (app: AdmissionApplicantItem) => {
     setStatusUpdateApplicant(app);
     setUpdateStatusVal(app.status);
-    setUpdateScoreVal(app.testScore !== null && app.testScore !== undefined ? String(app.testScore) : '');
     setUpdateNotesVal(app.notes || '');
     setStatusModalOpen(true);
   };
@@ -278,7 +274,6 @@ export default function AdminPmbDashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: updateStatusVal,
-          testScore: updateScoreVal ? parseFloat(updateScoreVal) : undefined,
           notes: updateNotesVal,
           verifiedBy: authUser?.fullName || 'Panitia PMB ITN',
         }),
@@ -366,7 +361,7 @@ export default function AdminPmbDashboardPage() {
       message: (
         <span>
           Terbitkan Nomor Induk Mahasiswa (NIM) resmi dan konversi{' '}
-          <strong className="text-slate-900 font-bold">&quot;{app.fullName}&quot;</strong> menjadi Mahasiswa Aktif ITN di database akademik?
+          <strong className="text-slate-900 font-bold">&quot;{app.fullName}&quot;</strong> menjadi Mahasiswa Aktif ITN di sistem akademik?
         </span>
       ),
       type: 'success',
@@ -411,7 +406,7 @@ export default function AdminPmbDashboardPage() {
       message: (
         <span>
           Apakah Anda yakin ingin menghapus data calon mahasiswa{' '}
-          <strong className="text-slate-900 font-bold">&quot;{app.fullName}&quot;</strong> ({app.registrationNumber}) secara permanen dari database?
+          <strong className="text-slate-900 font-bold">&quot;{app.fullName}&quot;</strong> ({app.registrationNumber}) secara permanen dari sistem?
         </span>
       ),
       type: 'danger',
@@ -442,11 +437,32 @@ export default function AdminPmbDashboardPage() {
   // Helper status badge renderer
   const renderStatusBadge = (status: string) => {
     switch (status) {
+      case 'UNPAID':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+            <span>Menunggu Pembayaran</span>
+          </span>
+        );
+      case 'VERIFYING_PAYMENT':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-900 border border-blue-300">
+            <Clock className="w-3 h-3 text-blue-600" />
+            <span>Verifikasi Pembayaran Form</span>
+          </span>
+        );
+      case 'VERIFYING_RE_REGISTRATION':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs animate-pulse">
+            <Clock className="w-3 h-3 text-amber-700" />
+            <span>Verifikasi Daftar Ulang</span>
+          </span>
+        );
       case 'PENDING':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-            <Clock className="w-3 h-3 text-amber-600" />
-            <span>Menunggu Verifikasi</span>
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-purple-50 text-purple-800 border border-purple-200">
+            <Clock className="w-3 h-3 text-purple-600" />
+            <span>Menunggu Verifikasi Berkas</span>
           </span>
         );
       case 'VERIFIED':
@@ -472,9 +488,9 @@ export default function AdminPmbDashboardPage() {
         );
       case 'REGISTERED':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-purple-50 text-purple-900 border border-purple-200">
-            <GraduationCap className="w-3 h-3 text-purple-700" />
-            <span>Registrasi Ulang</span>
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-900 border border-emerald-200">
+            <GraduationCap className="w-3 h-3 text-emerald-700" />
+            <span>Mahasiswa Diterima</span>
           </span>
         );
       default:
@@ -491,7 +507,7 @@ export default function AdminPmbDashboardPage() {
       role="pmb"
       activeMenuHref="/admin/pmb"
     >
-      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+      <div className="w-full space-y-6">
         
         {/* Top Header Card */}
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-subtle p-5 sm:p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -500,7 +516,7 @@ export default function AdminPmbDashboardPage() {
               Dashboard Penerimaan Mahasiswa Baru (PMB)
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Kelola proses seleksi pendaftar, verifikasi berkas, skor ujian CBT, hingga penetapan kelulusan mahasiswa baru.
+              Kelola proses seleksi pendaftar, verifikasi berkas, hingga penetapan kelulusan mahasiswa baru.
             </p>
           </div>
 
@@ -872,7 +888,7 @@ export default function AdminPmbDashboardPage() {
                     <option value="VERIFIED">Berkas Terverifikasi</option>
                     <option value="PASSED">Lolos Seleksi</option>
                     <option value="FAILED">Tidak Lolos</option>
-                    <option value="REGISTERED">Registrasi Ulang</option>
+                    <option value="REGISTERED">Mahasiswa Diterima</option>
                   </select>
                 )}
 
@@ -900,7 +916,7 @@ export default function AdminPmbDashboardPage() {
                   <option value="ALL">Semua Jalur</option>
                   <option value="Prestasi">Jalur Prestasi</option>
                   <option value="Rapor">Jalur Nilai Rapor</option>
-                  <option value="Mandiri">Jalur CBT Mandiri</option>
+                  <option value="Reguler">Jalur Reguler</option>
                   <option value="KIP-K">KIP-K & Beasiswa</option>
                 </select>
               </div>
@@ -910,7 +926,7 @@ export default function AdminPmbDashboardPage() {
             <div className="bg-white rounded-2xl border border-slate-200 shadow-subtle overflow-hidden">
               <div className="p-4 bg-slate-50/60 border-b border-slate-200 flex justify-between items-center">
                 <span className="text-xs font-bold text-slate-700">
-                  Menampilkan {filteredApplicants.length} calon mahasiswa dari database
+                  Menampilkan {filteredApplicants.length} calon mahasiswa dari sistem
                 </span>
                 <span className="text-[11px] text-slate-400">
                   Data tersimpan permanen di tabel <code className="text-[#1E3A8A]">admission_applicants</code>
@@ -926,14 +942,13 @@ export default function AdminPmbDashboardPage() {
                       <th className="px-4 py-3">Program Studi</th>
                       <th className="px-4 py-3">Jalur Masuk</th>
                       <th className="px-4 py-3">Status Seleksi</th>
-                      <th className="px-4 py-3">Nilai CBT</th>
                       <th className="px-4 py-3 text-right">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredApplicants.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
+                        <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
                           Tidak ada data pendaftar yang cocok dengan filter pencarian saat ini.
                         </td>
                       </tr>
@@ -956,15 +971,6 @@ export default function AdminPmbDashboardPage() {
                           </td>
                           <td className="px-4 py-3">
                             {renderStatusBadge(app.status)}
-                          </td>
-                          <td className="px-4 py-3 font-mono">
-                            {app.testScore !== null && app.testScore !== undefined ? (
-                              <span className="font-extrabold text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
-                                {app.testScore}
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 text-[11px]">-</span>
-                            )}
                           </td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-1.5">
@@ -1002,16 +1008,13 @@ export default function AdminPmbDashboardPage() {
                               </button>
 
                               {/* Tombol Detail */}
-                              <button
-                                onClick={() => {
-                                  setSelectedApplicant(app);
-                                  setDetailModalOpen(true);
-                                }}
-                                className="p-1.5 rounded-lg text-slate-600 hover:text-[#1E3A8A] hover:bg-slate-100 transition-colors"
+                              <Link
+                                href={`/admin/pmb/pendaftar/${app.id}`}
+                                className="p-1.5 rounded-lg text-slate-600 hover:text-[#1E3A8A] hover:bg-slate-100 transition-colors inline-flex items-center justify-center"
                                 title="Lihat Profil Lengkap"
                               >
                                 <Eye className="w-3.5 h-3.5" />
-                              </button>
+                              </Link>
 
                               {/* Tombol Hapus */}
                               <button
@@ -1107,12 +1110,13 @@ export default function AdminPmbDashboardPage() {
             </div>
           </div>
         )}
+      </div>
 
         {/* ========================================================================= */}
         {/* MODAL 1: DETAIL PROFIL CALON MAHASISWA                                   */}
         {/* ========================================================================= */}
         {detailModalOpen && selectedApplicant && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs !m-0">
             <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
@@ -1148,10 +1152,6 @@ export default function AdminPmbDashboardPage() {
                   <div className="flex justify-between">
                     <span className="text-slate-400">Jalur Penerimaan:</span>
                     <span className="font-medium text-slate-800">{selectedApplicant.jalurPendaftaran}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Skor Ujian CBT / Rapor:</span>
-                    <span className="font-bold text-slate-900">{selectedApplicant.testScore ?? 'Belum Dinilai'}</span>
                   </div>
                 </div>
 
@@ -1202,7 +1202,7 @@ export default function AdminPmbDashboardPage() {
         {/* MODAL 2: TAMBAH CALON MAHASISWA SECARA MANUAL KE DATABASE                 */}
         {/* ========================================================================= */}
         {addModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs !m-0">
             <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
@@ -1298,7 +1298,7 @@ export default function AdminPmbDashboardPage() {
                     >
                       <option value="Jalur Prestasi Akademik (Bebas Tes)">Jalur Prestasi Akademik (Bebas Tes)</option>
                       <option value="Jalur Nilai Rapor & Portofolio">Jalur Nilai Rapor & Portofolio</option>
-                      <option value="Jalur Mandiri Online (CBT)">Jalur Mandiri Online (CBT)</option>
+                      <option value="Jalur Reguler">Jalur Reguler</option>
                       <option value="KIP-K & Beasiswa Nusantara">KIP-K & Beasiswa Nusantara</option>
                     </select>
                   </div>
@@ -1322,7 +1322,7 @@ export default function AdminPmbDashboardPage() {
                     ) : (
                       <>
                         <Check className="w-4 h-4 text-[#D4A017]" />
-                        <span>Simpan ke Database</span>
+                        <span>Simpan Data</span>
                       </>
                     )}
                   </button>
@@ -1333,10 +1333,10 @@ export default function AdminPmbDashboardPage() {
         )}
 
         {/* ========================================================================= */}
-        {/* MODAL 3: UBAH STATUS SELEKSI & NILAI CBT                                 */}
+        {/* MODAL 3: UBAH STATUS SELEKSI                                             */}
         {/* ========================================================================= */}
         {statusModalOpen && statusUpdateApplicant && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs !m-0">
             <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
@@ -1368,29 +1368,15 @@ export default function AdminPmbDashboardPage() {
                     <option value="VERIFIED">Berkas Terverifikasi / Siap Seleksi (VERIFIED)</option>
                     <option value="PASSED">Lulus Seleksi PMB (PASSED)</option>
                     <option value="FAILED">Tidak Lulus Seleksi (FAILED)</option>
-                    <option value="REGISTERED">Registrasi Ulang Selesai (REGISTERED)</option>
+                    <option value="REGISTERED">Mahasiswa Diterima (REGISTERED)</option>
                   </select>
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Nilai Skor Ujian / Rapor (Skala 0 - 100)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="100"
-                    placeholder="Contoh: 85.5"
-                    value={updateScoreVal}
-                    onChange={(e) => setUpdateScoreVal(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A]"
-                  />
                 </div>
 
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Catatan Verifikator & Keputusan</label>
                   <textarea
                     rows={3}
-                    placeholder="Contoh: Berkas ijazah dan sertifikat terverifikasi valid. Nilai di atas passing grade."
+                    placeholder="Contoh: Berkas formulir dan ijazah terverifikasi valid dan lengkap."
                     value={updateNotesVal}
                     onChange={(e) => setUpdateNotesVal(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A]"
@@ -1430,7 +1416,6 @@ export default function AdminPmbDashboardPage() {
           cancelText={dialogState.cancelText}
           isAlert={dialogState.isAlert}
         />
-      </div>
     </PortalLayout>
   );
 }

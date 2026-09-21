@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
+import { getAuthSession, AuthUser } from '@/lib/auth';
+import { getApiBaseUrl } from '@/lib/api';
 import {
   Award,
   BookOpen,
@@ -198,12 +200,92 @@ const SEMESTER_ARCHIVE: SemesterData[] = [
 ];
 
 export default function HasilStudiKHSPage() {
-  const [selectedSemesterId, setSelectedSemesterId] = useState<string>('sem-5');
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [studentProfile, setStudentProfile] = useState<{
+    nim?: string;
+    studyProgram?: string;
+    faculty?: string;
+    advisorName?: string;
+    advisorNip?: string;
+    currentSemester?: number;
+    enrollments?: any[];
+    isLoaded?: boolean;
+  }>({});
+
+  useEffect(() => {
+    const { token, user } = getAuthSession();
+    if (user) {
+      setCurrentUser(user);
+    }
+    async function fetchProfile() {
+      try {
+        const apiBase = getApiBaseUrl();
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+        else if (user?.id) headers['x-user-id'] = user.id;
+
+        const res = await fetch(`${apiBase}/auth/me`, { headers });
+        if (res.ok) {
+          const raw = await res.json();
+          const data = raw?.data || raw;
+          if (data.fullName && user) {
+            setCurrentUser({ ...user, fullName: data.fullName });
+          }
+          if (data.student) {
+            setStudentProfile({
+              nim: data.student.nim,
+              studyProgram: data.student.studyProgram?.name,
+              faculty: data.student.studyProgram?.faculty?.name,
+              advisorName: data.student.advisorLecturer?.user?.fullName,
+              advisorNip: data.student.advisorLecturer?.nip,
+              currentSemester: data.student.currentSemester || 1,
+              enrollments: data.student.enrollments || [],
+              isLoaded: true,
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Gagal memuat profil mahasiswa:', err);
+      }
+    }
+    fetchProfile();
+  }, []);
+
+  const studentName = currentUser?.fullName || 'Mahasiswa ITN';
+  const displayNim = studentProfile.nim || 'Mahasiswa';
+  const displayProdi = studentProfile.studyProgram || 'Program Studi';
+  const displayFaculty = studentProfile.faculty || 'Institut Teknologi Nusantara';
+  const displayAdvisor = studentProfile.advisorName || 'Dr. Aris Sudrajat, S.Ds., M.Ds.';
+  const displayAdvisorNip = studentProfile.advisorNip || '198208152010121002';
+
+  // Determine archive list based on real student status
+  const activeArchive = useMemo(() => {
+    if (studentProfile.currentSemester === 1 || (studentProfile.enrollments && studentProfile.enrollments.length === 0)) {
+      return [
+        {
+          id: 'sem-1',
+          semesterNumber: 1,
+          namaSemester: 'Semester 1 (Gasal 2026/2027)',
+          tahunAkademik: '2026/2027 Gasal',
+          ips: 0.0,
+          sksSemester: 0,
+          sksKumulatif: 0,
+          ipkKumulatif: 0.0,
+          maksSksBerikutnya: 20,
+          tanggalKHS: 'Periode Berjalan',
+          nilaiList: [],
+        },
+      ];
+    }
+    return SEMESTER_ARCHIVE;
+  }, [studentProfile]);
+
+  const [selectedSemesterId, setSelectedSemesterId] = useState<string>('sem-1');
 
   // Find active semester data
   const currentSem = useMemo(() => {
-    return SEMESTER_ARCHIVE.find((s) => s.id === selectedSemesterId) || SEMESTER_ARCHIVE[0];
-  }, [selectedSemesterId]);
+    return activeArchive.find((s) => s.id === selectedSemesterId) || activeArchive[0];
+  }, [selectedSemesterId, activeArchive]);
 
   // Calculations for current active semester
   const totalSksTaken = useMemo(() => {
@@ -221,7 +303,7 @@ export default function HasilStudiKHSPage() {
   }, [currentSem]);
 
   const calculatedIPS = useMemo(() => {
-    if (totalSksTaken === 0) return 0;
+    if (totalSksTaken === 0) return '-';
     return (totalBobotMutu / totalSksTaken).toFixed(2);
   }, [totalBobotMutu, totalSksTaken]);
 
@@ -249,8 +331,8 @@ export default function HasilStudiKHSPage() {
   return (
     <PortalLayout
       role="student"
-      userName="Muhammad Rizky Pratama"
-      userIdText="NIM: 2311501001 • Teknik Informatika"
+      userName={studentName}
+      userIdText={`NIM: ${displayNim} • ${displayProdi}`}
     >
       <div className="space-y-6">
 
@@ -305,9 +387,9 @@ export default function HasilStudiKHSPage() {
                 onChange={(e) => setSelectedSemesterId(e.target.value)}
                 className="w-full appearance-none px-4 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all cursor-pointer pr-10"
               >
-                {SEMESTER_ARCHIVE.map((sem) => (
+                {activeArchive.map((sem) => (
                   <option key={sem.id} value={sem.id}>
-                    {sem.namaSemester} {sem.id === 'sem-5' ? '— (Terkini)' : ''}
+                    {sem.namaSemester}
                   </option>
                 ))}
               </select>
@@ -330,25 +412,25 @@ export default function HasilStudiKHSPage() {
               <h2 className="text-xl font-black uppercase tracking-wider text-slate-900">
                 Institut Teknologi Nusantara
               </h2>
-              <p className="text-xs text-slate-700">Fakultas Ilmu Komputer &bull; Program Studi S1 Teknik Informatika</p>
+              <p className="text-xs text-slate-700">{displayFaculty} &bull; Program Studi {displayProdi}</p>
               <p className="text-[11px] text-slate-500">Jalan Soekarno Hatta No. 128, Bandung, Jawa Barat | Website: siakad.itn.ac.id</p>
             </div>
             <div className="text-right">
               <h3 className="text-base font-bold text-slate-900">KARTU HASIL STUDI (KHS)</h3>
               <p className="text-xs text-slate-700 font-semibold">{currentSem.namaSemester}</p>
-              <p className="text-[11px] text-slate-500">No. Dokumen: KHS/2026/{currentSem.semesterNumber}/2311501001</p>
+              <p className="text-[11px] text-slate-500">No. Dokumen: KHS/2026/{currentSem.semesterNumber}/{displayNim}</p>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4 mt-4 pt-3 border-t border-slate-300 text-xs text-slate-800">
             <div className="space-y-1">
-              <p><strong>Nama Mahasiswa:</strong> Muhammad Rizky Pratama</p>
-              <p><strong>Nomor Induk Mahasiswa (NIM):</strong> 2311501001</p>
-              <p><strong>Program Studi:</strong> Teknik Informatika (S1)</p>
+              <p><strong>Nama Mahasiswa:</strong> {studentName}</p>
+              <p><strong>Nomor Induk Mahasiswa (NIM):</strong> {displayNim}</p>
+              <p><strong>Program Studi:</strong> {displayProdi}</p>
             </div>
             <div className="space-y-1">
               <p><strong>Tahun Akademik:</strong> {currentSem.tahunAkademik}</p>
-              <p><strong>Dosen Pembimbing Akademik:</strong> Dr. Bayu Wicaksono, M.Kom.</p>
+              <p><strong>Dosen Pembimbing Akademik:</strong> {displayAdvisor}</p>
               <p><strong>Status Mahasiswa:</strong> Aktif</p>
             </div>
           </div>
@@ -372,7 +454,7 @@ export default function HasilStudiKHSPage() {
             </div>
             <div className="mt-2.5 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
               <Sparkles className="w-3 h-3" />
-              <span>Dengan Pujian (Cum Laude)</span>
+              <span>{totalSksTaken > 0 ? 'Dengan Pujian (Cum Laude)' : 'Status Aktif'}</span>
             </div>
           </div>
 
@@ -387,7 +469,7 @@ export default function HasilStudiKHSPage() {
               </div>
             </div>
             <div className="flex items-baseline gap-2">
-              <p className="text-3xl font-black text-slate-900">{currentSem.ipkKumulatif.toFixed(2)}</p>
+              <p className="text-3xl font-black text-slate-900">{totalSksTaken > 0 ? currentSem.ipkKumulatif.toFixed(2) : '-'}</p>
               <span className="text-xs font-semibold text-slate-400">/ 4.00</span>
             </div>
             <p className="text-xs text-slate-500 mt-2">
@@ -411,7 +493,7 @@ export default function HasilStudiKHSPage() {
             </div>
             <p className="text-xs text-emerald-600 font-bold mt-2 flex items-center gap-1">
               <Check className="w-3.5 h-3.5" />
-              <span>100% SKS Lulus</span>
+              <span>{totalSksTaken > 0 ? '100% SKS Lulus' : 'Belum Ada SKS'}</span>
             </p>
           </div>
 
@@ -419,10 +501,10 @@ export default function HasilStudiKHSPage() {
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-subtle relative overflow-hidden">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Beban Maksimal KRS
+                Beban Maks SKS
               </span>
               <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
-                <GraduationCap className="w-4 h-4" />
+                <CheckCircle2 className="w-4 h-4" />
               </div>
             </div>
             <div className="flex items-baseline gap-2">
@@ -452,103 +534,120 @@ export default function HasilStudiKHSPage() {
             </span>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs sm:text-sm">
-              <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
-                <tr>
-                  <th className="py-3.5 px-4 text-center w-12">No.</th>
-                  <th className="py-3.5 px-4">Kode MK</th>
-                  <th className="py-3.5 px-4">Nama Mata Kuliah</th>
-                  <th className="py-3.5 px-4 text-center">SKS (K)</th>
-                  <th className="py-3.5 px-4 text-center">Nilai Huruf</th>
-                  <th className="py-3.5 px-4 text-center">Angka Mutu (M)</th>
-                  <th className="py-3.5 px-4 text-center">Bobot (K &times; M)</th>
-                  <th className="py-3.5 px-4">Dosen Pengampu</th>
-                  <th className="py-3.5 px-4 text-center">Keterangan</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
-                {currentSem.nilaiList.map((item, idx) => {
-                  const bobot = item.sks * item.nilaiAngka;
-                  return (
-                    <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-3.5 px-4 text-center text-slate-400 font-mono">
-                        {idx + 1}
-                      </td>
-                      <td className="py-3.5 px-4 font-mono font-bold text-[#1E3A8A]">
-                        {item.kode}
-                      </td>
-                      <td className="py-3.5 px-4 font-medium text-slate-900">
-                        {item.nama}
-                      </td>
-                      <td className="py-3.5 px-4 text-center font-bold">
-                        {item.sks}
-                      </td>
-                      <td className="py-3.5 px-4 text-center">
-                        <span
-                          className={`inline-block px-2.5 py-1 rounded-md text-xs font-black ${
-                            item.nilaiHuruf === 'A'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : item.nilaiHuruf === 'A-'
-                              ? 'bg-teal-50 text-teal-700 border border-teal-200'
-                              : item.nilaiHuruf === 'B+'
-                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                              : item.nilaiHuruf === 'B'
-                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                              : 'bg-rose-50 text-rose-700 border border-rose-200'
-                          }`}
-                        >
-                          {item.nilaiHuruf}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-center font-mono font-bold">
-                        {item.nilaiAngka.toFixed(2)}
-                      </td>
-                      <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-900">
-                        {bobot.toFixed(2)}
-                      </td>
-                      <td className="py-3.5 px-4 text-slate-600 text-xs">
-                        {item.dosen}
-                      </td>
-                      <td className="py-3.5 px-4 text-center">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <Check className="w-3 h-3" />
-                          <span>{item.keterangan}</span>
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-
-              {/* Table Summary Footer */}
-              <tfoot className="bg-slate-50/90 border-t-2 border-slate-200 font-bold text-slate-900">
-                <tr>
-                  <td colSpan={3} className="py-3.5 px-4 text-right">
-                    TOTAL EVALUASI SEMESTER:
-                  </td>
-                  <td className="py-3.5 px-4 text-center text-sm font-black text-[#1E3A8A]">
-                    {totalSksTaken} SKS
-                  </td>
-                  <td className="py-3.5 px-4 text-center text-xs text-slate-500 font-normal">
-                    —
-                  </td>
-                  <td className="py-3.5 px-4 text-center text-xs text-slate-500 font-normal">
-                    —
-                  </td>
-                  <td className="py-3.5 px-4 text-center text-sm font-black text-slate-900">
-                    {totalBobotMutu.toFixed(2)}
-                  </td>
-                  <td colSpan={2} className="py-3.5 px-4 text-right">
-                    <span className="text-xs text-slate-600 font-normal mr-2">IPS:</span>
-                    <span className="text-base font-black text-[#1E3A8A] bg-blue-100/70 px-2.5 py-1 rounded-lg">
-                      {calculatedIPS}
-                    </span>
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+          {currentSem.nilaiList.length === 0 ? (
+            <div className="py-12 px-4 text-center">
+              <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#1E3A8A]">
+                <BookOpen className="w-7 h-7 text-[#1E3A8A]/70" />
+              </div>
+              <h4 className="text-base font-bold text-slate-800">
+                Belum Ada Nilai KHS yang Diterbitkan
+              </h4>
+              <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto mt-1 leading-relaxed">
+                Nilai Kartu Hasil Studi untuk {currentSem.namaSemester} belum diterbitkan. Nilai akan muncul setelah masa perkuliahan dan evaluasi Ujian Akhir Semester (UAS) diselesaikan serta divalidasi oleh BAAK.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs sm:text-sm">
+                <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                  <tr>
+                    <th className="py-3.5 px-4 text-center w-12">No.</th>
+                    <th className="py-3.5 px-4">Kode MK</th>
+                    <th className="py-3.5 px-4">Nama Mata Kuliah</th>
+                    <th className="py-3.5 px-4 text-center">SKS (K)</th>
+                    <th className="py-3.5 px-4 text-center">Nilai Huruf</th>
+                    <th className="py-3.5 px-4 text-center">Angka Mutu (M)</th>
+                    <th className="py-3.5 px-4 text-center">Bobot (K &times; M)</th>
+                    <th className="py-3.5 px-4">Dosen Pengampu</th>
+                    <th className="py-3.5 px-4 text-center">Keterangan</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {currentSem.nilaiList.map((item, idx) => {
+                    const bobot = item.sks * item.nilaiAngka;
+                    return (
+                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3.5 px-4 text-center text-slate-400 font-mono">
+                          {idx + 1}
+                        </td>
+                        <td className="py-3.5 px-4 font-mono font-bold text-[#1E3A8A]">
+                          {item.kode}
+                        </td>
+                        <td className="py-3.5 px-4 font-medium text-slate-900">
+                          {item.nama}
+                        </td>
+                        <td className="py-3.5 px-4 text-center font-bold">
+                          {item.sks}
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <span
+                            className={`inline-block px-2.5 py-1 rounded-md text-xs font-black ${
+                              item.nilaiHuruf === 'A'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : item.nilaiHuruf === 'A-'
+                                ? 'bg-teal-50 text-teal-700 border border-teal-200'
+                                : item.nilaiHuruf === 'B+'
+                                ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                : item.nilaiHuruf === 'B'
+                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                : 'bg-rose-50 text-rose-700 border border-rose-200'
+                            }`}
+                          >
+                            {item.nilaiHuruf}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-center font-mono font-bold">
+                          {item.nilaiAngka.toFixed(2)}
+                        </td>
+                        <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-900">
+                          {bobot.toFixed(2)}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-600 font-medium">
+                          {item.dosen}
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <span
+                            className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                              item.keterangan === 'LULUS'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-rose-50 text-rose-700 border border-rose-200'
+                            }`}
+                          >
+                            {item.keterangan}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot className="bg-slate-50/90 border-t-2 border-slate-200 font-bold text-slate-900">
+                  <tr>
+                    <td colSpan={3} className="py-3.5 px-4 text-right">
+                      TOTAL EVALUASI SEMESTER:
+                    </td>
+                    <td className="py-3.5 px-4 text-center text-sm font-black text-[#1E3A8A]">
+                      {totalSksTaken} SKS
+                    </td>
+                    <td className="py-3.5 px-4 text-center text-xs text-slate-500 font-normal">
+                      —
+                    </td>
+                    <td className="py-3.5 px-4 text-center text-xs text-slate-500 font-normal">
+                      —
+                    </td>
+                    <td className="py-3.5 px-4 text-center text-sm font-black text-slate-900">
+                      {totalBobotMutu.toFixed(2)}
+                    </td>
+                    <td colSpan={2} className="py-3.5 px-4 text-right">
+                      <span className="text-xs text-slate-600 font-normal mr-2">IPS:</span>
+                      <span className="text-base font-black text-[#1E3A8A] bg-blue-100/70 px-2.5 py-1 rounded-lg">
+                        {calculatedIPS}
+                      </span>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* PERFORMANCE & GRADE DISTRIBUTION CHART BOX */}

@@ -200,15 +200,19 @@ export class AdmissionsService {
     }
 
     const emailTrimmed = email.trim().toLowerCase();
-    const applicant = await this.prisma.admissionApplicant.findFirst({
+    let applicant = await this.prisma.admissionApplicant.findFirst({
       where: { email: { equals: emailTrimmed, mode: 'insensitive' } },
     });
 
-    if (!applicant) {
+    const pmbAccount = await this.prisma.pmbAccount.findFirst({
+      where: { email: { equals: emailTrimmed, mode: 'insensitive' } },
+    });
+
+    if (!applicant && !pmbAccount) {
       throw new NotFoundException('Data calon mahasiswa tidak ditemukan.');
     }
 
-    if (applicant.verifiedAt) {
+    if ((applicant && applicant.verifiedAt) || (pmbAccount && pmbAccount.isEmailVerified)) {
       return {
         success: true,
         alreadyVerified: true,
@@ -217,7 +221,7 @@ export class AdmissionsService {
     }
 
     let metadata: any = {};
-    if (applicant.notes) {
+    if (applicant?.notes) {
       try {
         metadata = JSON.parse(applicant.notes);
       } catch {}
@@ -231,25 +235,34 @@ export class AdmissionsService {
       throw new BadRequestException('Tautan verifikasi telah kedaluwarsa. Silakan ajukan pengiriman ulang link verifikasi.');
     }
 
-    const updated = await this.prisma.admissionApplicant.update({
-      where: { id: applicant.id },
-      data: {
-        verifiedAt: new Date(),
-        notes: JSON.stringify({
-          ...metadata,
-          isEmailVerified: true,
-          verificationToken: null,
-        }),
-      },
-    });
+    if (applicant) {
+      await this.prisma.admissionApplicant.update({
+        where: { id: applicant.id },
+        data: {
+          verifiedAt: new Date(),
+          notes: JSON.stringify({
+            ...metadata,
+            isEmailVerified: true,
+            verificationToken: null,
+          }),
+        },
+      });
+    }
+
+    if (pmbAccount) {
+      await this.prisma.pmbAccount.update({
+        where: { id: pmbAccount.id },
+        data: { isEmailVerified: true },
+      });
+    }
 
     return {
       success: true,
       message: 'Selamat, alamat email Anda berhasil diverifikasi! Akun PMB Anda kini telah aktif.',
       applicant: {
-        registrationNumber: updated.registrationNumber,
-        fullName: updated.fullName,
-        email: updated.email,
+        registrationNumber: applicant?.registrationNumber || 'PMB2027-OK',
+        fullName: applicant?.fullName || pmbAccount?.fullName,
+        email: emailTrimmed,
       },
     };
   }
@@ -263,20 +276,49 @@ export class AdmissionsService {
     }
 
     const emailTrimmed = email.trim().toLowerCase();
-    const applicant = await this.prisma.admissionApplicant.findFirst({
+    let applicant = await this.prisma.admissionApplicant.findFirst({
       where: { email: { equals: emailTrimmed, mode: 'insensitive' } },
     });
 
-    if (!applicant) {
+    const pmbAccount = await this.prisma.pmbAccount.findFirst({
+      where: { email: { equals: emailTrimmed, mode: 'insensitive' } },
+    });
+
+    if (!applicant && !pmbAccount) {
       throw new NotFoundException('Email calon mahasiswa tidak terdaftar.');
     }
 
-    if (applicant.verifiedAt) {
+    if ((applicant && applicant.verifiedAt) || (pmbAccount && pmbAccount.isEmailVerified)) {
       return {
         success: true,
         alreadyVerified: true,
         message: 'Email sudah terverifikasi sebelumnya. Silakan langsung masuk ke akun PMB.',
       };
+    }
+
+    if (!applicant && pmbAccount) {
+      const count = await this.prisma.admissionApplicant.count();
+      let regNumber = `PMB2027${String(count + 1).padStart(4, '0')}`;
+      const numExists = await this.prisma.admissionApplicant.findUnique({
+        where: { registrationNumber: regNumber },
+      });
+      if (numExists) {
+        regNumber = `PMB2027${Math.floor(1000 + Math.random() * 9000)}`;
+      }
+
+      applicant = await this.prisma.admissionApplicant.create({
+        data: {
+          registrationNumber: regNumber,
+          fullName: pmbAccount.fullName,
+          email: emailTrimmed,
+          phone: pmbAccount.whatsapp,
+          highSchool: '-',
+          chosenStudyProgram: 'Belum Dipilih',
+          jalurPendaftaran: 'Jalur Mandiri Online (CBT)',
+          status: AdmissionStatus.PENDING,
+          notes: JSON.stringify({}),
+        },
+      });
     }
 
     let metadata: any = {};
@@ -468,8 +510,20 @@ export class AdmissionsService {
       ];
     }
     if (status && status !== 'ALL') {
-      if (status === 'PENDING') newAppsWhere.verificationStatus = 'UNVERIFIED';
-      else if (status === 'VERIFIED') newAppsWhere.verificationStatus = 'VERIFIED';
+      if (status === 'UNPAID') {
+        newAppsWhere.isKip = false;
+        newAppsWhere.payments = { some: { type: 'REGISTRATION', status: 'PENDING' } };
+      } else if (status === 'VERIFYING_PAYMENT') {
+        newAppsWhere.payments = { some: { type: 'REGISTRATION', status: 'VERIFYING' } };
+      } else if (status === 'VERIFYING_RE_REGISTRATION') {
+        newAppsWhere.payments = { some: { type: 'RE_REGISTRATION', status: 'VERIFYING' } };
+      } else if (status === 'PENDING') {
+        newAppsWhere.verificationStatus = 'UNVERIFIED';
+        newAppsWhere.OR = [
+          { isKip: true },
+          { payments: { some: { type: 'REGISTRATION', status: 'PAID' } } },
+        ];
+      } else if (status === 'VERIFIED') newAppsWhere.verificationStatus = 'VERIFIED';
       else if (status === 'PASSED') newAppsWhere.selectionStatus = 'PASSED';
       else if (status === 'FAILED') newAppsWhere.selectionStatus = 'FAILED';
       else if (status === 'REGISTERED') newAppsWhere.studentId = { not: null };
@@ -482,16 +536,39 @@ export class AdmissionsService {
         studyProgram: true,
         track: true,
         wave: true,
+        payments: true,
       },
       orderBy: { createdAt: 'desc' },
     });
 
     const formattedNewApps = newApps.map((a) => {
-      let st = 'PENDING';
-      if (a.studentId) st = 'REGISTERED';
-      else if (a.selectionStatus === 'PASSED') st = 'PASSED';
-      else if (a.selectionStatus === 'FAILED') st = 'FAILED';
-      else if (a.verificationStatus === 'VERIFIED') st = 'VERIFIED';
+      const regPayment = a.payments?.find((p) => p.type === 'REGISTRATION');
+      const reRegPayment = a.payments?.find((p) => p.type === 'RE_REGISTRATION');
+      const isPaid = a.isKip || regPayment?.status === 'PAID';
+      const isVerifyingPayment = regPayment?.status === 'VERIFYING';
+      const isVerifyingReRegPayment = reRegPayment?.status === 'VERIFYING';
+      const isReRegPaid = reRegPayment?.status === 'PAID';
+
+      let st = 'UNPAID';
+      if (a.studentId) {
+        st = 'REGISTERED';
+      } else if (isVerifyingReRegPayment) {
+        st = 'VERIFYING_RE_REGISTRATION';
+      } else if (isReRegPaid) {
+        st = 'REGISTERED';
+      } else if (a.selectionStatus === 'PASSED') {
+        st = 'PASSED';
+      } else if (a.selectionStatus === 'FAILED') {
+        st = 'FAILED';
+      } else if (a.verificationStatus === 'VERIFIED') {
+        st = 'VERIFIED';
+      } else if (isVerifyingPayment) {
+        st = 'VERIFYING_PAYMENT';
+      } else if (isPaid) {
+        st = 'PENDING';
+      } else {
+        st = 'UNPAID';
+      }
 
       return {
         id: a.id,
@@ -534,7 +611,21 @@ export class AdmissionsService {
       orderBy: { createdAt: 'desc' },
     });
 
-    const combined = [...formattedNewApps, ...legacyApplicants];
+    // Cegah duplikasi pendaftar: Data pendaftar sistem baru (AdmissionApplication) diprioritaskan
+    const registeredEmails = new Set(
+      formattedNewApps.map((a) => (a.email || '').toLowerCase().trim()).filter(Boolean),
+    );
+    const registeredRegNumbers = new Set(
+      formattedNewApps.map((a) => (a.registrationNumber || '').trim()).filter(Boolean),
+    );
+
+    const filteredLegacy = legacyApplicants.filter((la) => {
+      const emailMatch = la.email && registeredEmails.has(la.email.toLowerCase().trim());
+      const regMatch = la.registrationNumber && registeredRegNumbers.has(la.registrationNumber.trim());
+      return !emailMatch && !regMatch;
+    });
+
+    const combined = [...formattedNewApps, ...filteredLegacy];
     const total = combined.length;
     const paginated = combined.slice(skip, skip + take);
 
@@ -644,50 +735,221 @@ export class AdmissionsService {
    * Ambil detail calon mahasiswa berdasarkan ID
    */
   async getApplicantById(id: string) {
-    const applicant = await this.prisma.admissionApplicant.findUnique({
+    // 1. Cek tabel utama sistem PMB (AdmissionApplication)
+    let app: any = await this.prisma.admissionApplication.findUnique({
       where: { id },
+      include: {
+        account: true,
+        studyProgram: true,
+        track: true,
+        wave: true,
+        registrationType: true,
+        admissionClass: true,
+        payments: {
+          orderBy: { createdAt: 'desc' },
+        },
+      },
     });
-    if (!applicant) {
-      const app = await this.prisma.admissionApplication.findUnique({
-        where: { id },
-        include: { account: true, studyProgram: true, track: true, wave: true, payments: true },
-      });
-      if (app) {
-        let st = 'PENDING';
-        if (app.studentId) st = 'REGISTERED';
-        else if (app.selectionStatus === 'PASSED') st = 'PASSED';
-        else if (app.selectionStatus === 'FAILED') st = 'FAILED';
-        else if (app.verificationStatus === 'VERIFIED') st = 'VERIFIED';
 
-        return {
-          id: app.id,
-          registrationNumber: app.registrationNumber || '-',
-          fullName: app.fullName || app.account?.fullName || '-',
-          email: app.email || app.account?.email || '-',
-          phone: app.phone || app.account?.whatsapp || '-',
-          highSchool: app.schoolName || '-',
-          chosenStudyProgram: app.studyProgram?.name || 'Belum Dipilih',
-          jalurPendaftaran: app.track?.name || 'Jalur Reguler',
-          status: st as any,
-          testScore: app.testScore,
-          birthDate: app.birthDate,
-          gender: app.gender,
-          address: app.address,
-          notes: app.selectionNotes || app.verificationNote,
-          verifiedAt: app.verifiedAt?.toISOString() || null,
-          documents: {
-            fileKtp: app.fileKtp,
-            fileKk: app.fileKk,
-            fileIjazah: app.fileIjazah,
-            fileFoto: app.fileFoto,
-            fileTambahan: app.fileTambahan,
+    // 2. Jika tidak ditemukan by id, cek tabel legacy (AdmissionApplicant)
+    let legacy: any = null;
+    if (!app) {
+      legacy = await this.prisma.admissionApplicant.findUnique({
+        where: { id },
+      });
+
+      // Jika ada di legacy, coba kaitkan dengan AdmissionApplication by registrationNumber atau email
+      if (legacy) {
+        app = await this.prisma.admissionApplication.findFirst({
+          where: {
+            OR: [
+              ...(legacy.registrationNumber ? [{ registrationNumber: legacy.registrationNumber }] : []),
+              ...(legacy.email ? [{ email: legacy.email }] : []),
+            ],
           },
-          payments: app.payments,
-        };
+          include: {
+            account: true,
+            studyProgram: true,
+            track: true,
+            wave: true,
+            registrationType: true,
+            admissionClass: true,
+            payments: {
+              orderBy: { createdAt: 'desc' },
+            },
+          },
+        });
       }
-      throw new NotFoundException('Data pendaftar tidak ditemukan di database.');
     }
-    return applicant;
+
+    if (app) {
+      const regPayment = app.payments?.find((p) => p.type === 'REGISTRATION');
+      const isPaid = app.isKip || regPayment?.status === 'PAID';
+      const isVerifyingPayment = regPayment?.status === 'VERIFYING';
+
+      let st = 'UNPAID';
+      if (app.studentId) {
+        st = 'REGISTERED';
+      } else if (app.selectionStatus === 'PASSED') {
+        st = 'PASSED';
+      } else if (app.selectionStatus === 'FAILED') {
+        st = 'FAILED';
+      } else if (app.verificationStatus === 'VERIFIED') {
+        st = 'VERIFIED';
+      } else if (isVerifyingPayment) {
+        st = 'VERIFYING_PAYMENT';
+      } else if (isPaid) {
+        st = 'PENDING';
+      } else {
+        st = 'UNPAID';
+      }
+
+      return {
+        id: app.id,
+        registrationNumber: app.registrationNumber || legacy?.registrationNumber || '-',
+        fullName: app.fullName || app.account?.fullName || legacy?.fullName || '-',
+        nik: app.nik || null,
+        email: app.email || app.account?.email || legacy?.email || '-',
+        phone: app.phone || app.account?.whatsapp || legacy?.phone || '-',
+        birthPlace: app.birthPlace || null,
+        birthDate: app.birthDate || legacy?.birthDate || null,
+        gender: app.gender || legacy?.gender || null,
+        religion: app.religion || null,
+        address: app.address || legacy?.address || null,
+        streetAddress: app.streetAddress || null,
+        rtRw: app.rtRw || null,
+        dusun: app.dusun || null,
+        kelurahan: app.kelurahan || null,
+        kecamatan: app.kecamatan || null,
+        city: app.city || null,
+        province: app.province || null,
+        postalCode: app.postalCode || null,
+
+        // Riwayat Sekolah
+        schoolName: app.schoolName || legacy?.highSchool || '-',
+        highSchool: app.schoolName || legacy?.highSchool || '-',
+        npsn: app.npsn || null,
+        nisn: app.nisn || null,
+        graduationYear: app.graduationYear || null,
+        major: app.major || null,
+
+        // Pilihan Studi & Jalur
+        chosenStudyProgram: app.studyProgram?.name || legacy?.chosenStudyProgram || 'Belum Dipilih',
+        jenjang: app.studyProgram?.degree || legacy?.jenjang || 'S1',
+        jalurPendaftaran: app.track?.name || legacy?.jalurPendaftaran || 'Jalur Reguler',
+        gelombang: app.wave?.name || null,
+        pilihanKelas: app.admissionClass?.name || null,
+        jenisPendaftaran: app.registrationType?.name || null,
+        isKip: app.isKip,
+
+        // Orang Tua / Wali
+        parentName: app.parentName || null,
+        parentPhone: app.parentPhone || null,
+        parentJob: app.parentJob || null,
+        parentIncome: app.parentIncome || null,
+        fatherName: app.fatherName || null,
+        fatherPhone: app.fatherPhone || null,
+        fatherJob: app.fatherJob || null,
+        fatherIncome: app.fatherIncome || null,
+        motherName: app.motherName || null,
+        motherPhone: app.motherPhone || null,
+        motherJob: app.motherJob || null,
+        motherIncome: app.motherIncome || null,
+
+        // Status & Seleksi
+        status: st as any,
+        formStatus: app.formStatus,
+        verificationStatus: app.verificationStatus,
+        selectionStatus: app.selectionStatus,
+        testScore: app.testScore || legacy?.testScore || null,
+        notes: app.selectionNotes || app.verificationNote || legacy?.notes || null,
+        verificationNote: app.verificationNote || null,
+        selectionNotes: app.selectionNotes || null,
+        verifiedAt: app.verifiedAt?.toISOString() || legacy?.verifiedAt?.toISOString() || null,
+        verifiedBy: app.verifiedBy || legacy?.verifiedBy || null,
+        createdAt: app.createdAt,
+        updatedAt: app.updatedAt,
+        studentId: app.studentId || null,
+        nim: app.nim || null,
+
+        // Dokumen
+        documents: {
+          fileKtp: app.fileKtp,
+          fileKk: app.fileKk,
+          fileIjazah: app.fileIjazah,
+          fileFoto: app.fileFoto,
+          fileKip: app.fileKip,
+          fileTambahan: app.fileTambahan,
+        },
+        payments: app.payments || [],
+      };
+    }
+
+    if (legacy) {
+      return {
+        id: legacy.id,
+        registrationNumber: legacy.registrationNumber,
+        fullName: legacy.fullName,
+        nik: null,
+        email: legacy.email,
+        phone: legacy.phone,
+        birthPlace: null,
+        birthDate: legacy.birthDate,
+        gender: legacy.gender,
+        religion: null,
+        address: legacy.address,
+        schoolName: legacy.highSchool,
+        highSchool: legacy.highSchool,
+        npsn: null,
+        nisn: null,
+        graduationYear: null,
+        major: null,
+        chosenStudyProgram: legacy.chosenStudyProgram,
+        jenjang: legacy.jenjang || 'S1',
+        jalurPendaftaran: legacy.jalurPendaftaran,
+        gelombang: null,
+        pilihanKelas: null,
+        jenisPendaftaran: null,
+        isKip: false,
+        parentName: null,
+        parentPhone: null,
+        parentJob: null,
+        parentIncome: null,
+        fatherName: null,
+        fatherPhone: null,
+        fatherJob: null,
+        fatherIncome: null,
+        motherName: null,
+        motherPhone: null,
+        motherJob: null,
+        motherIncome: null,
+        status: legacy.status,
+        formStatus: 'SUBMITTED',
+        verificationStatus: legacy.status === 'VERIFIED' ? 'VERIFIED' : 'UNVERIFIED',
+        selectionStatus: legacy.status === 'PASSED' ? 'PASSED' : legacy.status === 'FAILED' ? 'FAILED' : 'PENDING_SELECTION',
+        testScore: legacy.testScore,
+        notes: legacy.notes,
+        verificationNote: legacy.notes,
+        selectionNotes: legacy.notes,
+        verifiedAt: legacy.verifiedAt?.toISOString() || null,
+        verifiedBy: legacy.verifiedBy,
+        createdAt: legacy.createdAt,
+        updatedAt: legacy.updatedAt,
+        studentId: null,
+        nim: null,
+        documents: {
+          fileKtp: null,
+          fileKk: null,
+          fileIjazah: null,
+          fileFoto: null,
+          fileKip: null,
+          fileTambahan: null,
+        },
+        payments: [],
+      };
+    }
+
+    throw new NotFoundException('Data pendaftar tidak ditemukan di database.');
   }
 
   /**
@@ -730,7 +992,9 @@ export class AdmissionsService {
     const updated = await this.prisma.admissionApplicant.update({
       where: { id },
       data: {
-        status: dto.status,
+        status: (dto.status === 'UNPAID' || dto.status === 'VERIFYING_PAYMENT'
+          ? 'PENDING'
+          : dto.status) as any,
         ...(dto.testScore !== undefined ? { testScore: dto.testScore } : {}),
         ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
         ...(dto.verifiedBy ? { verifiedBy: dto.verifiedBy, verifiedAt: new Date() } : {}),
@@ -903,6 +1167,8 @@ export class AdmissionsService {
       where: { nim },
       update: {
         status: 'ACTIVE' as any,
+        nik: (applicant as any).nik,
+        nisn: (applicant as any).nisn,
       },
       create: {
         userId: user.id,
@@ -912,8 +1178,11 @@ export class AdmissionsService {
         currentSemester: 1,
         status: 'ACTIVE' as any,
         phone: applicant.phone,
+        nik: (applicant as any).nik,
+        nisn: (applicant as any).nisn,
       },
     });
+
 
     // Update status pendaftar menjadi REGISTERED
     await this.prisma.admissionApplicant.update({

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { getApiBaseUrl } from '@/lib/api';
@@ -74,6 +75,7 @@ export default function AdminAturanPembiayaanPage() {
     description: '',
     priority: 50,
     academicYear: '',
+    billingMode: 'UKT' as 'UKT' | 'PER_SKS',
     isActive: true,
     registrationTypeId: '',
     trackId: '',
@@ -100,6 +102,18 @@ export default function AdminAturanPembiayaanPage() {
   // Modal State: Snapshot Detail Modal
   const [snapshotModalOpen, setSnapshotModalOpen] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<StudentFeeAssignmentItem | null>(null);
+
+  // Modal State: Assign Manual (Beasiswa Khusus)
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [isSavingAssign, setIsSavingAssign] = useState(false);
+  const [studentOptions, setStudentOptions] = useState<Array<{ id: string; nim: string; name: string; studyProgram: string }>>([]);
+  const [studentSearch, setStudentSearch] = useState('');
+  const [assignFormData, setAssignFormData] = useState({
+    studentId: '',
+    customRuleId: '',
+    academicYear: '2026/2027',
+    notes: '',
+  });
 
   // Simulator State
   const [simForm, setSimForm] = useState({
@@ -290,6 +304,7 @@ export default function AdminAturanPembiayaanPage() {
         description: rule.description || '',
         priority: rule.priority,
         academicYear: rule.academicYear || '',
+        billingMode: rule.billingMode || 'UKT',
         isActive: rule.isActive,
         registrationTypeId: rule.registrationTypeId || '',
         trackId: rule.trackId || '',
@@ -300,17 +315,15 @@ export default function AdminAturanPembiayaanPage() {
       });
     } else {
       setEditingRule(null);
-      // Inisialisasi item perlakuan dengan default NORMAL untuk semua komponen
+      // Aturan baru mulai kosong -- admin centang manual komponen mana yang berlaku
       const itemsMap: Record<string, { actionType: string; amountValue: number | string; notes: string }> = {};
-      for (const c of components) {
-        itemsMap[c.id] = { actionType: 'NORMAL', amountValue: '', notes: '' };
-      }
       setRuleFormData({
         name: '',
         code: '',
         description: '',
         priority: 50,
         academicYear: '',
+        billingMode: 'UKT',
         isActive: true,
         registrationTypeId: '',
         trackId: '',
@@ -340,6 +353,7 @@ export default function AdminAturanPembiayaanPage() {
         description: ruleFormData.description,
         priority: Number(ruleFormData.priority) || 10,
         academicYear: ruleFormData.academicYear || null,
+        billingMode: ruleFormData.billingMode,
         isActive: ruleFormData.isActive,
         registrationTypeId: ruleFormData.registrationTypeId || null,
         trackId: ruleFormData.trackId || null,
@@ -384,6 +398,75 @@ export default function AdminAturanPembiayaanPage() {
       });
     } finally {
       setIsSavingRule(false);
+    }
+  };
+
+  const openAssignModal = async () => {
+    setAssignFormData({ studentId: '', customRuleId: '', academicYear: '2026/2027', notes: '' });
+    setStudentSearch('');
+    setAssignModalOpen(true);
+    try {
+      const res = await fetch(`${apiBase}/students/list`, { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        const list = Array.isArray(json.data) ? json.data : [];
+        setStudentOptions(
+          list.map((s: any) => ({ id: s.id, nim: s.nim, name: s.name, studyProgram: s.studyProgram })),
+        );
+      }
+    } catch {
+      // biarkan studentOptions kosong kalau gagal
+    }
+  };
+
+  const filteredStudentOptions = studentOptions.filter((s) => {
+    const q = studentSearch.trim().toLowerCase();
+    if (!q) return true;
+    return s.nim.toLowerCase().includes(q) || s.name.toLowerCase().includes(q);
+  });
+
+  const handleSaveAssign = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assignFormData.studentId || !assignFormData.customRuleId) {
+      setDialogState({
+        isOpen: true,
+        title: 'Data Belum Lengkap',
+        message: 'Pilih mahasiswa dan aturan tarif terlebih dahulu.',
+        type: 'warning',
+        isAlert: true,
+      });
+      return;
+    }
+    setIsSavingAssign(true);
+    try {
+      const res = await fetch(`${apiBase}/finance/fee-rules/assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(assignFormData),
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null);
+        throw new Error(errJson?.message || 'Gagal menetapkan skema pembiayaan.');
+      }
+      setAssignModalOpen(false);
+      setDialogState({
+        isOpen: true,
+        title: 'Berhasil!',
+        message: 'Skema pembiayaan manual berhasil ditetapkan untuk mahasiswa terpilih.',
+        type: 'success',
+        isAlert: true,
+      });
+      fetchAllData();
+    } catch (err: any) {
+      setDialogState({
+        isOpen: true,
+        title: 'Gagal Menetapkan',
+        message: err.message || 'Terjadi kesalahan sistem.',
+        type: 'danger',
+        isAlert: true,
+      });
+    } finally {
+      setIsSavingAssign(false);
     }
   };
 
@@ -548,9 +631,11 @@ export default function AdminAturanPembiayaanPage() {
   }, [rules, searchQuery, academicYearFilter]);
 
   // Helper: Memisahkan komponen biaya perkuliahan vs registrasi pendaftaran PMB
+  // Catatan: kode 'REGISTRASI' di master biaya adalah "Biaya Heregistrasi Semester" (bagian dari UKT kuliah),
+  // BUKAN biaya pendaftaran PMB -- jadi tidak boleh disembunyikan dari sini.
   const isPerkuliahanComponent = (code?: string) => {
     const c = (code || '').toUpperCase();
-    return !['REGISTRASI', 'FORMULIR', 'DAFTAR_ULANG', 'PENDAFTARAN'].includes(c);
+    return !['FORMULIR', 'DAFTAR_ULANG', 'PENDAFTARAN'].includes(c);
   };
 
   const perkuliahanComponents = useMemo(() => {
@@ -774,6 +859,15 @@ export default function AdminAturanPembiayaanPage() {
                                 }`}
                               >
                                 Prioritas: {rule.priority}
+                              </span>
+                              <span
+                                className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${
+                                  rule.billingMode === 'PER_SKS'
+                                    ? 'bg-violet-100 text-violet-700 border border-violet-200'
+                                    : 'bg-cyan-100 text-cyan-700 border border-cyan-200'
+                                }`}
+                              >
+                                {rule.billingMode === 'PER_SKS' ? 'Per SKS' : 'UKT'}
                               </span>
                               {rule.academicYear ? (
                                 <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-medium">
@@ -1349,6 +1443,13 @@ export default function AdminAturanPembiayaanPage() {
                   Snapshot penetapan kebijakan pembiayaan mahasiswa saat dikonversi dari PMB untuk menjaga histori tetap konsisten.
                 </p>
               </div>
+              <button
+                onClick={openAssignModal}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#1E3A8A] text-white text-xs font-bold rounded-xl hover:bg-[#1e40af] transition-colors shrink-0"
+              >
+                <Award className="w-3.5 h-3.5" />
+                Tetapkan Skema Manual
+              </button>
             </div>
 
             <div className="overflow-x-auto">
@@ -1430,7 +1531,7 @@ export default function AdminAturanPembiayaanPage() {
         )}
 
         {/* MODAL: TAMBAH / EDIT ATURAN PEMBIAYAAN */}
-        {ruleModalOpen && (
+        {ruleModalOpen && createPortal(
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
             <div className="bg-white rounded-2xl max-w-3xl w-full border border-slate-200 shadow-2xl overflow-hidden my-8">
               <div className="p-5 bg-gradient-to-r from-blue-900 to-slate-900 text-white flex items-center justify-between">
@@ -1481,7 +1582,7 @@ export default function AdminAturanPembiayaanPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <div>
                       <label className="text-xs font-semibold text-slate-700 block mb-1">
                         Prioritas Evaluasi *
@@ -1511,6 +1612,21 @@ export default function AdminAturanPembiayaanPage() {
                         onChange={(e) => setRuleFormData({ ...ruleFormData, academicYear: e.target.value })}
                         className="w-full text-xs p-2.5 rounded-lg border border-slate-300"
                       />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-slate-700 block mb-1">Mode Tagihan *</label>
+                      <select
+                        value={ruleFormData.billingMode}
+                        onChange={(e) =>
+                          setRuleFormData({ ...ruleFormData, billingMode: e.target.value as 'UKT' | 'PER_SKS' })
+                        }
+                        className="w-full text-xs p-2.5 rounded-lg border border-slate-300 bg-white"
+                      >
+                        <option value="UKT">UKT (Flat per Semester)</option>
+                        <option value="PER_SKS">Per SKS (x Jumlah SKS Diambil)</option>
+                      </select>
+                      <span className="text-[10px] text-slate-400">Menentukan cara hitung komponen "SKS"</span>
                     </div>
 
                     <div>
@@ -1650,21 +1766,52 @@ export default function AdminAturanPembiayaanPage() {
 
                   <div className="rounded-xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
                     {perkuliahanComponents.map((comp) => {
+                      const isIncluded = comp.id in ruleFormData.items;
                       const itemState = ruleFormData.items[comp.id] || {
                         actionType: 'NORMAL',
                         amountValue: '',
                         notes: '',
                       };
+                      const toggleIncluded = (checked: boolean) => {
+                        const nextItems = { ...ruleFormData.items };
+                        if (checked) {
+                          nextItems[comp.id] = { actionType: 'NORMAL', amountValue: '', notes: '' };
+                        } else {
+                          delete nextItems[comp.id];
+                        }
+                        setRuleFormData({ ...ruleFormData, items: nextItems });
+                      };
                       return (
-                        <div key={comp.id} className="p-3 bg-slate-50/50 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-                          <div className="w-full sm:w-1/3">
-                            <span className="font-bold text-slate-900 text-xs block">{comp.name}</span>
-                            <span className="text-[10px] font-mono text-slate-500">
-                              Tarif Dasar: {formatRupiah(comp.defaultAmount)}
-                            </span>
+                        <div
+                          key={comp.id}
+                          className={`p-3 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between ${
+                            isIncluded ? 'bg-slate-50/50' : 'bg-white opacity-60'
+                          }`}
+                        >
+                          <div className="w-full sm:w-1/3 flex items-start gap-2.5">
+                            <input
+                              type="checkbox"
+                              checked={isIncluded}
+                              onChange={(e) => toggleIncluded(e.target.checked)}
+                              className="mt-0.5 w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0"
+                            />
+                            <div>
+                              <span className="font-bold text-slate-900 text-xs block">{comp.name}</span>
+                              <span className="text-[10px] font-mono text-slate-500">
+                                Tarif Dasar: {formatRupiah(comp.defaultAmount)}
+                                {comp.code === 'SKS' && (
+                                  <span className={ruleFormData.billingMode === 'PER_SKS' ? 'text-violet-600 font-semibold' : 'text-cyan-600 font-semibold'}>
+                                    {' '}({ruleFormData.billingMode === 'PER_SKS' ? 'per 1 SKS' : 'flat per semester'})
+                                  </span>
+                                )}
+                              </span>
+                              {!isIncluded && (
+                                <span className="text-[10px] text-slate-400 italic block">Tidak ditagihkan pada aturan ini</span>
+                              )}
+                            </div>
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-2 w-full sm:w-2/3">
+                          <div className={`flex flex-wrap items-center gap-2 w-full sm:w-2/3 ${!isIncluded ? 'pointer-events-none opacity-40' : ''}`}>
                             <select
                               value={itemState.actionType}
                               onChange={(e) => {
@@ -1760,11 +1907,12 @@ export default function AdminAturanPembiayaanPage() {
                 </div>
               </form>
             </div>
-          </div>
+          </div>,
+          document.body,
         )}
 
         {/* MODAL: TAMBAH / EDIT KOMPONEN BIAYA */}
-        {compModalOpen && (
+        {compModalOpen && createPortal(
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl overflow-hidden">
               <div className="p-5 bg-gradient-to-r from-amber-700 to-amber-900 text-white flex items-center justify-between">
@@ -1884,11 +2032,12 @@ export default function AdminAturanPembiayaanPage() {
                 </div>
               </form>
             </div>
-          </div>
+          </div>,
+          document.body,
         )}
 
         {/* MODAL: SNAPSHOT DETAIL HISTORI */}
-        {snapshotModalOpen && selectedAssignment && (
+        {snapshotModalOpen && selectedAssignment && createPortal(
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl max-w-2xl w-full border border-slate-200 shadow-2xl overflow-hidden">
               <div className="p-5 bg-gradient-to-r from-slate-900 to-blue-950 text-white flex items-center justify-between">
@@ -1973,7 +2122,121 @@ export default function AdminAturanPembiayaanPage() {
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body,
+        )}
+
+        {/* MODAL: TETAPKAN SKEMA MANUAL (BEASISWA KHUSUS) */}
+        {assignModalOpen && createPortal(
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+            <form
+              onSubmit={handleSaveAssign}
+              className="bg-white rounded-2xl max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto"
+            >
+              <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">Tetapkan Skema Manual</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Untuk beasiswa khusus / kasus di luar aturan otomatis. Menimpa hasil pencocokan aturan otomatis untuk mahasiswa ini.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAssignModalOpen(false)}
+                  className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Cari Mahasiswa *</label>
+                  <input
+                    type="text"
+                    placeholder="Ketik NIM atau nama..."
+                    value={studentSearch}
+                    onChange={(e) => setStudentSearch(e.target.value)}
+                    className="w-full text-xs p-2.5 rounded-lg border border-slate-300 mb-2"
+                  />
+                  <select
+                    required
+                    value={assignFormData.studentId}
+                    onChange={(e) => setAssignFormData({ ...assignFormData, studentId: e.target.value })}
+                    className="w-full text-xs p-2.5 rounded-lg border border-slate-300 bg-white"
+                    size={6}
+                  >
+                    {filteredStudentOptions.length === 0 ? (
+                      <option disabled>-- Tidak ada mahasiswa cocok --</option>
+                    ) : (
+                      filteredStudentOptions.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.nim} • {s.name} • {s.studyProgram}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Aturan Tarif Tujuan *</label>
+                  <select
+                    required
+                    value={assignFormData.customRuleId}
+                    onChange={(e) => setAssignFormData({ ...assignFormData, customRuleId: e.target.value })}
+                    className="w-full text-xs p-2.5 rounded-lg border border-slate-300 bg-white"
+                  >
+                    <option value="">-- Pilih Aturan Tarif --</option>
+                    {rules.filter((r) => r.isActive).map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name} ({r.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Tahun Akademik *</label>
+                  <input
+                    type="text"
+                    required
+                    value={assignFormData.academicYear}
+                    onChange={(e) => setAssignFormData({ ...assignFormData, academicYear: e.target.value })}
+                    className="w-full text-xs p-2.5 rounded-lg border border-slate-300"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Catatan (Opsional)</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Mis. Beasiswa Prestasi Akademik 2026"
+                    value={assignFormData.notes}
+                    onChange={(e) => setAssignFormData({ ...assignFormData, notes: e.target.value })}
+                    className="w-full text-xs p-2.5 rounded-lg border border-slate-300"
+                  />
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAssignModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingAssign}
+                  className="px-4 py-2 rounded-xl bg-[#1E3A8A] text-white text-xs font-bold disabled:opacity-50"
+                >
+                  {isSavingAssign ? 'Menyimpan...' : 'Tetapkan Skema'}
+                </button>
+              </div>
+            </form>
+          </div>,
+          document.body,
         )}
 
         {/* CUSTOM CONFIRM & ALERT MODAL */}

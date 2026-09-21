@@ -141,6 +141,7 @@ model Lecturer {
   user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   studyProgram      StudyProgram @relation(fields: [studyProgramId], references: [id], onDelete: Restrict)
   advisedStudents   Student[]    @relation("AcademicAdvisor")
+  courseClasses     CourseClass[]
 
   @@map("lecturers")
 }
@@ -156,17 +157,48 @@ model Student {
   birthPlace        String?
   phone             String?
   nik               String?
+  nisn              String?
+  noKk              String?
   address           String?            @db.Text
+  streetAddress     String?            @db.Text
+  rtRw              String?
+  dusun             String?
+  kelurahan         String?
+  kecamatan         String?
+  city              String?
+  province          String?
+  postalCode        String?
+  religion          String?
   entryYear         Int
   currentSemester   Int                @default(1)
   status            StudentStatus      @default(ACTIVE)
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
+  // Data Sekolah Asal
+  schoolName        String?
+  npsn              String?
+  graduationYear    String?
+  major             String?
+
+  // Data Orang Tua / Wali
+  fatherName        String?
+  fatherPhone       String?
+  fatherJob         String?
+  fatherIncome      String?
+  motherName        String?
+  motherPhone       String?
+  motherJob         String?
+  motherIncome      String?
+  guardianName      String?
+  guardianPhone     String?
+  guardianJob       String?
+
   user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   studyProgram      StudyProgram       @relation(fields: [studyProgramId], references: [id], onDelete: Restrict)
   advisorLecturer   Lecturer?          @relation("AcademicAdvisor", fields: [advisorLecturerId], references: [id], onDelete: SetNull)
   enrollments       CourseEnrollment[]
+  attendanceRecords AttendanceRecord[]
   admissionApplications AdmissionApplication[]
 
   // Relasi Master PMB (Ditetapkan saat konversi PMB)
@@ -184,6 +216,7 @@ model Student {
   @@map("students")
 }
 
+
 model AcademicYear {
   id           String             @id @default(uuid())
   code         String             @unique // e.g. "20261" for 2026/2027 Gasal
@@ -194,10 +227,20 @@ model AcademicYear {
   endDate      DateTime
   krsStartDate DateTime?
   krsEndDate   DateTime?
+  isKrsOpen    Boolean            @default(true)
+  pmbStartDate DateTime?
+  pmbEndDate   DateTime?
+  skRektor     String?
+  gradeDeadline String?
+  isGradeLocked Boolean           @default(true)
+  status       String             @default("Aktif") // Aktif, Arsip, Mendatang
+  notes        String?            @db.Text
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
 
   enrollments  CourseEnrollment[]
+  courseClasses CourseClass[]
+  gradeScaleVersions GradeScaleVersion[]
 
   @@map("academic_years")
 }
@@ -207,6 +250,7 @@ model Course {
   studyProgramId   String?
   studyProgramName String?
   facultyCode      String?
+  curriculumId     String?
   code             String             @unique // e.g. "TIF-201"
   name             String
   sksTeori         Int                @default(2)
@@ -222,30 +266,137 @@ model Course {
   updatedAt        DateTime           @updatedAt
 
   studyProgram     StudyProgram?      @relation(fields: [studyProgramId], references: [id], onDelete: Cascade)
+  curriculum       Curriculum?        @relation(fields: [curriculumId], references: [id], onDelete: SetNull)
   enrollments      CourseEnrollment[]
+  classes          CourseClass[]
 
   @@map("courses")
+}
+
+model CourseClass {
+  id             String   @id @default(uuid())
+  courseId       String
+  academicYearId String
+  className      String   // e.g. "TIF-5A"
+  day            String   @default("Senin")
+  startTime      String   @default("08:00")
+  endTime        String   @default("10:30")
+  roomId         String?
+  lecturerId     String?
+  quota          Int      @default(40)
+  status         String   @default("Berjalan")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  course         Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  academicYear   AcademicYear       @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  room           Room?              @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  lecturer       Lecturer?          @relation(fields: [lecturerId], references: [id], onDelete: SetNull)
+  enrollments    CourseEnrollment[]
+  attendanceSessions AttendanceSession[]
+  contract       CourseContract?
+
+  @@unique([courseId, academicYearId, className])
+  @@map("course_classes")
+}
+
+enum AttendanceStatus {
+  HADIR
+  IZIN
+  SAKIT
+  ALFA
+}
+
+model AttendanceSession {
+  id            String   @id @default(uuid())
+  courseClassId String
+  meetingNumber Int
+  date          DateTime
+  topic         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  courseClass   CourseClass        @relation(fields: [courseClassId], references: [id], onDelete: Cascade)
+  records       AttendanceRecord[]
+
+  @@unique([courseClassId, meetingNumber])
+  @@map("attendance_sessions")
+}
+
+model AttendanceRecord {
+  id                  String           @id @default(uuid())
+  attendanceSessionId String
+  studentId           String
+  status              AttendanceStatus @default(ALFA)
+  notes               String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  session AttendanceSession @relation(fields: [attendanceSessionId], references: [id], onDelete: Cascade)
+  student Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([attendanceSessionId, studentId])
+  @@map("attendance_records")
+}
+
+model CourseContract {
+  id                String   @id @default(uuid())
+  courseClassId     String   @unique
+  description       String?  @db.Text
+  learningOutcomes  String?  @db.Text
+  references        String?  @db.Text
+  assessmentWeights Json?
+  isPublished       Boolean  @default(false)
+  rpsFileUrl        String?
+  rpsFileName       String?
+  rpsUploadedAt     DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  courseClass CourseClass          @relation(fields: [courseClassId], references: [id], onDelete: Cascade)
+  weeks       CourseContractWeek[]
+
+  @@map("course_contracts")
+}
+
+model CourseContractWeek {
+  id         String  @id @default(uuid())
+  contractId String
+  weekNumber Int
+  topic      String
+  method     String?
+  indicator  String?
+
+  contract CourseContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, weekNumber])
+  @@map("course_contract_weeks")
 }
 
 model CourseEnrollment {
   id             String           @id @default(uuid())
   studentId      String
   courseId       String
+  courseClassId  String?
   academicYearId String
   status         EnrollmentStatus @default(SUBMITTED)
+  assignmentScore Float?          // Nilai Tugas
   midtermScore   Float?           // Nilai UTS
   finalScore     Float?           // Nilai UAS
   totalScore     Float?           // Nilai Akhir Angka
   gradeLetter    String?          // e.g. "A", "B+", "B"
   gradePoint     Float?           // e.g. 4.0, 3.5, 3.0
+  gradeStatus    String           @default("DRAFT") // "DRAFT" | "FINAL"
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
   student        Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
   course         Course           @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  courseClass    CourseClass?     @relation(fields: [courseClassId], references: [id], onDelete: SetNull)
   academicYear   AcademicYear     @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
 
   @@unique([studentId, courseId, academicYearId])
+  @@unique([studentId, courseClassId])
   @@map("course_enrollments")
 }
 
@@ -255,7 +406,7 @@ model PmbAccount {
   email           String                 @unique
   whatsapp        String
   passwordHash    String
-  isEmailVerified Boolean                @default(true)
+  isEmailVerified Boolean                @default(false)
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
 
@@ -384,6 +535,14 @@ model AdmissionApplication {
   phone              String
   email              String
   address            String?            @db.Text
+  streetAddress      String?            @db.Text
+  rtRw               String?
+  dusun              String?
+  kelurahan          String?
+  kecamatan          String?
+  city               String?
+  province           String?
+  postalCode         String?
 
   // Data Sekolah / Riwayat Pendidikan
   schoolName         String?
@@ -397,12 +556,21 @@ model AdmissionApplication {
   parentPhone        String?
   parentJob          String?
   parentIncome       String?
+  fatherName         String?
+  fatherPhone        String?
+  fatherJob          String?
+  fatherIncome       String?
+  motherName         String?
+  motherPhone        String?
+  motherJob          String?
+  motherIncome       String?
 
   // Berkas Dokumen
   fileKtp            String?
   fileKk             String?
   fileIjazah         String?
   fileFoto           String?
+  fileKip            String?
   fileTambahan       String?
 
   // Hubungan dengan Mahasiswa Resmi (jika sudah daftar ulang lunas & dikonversi)
@@ -505,7 +673,7 @@ model LandingPageSetting {
   rectorName            String    @default("Prof. Dr. Ir. Hendra Gunawan, M.Eng.")
   rectorTitle           String    @default("Rektor Institut Teknologi Nusantara")
   rectorQuote           String    @default("Pendidikan di ITN tidak hanya berfokus pada penguasaan teori, tetapi melahirkan solusi nyata bagi bangsa.")
-  rectorSpeech          String    @db.Text
+  rectorSpeech          String    @default("Selamat datang di Institut Teknologi Nusantara.") @db.Text
   rectorImageUrl        String?
   
   // Pengumuman Banner
@@ -667,6 +835,7 @@ model Room {
   updatedAt       DateTime @updatedAt
 
   building        Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  courseClasses   CourseClass[]
 
   @@map("rooms")
 }
@@ -688,6 +857,35 @@ model CalendarEvent {
   @@map("calendar_events")
 }
 
+model GradeScaleVersion {
+  id             String       @id @default(uuid())
+  academicYearId String?      // Grup skala ini berlaku untuk tahun akademik/semester yang mana
+  label          String?      // Label tampilan opsional, default dari nama tahun akademik
+  createdAt      DateTime     @default(now())
+
+  academicYear   AcademicYear? @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
+  scales         GradeScale[]
+
+  @@map("grade_scale_versions")
+}
+
+model GradeScale {
+  id         String   @id @default(uuid())
+  versionId  String
+  letter     String   // e.g. "A", "A-", "B+"
+  minScore   Float    // Batas bawah nilai angka (inklusif)
+  maxScore   Float    // Batas atas nilai angka (inklusif)
+  gradePoint Float    // Bobot untuk perhitungan IPK, e.g. 4.0, 3.7
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  version    GradeScaleVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@unique([versionId, letter])
+  @@map("grade_scales")
+}
+
 model Curriculum {
   id             String   @id @default(uuid())
   code           String   @unique
@@ -706,50 +904,9 @@ model Curriculum {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  courses        Course[]
+
   @@map("curriculums")
-}
-
-model SemesterPeriod {
-  id                  String   @id @default(uuid())
-  code                String   @unique // e.g. "20261"
-  name                String
-  academicYear        String
-  type                String   @default("Gasal") // Gasal, Genap, Pendek
-  startDate           String
-  endDate             String
-  krsStartDate        String
-  krsEndDate          String
-  gradeDeadline       String
-  totalCoursesOffered Int      @default(0)
-  totalCreditsOffered Int      @default(0)
-  isActive            Boolean  @default(false)
-  isGradeLocked       Boolean  @default(true)
-  status              String   @default("Buka") // Buka, Masa Ujian, Terkunci, Selesai
-  notes               String?  @db.Text
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  @@map("semester_periods")
-}
-
-model AcademicYearPeriod {
-  id                 String   @id @default(uuid())
-  code               String   @unique // e.g. "2026"
-  yearName           String   // e.g. "2026/2027"
-  startDate          String
-  endDate            String
-  pmbStartDate       String
-  pmbEndDate         String
-  semestersAvailable String[] @default(["Gasal", "Genap", "Pendek"])
-  studentsCount      Int      @default(0)
-  skRektor           String?
-  isActive           Boolean  @default(false)
-  status             String   @default("Aktif") // Aktif, Arsip, Mendatang
-  notes              String?  @db.Text
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  @@map("academic_year_periods")
 }
 
 // ==============================================================================
@@ -904,6 +1061,11 @@ model FeeComponent {
   @@map("fee_components")
 }
 
+enum FeeRuleBillingMode {
+  UKT
+  PER_SKS
+}
+
 model FeeRule {
   id                 String                     @id @default(uuid())
   name               String                     // e.g. "Aturan Beasiswa KIP-Kuliah"
@@ -911,6 +1073,7 @@ model FeeRule {
   description        String?                    @db.Text
   priority           Int                        @default(10) // Prioritas: angka makin besar makin prioritas
   academicYear       String?                    // null = berlaku untuk semua tahun akademik
+  billingMode        FeeRuleBillingMode         @default(UKT) // UKT = flat per semester, PER_SKS = tarif x SKS diambil
   isActive           Boolean                    @default(true)
 
   // Kondisi opsional pencocokan rule

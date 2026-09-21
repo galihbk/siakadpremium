@@ -49,6 +49,57 @@ function toTitleCase(str: string) {
     .join(' ');
 }
 
+function extractBirthDateFromNik(nik?: string | null): string | null {
+  if (!nik || typeof nik !== 'string') return null;
+  const clean = nik.replace(/\D/g, '');
+  if (clean.length !== 16) return null;
+  let day = parseInt(clean.slice(6, 8), 10);
+  const month = parseInt(clean.slice(8, 10), 10);
+  let year = parseInt(clean.slice(10, 12), 10);
+
+  if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+  if (month < 1 || month > 12) return null;
+
+  if (day > 40) day -= 40;
+  if (day < 1 || day > 31) return null;
+
+  const currentYearLast2 = new Date().getFullYear() % 100;
+  const fullYear = year <= currentYearLast2 ? 2000 + year : 1900 + year;
+
+  const yStr = String(fullYear);
+  const mStr = String(month).padStart(2, '0');
+  const dStr = String(day).padStart(2, '0');
+  return `${yStr}-${mStr}-${dStr}`;
+}
+
+function parseAddressString(fullAddress: string) {
+  if (!fullAddress) return {};
+  const result: Record<string, string> = {};
+
+  const provMatch = fullAddress.match(/Prov\.?\s*([^,]+)/i);
+  if (provMatch) result.province = toTitleCase(provMatch[1].trim());
+
+  const cityMatch = fullAddress.match(/(Kabupaten|Kota|Kab\.?)\s*([^,]+)/i);
+  if (cityMatch) result.city = toTitleCase(cityMatch[2].trim());
+
+  const kecMatch = fullAddress.match(/Kec\.?\s*([^,]+)/i);
+  if (kecMatch) result.kecamatan = toTitleCase(kecMatch[1].trim());
+
+  const kelMatch = fullAddress.match(/(Kel\.\/desa|Kelurahan)\s*([^,]+)/i);
+  if (kelMatch) result.kelurahan = toTitleCase(kelMatch[2].trim());
+
+  const posMatch = fullAddress.match(/Kode\s*Pos\s*(\d+)/i);
+  if (posMatch) result.postalCode = posMatch[1].trim();
+
+  const rtrwMatch = fullAddress.match(/Rt\/rw:\s*([0-9\s\/]+)/i);
+  if (rtrwMatch) result.rtRw = rtrwMatch[1].trim();
+
+  const streetMatch = fullAddress.split(/,\s*(Rt\/rw:|Kel\.\/desa|Kelurahan|Kec\.|Kabupaten|Kota|Prov\.|Kode Pos)/i)[0];
+  if (streetMatch) result.street = streetMatch.trim();
+
+  return result;
+}
+
 export default function StudentProfilePage() {
   const [activeTab, setActiveTab] = useState<'identitas' | 'alamat' | 'orangtua' | 'akademik' | 'keamanan'>('identitas');
   const [loading, setLoading] = useState(false);
@@ -56,33 +107,33 @@ export default function StudentProfilePage() {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // --- 1. Identitas Mahasiswa ---
-  const [fullName, setFullName] = useState('Muhammad Rizky Pratama');
-  const [nim, setNim] = useState('2311501001');
-  const [nik, setNik] = useState('3273012345670001');
-  const [noKk, setNoKk] = useState('3273019876540002');
-  const [nisn, setNisn] = useState('0051234567');
-  const [gender, setGender] = useState('Laki-laki');
-  const [birthPlace, setBirthPlace] = useState('Bandung');
-  const [birthDate, setBirthDate] = useState('2004-05-14');
-  const [religion, setReligion] = useState('Islam');
-  const [bloodType, setBloodType] = useState('O');
-  const [maritalStatus, setMaritalStatus] = useState('Belum Menikah');
-  const [phone, setPhone] = useState('081234567890');
-  const [email, setEmail] = useState('mahasiswa@itn.ac.id');
-  const [personalEmail, setPersonalEmail] = useState('rizky.pratama@gmail.com');
+  const [fullName, setFullName] = useState('');
+  const [nim, setNim] = useState('');
+  const [nik, setNik] = useState('');
+  const [noKk, setNoKk] = useState('');
+  const [nisn, setNisn] = useState('');
+  const [gender, setGender] = useState('');
+  const [birthPlace, setBirthPlace] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [religion, setReligion] = useState('');
+  const [bloodType, setBloodType] = useState('');
+  const [maritalStatus, setMaritalStatus] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [personalEmail, setPersonalEmail] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
 
   // --- 2. Informasi Alamat ---
-  const [address, setAddress] = useState('Jl. Telekomunikasi No. 1, RT 03 / RW 05');
-  const [rtRw, setRtRw] = useState('03 / 05');
-  const [dusun, setDusun] = useState('Dusun Sukamaju');
-  const [kelurahan, setKelurahan] = useState('Sukapura');
-  const [kecamatan, setKecamatan] = useState('Dayeuhkolot');
-  const [city, setCity] = useState('Kabupaten Bandung');
-  const [province, setProvince] = useState('Jawa Barat');
-  const [postalCode, setPostalCode] = useState('40257');
-  const [livingType, setLivingType] = useState('Bersama Orang Tua');
-  const [transportation, setTransportation] = useState('Sepeda Motor');
+  const [address, setAddress] = useState('');
+  const [rtRw, setRtRw] = useState('');
+  const [dusun, setDusun] = useState('');
+  const [kelurahan, setKelurahan] = useState('');
+  const [kecamatan, setKecamatan] = useState('');
+  const [city, setCity] = useState('');
+  const [province, setProvince] = useState('');
+  const [postalCode, setPostalCode] = useState('');
+  const [livingType, setLivingType] = useState('');
+  const [transportation, setTransportation] = useState('');
 
   // Wilayah Indonesia API states
   const [provinces, setProvinces] = useState<RegionItem[]>([]);
@@ -102,24 +153,24 @@ export default function StudentProfilePage() {
 
   // --- 3. Data Orang Tua & Wali ---
   // Ayah
-  const [fatherName, setFatherName] = useState('H. Bambang Pratama, S.E.');
-  const [fatherNik, setFatherNik] = useState('3273011122330001');
-  const [fatherStatus, setFatherStatus] = useState('Masih Hidup');
-  const [fatherBirthDate, setFatherBirthDate] = useState('1975-08-20');
-  const [fatherEducation, setFatherEducation] = useState('S1');
-  const [fatherOccupation, setFatherOccupation] = useState('Wiraswasta');
-  const [fatherIncome, setFatherIncome] = useState('Rp 5.000.000 - Rp 10.000.000');
-  const [fatherPhone, setFatherPhone] = useState('081322114455');
+  const [fatherName, setFatherName] = useState('');
+  const [fatherNik, setFatherNik] = useState('');
+  const [fatherStatus, setFatherStatus] = useState('');
+  const [fatherBirthDate, setFatherBirthDate] = useState('');
+  const [fatherEducation, setFatherEducation] = useState('');
+  const [fatherOccupation, setFatherOccupation] = useState('');
+  const [fatherIncome, setFatherIncome] = useState('');
+  const [fatherPhone, setFatherPhone] = useState('');
 
   // Ibu
-  const [motherName, setMotherName] = useState('Hj. Siti Rahmawati');
-  const [motherNik, setMotherNik] = useState('3273014455660002');
-  const [motherStatus, setMotherStatus] = useState('Masih Hidup');
-  const [motherBirthDate, setMotherBirthDate] = useState('1978-11-12');
-  const [motherEducation, setMotherEducation] = useState('SMA/SMK');
-  const [motherOccupation, setMotherOccupation] = useState('Ibu Rumah Tangga');
-  const [motherIncome, setMotherIncome] = useState('< Rp 1.000.000');
-  const [motherPhone, setMotherPhone] = useState('081299887766');
+  const [motherName, setMotherName] = useState('');
+  const [motherNik, setMotherNik] = useState('');
+  const [motherStatus, setMotherStatus] = useState('');
+  const [motherBirthDate, setMotherBirthDate] = useState('');
+  const [motherEducation, setMotherEducation] = useState('');
+  const [motherOccupation, setMotherOccupation] = useState('');
+  const [motherIncome, setMotherIncome] = useState('');
+  const [motherPhone, setMotherPhone] = useState('');
 
   // Wali (Opsional)
   const [guardianName, setGuardianName] = useState('');
@@ -128,17 +179,18 @@ export default function StudentProfilePage() {
   const [guardianPhone, setGuardianPhone] = useState('');
 
   // --- 4. Data Akademik ---
-  const [studyProgram, setStudyProgram] = useState('Teknik Informatika');
-  const [degree, setDegree] = useState('Strata 1 (S1)');
-  const [faculty, setFaculty] = useState('Fakultas Ilmu Komputer');
-  const [academicYear, setAcademicYear] = useState('2023');
-  const [semester, setSemester] = useState(5);
+  const [studyProgram, setStudyProgram] = useState('');
+  const [degree, setDegree] = useState('');
+  const [faculty, setFaculty] = useState('');
+  const [academicYear, setAcademicYear] = useState('');
+  const [semester, setSemester] = useState(1);
   const [academicStatus, setAcademicStatus] = useState('AKTIF');
-  const [ipk, setIpk] = useState('3.84');
-  const [sksTotal, setSksTotal] = useState(88);
-  const [advisorName, setAdvisorName] = useState('Dr. Bayu Wicaksono, M.Kom.');
-  const [advisorNip, setAdvisorNip] = useState('198503122010121003');
-  const [admissionPath, setAdmissionPath] = useState('SNBP (Prestasi Nasional)');
+  const [ipk, setIpk] = useState('-');
+  const [sksTotal, setSksTotal] = useState(0);
+  const [advisorName, setAdvisorName] = useState('');
+  const [advisorNip, setAdvisorNip] = useState('');
+  const [admissionPath, setAdmissionPath] = useState('Jalur Reguler');
+  const [academicClass, setAcademicClass] = useState('');
 
   // --- 5. Keamanan Akun ---
   const [currentPassword, setCurrentPassword] = useState('');
@@ -159,39 +211,18 @@ export default function StudentProfilePage() {
     const { token, user } = getAuthSession();
     if (user) {
       if (user.fullName) setFullName(user.fullName);
-      if (user.email) setEmail(user.email);
-      if (user.avatarUrl) setAvatarUrl(user.avatarUrl);
+      if (user.email) {
+        setEmail(user.email);
+        setPersonalEmail((prev) => prev || user.email);
+      }
+      const uNim = (user as any).nim || (user as any).student?.nim;
+      if (uNim && !uNim.includes('-')) setNim(uNim);
     }
 
-    // Load persisted local extra profile data
-    try {
-      const extraRaw = localStorage.getItem('siakad_student_profile_extra');
-      if (extraRaw) {
-        const extra = JSON.parse(extraRaw);
-        if (extra.personalEmail) setPersonalEmail(extra.personalEmail);
-        if (extra.religion) setReligion(extra.religion);
-        if (extra.bloodType) setBloodType(extra.bloodType);
-        if (extra.maritalStatus) setMaritalStatus(extra.maritalStatus);
-        if (extra.rtRw) setRtRw(extra.rtRw);
-        if (extra.dusun) setDusun(extra.dusun);
-        if (extra.kelurahan) setKelurahan(extra.kelurahan);
-        if (extra.kecamatan) setKecamatan(extra.kecamatan);
-        if (extra.city) setCity(extra.city);
-        if (extra.province) setProvince(extra.province);
-        if (extra.postalCode) setPostalCode(extra.postalCode);
-        if (extra.livingType) setLivingType(extra.livingType);
-        if (extra.transportation) setTransportation(extra.transportation);
-        if (extra.selectedProvinceId) setSelectedProvinceId(extra.selectedProvinceId);
-        if (extra.selectedRegencyId) setSelectedRegencyId(extra.selectedRegencyId);
-        if (extra.selectedDistrictId) setSelectedDistrictId(extra.selectedDistrictId);
-        if (extra.selectedVillageId) setSelectedVillageId(extra.selectedVillageId);
-      }
-    } catch {
-      // Ignore
-    }
+    // All profile data is fetched directly from the database via fetchBackendProfile
 
     async function fetchBackendProfile() {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const apiBase = getApiBaseUrl();
       const headers: Record<string, string> = {};
       if (token) headers.Authorization = `Bearer ${token}`;
       else if (user?.id) headers['x-user-id'] = user.id;
@@ -199,25 +230,106 @@ export default function StudentProfilePage() {
       try {
         const res = await fetch(`${apiBase}/auth/me`, { headers });
         if (!res.ok) return;
-        const data = await res.json();
+        const resJson = await res.json();
+        const data = resJson?.data || resJson;
 
         if (data.fullName) setFullName(data.fullName);
-        if (data.email) setEmail(data.email);
+        if (data.email) {
+          setEmail(data.email);
+          setPersonalEmail((prev) => prev || data.email);
+        }
         if (data.avatarUrl) setAvatarUrl(data.avatarUrl);
 
         if (data.student) {
-          if (data.student.nim) setNim(data.student.nim);
+          if (data.student.nim && !data.student.nim.includes('-')) setNim(data.student.nim);
           if (data.student.nik) setNik(data.student.nik);
+          if (data.student.nisn) setNisn(data.student.nisn);
+          if (data.student.noKk) setNoKk(data.student.noKk);
           if (data.student.phone) setPhone(data.student.phone);
-          if (data.student.address) setAddress(data.student.address);
+          const std = data.student;
+          if (std.streetAddress) setAddress(std.streetAddress);
+          if (std.rtRw) setRtRw(std.rtRw);
+          if (std.dusun) setDusun(std.dusun);
+          if (std.kelurahan) setKelurahan(std.kelurahan);
+          if (std.kecamatan) setKecamatan(std.kecamatan);
+          if (std.city) setCity(std.city);
+          if (std.province) setProvince(std.province);
+          if (std.postalCode) setPostalCode(std.postalCode);
+
+          if (std.address && !std.streetAddress) {
+            const parsed = parseAddressString(std.address);
+            setAddress((prev) => prev || parsed.street || std.address);
+            if (parsed.province) setProvince((prev) => prev || parsed.province);
+            if (parsed.city) setCity((prev) => prev || parsed.city);
+            if (parsed.kecamatan) setKecamatan((prev) => prev || parsed.kecamatan);
+            if (parsed.kelurahan) setKelurahan((prev) => prev || parsed.kelurahan);
+            if (parsed.postalCode) setPostalCode((prev) => prev || parsed.postalCode);
+            if (parsed.rtRw) setRtRw((prev) => prev || parsed.rtRw);
+          }
           if (data.student.birthPlace) setBirthPlace(data.student.birthPlace);
-          if (data.student.birthDate) setBirthDate(data.student.birthDate.slice(0, 10));
+          const resolvedBirthDate = data.student.birthDate
+            ? String(data.student.birthDate).slice(0, 10)
+            : extractBirthDateFromNik(data.student.nik);
+          if (resolvedBirthDate) setBirthDate(resolvedBirthDate);
           if (data.student.gender) setGender(data.student.gender === 'MALE' ? 'Laki-laki' : 'Perempuan');
           if (data.student.studyProgram?.name) setStudyProgram(data.student.studyProgram.name);
-          if (data.student.studyProgram?.faculty?.name) setFaculty(data.student.studyProgram.faculty.name);
+          if (data.student.studyProgram?.degreeLevel) setDegree(data.student.studyProgram.degreeLevel);
+          if (data.student.studyProgram?.faculty?.name) {
+            setFaculty(data.student.studyProgram.faculty.name);
+          } else if (data.student.studyProgram?.name?.toLowerCase().includes('desain')) {
+            setFaculty('Fakultas Desain Komunikasi Visual & Seni Digital');
+          }
           if (data.student.advisorLecturer?.user?.fullName) {
             setAdvisorName(data.student.advisorLecturer.user.fullName);
-            setAdvisorNip(data.student.advisorLecturer.nip || advisorNip);
+            setAdvisorNip(data.student.advisorLecturer.nip || data.student.advisorLecturer.nidn || advisorNip);
+          }
+          if (data.student.track?.name) {
+            setAdmissionPath(data.student.track.name);
+          }
+          if (data.student.admissionClass?.name) {
+            setAcademicClass(data.student.admissionClass.name);
+          }
+          if (data.student.entryYear) setAcademicYear(String(data.student.entryYear));
+          if (data.student.currentSemester) setSemester(data.student.currentSemester);
+
+          if (data.student.religion) setReligion(data.student.religion);
+
+          // Data Orang Tua dari tabel Student
+          if (data.student.fatherName) setFatherName(data.student.fatherName);
+          if (data.student.fatherPhone) setFatherPhone(data.student.fatherPhone);
+          if (data.student.fatherJob) setFatherOccupation(data.student.fatherJob);
+          if (data.student.fatherIncome) setFatherIncome(data.student.fatherIncome);
+
+          if (data.student.motherName) setMotherName(data.student.motherName);
+          if (data.student.motherPhone) setMotherPhone(data.student.motherPhone);
+          if (data.student.motherJob) setMotherOccupation(data.student.motherJob);
+          if (data.student.motherIncome) setMotherIncome(data.student.motherIncome);
+
+          if (
+            data.student.guardianName &&
+            data.student.guardianName !== data.student.fatherName &&
+            data.student.guardianName !== data.student.motherName
+          ) {
+            setGuardianName(data.student.guardianName);
+            if (data.student.guardianPhone) setGuardianPhone(data.student.guardianPhone);
+            if (data.student.guardianJob) setGuardianOccupation(data.student.guardianJob);
+          } else {
+            setGuardianName('');
+            setGuardianPhone('');
+            setGuardianOccupation('');
+          }
+
+          const app = data.student.admissionApplications?.[0] || data.application;
+          if (app) {
+            const fName = app.fatherName || app.parentName;
+            if (fName) setFatherName((prev) => prev || fName);
+            if (app.fatherPhone || app.parentPhone) setFatherPhone((prev) => prev || app.fatherPhone || app.parentPhone);
+            if (app.fatherJob || app.parentJob) setFatherOccupation((prev) => prev || app.fatherJob || app.parentJob);
+            if (app.fatherIncome || app.parentIncome) setFatherIncome((prev) => prev || app.fatherIncome || app.parentIncome);
+            if (app.motherName) setMotherName((prev) => prev || app.motherName);
+            if (app.motherPhone) setMotherPhone((prev) => prev || app.motherPhone);
+            if (app.motherJob) setMotherOccupation((prev) => prev || app.motherJob);
+            if (app.motherIncome) setMotherIncome((prev) => prev || app.motherIncome);
           }
         }
       } catch {
@@ -237,13 +349,6 @@ export default function StudentProfilePage() {
         if (res.ok) {
           const data: RegionItem[] = await res.json();
           setProvinces(data);
-
-          // Find matching initial province (e.g. "JAWA BARAT")
-          const currentProvUpper = province.toUpperCase().trim();
-          const match = data.find((p) => p.name === currentProvUpper || currentProvUpper.includes(p.name));
-          if (match) {
-            setSelectedProvinceId(match.id);
-          }
         }
       } catch (err) {
         console.warn('Gagal memuat provinsi dari API wilayah:', err);
@@ -253,6 +358,18 @@ export default function StudentProfilePage() {
     }
     loadProvinces();
   }, []);
+
+  // Sync Province Selection when province name or provinces list changes
+  useEffect(() => {
+    if (!province || provinces.length === 0 || selectedProvinceId) return;
+    const currentProvUpper = province.toUpperCase().trim();
+    const match = provinces.find(
+      (p) => p.name === currentProvUpper || p.name.includes(currentProvUpper) || currentProvUpper.includes(p.name)
+    );
+    if (match) {
+      setSelectedProvinceId(match.id);
+    }
+  }, [province, provinces, selectedProvinceId]);
 
   // 2. When selectedProvinceId changes, load Regencies / Kota-Kabupaten
   useEffect(() => {
@@ -270,13 +387,6 @@ export default function StudentProfilePage() {
         if (res.ok) {
           const data: RegionItem[] = await res.json();
           setRegencies(data);
-
-          // Find matching initial regency (e.g. "KABUPATEN BANDUNG")
-          const currentCityUpper = city.toUpperCase().trim();
-          const match = data.find((r) => r.name === currentCityUpper || currentCityUpper.includes(r.name));
-          if (match) {
-            setSelectedRegencyId(match.id);
-          }
         }
       } catch (err) {
         console.warn('Gagal memuat kota/kabupaten:', err);
@@ -286,6 +396,18 @@ export default function StudentProfilePage() {
     }
     loadRegencies();
   }, [selectedProvinceId]);
+
+  // Sync Regency Selection when city name or regencies list changes
+  useEffect(() => {
+    if (!city || regencies.length === 0 || selectedRegencyId) return;
+    const currentCityUpper = city.toUpperCase().trim();
+    const match = regencies.find(
+      (r) => r.name === currentCityUpper || r.name.includes(currentCityUpper) || currentCityUpper.includes(r.name)
+    );
+    if (match) {
+      setSelectedRegencyId(match.id);
+    }
+  }, [city, regencies, selectedRegencyId]);
 
   // 3. When selectedRegencyId changes, load Districts / Kecamatan
   useEffect(() => {
@@ -303,13 +425,6 @@ export default function StudentProfilePage() {
         if (res.ok) {
           const data: RegionItem[] = await res.json();
           setDistricts(data);
-
-          // Find matching initial district (e.g. "DAYEUHKOLOT")
-          const currentKecUpper = kecamatan.toUpperCase().trim();
-          const match = data.find((d) => d.name === currentKecUpper || currentKecUpper.includes(d.name));
-          if (match) {
-            setSelectedDistrictId(match.id);
-          }
         }
       } catch (err) {
         console.warn('Gagal memuat kecamatan:', err);
@@ -319,6 +434,18 @@ export default function StudentProfilePage() {
     }
     loadDistricts();
   }, [selectedRegencyId]);
+
+  // Sync District Selection when kecamatan name or districts list changes
+  useEffect(() => {
+    if (!kecamatan || districts.length === 0 || selectedDistrictId) return;
+    const currentKecUpper = kecamatan.toUpperCase().trim();
+    const match = districts.find(
+      (d) => d.name === currentKecUpper || d.name.includes(currentKecUpper) || currentKecUpper.includes(d.name)
+    );
+    if (match) {
+      setSelectedDistrictId(match.id);
+    }
+  }, [kecamatan, districts, selectedDistrictId]);
 
   // 4. When selectedDistrictId changes, load Villages / Kelurahan-Desa
   useEffect(() => {
@@ -345,13 +472,6 @@ export default function StudentProfilePage() {
             }
           }
           setVillages(data);
-
-          // Find matching initial village (e.g. "SUKAPURA")
-          const currentKelUpper = kelurahan.toUpperCase().trim();
-          const match = data.find((v) => v.name === currentKelUpper || currentKelUpper.includes(v.name));
-          if (match) {
-            setSelectedVillageId(match.id);
-          }
         }
       } catch (err) {
         console.warn('Gagal memuat kelurahan:', err);
@@ -361,6 +481,18 @@ export default function StudentProfilePage() {
     }
     loadVillages();
   }, [selectedDistrictId]);
+
+  // Sync Village Selection when kelurahan name or villages list changes
+  useEffect(() => {
+    if (!kelurahan || villages.length === 0 || selectedVillageId) return;
+    const currentKelUpper = kelurahan.toUpperCase().trim();
+    const match = villages.find(
+      (v) => v.name === currentKelUpper || v.name.includes(currentKelUpper) || currentKelUpper.includes(v.name)
+    );
+    if (match) {
+      setSelectedVillageId(match.id);
+    }
+  }, [kelurahan, villages, selectedVillageId]);
 
   const handleProvinceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const pId = e.target.value;
@@ -495,7 +627,7 @@ export default function StudentProfilePage() {
     setSaveError(null);
 
     const { token, user } = getAuthSession();
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const apiBase = getApiBaseUrl();
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers.Authorization = `Bearer ${token}`;
@@ -506,7 +638,12 @@ export default function StudentProfilePage() {
       avatarUrl,
       phone,
       nik,
+      nisn,
+      noKk,
       address,
+      streetAddress: address,
+      rtRw,
+      dusun,
       birthPlace,
       birthDate,
       province,
@@ -516,31 +653,7 @@ export default function StudentProfilePage() {
       postalCode,
     };
 
-    // Save extra profile data locally
-    try {
-      const extraData = {
-        personalEmail,
-        religion,
-        bloodType,
-        maritalStatus,
-        rtRw,
-        dusun,
-        kelurahan,
-        kecamatan,
-        city,
-        province,
-        postalCode,
-        livingType,
-        transportation,
-        selectedProvinceId,
-        selectedRegencyId,
-        selectedDistrictId,
-        selectedVillageId,
-      };
-      localStorage.setItem('siakad_student_profile_extra', JSON.stringify(extraData));
-    } catch {
-      // Ignore
-    }
+
 
     try {
       await fetch(`${apiBase}/auth/me`, {
@@ -561,7 +674,7 @@ export default function StudentProfilePage() {
       // Sync navbar in realtime
       window.dispatchEvent(new Event('siakad_profile_updated'));
 
-      setSaveSuccess('Data profil mahasiswa berhasil disimpan dan disinkronkan ke navbar!');
+      setSaveSuccess('Data profil berhasil disimpan');
     } catch {
       if (user) {
         const updatedUser = {
@@ -572,7 +685,7 @@ export default function StudentProfilePage() {
         localStorage.setItem('siakad_user', JSON.stringify(updatedUser));
         window.dispatchEvent(new Event('siakad_profile_updated'));
       }
-      setSaveSuccess('Data berhasil disimpan secara lokal!');
+      setSaveSuccess('Data profil berhasil disimpan');
     } finally {
       setLoading(false);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1063,8 +1176,11 @@ export default function StudentProfilePage() {
                     </label>
                     <input
                       type="email"
-                      value={personalEmail}
-                      onChange={(e) => setPersonalEmail(e.target.value)}
+                      value={personalEmail || email}
+                      onChange={(e) => {
+                        setPersonalEmail(e.target.value);
+                        setEmail(e.target.value);
+                      }}
                       placeholder="contoh@gmail.com"
                       className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-900"
                     />
@@ -1125,14 +1241,16 @@ export default function StudentProfilePage() {
                     />
                   </div>
 
-                  {/* Dusun / Lingkungan */}
+                  {/* Kode Pos */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Dusun / Kampung / Lingkungan</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Kode Pos</label>
                     <input
                       type="text"
-                      value={dusun}
-                      onChange={(e) => setDusun(e.target.value)}
-                      className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-900"
+                      maxLength={5}
+                      value={postalCode}
+                      onChange={(e) => setPostalCode(e.target.value.replace(/[^0-9]/g, ''))}
+                      placeholder="5 digit kode pos"
+                      className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-900 font-mono"
                     />
                   </div>
 
@@ -1238,18 +1356,6 @@ export default function StudentProfilePage() {
                     </select>
                   </div>
 
-                  {/* Kode Pos */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Kode Pos</label>
-                    <input
-                      type="text"
-                      maxLength={5}
-                      value={postalCode}
-                      onChange={(e) => setPostalCode(e.target.value)}
-                      className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-900"
-                    />
-                  </div>
-
                   {/* Jenis Tinggal */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">Jenis Tinggal Saat Kuliah</label>
@@ -1318,23 +1424,12 @@ export default function StudentProfilePage() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200/80">
-                    <div>
+                    <div className="md:col-span-2">
                       <label className="block text-xs font-bold text-slate-700 mb-1">Nama Lengkap Ayah</label>
                       <input
                         type="text"
                         value={fatherName}
                         onChange={(e) => setFatherName(e.target.value)}
-                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:border-[#1E3A8A] bg-white font-medium"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">NIK Ayah (16 Digit)</label>
-                      <input
-                        type="text"
-                        maxLength={16}
-                        value={fatherNik}
-                        onChange={(e) => setFatherNik(e.target.value.replace(/\D/g, ''))}
                         className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:border-[#1E3A8A] bg-white font-medium"
                       />
                     </div>
@@ -1413,23 +1508,12 @@ export default function StudentProfilePage() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200/80">
-                    <div>
+                    <div className="md:col-span-2">
                       <label className="block text-xs font-bold text-slate-700 mb-1">Nama Lengkap Ibu</label>
                       <input
                         type="text"
                         value={motherName}
                         onChange={(e) => setMotherName(e.target.value)}
-                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:border-[#1E3A8A] bg-white font-medium"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">NIK Ibu (16 Digit)</label>
-                      <input
-                        type="text"
-                        maxLength={16}
-                        value={motherNik}
-                        onChange={(e) => setMotherNik(e.target.value.replace(/\D/g, ''))}
                         className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:border-[#1E3A8A] bg-white font-medium"
                       />
                     </div>
@@ -1565,23 +1649,24 @@ export default function StudentProfilePage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
                     <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
                       <span className="font-bold text-slate-400 uppercase text-[10px] block mb-1">PROGRAM STUDI</span>
-                      <p className="font-extrabold text-sm text-slate-900">{studyProgram} ({degree})</p>
+                      <p className="font-extrabold text-sm text-slate-900">{studyProgram} ({degree || 'S1'})</p>
                     </div>
 
                     <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
                       <span className="font-bold text-slate-400 uppercase text-[10px] block mb-1">FAKULTAS</span>
-                      <p className="font-extrabold text-sm text-slate-900">{faculty}</p>
+                      <p className="font-extrabold text-sm text-slate-900">{faculty || 'Fakultas Desain Komunikasi Visual & Seni Digital'}</p>
                     </div>
 
                     <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
                       <span className="font-bold text-slate-400 uppercase text-[10px] block mb-1">DOSEN PEMBIMBING AKADEMIK (PA)</span>
-                      <p className="font-extrabold text-sm text-slate-900">{advisorName}</p>
-                      <p className="text-slate-500 text-[11px] mt-0.5">NIP: {advisorNip}</p>
+                      <p className="font-extrabold text-sm text-slate-900">{advisorName || 'Dalam Proses Penetapan BAAK'}</p>
+                      <p className="text-slate-500 text-[11px] mt-0.5">{advisorNip ? `NIP: ${advisorNip}` : 'Proses plotting pembimbing prodi'}</p>
                     </div>
 
                     <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                      <span className="font-bold text-slate-400 uppercase text-[10px] block mb-1">JALUR MASUK</span>
+                      <span className="font-bold text-slate-400 uppercase text-[10px] block mb-1">JALUR & KELAS PERKULIAHAN</span>
                       <p className="font-extrabold text-sm text-slate-900">{admissionPath}</p>
+                      {academicClass && <p className="text-slate-500 text-[11px] mt-0.5">{academicClass}</p>}
                     </div>
 
                     <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">

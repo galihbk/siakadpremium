@@ -19,7 +19,17 @@ import {
   Sparkles,
   Loader2,
   FileCheck2,
+  ClipboardCheck,
+  FileSignature,
 } from 'lucide-react';
+
+function authHeaders(): Record<string, string> {
+  const { token, user } = getAuthSession();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  else if ((user as any)?.lecturerId) headers['x-lecturer-id'] = (user as any).lecturerId;
+  return headers;
+}
 
 export interface TeachingClassItem {
   id: string;
@@ -57,21 +67,10 @@ export default function LecturerJadwalPage() {
     const fetchSchedules = async () => {
       setIsLoading(true);
       try {
-        const res = await fetch(`${apiBase}/academic/schedules`);
+        const res = await fetch(`${apiBase}/lecturers/schedules`, { headers: authHeaders() });
         if (res.ok) {
           const json = await res.json();
-          const allSchedules: TeachingClassItem[] = json.data || [];
-          const lecturerClasses = allSchedules.filter((s) => {
-            if (user?.email === 'dosen@itn.ac.id' || !user) {
-              return s.lecturerNidn === '0412088501' || s.lecturerName.includes('Bayu');
-            }
-            return (
-              s.lecturerNidn === (user as any)?.nidn ||
-              s.lecturerName.toLowerCase().includes((user.fullName || '').toLowerCase())
-            );
-          });
-
-          setSchedules(lecturerClasses.length > 0 ? lecturerClasses : allSchedules.slice(0, 4));
+          setSchedules(json.data || []);
         }
       } catch (err) {
         console.error(err);
@@ -308,13 +307,29 @@ export default function LecturerJadwalPage() {
                     <CalendarDays className="w-3.5 h-3.5 text-slate-400" /> TA 2026/2027 Gasal
                   </span>
 
-                  <Link
-                    href={`/lecturer/nilai?classId=${sch.id}`}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#1E3A8A] border border-blue-200 text-xs font-bold transition-all shadow-xs"
-                  >
-                    <Award className="w-3.5 h-3.5" />
-                    <span>Input Nilai Kelas</span>
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/lecturer/absensi/${sch.id}`}
+                      title="Absensi Kelas"
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold transition-all shadow-xs"
+                    >
+                      <ClipboardCheck className="w-3.5 h-3.5" />
+                    </Link>
+                    <Link
+                      href={`/lecturer/kontrak/${sch.id}`}
+                      title="Kontrak Kuliah"
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold transition-all shadow-xs"
+                    >
+                      <FileSignature className="w-3.5 h-3.5" />
+                    </Link>
+                    <Link
+                      href={`/lecturer/nilai?classId=${sch.id}`}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#1E3A8A] border border-blue-200 text-xs font-bold transition-all shadow-xs"
+                    >
+                      <Award className="w-3.5 h-3.5" />
+                      <span>Nilai</span>
+                    </Link>
+                  </div>
                 </div>
               </div>
             ))}

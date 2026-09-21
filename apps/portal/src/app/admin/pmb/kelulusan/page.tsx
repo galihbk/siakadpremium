@@ -18,6 +18,10 @@ import {
   Clock,
   Sparkles,
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 import { AdmissionApplicantItem } from '@siakad/types';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
@@ -27,6 +31,10 @@ export default function KelulusanPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
 
   // Custom Modal Alert / Confirm
   const [modalConfig, setModalConfig] = useState<{
@@ -65,7 +73,7 @@ export default function KelulusanPage() {
     setIsRefreshing(true);
     setApiError(null);
     try {
-      const res = await fetch(`${apiBase}/admissions/applicants?limit=100`, { cache: 'no-store' });
+      const res = await fetch(`${apiBase}/admissions/applicants?limit=1000`, { cache: 'no-store' });
       if (res.ok) {
         const json = await res.json();
         const list = Array.isArray(json.data)
@@ -97,11 +105,16 @@ export default function KelulusanPage() {
   const waitingDecisionCount = useMemo(() => applicants.filter((a) => a.status === 'VERIFIED').length, [applicants]);
 
   const filteredApplicants = useMemo(() => {
+    const term = searchQuery.trim().toLowerCase();
     return applicants.filter((item) => {
       const matchSearch =
-        item.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.registrationNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.chosenStudyProgram.toLowerCase().includes(searchQuery.toLowerCase());
+        !term ||
+        item.fullName.toLowerCase().includes(term) ||
+        item.registrationNumber.toLowerCase().includes(term) ||
+        (item.email && item.email.toLowerCase().includes(term)) ||
+        (item.phone && item.phone.toLowerCase().includes(term)) ||
+        (item.highSchool && item.highSchool.toLowerCase().includes(term)) ||
+        item.chosenStudyProgram.toLowerCase().includes(term);
 
       let matchStatus = true;
       if (statusFilter !== 'ALL') {
@@ -112,6 +125,43 @@ export default function KelulusanPage() {
     });
   }, [applicants, searchQuery, statusFilter]);
 
+  // Reset page when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredApplicants.length / itemsPerPage));
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
+  const paginatedApplicants = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredApplicants.slice(start, start + itemsPerPage);
+  }, [filteredApplicants, currentPage, itemsPerPage]);
+
+  const startIndex = filteredApplicants.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+  const endIndex = Math.min(currentPage * itemsPerPage, filteredApplicants.length);
+
+  const getPageNumbers = () => {
+    const pages: number[] = [];
+    const maxVisible = 5;
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      let start = Math.max(1, currentPage - 2);
+      let end = Math.min(totalPages, start + maxVisible - 1);
+      if (end - start < maxVisible - 1) {
+        start = Math.max(1, end - maxVisible + 1);
+      }
+      for (let i = start; i <= end; i++) pages.push(i);
+    }
+    return pages;
+  };
+
   // Open Decision Modal
   const handleOpenDecisionModal = (applicant: AdmissionApplicantItem, type: 'PASSED' | 'FAILED') => {
     setSelectedApplicant(applicant);
@@ -119,7 +169,7 @@ export default function KelulusanPage() {
     setDecisionNotes(
       type === 'PASSED'
         ? `Dinyatakan DITERIMA sebagai calon mahasiswa baru Program Studi ${applicant.chosenStudyProgram}.`
-        : 'Nilai ujian CBT atau berkas belum memenuhi kuota program studi yang dipilih.',
+        : 'Berkas atau kualifikasi pendaftaran belum memenuhi persyaratan program studi yang dipilih.',
     );
     setDecisionModalOpen(true);
   };
@@ -246,16 +296,18 @@ export default function KelulusanPage() {
 
   const renderStatus = (status: string) => {
     switch (status) {
+      case 'VERIFYING_RE_REGISTRATION':
+        return <span className="text-amber-900 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-md text-xs font-extrabold inline-flex items-center gap-1.5 shadow-2xs animate-pulse whitespace-nowrap"><Clock className="w-3 h-3 text-amber-700 shrink-0" /> Verifikasi Daftar Ulang</span>;
       case 'PASSED':
-        return <span className="text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md text-xs font-bold inline-flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Diterima (Lolos)</span>;
+        return <span className="text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md text-xs font-bold inline-flex items-center gap-1 whitespace-nowrap"><CheckCircle className="w-3 h-3 shrink-0" /> Diterima (Lolos)</span>;
       case 'REGISTERED':
-        return <span className="text-purple-700 bg-purple-50 px-2.5 py-1 rounded-md text-xs font-bold inline-flex items-center gap-1"><UserCheck className="w-3 h-3" /> Registrasi Selesai (NIM Terbit)</span>;
+        return <span className="text-purple-700 bg-purple-50 px-2.5 py-1 rounded-md text-xs font-bold inline-flex items-center gap-1 whitespace-nowrap"><UserCheck className="w-3 h-3 shrink-0" /> Registrasi Selesai (NIM Terbit)</span>;
       case 'FAILED':
-        return <span className="text-rose-700 bg-rose-50 px-2.5 py-1 rounded-md text-xs font-bold inline-flex items-center gap-1"><XCircle className="w-3 h-3" /> Tidak Lolos</span>;
+        return <span className="text-rose-700 bg-rose-50 px-2.5 py-1 rounded-md text-xs font-bold inline-flex items-center gap-1 whitespace-nowrap"><XCircle className="w-3 h-3 shrink-0" /> Tidak Lolos</span>;
       case 'VERIFIED':
-        return <span className="text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md text-xs font-semibold">Siap Penetapan</span>;
+        return <span className="text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap">Siap Penetapan</span>;
       default:
-        return <span className="text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md text-xs font-semibold">Menunggu Verifikasi</span>;
+        return <span className="text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap">Menunggu Verifikasi</span>;
     }
   };
 
@@ -264,7 +316,7 @@ export default function KelulusanPage() {
       role="pmb"
       activeMenuHref="/admin/pmb/kelulusan"
     >
-      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+      <div className="w-full space-y-6">
         {/* Header */}
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-subtle p-5 sm:p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -384,8 +436,18 @@ export default function KelulusanPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Cari nama calon mahasiswa, nomor registrasi, prodi..."
-                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                className="w-full pl-10 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  title="Bersihkan pencarian"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/60"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
             <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-full sm:w-auto overflow-x-auto scrollbar-none">
@@ -435,9 +497,17 @@ export default function KelulusanPage() {
 
         {/* Table */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-subtle overflow-hidden">
-          <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-700">
-              Daftar Kelulusan &amp; Registrasi ({filteredApplicants.length} pendaftar)
+          <div className="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs text-slate-600">
+              Menampilkan <strong className="text-slate-900">{startIndex}</strong> - <strong className="text-slate-900">{endIndex}</strong> dari <strong className="text-slate-900">{filteredApplicants.length}</strong> pendaftar
+              {filteredApplicants.length !== applicants.length && (
+                <span className="text-slate-400 text-[11px] ml-1.5">
+                  (difilter dari total {applicants.length} pendaftar)
+                </span>
+              )}
+            </span>
+            <span className="text-xs text-slate-500">
+              Halaman <strong className="text-slate-800">{currentPage}</strong> dari <strong className="text-slate-800">{totalPages}</strong>
             </span>
           </div>
 
@@ -448,7 +518,6 @@ export default function KelulusanPage() {
                   <th className="py-3 px-4">No. Registrasi</th>
                   <th className="py-3 px-4">Nama Lengkap</th>
                   <th className="py-3 px-4">Program Studi</th>
-                  <th className="py-3 px-4 text-center">Skor CBT</th>
                   <th className="py-3 px-4 text-center">Status Kelulusan</th>
                   <th className="py-3 px-4 text-right">Aksi Kelulusan &amp; NIM</th>
                 </tr>
@@ -456,20 +525,20 @@ export default function KelulusanPage() {
               <tbody className="divide-y divide-slate-100 text-xs">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400">
+                    <td colSpan={5} className="py-12 text-center text-slate-400">
                       <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-600" />
                       <span>Memuat data kelulusan...</span>
                     </td>
                   </tr>
                 ) : filteredApplicants.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400">
+                    <td colSpan={5} className="py-12 text-center text-slate-400">
                       <GraduationCap className="w-8 h-8 mx-auto mb-2 opacity-40" />
                       <p className="font-semibold">Tidak ada pendaftar pada filter ini.</p>
                     </td>
                   </tr>
                 ) : (
-                  filteredApplicants.map((item) => (
+                  paginatedApplicants.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="py-3.5 px-4 font-mono font-bold text-blue-700">
                         {item.registrationNumber}
@@ -480,9 +549,6 @@ export default function KelulusanPage() {
                       </td>
                       <td className="py-3.5 px-4 text-slate-700 font-medium">
                         {item.chosenStudyProgram}
-                      </td>
-                      <td className="py-3.5 px-4 text-center font-bold text-slate-800">
-                        {item.testScore ?? '-'}
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         {renderStatus(item.status)}
@@ -547,11 +613,97 @@ export default function KelulusanPage() {
               </tbody>
             </table>
           </div>
-        </div>
 
-        {/* Modal Penetapan Keputusan */}
-        {decisionModalOpen && selectedApplicant && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          {/* Pagination Controls */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-slate-100 text-xs text-slate-600 bg-slate-50/50">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500">Tampilkan:</span>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    setItemsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 cursor-pointer"
+                >
+                  <option value={10}>10 baris</option>
+                  <option value={20}>20 baris</option>
+                  <option value={50}>50 baris</option>
+                  <option value={100}>100 baris</option>
+                </select>
+              </div>
+              <span className="text-slate-300 hidden sm:inline">|</span>
+              <span className="text-slate-600">
+                Menampilkan <strong className="text-slate-900">{startIndex}</strong> - <strong className="text-slate-900">{endIndex}</strong> dari <strong className="text-slate-900">{filteredApplicants.length}</strong> pendaftar
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              {/* First Page */}
+              <button
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                title="Halaman Pertama"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronsLeft className="w-4 h-4" />
+              </button>
+
+              {/* Previous Page */}
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                title="Halaman Sebelumnya"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              {/* Numbered Page Buttons */}
+              <div className="flex items-center gap-1">
+                {getPageNumbers().map((num) => (
+                  <button
+                    key={num}
+                    onClick={() => setCurrentPage(num)}
+                    className={`min-w-[32px] h-8 px-2 rounded-lg font-bold text-xs transition-all ${
+                      currentPage === num
+                        ? 'bg-[#1E3A8A] text-white shadow-xs'
+                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    {num}
+                  </button>
+                ))}
+              </div>
+
+              {/* Next Page */}
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                title="Halaman Selanjutnya"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+
+              {/* Last Page */}
+              <button
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                title="Halaman Terakhir"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronsRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Modal Penetapan Keputusan */}
+      {decisionModalOpen && selectedApplicant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150 !m-0">
             <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <h3 className="text-base font-bold text-slate-900">
@@ -570,7 +722,6 @@ export default function KelulusanPage() {
                   <p className="font-bold text-slate-900 text-sm">{selectedApplicant.fullName}</p>
                   <p className="text-slate-500 font-mono text-[11px]">{selectedApplicant.registrationNumber}</p>
                   <p className="text-blue-900 font-semibold">{selectedApplicant.chosenStudyProgram}</p>
-                  <p className="text-slate-600 text-[11px]">Skor Ujian CBT: <strong>{selectedApplicant.testScore ?? '-'}</strong></p>
                 </div>
 
                 <div>
@@ -608,9 +759,9 @@ export default function KelulusanPage() {
           </div>
         )}
 
-        {/* Modal Surat Keputusan Penerimaan (SK) */}
-        {skModalOpen && skApplicant && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+      {/* Modal Surat Keputusan Penerimaan (SK) */}
+      {skModalOpen && skApplicant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150 !m-0">
             <div className="bg-white rounded-2xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 space-y-6">
               <div className="flex items-center justify-between border-b border-slate-200 pb-4">
                 <div className="flex items-center gap-3">
@@ -641,7 +792,7 @@ export default function KelulusanPage() {
                 </div>
 
                 <p>
-                  Berdasarkan hasil verifikasi berkas administratif dan hasil Ujian Seleksi Mandiri CBT (Computer Based Test) Tahun Akademik 2027/2028, Panitia PMB Institut Teknologi Nusantara menyatakan bahwa:
+                  Berdasarkan hasil verifikasi berkas administratif Calon Mahasiswa Baru Tahun Akademik 2027/2028, Panitia PMB Institut Teknologi Nusantara menyatakan bahwa:
                 </p>
 
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 font-medium">
@@ -712,7 +863,6 @@ export default function KelulusanPage() {
           onConfirm={modalConfig.onConfirm}
           onClose={() => setModalConfig((prev) => ({ ...prev, isOpen: false }))}
         />
-      </div>
     </PortalLayout>
   );
 }
