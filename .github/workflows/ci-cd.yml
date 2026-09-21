@@ -225,7 +225,7 @@ jobs:
             fi
             sleep 2
           done
-          docker compose -f docker-compose.prod.yml exec -T api npx prisma db push --accept-data-loss
+          docker compose -f docker-compose.prod.yml exec -T api npx prisma db push --accept-data-loss --skip-generate
 
   # ----------------------------------------------------------------------------
   # Job 5: Health Check Verification
