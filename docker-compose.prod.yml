@@ -64,6 +64,8 @@ services:
     restart: always
     ports:
       - '${SIAKAD_WEB_PORT:-3100}:3000'
+    environment:
+      INTERNAL_API_URL: http://api:3001/api/v1
     env_file:
       - path: .env.web
         required: false
@@ -79,6 +81,8 @@ services:
     restart: always
     ports:
       - '${SIAKAD_PORTAL_PORT:-3102}:3002'
+    environment:
+      INTERNAL_API_URL: http://api:3001/api/v1
     env_file:
       - path: .env.portal
         required: false
