@@ -30,6 +30,11 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 ARG NEXT_PUBLIC_API_URL=/api/v1
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+# Server-side proxy target used by next.config.ts rewrites() -- resolved at build time
+# (Next.js bakes rewrites into routes-manifest.json during `next build`, so setting this
+# as a runtime container env var has no effect; it must be present here, at build time).
+ARG INTERNAL_API_URL=http://api:3001/api/v1
+ENV INTERNAL_API_URL=${INTERNAL_API_URL}
 
 # Generate Prisma Client & build workspace packages
 RUN pnpm --filter @siakad/database db:generate

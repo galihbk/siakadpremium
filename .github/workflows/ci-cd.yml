@@ -105,6 +105,7 @@ jobs:
           push: true
           build-args: |
             NEXT_PUBLIC_API_URL=/api/v1
+            INTERNAL_API_URL=http://api:3001/api/v1
           tags: ${{ steps.meta-web.outputs.tags }}
           labels: ${{ steps.meta-web.outputs.labels }}
           cache-from: type=gha
@@ -153,6 +154,7 @@ jobs:
           push: true
           build-args: |
             NEXT_PUBLIC_API_URL=/api/v1
+            INTERNAL_API_URL=http://api:3001/api/v1
           tags: ${{ steps.meta-portal.outputs.tags }}
           labels: ${{ steps.meta-portal.outputs.labels }}
           cache-from: type=gha
@@ -212,6 +214,18 @@ jobs:
           docker compose -f docker-compose.prod.yml pull
           docker compose -f docker-compose.prod.yml up -d --force-recreate --remove-orphans
           docker image prune -af
+
+      - name: Sync database schema (prisma db push)
+        working-directory: /srv/projects/siakadpremium
+        run: |
+          echo "Waiting for API container to be ready..."
+          for i in $(seq 1 15); do
+            if docker compose -f docker-compose.prod.yml exec -T api node -e "1" 2>/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          docker compose -f docker-compose.prod.yml exec -T api npx --yes prisma@6.19.3 db push --accept-data-loss
 
   # ----------------------------------------------------------------------------
   # Job 5: Health Check Verification
