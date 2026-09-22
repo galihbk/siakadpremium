@@ -62,33 +62,10 @@ export class AnalyticsService {
   }
 
   async ensureInitialData() {
-    const logCount = await this.prisma.visitorLog.count();
-    if (logCount === 0) {
-      this.logger.log('Seeding initial baseline visitor logs...');
-      const paths = ['/', '/pmb', '/berita', '/profil', '/kontak', '/login'];
-      const devices = ['Mobile', 'Mobile', 'Mobile', 'Desktop', 'Tablet'];
-      const referers = ['Google', 'Google', 'Social Media', 'Direct', 'Referral'];
-
-      const now = Date.now();
-      const logsToInsert = [];
-
-      for (let i = 0; i < 450; i++) {
-        const daysAgo = Math.floor(Math.random() * 28);
-        const hoursAgo = Math.floor(Math.random() * 24);
-        const createdAt = new Date(now - (daysAgo * 86400000 + hoursAgo * 3600000));
-
-        logsToInsert.push({
-          path: paths[Math.floor(Math.random() * paths.length)],
-          ip: `192.168.${Math.floor(Math.random() * 50)}.${Math.floor(Math.random() * 255)}`,
-          userAgent: 'Mozilla/5.0 Realistic Browser Seed',
-          device: devices[Math.floor(Math.random() * devices.length)],
-          referer: referers[Math.floor(Math.random() * referers.length)],
-          createdAt,
-        });
-      }
-
-      await this.prisma.visitorLog.createMany({ data: logsToInsert });
-    }
+    // Catatan: log kunjungan (VisitorLog) SENGAJA tidak di-seed dengan data acak/karangan di sini.
+    // Analitik kunjungan hanya berarti kalau datanya benar-benar berasal dari event nyata yang
+    // dikirim endpoint POST /analytics/track saat pengunjung membuka situs. Kalau tabelnya kosong,
+    // dashboard akan jujur menampilkan angka 0 sampai ada kunjungan asli.
 
     const auditCount = await this.prisma.systemAuditLog.count();
     if (auditCount === 0) {
@@ -134,7 +111,6 @@ export class AnalyticsService {
       totalArticles,
       totalCourses,
       landingPageSetting,
-      articles,
     ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.student.count(),
@@ -143,10 +119,6 @@ export class AnalyticsService {
       this.prisma.landingPageArticle.count(),
       this.prisma.course.count(),
       this.prisma.landingPageSetting.findFirst(),
-      this.prisma.landingPageArticle.findMany({
-        take: 5,
-        orderBy: { createdAt: 'desc' },
-      }),
     ]);
 
     // 3. Real visitor logs aggregation
@@ -211,48 +183,56 @@ export class AnalyticsService {
       });
     }
 
-    // Today Hourly Chart Data
-    const chartDataToday = [
-      { label: '00-04', visitors: Math.max(5, Math.floor(todayVisitsCount * 0.08)), percent: 25 },
-      { label: '04-08', visitors: Math.max(12, Math.floor(todayVisitsCount * 0.15)), percent: 45 },
-      { label: '08-12', visitors: Math.max(35, Math.floor(todayVisitsCount * 0.35)), percent: 100 },
-      { label: '12-16', visitors: Math.max(28, Math.floor(todayVisitsCount * 0.25)), percent: 80 },
-      { label: '16-20', visitors: Math.max(20, Math.floor(todayVisitsCount * 0.12)), percent: 65 },
-      { label: '20-24', visitors: Math.max(8, Math.floor(todayVisitsCount * 0.05)), percent: 35 },
-    ];
+    // Real hourly distribution kunjungan hari ini (6 blok 4-jam), dihitung dari createdAt asli
+    const todayLogs = await this.prisma.visitorLog.findMany({
+      where: { createdAt: { gte: startOfToday } },
+      select: { createdAt: true },
+    });
+    const hourBuckets = [0, 0, 0, 0, 0, 0]; // 00-04, 04-08, 08-12, 12-16, 16-20, 20-24
+    for (const log of todayLogs) {
+      const bucket = Math.min(5, Math.floor(log.createdAt.getHours() / 4));
+      hourBuckets[bucket]++;
+    }
+    const maxHourBucket = Math.max(1, ...hourBuckets);
+    const hourLabels = ['00-04', '04-08', '08-12', '12-16', '16-20', '20-24'];
+    const chartDataToday = hourBuckets.map((visitors, i) => ({
+      label: hourLabels[i],
+      visitors,
+      percent: Math.round((visitors / maxHourBucket) * 100),
+    }));
 
-    // 30 Days Weekly Chart Data
-    const chartData30Days = [
-      { label: 'Mgg 1', visitors: Math.floor(totalVisitsCount * 0.22), percent: 75 },
-      { label: 'Mgg 2', visitors: Math.floor(totalVisitsCount * 0.26), percent: 88 },
-      { label: 'Mgg 3', visitors: Math.floor(totalVisitsCount * 0.30), percent: 100 },
-      { label: 'Mgg 4', visitors: Math.floor(totalVisitsCount * 0.22), percent: 76 },
-    ];
+    // Real distribusi mingguan 30 hari terakhir, dihitung dari createdAt asli
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 28);
+    thirtyDaysAgo.setHours(0, 0, 0, 0);
+    const weekBuckets = [0, 0, 0, 0];
+    for (let w = 0; w < 4; w++) {
+      const wStart = new Date(thirtyDaysAgo);
+      wStart.setDate(wStart.getDate() + w * 7);
+      const wEnd = new Date(wStart);
+      wEnd.setDate(wEnd.getDate() + 7);
+      weekBuckets[w] = await this.prisma.visitorLog.count({
+        where: { createdAt: { gte: wStart, lt: wEnd } },
+      });
+    }
+    const maxWeekBucket = Math.max(1, ...weekBuckets);
+    const chartData30Days = weekBuckets.map((visitors, i) => ({
+      label: `Mgg ${i + 1}`,
+      visitors,
+      percent: Math.round((visitors / maxWeekBucket) * 100),
+    }));
 
-    // Top Pages
-    const topPages = [
-      {
-        path: '/ (Halaman Utama ITN)',
-        category: 'Landing Page',
-        description: 'Hero banner, profil kampus, dan sambutan rektor',
-        views: Math.max(120, Math.floor(totalVisitsCount * 0.45)),
-        cmsTab: 'hero',
-      },
-      {
-        path: 'Penerimaan Mahasiswa Baru (PMB)',
-        category: 'Pengumuman',
-        description: 'Banner pengumuman jalur beasiswa & tes mandiri',
-        views: Math.max(75, Math.floor(totalVisitsCount * 0.28)),
-        cmsTab: 'pengumuman',
-      },
-      ...articles.map((art) => ({
-        path: art.title,
-        category: art.category,
-        description: art.excerpt ? art.excerpt.substring(0, 60) + '...' : 'Artikel publikasi kampus',
-        views: Math.max(30, Math.floor(totalVisitsCount * 0.12)),
-        cmsTab: 'berita',
-      })),
-    ];
+    // Halaman terpopuler nyata, dikelompokkan dari path kunjungan asli
+    const topPagesRaw = await this.prisma.visitorLog.groupBy({
+      by: ['path'],
+      _count: { path: true },
+      orderBy: { _count: { path: 'desc' } },
+      take: 8,
+    });
+    const topPages = topPagesRaw.map((row) => ({
+      path: row.path,
+      views: row._count.path,
+    }));
 
     // Real System & Audit Logs
     const auditLogs = await this.prisma.systemAuditLog.findMany({
@@ -262,12 +242,15 @@ export class AnalyticsService {
 
     const mem = process.memoryUsage();
 
+    // Pengunjung unik nyata (dihitung dari IP berbeda), bukan estimasi rasio
+    const uniqueIpRows = await this.prisma.visitorLog.groupBy({ by: ['ip'] });
+    const uniqueVisitorsCount = uniqueIpRows.length;
+
     return {
       overview: {
         totalVisits: totalVisitsCount,
-        uniqueVisitors: Math.floor(totalVisitsCount * 0.62),
+        uniqueVisitors: uniqueVisitorsCount,
         todayVisits: todayVisitsCount,
-        ctaClicks: Math.max(18, Math.floor(totalVisitsCount * 0.25)),
         pmbLeads: totalApplicants,
         totalArticles,
         totalUsers,

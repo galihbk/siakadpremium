@@ -35,6 +35,10 @@ ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 # as a runtime container env var has no effect; it must be present here, at build time).
 ARG INTERNAL_API_URL=http://api:3001/api/v1
 ENV INTERNAL_API_URL=${INTERNAL_API_URL}
+# URL website kampus utama (tombol "Kembali ke Website Utama Kampus" dsb.) -- juga dibaca
+# process.env.NEXT_PUBLIC_* di sisi klien, jadi harus di-bake saat build, bukan runtime.
+ARG NEXT_PUBLIC_WEB_URL=http://localhost:3000
+ENV NEXT_PUBLIC_WEB_URL=${NEXT_PUBLIC_WEB_URL}
 
 # Generate Prisma Client & build workspace packages
 RUN pnpm --filter @siakad/database db:generate

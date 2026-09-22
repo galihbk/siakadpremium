@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../shared/prisma/prisma.service';
@@ -50,7 +50,7 @@ export class AuthService {
 
     if (user && user.passwordHash) {
       const isMatch = await bcrypt.compare(password, user.passwordHash).catch(() => false);
-      if (!isMatch && user.passwordHash !== password && password !== 'Password123!') {
+      if (!isMatch) {
         throw new UnauthorizedException('Password yang Anda masukkan tidak sesuai.');
       }
     }
@@ -207,15 +207,13 @@ export class AuthService {
       });
       if (user) return user;
     } catch {
-      // Return demo profile
+      // Prisma sedang offline — lempar error di bawah, jangan tampilkan identitas orang lain
     }
 
-    return {
-      id: userId,
-      email: 'admin@itn.ac.id',
-      fullName: 'Ahmad Fauzi, S.Kom. (Admin BAAK)',
-      role: UserRole.ADMIN_BAAK,
-    };
+    // Sesi/token menunjuk ke user yang sudah tidak ada di database (mis. sesi lama/kedaluwarsa).
+    // Jangan pernah kembalikan profil generik yang seolah-olah identitas asli — itu bisa
+    // membocorkan data pengguna lain dan salah menampilkan sesi orang yang berbeda.
+    throw new NotFoundException('Sesi tidak valid atau akun tidak ditemukan. Silakan login ulang.');
   }
 
   async updateProfile(
@@ -296,6 +294,9 @@ export class AuthService {
         if (p.birthDate) lecturerData.birthDate = new Date(p.birthDate);
         if (p.religion) lecturerData.religion = p.religion;
         if (p.address) lecturerData.address = p.address;
+        if (p.rtRw) lecturerData.rtRw = p.rtRw;
+        if (p.kelurahan) lecturerData.kelurahan = p.kelurahan;
+        if (p.kecamatan) lecturerData.kecamatan = p.kecamatan;
         if (p.city) lecturerData.city = p.city;
         if (p.province) lecturerData.province = p.province;
         if (p.postalCode) lecturerData.postalCode = p.postalCode;

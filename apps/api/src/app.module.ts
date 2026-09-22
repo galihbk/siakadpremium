@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { PrismaModule } from './shared/prisma/prisma.module';
 import { RedisModule } from './shared/redis/redis.module';
 import { MailModule } from './shared/mail/mail.module';
@@ -29,6 +31,15 @@ import { AppService } from './app.service';
       isGlobal: true,
       envFilePath: ['.env.local', '.env', '../../.env'],
     }),
+    // Batas laju permintaan default seluruh API — pertahanan dasar terhadap brute-force
+    // dan penyalahgunaan otomatis. Endpoint sensitif (mis. login) diberi batas lebih ketat
+    // sendiri lewat dekorator @Throttle di controller-nya.
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 120,
+      },
+    ]),
     PrismaModule,
     RedisModule,
     MailModule,
@@ -51,6 +62,9 @@ import { AppService } from './app.service';
     MonitoringModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule {}

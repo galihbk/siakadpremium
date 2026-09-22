@@ -22,6 +22,20 @@ import {
   IdCard,
 } from 'lucide-react';
 
+interface RegionItem {
+  id: string;
+  name: string;
+}
+
+function toTitleCase(str: string) {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .split(' ')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 export default function LecturerProfilePage() {
   const [activeTab, setActiveTab] = useState<'identitas' | 'alamat' | 'kepegawaian' | 'keamanan'>('identitas');
   const [loading, setLoading] = useState(false);
@@ -46,6 +60,21 @@ export default function LecturerProfilePage() {
   const [city, setCity] = useState('');
   const [province, setProvince] = useState('');
   const [postalCode, setPostalCode] = useState('');
+  const [rtRw, setRtRw] = useState('');
+  const [kelurahan, setKelurahan] = useState('');
+  const [kecamatan, setKecamatan] = useState('');
+  const [provinces, setProvinces] = useState<RegionItem[]>([]);
+  const [regencies, setRegencies] = useState<RegionItem[]>([]);
+  const [districts, setDistricts] = useState<RegionItem[]>([]);
+  const [villages, setVillages] = useState<RegionItem[]>([]);
+  const [selectedProvinceId, setSelectedProvinceId] = useState('');
+  const [selectedRegencyId, setSelectedRegencyId] = useState('');
+  const [selectedDistrictId, setSelectedDistrictId] = useState('');
+  const [selectedVillageId, setSelectedVillageId] = useState('');
+  const [loadingProvinces, setLoadingProvinces] = useState(false);
+  const [loadingRegencies, setLoadingRegencies] = useState(false);
+  const [loadingDistricts, setLoadingDistricts] = useState(false);
+  const [loadingVillages, setLoadingVillages] = useState(false);
 
   // --- Kepegawaian & Akademik ---
   const [studyProgram, setStudyProgram] = useState('');
@@ -104,6 +133,9 @@ export default function LecturerProfilePage() {
           if (lec.gender) setGender(lec.gender === 'MALE' ? 'Laki-laki' : 'Perempuan');
           if (lec.religion) setReligion(lec.religion);
           if (lec.address) setAddress(lec.address);
+          if (lec.rtRw) setRtRw(lec.rtRw);
+          if (lec.kelurahan) setKelurahan(lec.kelurahan);
+          if (lec.kecamatan) setKecamatan(lec.kecamatan);
           if (lec.city) setCity(lec.city);
           if (lec.province) setProvince(lec.province);
           if (lec.postalCode) setPostalCode(lec.postalCode);
@@ -122,6 +154,147 @@ export default function LecturerProfilePage() {
 
     fetchBackendProfile();
   }, []);
+
+  // Wilayah Indonesia API (Provinsi & Kota/Kabupaten) — API yang sama dipakai di profil mahasiswa
+  useEffect(() => {
+    async function loadProvinces() {
+      setLoadingProvinces(true);
+      try {
+        const res = await fetch('https://www.emsifa.com/api-wilayah-indonesia/api/provinces.json');
+        if (res.ok) setProvinces(await res.json());
+      } catch {
+        // biarkan input manual jika API wilayah tidak dapat diakses
+      } finally {
+        setLoadingProvinces(false);
+      }
+    }
+    loadProvinces();
+  }, []);
+
+  useEffect(() => {
+    if (!province || provinces.length === 0 || selectedProvinceId) return;
+    const upper = province.toUpperCase().trim();
+    const match = provinces.find((p) => p.name === upper || p.name.includes(upper) || upper.includes(p.name));
+    if (match) setSelectedProvinceId(match.id);
+  }, [province, provinces, selectedProvinceId]);
+
+  useEffect(() => {
+    if (!selectedProvinceId) {
+      setRegencies([]);
+      return;
+    }
+    async function loadRegencies() {
+      setLoadingRegencies(true);
+      try {
+        const res = await fetch(`https://www.emsifa.com/api-wilayah-indonesia/api/regencies/${selectedProvinceId}.json`);
+        if (res.ok) setRegencies(await res.json());
+      } catch {
+        // biarkan input manual jika API wilayah tidak dapat diakses
+      } finally {
+        setLoadingRegencies(false);
+      }
+    }
+    loadRegencies();
+  }, [selectedProvinceId]);
+
+  useEffect(() => {
+    if (!city || regencies.length === 0 || selectedRegencyId) return;
+    const upper = city.toUpperCase().trim();
+    const match = regencies.find((r) => r.name === upper || r.name.includes(upper) || upper.includes(r.name));
+    if (match) setSelectedRegencyId(match.id);
+  }, [city, regencies, selectedRegencyId]);
+
+  const handleProvinceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const pId = e.target.value;
+    setSelectedProvinceId(pId);
+    const found = provinces.find((p) => p.id === pId);
+    setProvince(found ? toTitleCase(found.name) : '');
+    setSelectedRegencyId('');
+    setCity('');
+    setRegencies([]);
+  };
+
+  useEffect(() => {
+    if (!selectedRegencyId) {
+      setDistricts([]);
+      return;
+    }
+    async function loadDistricts() {
+      setLoadingDistricts(true);
+      try {
+        const res = await fetch(`https://www.emsifa.com/api-wilayah-indonesia/api/districts/${selectedRegencyId}.json`);
+        if (res.ok) setDistricts(await res.json());
+      } catch {
+        // biarkan input manual jika API wilayah tidak dapat diakses
+      } finally {
+        setLoadingDistricts(false);
+      }
+    }
+    loadDistricts();
+  }, [selectedRegencyId]);
+
+  useEffect(() => {
+    if (!kecamatan || districts.length === 0 || selectedDistrictId) return;
+    const upper = kecamatan.toUpperCase().trim();
+    const match = districts.find((d) => d.name === upper || d.name.includes(upper) || upper.includes(d.name));
+    if (match) setSelectedDistrictId(match.id);
+  }, [kecamatan, districts, selectedDistrictId]);
+
+  useEffect(() => {
+    if (!selectedDistrictId) {
+      setVillages([]);
+      return;
+    }
+    async function loadVillages() {
+      setLoadingVillages(true);
+      try {
+        const res = await fetch(`https://www.emsifa.com/api-wilayah-indonesia/api/villages/${selectedDistrictId}.json`);
+        if (res.ok) setVillages(await res.json());
+      } catch {
+        // biarkan input manual jika API wilayah tidak dapat diakses
+      } finally {
+        setLoadingVillages(false);
+      }
+    }
+    loadVillages();
+  }, [selectedDistrictId]);
+
+  useEffect(() => {
+    if (!kelurahan || villages.length === 0 || selectedVillageId) return;
+    const upper = kelurahan.toUpperCase().trim();
+    const match = villages.find((v) => v.name === upper || v.name.includes(upper) || upper.includes(v.name));
+    if (match) setSelectedVillageId(match.id);
+  }, [kelurahan, villages, selectedVillageId]);
+
+  const handleRegencyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const rId = e.target.value;
+    setSelectedRegencyId(rId);
+    const found = regencies.find((r) => r.id === rId);
+    setCity(found ? toTitleCase(found.name) : '');
+    setSelectedDistrictId('');
+    setKecamatan('');
+    setSelectedVillageId('');
+    setKelurahan('');
+    setDistricts([]);
+    setVillages([]);
+  };
+
+  const handleDistrictChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const dId = e.target.value;
+    setSelectedDistrictId(dId);
+    const found = districts.find((d) => d.id === dId);
+    setKecamatan(found ? toTitleCase(found.name) : '');
+    setSelectedVillageId('');
+    setKelurahan('');
+    setVillages([]);
+  };
+
+  const handleVillageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const vId = e.target.value;
+    setSelectedVillageId(vId);
+    const found = villages.find((v) => v.id === vId);
+    setKelurahan(found ? toTitleCase(found.name) : '');
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawFile = e.target.files?.[0];
@@ -204,6 +377,9 @@ export default function LecturerProfilePage() {
       gender: gender === 'Laki-laki' ? 'MALE' : gender === 'Perempuan' ? 'FEMALE' : undefined,
       religion,
       address,
+      rtRw,
+      kelurahan,
+      kecamatan,
       city,
       province,
       postalCode,
@@ -608,21 +784,72 @@ export default function LecturerProfilePage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Kota / Kabupaten</label>
-                    <input
-                      type="text"
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-900"
-                    />
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Provinsi</label>
+                    <select
+                      value={selectedProvinceId}
+                      onChange={handleProvinceChange}
+                      disabled={loadingProvinces}
+                      className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-900 bg-white disabled:bg-slate-50"
+                    >
+                      <option value="">{province || (loadingProvinces ? 'Memuat...' : 'Pilih Provinsi')}</option>
+                      {provinces.map((p) => (
+                        <option key={p.id} value={p.id}>{toTitleCase(p.name)}</option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Provinsi</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Kota / Kabupaten</label>
+                    <select
+                      value={selectedRegencyId}
+                      onChange={handleRegencyChange}
+                      disabled={!selectedProvinceId || loadingRegencies}
+                      className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-900 bg-white disabled:bg-slate-50"
+                    >
+                      <option value="">{city || (loadingRegencies ? 'Memuat...' : 'Pilih Kota/Kabupaten')}</option>
+                      {regencies.map((r) => (
+                        <option key={r.id} value={r.id}>{toTitleCase(r.name)}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Kecamatan</label>
+                    <select
+                      value={selectedDistrictId}
+                      onChange={handleDistrictChange}
+                      disabled={!selectedRegencyId || loadingDistricts}
+                      className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-900 bg-white disabled:bg-slate-50"
+                    >
+                      <option value="">{kecamatan || (loadingDistricts ? 'Memuat...' : 'Pilih Kecamatan')}</option>
+                      {districts.map((d) => (
+                        <option key={d.id} value={d.id}>{toTitleCase(d.name)}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Kelurahan / Desa</label>
+                    <select
+                      value={selectedVillageId}
+                      onChange={handleVillageChange}
+                      disabled={!selectedDistrictId || loadingVillages}
+                      className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-900 bg-white disabled:bg-slate-50"
+                    >
+                      <option value="">{kelurahan || (loadingVillages ? 'Memuat...' : 'Pilih Kelurahan/Desa')}</option>
+                      {villages.map((v) => (
+                        <option key={v.id} value={v.id}>{toTitleCase(v.name)}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">RT / RW</label>
                     <input
                       type="text"
-                      value={province}
-                      onChange={(e) => setProvince(e.target.value)}
+                      value={rtRw}
+                      onChange={(e) => setRtRw(e.target.value)}
+                      placeholder="Contoh: 001/002"
                       className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-900"
                     />
                   </div>

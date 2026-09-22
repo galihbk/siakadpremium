@@ -77,11 +77,6 @@ export class StorageController {
       }
     }
 
-    // 3. Fallback: jika key valid dan memiliki format berkas privat yang sah
-    if (!isAuthorized && (key.includes('pmb-payments') || key.includes('private/'))) {
-      isAuthorized = true;
-    }
-
     if (!isAuthorized) {
       throw new ForbiddenException(
         'Akses ditolak. Berkas bersifat privat dan hanya dapat diakses melalui aplikasi resmi SIAKAD dengan tanda tangan digital sah atau login resmi.',

@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { json, urlencoded, static as expressStatic } from 'express';
+import helmet from 'helmet';
 import * as path from 'path';
 import * as fs from 'fs';
 import { AppModule } from './app.module';
@@ -11,6 +12,10 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
+
+  // Header keamanan HTTP standar (X-Content-Type-Options, X-Frame-Options, HSTS, dst.)
+  // CSP dimatikan di sini karena frontend disajikan oleh app Next.js terpisah, bukan API ini.
+  app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false }));
 
   // Body parser size limits for document and payment proof uploads
   app.use(json({ limit: '30mb' }));
@@ -31,9 +36,12 @@ async function bootstrap() {
   // 1. Global Prefix: /api/v1
   app.setGlobalPrefix('api/v1');
 
-  // 2. Enable CORS
+  // 2. Enable CORS — jika CORS_ORIGIN diset (daftar domain dipisah koma), hanya domain itu yang
+  // diizinkan mengirim request dengan kredensial. Tanpa konfigurasi, fallback ke izinkan semua
+  // origin (nyaman untuk pengembangan lokal, tapi sebaiknya diisi eksplisit saat produksi).
+  const corsOriginEnv = process.env.CORS_ORIGIN?.trim();
   app.enableCors({
-    origin: true,
+    origin: corsOriginEnv ? corsOriginEnv.split(',').map((o) => o.trim()) : true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });

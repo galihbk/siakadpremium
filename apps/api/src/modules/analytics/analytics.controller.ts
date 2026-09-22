@@ -1,6 +1,10 @@
 import { Controller, Get, Post, Body, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { AnalyticsService } from './analytics.service';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { UserRole } from '@siakad/types';
 
 @ApiTags('Analytics')
 @Controller('analytics')
@@ -8,6 +12,8 @@ export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
   @Get('dashboard')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: 'Dapatkan data analitik real-time untuk Super Administrator' })
   async getDashboard() {
     return await this.analyticsService.getDashboardData();

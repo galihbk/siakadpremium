@@ -1,11 +1,17 @@
-import { Controller, Get, Put, Post, Body, Req } from '@nestjs/common';
+import { Controller, Get, Put, Post, Body, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { IntegrationSettingsService } from './integration-settings.service';
 import { UpdateBankSettingDto } from './dto/update-bank-setting.dto';
 import { UpdatePddiktiSettingDto } from './dto/update-pddikti-setting.dto';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { UserRole } from '@siakad/types';
 
 @ApiTags('Integration Settings')
 @Controller('integration-settings')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.SUPER_ADMIN)
 export class IntegrationSettingsController {
   constructor(private readonly integrationSettingsService: IntegrationSettingsService) {}
 

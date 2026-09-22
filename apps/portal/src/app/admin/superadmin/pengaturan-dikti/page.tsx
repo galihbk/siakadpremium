@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getApiBaseUrl } from '@/lib/api';
+import { getAuthSession } from '@/lib/auth';
 import {
   ShieldCheck,
   Save,
@@ -51,11 +52,15 @@ export default function PengaturanDiktiPage() {
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const apiBase = getApiBaseUrl();
+  const authHeaders = (): Record<string, string> => {
+    const { token } = getAuthSession();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
 
   const loadSetting = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${apiBase}/integration-settings/pddikti`, { cache: 'no-store' });
+      const res = await fetch(`${apiBase}/integration-settings/pddikti`, { cache: 'no-store', headers: authHeaders() });
       if (res.ok) {
         const json = await res.json();
         setSetting({ ...EMPTY_SETTING, ...(json?.data || json) });
@@ -90,7 +95,7 @@ export default function PengaturanDiktiPage() {
 
       const res = await fetch(`${apiBase}/integration-settings/pddikti`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify(body),
       });
 
@@ -111,7 +116,7 @@ export default function PengaturanDiktiPage() {
   const handleTestConnection = async () => {
     setIsTesting(true);
     try {
-      const res = await fetch(`${apiBase}/integration-settings/pddikti/test-connection`, { method: 'POST' });
+      const res = await fetch(`${apiBase}/integration-settings/pddikti/test-connection`, { method: 'POST', headers: authHeaders() });
       const json = await res.json();
       const result = json?.data || json;
       showToast(result.success ? 'success' : 'error', result.message);

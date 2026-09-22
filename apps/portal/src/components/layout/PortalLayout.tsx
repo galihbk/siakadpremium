@@ -343,6 +343,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       items: [
         { name: 'Dashboard', href: '/admin/superadmin', icon: LayoutDashboard },
         { name: 'Monitoring Server', href: '/admin/superadmin/monitoring', icon: Activity },
+        { name: 'Analitik Kunjungan Web', href: '/admin/superadmin/analitik', icon: BarChart3 },
       ],
     },
     {

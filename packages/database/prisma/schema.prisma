@@ -147,6 +147,9 @@ model Lecturer {
 
   // Alamat
   address           String?      @db.Text
+  rtRw              String?
+  kelurahan         String?
+  kecamatan         String?
   city              String?
   province          String?
   postalCode        String?

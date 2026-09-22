@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getApiBaseUrl } from '@/lib/api';
+import { getAuthSession } from '@/lib/auth';
 import {
   Activity,
   Server,
@@ -162,9 +163,11 @@ export default function MonitoringServerPage() {
   const loadData = useCallback(async (isManualRefresh = false) => {
     if (isManualRefresh) setIsRefreshing(true);
     try {
+      const { token } = getAuthSession();
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
       const [healthRes, historyRes] = await Promise.all([
-        fetch(`${apiBase}/monitoring/server`, { cache: 'no-store' }),
-        fetch(`${apiBase}/monitoring/history`, { cache: 'no-store' }),
+        fetch(`${apiBase}/monitoring/server`, { cache: 'no-store', headers }),
+        fetch(`${apiBase}/monitoring/history`, { cache: 'no-store', headers }),
       ]);
       if (!healthRes.ok || !historyRes.ok) throw new Error('Gagal memuat data');
 
