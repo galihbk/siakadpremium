@@ -73,7 +73,7 @@ export interface HakiItem {
 export interface Lp3mDocument {
   id: string;
   title: string;
-  category: 'Panduan' | 'Regulasi & SK' | 'Template' | 'Borang';
+  category: string;
   version: string;
   updatedAt: string;
   fileSize: string;
@@ -126,6 +126,7 @@ export default function AdminP3mDashboardPage() {
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
   const [researchList, setResearchList] = useState<ResearchItem[]>([]);
   const [hakiList, setHakiList] = useState<HakiItem[]>([]);
+  const [lp3mDocuments, setLp3mDocuments] = useState<Lp3mDocument[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [apiStats, setApiStats] = useState<any>(null);
 
@@ -163,6 +164,26 @@ export default function AdminP3mDashboardPage() {
           }))
         );
       }
+
+      // 4. Fetch Documents
+      const docRes = await fetch(`${apiBase}/lp3m/documents`);
+      if (docRes.ok) {
+        const docJson = await docRes.json();
+        const dData = docJson.data?.data || docJson.data || [];
+        setLp3mDocuments(
+          dData.map((d: any) => ({
+            id: d.id,
+            title: d.title,
+            category: d.category,
+            version: d.version,
+            fileSize: d.fileSize,
+            downloadsCount: d.downloadsCount || 0,
+            updatedAt: d.updatedAt
+              ? new Date(d.updatedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+              : '-',
+          }))
+        );
+      }
     } catch (err) {
       console.warn('Gagal memuat data dashboard LP3M dari database:', err);
     } finally {
@@ -173,45 +194,6 @@ export default function AdminP3mDashboardPage() {
   useEffect(() => {
     fetchDashboardData();
   }, []);
-
-  const lp3mDocuments: Lp3mDocument[] = [
-    {
-      id: 'DOC-01',
-      title: 'Buku Panduan Penelitian dan Pengabdian kepada Masyarakat Edisi 2026',
-      category: 'Panduan',
-      version: 'Rev. 3.2',
-      updatedAt: '15 Jan 2026',
-      fileSize: '4.8 MB',
-      downloadsCount: 342,
-    },
-    {
-      id: 'DOC-02',
-      title: 'Surat Keputusan Rektor tentang Standar Biaya Masukan (SBM) Riset Internal',
-      category: 'Regulasi & SK',
-      version: 'SK-014/REK/2026',
-      updatedAt: '05 Jan 2026',
-      fileSize: '1.2 MB',
-      downloadsCount: 189,
-    },
-    {
-      id: 'DOC-03',
-      title: 'Template Proposal dan Rencana Anggaran Biaya (RAB) Penelitian DIPA',
-      category: 'Template',
-      version: 'v2026.1',
-      updatedAt: '18 Jan 2026',
-      fileSize: '850 KB',
-      downloadsCount: 520,
-    },
-    {
-      id: 'DOC-04',
-      title: 'Panduan & Format Laporan Akhir Pelaksanaan Pengabdian (PkM)',
-      category: 'Panduan',
-      version: 'v2026.0',
-      updatedAt: '22 Jan 2026',
-      fileSize: '1.5 MB',
-      downloadsCount: 275,
-    },
-  ];
 
   // Modal Review & Detail
   const [selectedItemForReview, setSelectedItemForReview] = useState<ResearchItem | null>(null);

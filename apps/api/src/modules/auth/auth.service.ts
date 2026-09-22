@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../shared/prisma/prisma.service';
@@ -237,6 +237,21 @@ export class AuthService {
     if (payload.fullName) data.fullName = payload.fullName;
     if (payload.avatarUrl) data.avatarUrl = payload.avatarUrl;
 
+    const p = payload as any;
+    if (p.newPassword) {
+      if (p.newPassword.length < 6) {
+        throw new BadRequestException('Password baru minimal 6 karakter.');
+      }
+      const existingUser = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (existingUser?.passwordHash && p.currentPassword) {
+        const isMatch = await bcrypt.compare(p.currentPassword, existingUser.passwordHash).catch(() => false);
+        if (!isMatch) {
+          throw new BadRequestException('Password saat ini tidak sesuai.');
+        }
+      }
+      data.passwordHash = await bcrypt.hash(p.newPassword, 10);
+    }
+
     let updatedUser = null;
     try {
       if (Object.keys(data).length > 0) {
@@ -264,6 +279,32 @@ export class AuthService {
         if (payload.birthDate) studentData.birthDate = new Date(payload.birthDate);
         if (Object.keys(studentData).length > 0) {
           await this.prisma.student.update({ where: { id: student.id }, data: studentData });
+        }
+      }
+
+      // If the user is a lecturer, update lecturer details if provided
+      const lecturer = await this.prisma.lecturer.findUnique({ where: { userId } });
+      if (lecturer) {
+        const p = payload as any;
+        const lecturerData: any = {};
+        if (p.phone) lecturerData.phone = p.phone;
+        if (p.nidk) lecturerData.nidk = p.nidk;
+        if (p.titlePrefix !== undefined) lecturerData.titlePrefix = p.titlePrefix;
+        if (p.titleSuffix !== undefined) lecturerData.titleSuffix = p.titleSuffix;
+        if (p.gender) lecturerData.gender = p.gender;
+        if (p.birthPlace) lecturerData.birthPlace = p.birthPlace;
+        if (p.birthDate) lecturerData.birthDate = new Date(p.birthDate);
+        if (p.religion) lecturerData.religion = p.religion;
+        if (p.address) lecturerData.address = p.address;
+        if (p.city) lecturerData.city = p.city;
+        if (p.province) lecturerData.province = p.province;
+        if (p.postalCode) lecturerData.postalCode = p.postalCode;
+        if (p.employmentStatus) lecturerData.employmentStatus = p.employmentStatus;
+        if (p.functionalPosition) lecturerData.functionalPosition = p.functionalPosition;
+        if (p.lastEducation) lecturerData.lastEducation = p.lastEducation;
+        if (p.expertise) lecturerData.expertise = p.expertise;
+        if (Object.keys(lecturerData).length > 0) {
+          await this.prisma.lecturer.update({ where: { id: lecturer.id }, data: lecturerData });
         }
       }
 

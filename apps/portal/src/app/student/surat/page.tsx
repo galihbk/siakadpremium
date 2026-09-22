@@ -3,6 +3,21 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getAuthSession, AuthUser } from '@/lib/auth';
+import { getInstitutionProfile, FALLBACK_INSTITUTION_PROFILE, type InstitutionProfile } from '@/lib/institution';
+
+// Pisahkan "Nama, Gelar (Bidang Tugas)" -> { name, bidang }
+function splitNameAndBidang(value: string): { name: string; bidang: string } {
+  const match = value.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+  if (match) return { name: match[1].trim(), bidang: match[2].trim() };
+  return { name: value, bidang: '' };
+}
+
+// Ambil nama kota dari string alamat, contoh "..., Jakarta Selatan 12430" -> "Jakarta Selatan"
+function getCityFromAddress(address: string): string {
+  const parts = address.split(',');
+  const last = parts[parts.length - 1] || '';
+  return last.replace(/\d+/g, '').trim() || 'Jakarta';
+}
 import {
   Mail,
   FileText,
@@ -173,6 +188,11 @@ const KATALOG_SURAT = [
 
 export default function LayananSuratPage() {
   const [letters, setLetters] = useState<LetterRequest[]>(INITIAL_LETTERS);
+  const [institutionProfile, setInstitutionProfile] = useState<InstitutionProfile>(FALLBACK_INSTITUTION_PROFILE);
+
+  useEffect(() => {
+    getInstitutionProfile().then(setInstitutionProfile);
+  }, []);
   const [activeTab, setActiveTab] = useState<'semua' | 'selesai' | 'proses'>('semua');
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -852,13 +872,13 @@ export default function LayananSuratPage() {
               {/* Kop Surat */}
               <div className="border-b-2 border-slate-950 pb-4 text-center font-sans">
                 <h2 className="text-base sm:text-lg font-black tracking-wider uppercase text-slate-900">
-                  Institut Teknologi Nusantara
+                  {institutionProfile.kopLine2}
                 </h2>
                 <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">
                   Biro Administrasi Akademik dan Kemahasiswaan (BAAK)
                 </p>
                 <p className="text-[11px] text-slate-500 font-normal mt-0.5">
-                  Jalan Soekarno Hatta No. 128, Bandung 40266 | Telp: (022) 7564108 | Email: baak@itn.ac.id | Laman: www.itn.ac.id
+                  {institutionProfile.kopContact}
                 </p>
               </div>
 
@@ -875,7 +895,7 @@ export default function LayananSuratPage() {
               {/* Isi Surat */}
               <div className="text-xs sm:text-sm space-y-4 text-justify">
                 <p>
-                  Yang bertanda tangan di bawah ini, Wakil Rektor Bidang Akademik & Kemahasiswaan Institut Teknologi Nusantara, menerangkan dengan sebenarnya bahwa:
+                  Yang bertanda tangan di bawah ini, Wakil Rektor Bidang Akademik & Kemahasiswaan {institutionProfile.campusName}, menerangkan dengan sebenarnya bahwa:
                 </p>
 
                 <div className="pl-6 space-y-1.5 font-sans text-xs">
@@ -933,15 +953,14 @@ export default function LayananSuratPage() {
                 </div>
 
                 <div className="text-right space-y-1">
-                  <p>Bandung, {previewLetter.tanggalSelesai || previewLetter.tanggalPengajuan}</p>
+                  <p>{getCityFromAddress(institutionProfile.contactAddress)}, {previewLetter.tanggalSelesai || previewLetter.tanggalPengajuan}</p>
                   <p className="font-bold text-slate-800">Wakil Rektor Bidang Akademik,</p>
                   <div className="h-12 flex items-center justify-end">
                     <span className="font-serif italic text-[#1E3A8A] font-black text-sm tracking-wider">
-                      Dr. Eng. Satria Pratama, M.T.
+                      {splitNameAndBidang(institutionProfile.viceRector1).name}
                     </span>
                   </div>
-                  <p className="font-bold text-slate-900">Prof. Dr. Eng. Satria Pratama, M.T.</p>
-                  <p className="font-mono text-[10px] text-slate-500">NIP: 197801052003121001</p>
+                  <p className="font-bold text-slate-900">{splitNameAndBidang(institutionProfile.viceRector1).name}</p>
                 </div>
               </div>
             </div>

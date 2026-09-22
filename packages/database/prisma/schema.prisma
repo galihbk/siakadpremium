@@ -78,6 +78,8 @@ model User {
   lecturer                    Lecturer?
   updatedLandingPageSettings  LandingPageSetting[]
   landingPageArticles         LandingPageArticle[]
+  updatedBankGatewaySettings  BankGatewaySetting[]
+  updatedPddiktiSettings      PddiktiSetting[]
 
   @@map("users")
 }
@@ -131,10 +133,30 @@ model Lecturer {
   studyProgramId    String
   nidn              String       @unique
   nip               String?      @unique
+  nidk              String?
   titlePrefix       String?
   titleSuffix       String?
   phone             String?
   isAcademicAdvisor Boolean      @default(true)
+
+  // Identitas Diri
+  gender            Gender?
+  birthDate         DateTime?
+  birthPlace        String?
+  religion          String?
+
+  // Alamat
+  address           String?      @db.Text
+  city              String?
+  province          String?
+  postalCode        String?
+
+  // Kepegawaian & Akademik
+  employmentStatus  String?
+  functionalPosition String?
+  lastEducation     String?
+  expertise         String?
+
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
@@ -735,6 +757,41 @@ model LandingPageSetting {
   @@map("landing_page_settings")
 }
 
+model BankGatewaySetting {
+  id            String   @id @default("default-bank-setting")
+  provider      String   @default("MANUAL") // MANUAL, MIDTRANS, XENDIT, dst.
+  environment   String   @default("SANDBOX") // SANDBOX, PRODUCTION
+  isActive      Boolean  @default(false)
+  merchantId    String?
+  apiKey        String?
+  apiSecret     String?
+
+  updatedByUserId String?
+  updatedByUser   User?    @relation(fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("bank_gateway_settings")
+}
+
+model PddiktiSetting {
+  id          String   @id @default("default-pddikti-setting")
+  baseUrl     String?
+  username    String?
+  password    String?
+  secretKey   String?
+  semesterId  String?
+  isActive    Boolean  @default(false)
+  lastSyncAt  DateTime?
+
+  updatedByUserId String?
+  updatedByUser   User?    @relation(fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("pddikti_settings")
+}
+
 model LandingPageArticle {
   id          String    @id @default(uuid())
   title       String
@@ -977,33 +1034,6 @@ model Lp3mDocument {
   updatedAt      DateTime @updatedAt
 
   @@map("lp3m_documents")
-}
-
-model Lp3mBorangRecord {
-  id                      String   @id @default(uuid())
-  prodiCode               String   @unique
-  prodiName               String
-  faculty                 String
-  academicYear            String   @default("2026")
-  dtpsCount               Int      @default(0)
-  penelitianLokal         Int      @default(0)
-  penelitianNasional      Int      @default(0)
-  penelitianInternasional Int      @default(0)
-  danaPenelitianTotal     Float    @default(0)
-  pkmLokal                Int      @default(0)
-  pkmNasional             Int      @default(0)
-  pkmInternasional        Int      @default(0)
-  danaPkmTotal            Float    @default(0)
-  scopusCount             Int      @default(0)
-  sintaCount              Int      @default(0)
-  hakiCount               Int      @default(0)
-  bukuCount               Int      @default(0)
-  scorePenelitian         Float    @default(0)
-  scorePkm                Float    @default(0)
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-
-  @@map("lp3m_borang_records")
 }
 
 enum PaymentStatus {

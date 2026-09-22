@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import {
@@ -16,9 +16,11 @@ import {
   Sparkles,
   ExternalLink,
 } from 'lucide-react';
+import { getInstitutionProfile, FALLBACK_INSTITUTION_PROFILE, type InstitutionProfile } from '@/lib/institution';
 
 export default function KontakPage() {
   const [formSubmitted, setFormSubmitted] = useState(false);
+  const [profile, setProfile] = useState<InstitutionProfile>(FALLBACK_INSTITUTION_PROFILE);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -26,6 +28,10 @@ export default function KontakPage() {
     subject: '',
     message: '',
   });
+
+  useEffect(() => {
+    getInstitutionProfile().then(setProfile);
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,9 +112,9 @@ export default function KontakPage() {
           </div>
         </section>
 
-        {/* 2 Kampus Cards */}
+        {/* Kampus Card */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="max-w-2xl">
             <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200 shadow-card flex items-start gap-4">
               <div className="w-12 h-12 rounded-xl bg-blue-50 text-[#1E3A8A] flex items-center justify-center shrink-0">
                 <Building2 className="w-6 h-6" />
@@ -118,46 +124,19 @@ export default function KontakPage() {
                   Kampus Utama (Rektorat)
                 </span>
                 <h3 className="text-lg font-extrabold text-slate-900 mt-0.5">
-                  Institut Teknologi Nusantara &bull; Kampus A
+                  {profile.campusName}
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed">
-                  Jl. Nusantara Raya No. 101, Kawasan Edukasi Mandiri, Jakarta Selatan 12440
+                  {profile.contactAddress}
                 </p>
                 <div className="mt-3 flex items-center gap-4 text-xs font-semibold text-[#1E3A8A]">
                   <span className="flex items-center gap-1">
                     <Phone className="w-3.5 h-3.5" />
-                    (021) 7890-1234
+                    {profile.contactPhone}
                   </span>
                   <span className="flex items-center gap-1">
                     <Mail className="w-3.5 h-3.5" />
-                    humas@itn.ac.id
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200 shadow-card flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
-                <Building2 className="w-6 h-6" />
-              </div>
-              <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[#1E3A8A]">
-                  Kampus Inovasi & Riset
-                </span>
-                <h3 className="text-lg font-extrabold text-slate-900 mt-0.5">
-                  Technopark & Laboratorium Riset ITN
-                </h3>
-                <p className="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed">
-                  Jl. Riset Sains Terpadu Kav. 45, Science Park Cybercity, BSD City 15345
-                </p>
-                <div className="mt-3 flex items-center gap-4 text-xs font-semibold text-[#1E3A8A]">
-                  <span className="flex items-center gap-1">
-                    <Phone className="w-3.5 h-3.5" />
-                    (021) 7890-5678
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Mail className="w-3.5 h-3.5" />
-                    technopark@itn.ac.id
+                    {profile.contactEmail}
                   </span>
                 </div>
               </div>

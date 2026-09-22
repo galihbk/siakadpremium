@@ -25,9 +25,25 @@ import {
 } from 'lucide-react';
 import { AdmissionApplicantItem } from '@siakad/types';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { getInstitutionProfile, FALLBACK_INSTITUTION_PROFILE, type InstitutionProfile } from '@/lib/institution';
+
+const ROMAWI_BULAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+
+function formatNomorSurat(format: string, no: string): string {
+  const now = new Date();
+  return format
+    .replace('{NO}', no)
+    .replace('{BULAN_ROMAWI}', ROMAWI_BULAN[now.getMonth()])
+    .replace('{TAHUN}', String(now.getFullYear()));
+}
 
 export default function KelulusanPage() {
   const [applicants, setApplicants] = useState<AdmissionApplicantItem[]>([]);
+  const [profile, setProfile] = useState<InstitutionProfile>(FALLBACK_INSTITUTION_PROFILE);
+
+  useEffect(() => {
+    getInstitutionProfile().then(setProfile);
+  }, []);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -766,10 +782,10 @@ export default function KelulusanPage() {
               <div className="flex items-center justify-between border-b border-slate-200 pb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-[#1E3A8A] flex items-center justify-center text-white font-black text-sm">
-                    ITN
+                    {profile.logoInitials}
                   </div>
                   <div>
-                    <h3 className="text-base font-black text-slate-900 uppercase">Institut Teknologi Nusantara</h3>
+                    <h3 className="text-base font-black text-slate-900 uppercase">{profile.campusName}</h3>
                     <p className="text-xs text-slate-500">Panitia Penerimaan Mahasiswa Baru (PMB)</p>
                   </div>
                 </div>
@@ -787,12 +803,12 @@ export default function KelulusanPage() {
                     Surat Keterangan Hasil Seleksi PMB
                   </h4>
                   <p className="text-[11px] text-slate-500 font-mono">
-                    Nomor: ITN/PMB/SK-KEL/{new Date().getFullYear()}/{skApplicant.registrationNumber}
+                    Nomor: {formatNomorSurat(profile.nomorSuratFormat, `SK-KEL/${skApplicant.registrationNumber}`)}
                   </p>
                 </div>
 
                 <p>
-                  Berdasarkan hasil verifikasi berkas administratif Calon Mahasiswa Baru Tahun Akademik 2027/2028, Panitia PMB Institut Teknologi Nusantara menyatakan bahwa:
+                  Berdasarkan hasil verifikasi berkas administratif Calon Mahasiswa Baru Tahun Akademik {profile.activeAcademicYear}, Panitia PMB {profile.campusName} menyatakan bahwa:
                 </p>
 
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 font-medium">
@@ -829,7 +845,7 @@ export default function KelulusanPage() {
 
               <div className="flex items-center justify-between pt-2">
                 <span className="text-[11px] text-slate-400">
-                  Ditetapkan oleh Panitia Penerimaan Mahasiswa Baru ITN
+                  Ditetapkan oleh Panitia Penerimaan Mahasiswa Baru {profile.campusShortName}
                 </span>
                 <div className="flex items-center gap-2">
                   <button

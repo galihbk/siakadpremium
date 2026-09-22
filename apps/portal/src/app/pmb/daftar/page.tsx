@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getApiBaseUrl } from '@/lib/api';
+import { getInstitutionProfile, FALLBACK_INSTITUTION_PROFILE, type InstitutionProfile } from '@/lib/institution';
 import {
   ArrowLeft,
   ArrowRight,
@@ -66,6 +67,11 @@ export default function PmbDaftarPage() {
   });
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [profile, setProfile] = useState<InstitutionProfile>(FALLBACK_INSTITUTION_PROFILE);
+
+  useEffect(() => {
+    getInstitutionProfile().then(setProfile);
+  }, []);
 
   // State Anti-Spam (Math Captcha & Honeypot)
   const [captchaNumA, setCaptchaNumA] = useState(5);
@@ -323,11 +329,11 @@ export default function PmbDaftarPage() {
             </Link>
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-full bg-white border-2 border-[#D4A017] flex items-center justify-center font-extrabold text-[#1E3A8A] text-xs shadow-xs">
-                ITN
+                {profile.logoInitials}
               </div>
               <div>
                 <span className="font-bold text-sm tracking-wide block leading-tight">
-                  INSTITUT TEKNOLOGI NUSANTARA
+                  {profile.campusName.toUpperCase()}
                 </span>
                 <span className="text-[11px] text-blue-200 block">
                   Pendaftaran Akun Baru PMB 2027/2028
@@ -717,10 +723,10 @@ export default function PmbDaftarPage() {
       <footer className="bg-slate-200/80 border-t border-slate-300 py-4 text-center text-xs text-slate-600">
         <div className="max-w-5xl mx-auto px-4">
           <p className="font-semibold text-slate-700">
-            Panitia Penerimaan Mahasiswa Baru (PMB) • Institut Teknologi Nusantara (ITN)
+            Panitia Penerimaan Mahasiswa Baru (PMB) • {profile.campusName} ({profile.campusShortName})
           </p>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            Kampus Utama: Jl. Boulevard Teknologi No. 1, Jakarta • Hotline: (021) 7890-1234 • Email: pmb@itn.ac.id
+            Kampus Utama: {profile.contactAddress} • Hotline: {profile.contactPhone} • Email: {profile.contactEmail}
           </p>
         </div>
       </footer>

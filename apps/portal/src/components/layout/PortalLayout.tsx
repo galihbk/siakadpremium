@@ -12,6 +12,7 @@ import {
   AuthUser,
 } from '@/lib/auth';
 import { getApiBaseUrl } from '@/lib/api';
+import { getInstitutionProfile, FALLBACK_INSTITUTION_PROFILE, type InstitutionProfile } from '@/lib/institution';
 import {
   GraduationCap,
   LayoutDashboard,
@@ -57,7 +58,6 @@ import {
   PanelLeftOpen,
   PanelLeft,
   Landmark,
-  DoorOpen,
   Briefcase,
   UserPlus,
   CalendarDays,
@@ -82,6 +82,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [institutionProfile, setInstitutionProfile] = useState<InstitutionProfile>(FALLBACK_INSTITUTION_PROFILE);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [effectiveRole, setEffectiveRole] = useState<
     'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' | 'lp3m' | 'pmb'
@@ -124,6 +125,10 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         setSidebarOpen(false);
       }
     }
+  }, []);
+
+  useEffect(() => {
+    getInstitutionProfile().then(setInstitutionProfile);
   }, []);
 
   useEffect(() => {
@@ -277,7 +282,10 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
   const lecturerNavGroups = [
     {
       title: 'MENU UTAMA',
-      items: [{ name: 'Dashboard Dosen', href: '/lecturer', icon: LayoutDashboard }],
+      items: [
+        { name: 'Dashboard Dosen', href: '/lecturer', icon: LayoutDashboard },
+        { name: 'Profil', href: '/lecturer/profil', icon: User },
+      ],
     },
     {
       title: 'PENGAJARAN & NILAI',
@@ -332,7 +340,10 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
   const superAdminNavGroups = [
     {
       title: 'DASHBOARD',
-      items: [{ name: 'Dashboard', href: '/admin/superadmin', icon: LayoutDashboard }],
+      items: [
+        { name: 'Dashboard', href: '/admin/superadmin', icon: LayoutDashboard },
+        { name: 'Monitoring Server', href: '/admin/superadmin/monitoring', icon: Activity },
+      ],
     },
     {
       title: 'MASTER DATA',
@@ -340,10 +351,6 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         { name: 'Profil Institusi', href: '/admin/superadmin/institusi', icon: Building2 },
         { name: 'Fakultas', href: '/admin/superadmin/fakultas', icon: Landmark },
         { name: 'Program Studi', href: '/admin/superadmin/prodi', icon: GraduationCap },
-        { name: 'Kurikulum', href: '/admin/master-kurikulum', icon: FileText },
-        { name: 'Mata Kuliah', href: '/admin/superadmin/mata-kuliah', icon: BookOpen },
-        { name: 'Gedung', href: '/admin/superadmin/gedung', icon: Building2 },
-        { name: 'Ruang', href: '/admin/superadmin/ruang', icon: DoorOpen },
         { name: 'Kalender Akademik', href: '/admin/superadmin/kalender', icon: CalendarDays },
       ],
     },
@@ -357,15 +364,11 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       ],
     },
     {
-      title: 'LAPORAN',
-      items: [
-        { name: 'Laporan Akademik & PDDIKTI', href: '/admin/laporan', icon: BarChart3 },
-      ],
-    },
-    {
       title: 'PENGATURAN SISTEM',
       items: [
         { name: 'Format NIM', href: '/admin/superadmin/format-nim', icon: Hash },
+        { name: 'Pengaturan Bank', href: '/admin/superadmin/pengaturan-bank', icon: Landmark },
+        { name: 'Pengaturan DIKTI', href: '/admin/superadmin/pengaturan-dikti', icon: ShieldCheck },
         { name: 'Pengaturan Sistem', href: '/admin/superadmin/pengaturan', icon: Settings },
         { name: 'Logout', href: '#logout', icon: LogOut, isLogout: true },
       ],
@@ -666,6 +669,8 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
               onClick={() => {
                 if (effectiveRole === 'student') {
                   router.push('/student/profil');
+                } else if (effectiveRole === 'lecturer') {
+                  router.push('/lecturer/profil');
                 } else {
                   setEditFullName(currentUser?.fullName || displayName);
                   setEditAvatarUrl(currentUser?.avatarUrl || '');
@@ -731,7 +736,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                 {roleLabel}
               </h1>
               <p className="text-xs text-slate-500 hidden sm:block">
-                Institut Teknologi Nusantara &bull; TA 2026/2027 Gasal
+                {institutionProfile.campusName} &bull; TA {institutionProfile.activeAcademicYear}
               </p>
             </div>
           </div>
@@ -740,7 +745,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
             {/* Periode Badge */}
             <div className="hidden xl:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-[#1E3A8A] text-xs font-semibold">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Semester Gasal 2026/2027</span>
+              <span>Semester {institutionProfile.activeSemester} {institutionProfile.activeAcademicYear}</span>
             </div>
 
             {/* Notification */}
@@ -837,9 +842,9 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
 
                   {/* Menu Links */}
                   <div className="px-2 py-1.5 space-y-1">
-                    {effectiveRole === 'student' ? (
+                    {effectiveRole === 'student' || effectiveRole === 'lecturer' ? (
                       <Link
-                        href="/student/profil"
+                        href={effectiveRole === 'student' ? '/student/profil' : '/lecturer/profil'}
                         onClick={() => setProfileDropdownOpen(false)}
                         className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:text-[#1E3A8A] hover:bg-blue-50/70 rounded-xl transition-all"
                       >
@@ -863,9 +868,9 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                       </button>
                     )}
 
-                    {effectiveRole === 'student' && (
+                    {(effectiveRole === 'student' || effectiveRole === 'lecturer') && (
                       <Link
-                        href="/student/profil#keamanan"
+                        href={effectiveRole === 'student' ? '/student/profil#keamanan' : '/lecturer/profil#keamanan'}
                         onClick={() => setProfileDropdownOpen(false)}
                         className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:text-[#1E3A8A] hover:bg-blue-50/70 rounded-xl transition-all"
                       >

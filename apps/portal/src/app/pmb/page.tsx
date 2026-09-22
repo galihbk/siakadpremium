@@ -18,6 +18,7 @@ import {
   LogIn,
   Users,
 } from 'lucide-react';
+import { getInstitutionProfile } from '@/lib/institution';
 
 interface AdmissionBatch {
   id: string;
@@ -131,7 +132,7 @@ function formatRupiah(amount: number): string {
 }
 
 export default async function PmbPage() {
-  const batches = await getAdmissionBatches();
+  const [batches, profile] = await Promise.all([getAdmissionBatches(), getInstitutionProfile()]);
   const activeBatches = batches.filter((b) => b.status === 'OPEN');
   const activeBatch = activeBatches.find((b) => b.isDefault) || activeBatches[0] || batches[0];
 
@@ -144,12 +145,12 @@ export default async function PmbPage() {
           <div className="flex items-center gap-4 text-slate-300">
             <span className="flex items-center gap-1.5">
               <Phone className="w-3.5 h-3.5 text-[#D4A017]" />
-              <span>Hotline PMB: <strong>(021) 7890-1234 ext. 101</strong></span>
+              <span>Hotline PMB: <strong>{profile.contactPhone}</strong></span>
             </span>
             <span className="hidden md:inline text-slate-600">|</span>
             <span className="hidden md:flex items-center gap-1.5">
               <Mail className="w-3.5 h-3.5 text-[#D4A017]" />
-              <span>Email: pmb@itn.ac.id</span>
+              <span>Email: {profile.contactEmail}</span>
             </span>
           </div>
 
@@ -846,15 +847,15 @@ export default async function PmbPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-4 text-center sm:text-left">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-[#1E3A8A] border border-[#D4A017] text-white flex items-center justify-center font-bold text-xs">
-              ITN
+              {profile.logoInitials}
             </div>
             <div>
-              <p className="font-bold text-white text-sm">Panitia Penerimaan Mahasiswa Baru ITN</p>
-              <p className="text-slate-400 text-[11px]">Gedung Rektorat Lt. 1, Jl. Nusantara Raya No. 101, Jakarta Selatan</p>
+              <p className="font-bold text-white text-sm">Panitia Penerimaan Mahasiswa Baru {profile.campusShortName}</p>
+              <p className="text-slate-400 text-[11px]">{profile.contactAddress}</p>
             </div>
           </div>
           <p className="text-slate-500 text-[11px]">
-            &copy; 2026 Institut Teknologi Nusantara. Hak Cipta Dilindungi Undang-Undang.
+            &copy; 2026 {profile.campusName}. Hak Cipta Dilindungi Undang-Undang.
           </p>
         </div>
       </footer>

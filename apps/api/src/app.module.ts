@@ -18,6 +18,8 @@ import { FinanceModule } from './modules/finance/finance.module';
 import { Lp3mModule } from './modules/lp3m/lp3m.module';
 import { UsersModule } from './modules/users/users.module';
 import { StorageModule } from './modules/storage/storage.module';
+import { IntegrationSettingsModule } from './modules/integration-settings/integration-settings.module';
+import { MonitoringModule } from './modules/monitoring/monitoring.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -45,6 +47,8 @@ import { AppService } from './app.service';
     Lp3mModule,
     UsersModule,
     StorageModule,
+    IntegrationSettingsModule,
+    MonitoringModule,
   ],
   controllers: [AppController],
   providers: [AppService],

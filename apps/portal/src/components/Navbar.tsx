@@ -3,10 +3,16 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Menu, X, Phone, Mail, UserCircle, ArrowRight } from 'lucide-react';
+import { getInstitutionProfile, FALLBACK_INSTITUTION_PROFILE, type InstitutionProfile } from '@/lib/institution';
 
 export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [profile, setProfile] = useState<InstitutionProfile>(FALLBACK_INSTITUTION_PROFILE);
+
+  useEffect(() => {
+    getInstitutionProfile().then(setProfile);
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -34,11 +40,11 @@ export function Navbar() {
           <div className="flex items-center space-x-4 sm:space-x-6 text-[11px] sm:text-xs">
             <div className="flex items-center gap-1.5 text-blue-100">
               <Phone className="w-3.5 h-3.5 text-[#D4A017] shrink-0" />
-              <span className="whitespace-nowrap">(021) 7890-1234</span>
+              <span className="whitespace-nowrap">{profile.contactPhone}</span>
             </div>
             <div className="hidden sm:flex items-center gap-1.5 text-blue-100">
               <Mail className="w-3.5 h-3.5 text-[#D4A017] shrink-0" />
-              <span>humas@itn.ac.id</span>
+              <span>{profile.contactEmail}</span>
             </div>
             <div className="hidden lg:flex items-center gap-1.5 text-blue-100">
               <span className="inline-block w-2 h-2 rounded-full bg-[#D4A017]"></span>
@@ -78,14 +84,14 @@ export function Navbar() {
             {/* Logo Kiri */}
             <Link href="/" className="flex items-center gap-2.5 sm:gap-3 group shrink-0">
               <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#1E3A8A] flex items-center justify-center text-white font-extrabold text-base sm:text-lg tracking-wider border-2 border-[#D4A017] shadow-xs group-hover:bg-[#172554] transition-colors shrink-0">
-                ITN
+                {profile.logoInitials}
               </div>
               <div className="flex flex-col">
                 <span className="font-extrabold text-sm sm:text-base tracking-tight text-[#1E3A8A] leading-tight whitespace-nowrap">
-                  INSTITUT TEKNOLOGI NUSANTARA
+                  {profile.campusName.toUpperCase()}
                 </span>
                 <span className="text-[10px] sm:text-xs text-slate-500 font-medium tracking-wide hidden md:block whitespace-nowrap">
-                  Unggul, Berbudaya & Berdaya Saing Global
+                  {profile.tagline}
                 </span>
               </div>
             </Link>

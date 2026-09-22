@@ -10,6 +10,7 @@ import { Lock, Mail, ArrowRight, ArrowLeft, CheckCircle, Eye, EyeOff } from 'luc
 
 import { saveAuthSession, getAuthSession, getRoleRedirectPath } from '@/lib/auth';
 import { getApiBaseUrl } from '@/lib/api';
+import { getInstitutionProfile, FALLBACK_INSTITUTION_PROFILE, type InstitutionProfile } from '@/lib/institution';
 
 const loginSchema = z.object({
   email: z.string().min(3, 'NIM / NIDN / Email / Username minimal 3 karakter'),
@@ -23,8 +24,14 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [profile, setProfile] = useState<InstitutionProfile>(FALLBACK_INSTITUTION_PROFILE);
 
   const apiBaseUrl = getApiBaseUrl();
+
+  // Fallback-first: form login tetap tampil cepat walau fetch profil belum selesai
+  useEffect(() => {
+    getInstitutionProfile().then(setProfile);
+  }, []);
 
   // Kalo sudah login, langsung arahkan ke dashboard sesuai role
   useEffect(() => {
@@ -109,13 +116,13 @@ export default function LoginPage() {
         {/* Brand Logo & Header */}
         <div className="text-center">
           <div className="mx-auto w-14 h-14 rounded-full bg-[#1E3A8A] border-2 border-[#D4A017] flex items-center justify-center text-white font-extrabold text-xl shadow-md">
-            ITN
+            {profile.logoInitials}
           </div>
           <h2 className="mt-4 text-2xl font-extrabold text-slate-900 tracking-tight">
             Portal SIAKAD Premium
           </h2>
           <p className="mt-1 text-xs text-slate-500">
-            Sistem Informasi Akademik Terpadu Institut Teknologi Nusantara
+            Sistem Informasi Akademik Terpadu {profile.campusName}
           </p>
         </div>
 

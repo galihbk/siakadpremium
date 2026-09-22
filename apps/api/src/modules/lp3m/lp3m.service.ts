@@ -279,140 +279,6 @@ export class Lp3mService implements OnModuleInit {
         });
       }
 
-      // 4. Seed Borang Records
-      const borangCount = await this.prisma.lp3mBorangRecord.count();
-      if (borangCount === 0) {
-        await this.prisma.lp3mBorangRecord.createMany({
-          data: [
-            {
-              prodiCode: 'TI',
-              prodiName: 'S1 Teknik Informatika',
-              faculty: 'Fakultas Ilmu Komputer',
-              academicYear: '2026',
-              dtpsCount: 16,
-              penelitianLokal: 24,
-              penelitianNasional: 14,
-              penelitianInternasional: 3,
-              danaPenelitianTotal: 485000000,
-              pkmLokal: 18,
-              pkmNasional: 8,
-              pkmInternasional: 1,
-              danaPkmTotal: 180000000,
-              scopusCount: 12,
-              sintaCount: 28,
-              hakiCount: 14,
-              bukuCount: 5,
-              scorePenelitian: 3.85,
-              scorePkm: 3.75,
-            },
-            {
-              prodiCode: 'SI',
-              prodiName: 'S1 Sistem Informasi',
-              faculty: 'Fakultas Ilmu Komputer',
-              academicYear: '2026',
-              dtpsCount: 12,
-              penelitianLokal: 18,
-              penelitianNasional: 9,
-              penelitianInternasional: 1,
-              danaPenelitianTotal: 310000000,
-              pkmLokal: 14,
-              pkmNasional: 6,
-              pkmInternasional: 0,
-              danaPkmTotal: 135000000,
-              scopusCount: 7,
-              sintaCount: 22,
-              hakiCount: 9,
-              bukuCount: 4,
-              scorePenelitian: 3.70,
-              scorePkm: 3.65,
-            },
-            {
-              prodiCode: 'EL',
-              prodiName: 'S1 Teknik Elektro',
-              faculty: 'Fakultas Teknik',
-              academicYear: '2026',
-              dtpsCount: 14,
-              penelitianLokal: 20,
-              penelitianNasional: 12,
-              penelitianInternasional: 2,
-              danaPenelitianTotal: 460000000,
-              pkmLokal: 15,
-              pkmNasional: 7,
-              pkmInternasional: 1,
-              danaPkmTotal: 165000000,
-              scopusCount: 11,
-              sintaCount: 24,
-              hakiCount: 8,
-              bukuCount: 3,
-              scorePenelitian: 3.80,
-              scorePkm: 3.70,
-            },
-            {
-              prodiCode: 'MS',
-              prodiName: 'S1 Teknik Mesin',
-              faculty: 'Fakultas Teknik',
-              academicYear: '2026',
-              dtpsCount: 15,
-              penelitianLokal: 22,
-              penelitianNasional: 11,
-              penelitianInternasional: 2,
-              danaPenelitianTotal: 490000000,
-              pkmLokal: 16,
-              pkmNasional: 6,
-              pkmInternasional: 0,
-              danaPkmTotal: 150000000,
-              scopusCount: 9,
-              sintaCount: 26,
-              hakiCount: 11,
-              bukuCount: 4,
-              scorePenelitian: 3.75,
-              scorePkm: 3.60,
-            },
-            {
-              prodiCode: 'SP',
-              prodiName: 'S1 Teknik Sipil',
-              faculty: 'Fakultas Teknik',
-              academicYear: '2026',
-              dtpsCount: 18,
-              penelitianLokal: 26,
-              penelitianNasional: 15,
-              penelitianInternasional: 1,
-              danaPenelitianTotal: 520000000,
-              pkmLokal: 20,
-              pkmNasional: 9,
-              pkmInternasional: 0,
-              danaPkmTotal: 195000000,
-              scopusCount: 8,
-              sintaCount: 30,
-              hakiCount: 7,
-              bukuCount: 6,
-              scorePenelitian: 3.80,
-              scorePkm: 3.78,
-            },
-            {
-              prodiCode: 'AR',
-              prodiName: 'S1 Arsitektur',
-              faculty: 'Fakultas Teknik Sipil & Perencanaan',
-              academicYear: '2026',
-              dtpsCount: 10,
-              penelitianLokal: 14,
-              penelitianNasional: 7,
-              penelitianInternasional: 1,
-              danaPenelitianTotal: 280000000,
-              pkmLokal: 12,
-              pkmNasional: 5,
-              pkmInternasional: 0,
-              danaPkmTotal: 120000000,
-              scopusCount: 5,
-              sintaCount: 18,
-              hakiCount: 12,
-              bukuCount: 5,
-              scorePenelitian: 3.65,
-              scorePkm: 3.60,
-            },
-          ],
-        });
-      }
     } catch (err) {
       console.warn('⚠️ Gagal mengeksekusi seed LP3M (kemungkinan tabel belum siap):', (err as Error).message);
     }
@@ -775,45 +641,84 @@ export class Lp3mService implements OnModuleInit {
   }
 
   // ================= 5. REKAP BORANG AKREDITASI =================
+  // Kategorisasi tingkatan sumber dana riset (Lokal/Nasional/Internasional) dari nama sumber dana bebas-teks
+  private classifyFundingScope(fundingSource: string): 'lokal' | 'nasional' | 'internasional' {
+    const s = (fundingSource || '').toLowerCase();
+    if (s.includes('internasional') || s.includes('luar negeri') || s.includes('foreign')) return 'internasional';
+    if (s.includes('dipa') || s.includes('mandiri') || s.includes('internal')) return 'lokal';
+    return 'nasional';
+  }
+
   async getBorangRecords(query?: { faculty?: string; search?: string }) {
-    const where: any = {};
-
-    if (query?.faculty && query.faculty !== 'Semua') {
-      where.faculty = query.faculty;
-    }
-
-    if (query?.search?.trim()) {
-      const q = query.search.trim();
-      where.OR = [
-        { prodiName: { contains: q, mode: 'insensitive' } },
-        { prodiCode: { contains: q, mode: 'insensitive' } },
-        { faculty: { contains: q, mode: 'insensitive' } },
-      ];
-    }
-
-    const items = await this.prisma.lp3mBorangRecord.findMany({
-      where,
-      orderBy: { prodiCode: 'asc' },
+    const studyPrograms = await this.prisma.studyProgram.findMany({
+      include: { faculty: true, _count: { select: { lecturers: true } } },
+      orderBy: { code: 'asc' },
     });
 
+    const researches = await this.prisma.lp3mResearch.findMany();
+    const totalHakiReal = await this.prisma.lp3mIntellectualProperty.count();
+
+    let rows = studyPrograms.map((sp) => {
+      const spResearches = researches.filter((r) => r.studyProgram === sp.name);
+      const lit = spResearches.filter((r) => r.type === 'Penelitian');
+      const pkm = spResearches.filter((r) => r.type === 'Pengabdian');
+
+      const countByScope = (list: typeof lit, scope: 'lokal' | 'nasional' | 'internasional') =>
+        list.filter((r) => this.classifyFundingScope(r.fundingSource) === scope).length;
+
+      return {
+        prodiCode: sp.code,
+        prodiName: sp.name,
+        faculty: sp.faculty.name,
+        academicYear: '2026',
+        dtpsCount: sp._count.lecturers,
+        penelitianLokal: countByScope(lit, 'lokal'),
+        penelitianNasional: countByScope(lit, 'nasional'),
+        penelitianInternasional: countByScope(lit, 'internasional'),
+        danaPenelitianTotal: lit.reduce((acc, r) => acc + r.fundingAmount, 0),
+        pkmLokal: countByScope(pkm, 'lokal'),
+        pkmNasional: countByScope(pkm, 'nasional'),
+        pkmInternasional: countByScope(pkm, 'internasional'),
+        danaPkmTotal: pkm.reduce((acc, r) => acc + r.fundingAmount, 0),
+        // Belum ada model pelacakan publikasi Scopus/SINTA maupun tautan HAKI per program studi,
+        // jadi jujur ditampilkan 0 di tingkat prodi (bukan angka rekaan).
+        scopusCount: 0,
+        sintaCount: 0,
+        hakiCount: 0,
+        bukuCount: 0,
+        scorePenelitian: 0,
+        scorePkm: 0,
+      };
+    });
+
+    if (query?.faculty && query.faculty !== 'Semua') {
+      rows = rows.filter((r) => r.faculty === query.faculty);
+    }
+    if (query?.search?.trim()) {
+      const q = query.search.trim().toLowerCase();
+      rows = rows.filter(
+        (r) =>
+          r.prodiName.toLowerCase().includes(q) ||
+          r.prodiCode.toLowerCase().includes(q) ||
+          r.faculty.toLowerCase().includes(q),
+      );
+    }
+
     // Summary calculations
-    const totalDTPS = items.reduce((acc, curr) => acc + curr.dtpsCount, 0);
-    const totalJudulLit = items.reduce(
+    const totalDTPS = rows.reduce((acc, curr) => acc + curr.dtpsCount, 0);
+    const totalJudulLit = rows.reduce(
       (acc, curr) => acc + curr.penelitianLokal + curr.penelitianNasional + curr.penelitianInternasional,
       0
     );
-    const totalJudulPkm = items.reduce(
+    const totalJudulPkm = rows.reduce(
       (acc, curr) => acc + curr.pkmLokal + curr.pkmNasional + curr.pkmInternasional,
       0
     );
-    const totalDanaLit = items.reduce((acc, curr) => acc + curr.danaPenelitianTotal, 0);
-    const totalDanaPkm = items.reduce((acc, curr) => acc + curr.danaPkmTotal, 0);
-    const totalScopus = items.reduce((acc, curr) => acc + curr.scopusCount, 0);
-    const totalSinta = items.reduce((acc, curr) => acc + curr.sintaCount, 0);
-    const totalHaki = items.reduce((acc, curr) => acc + curr.hakiCount, 0);
+    const totalDanaLit = rows.reduce((acc, curr) => acc + curr.danaPenelitianTotal, 0);
+    const totalDanaPkm = rows.reduce((acc, curr) => acc + curr.danaPkmTotal, 0);
 
-    const rasioLitPerDosen = totalDTPS > 0 ? (totalJudulLit / totalDTPS / 3).toFixed(2) : '0';
-    const rasioPkmPerDosen = totalDTPS > 0 ? (totalJudulPkm / totalDTPS / 3).toFixed(2) : '0';
+    const rasioLitPerDosen = totalDTPS > 0 ? (totalJudulLit / totalDTPS).toFixed(2) : '0';
+    const rasioPkmPerDosen = totalDTPS > 0 ? (totalJudulPkm / totalDTPS).toFixed(2) : '0';
 
     return {
       success: true,
@@ -824,13 +729,13 @@ export class Lp3mService implements OnModuleInit {
         totalDanaLit,
         totalDanaPkm,
         totalDanaGabungan: totalDanaLit + totalDanaPkm,
-        totalScopus,
-        totalSinta,
-        totalHaki,
+        totalScopus: 0,
+        totalSinta: 0,
+        totalHaki: totalHakiReal,
         rasioLitPerDosen,
         rasioPkmPerDosen,
       },
-      data: items,
+      data: rows,
     };
   }
 }

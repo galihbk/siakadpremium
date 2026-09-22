@@ -10,9 +10,9 @@ interface SambutanRektorProps {
 
 export function SambutanRektor({
   rectorName = 'Prof. Dr. Ir. Hendra Gunawan, M.Eng.',
-  rectorTitle = 'Guru Besar Rekayasa Sistem & Rektor ITN Periode 2024–2028',
+  rectorTitle = 'Rektor Institut Teknologi Nusantara',
   rectorSpeech,
-  rectorImageUrl = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80',
+  rectorImageUrl = '/images/rector.png',
 }: SambutanRektorProps) {
   return (
     <section id="sambutan" className="py-20 bg-white border-b border-slate-100">
@@ -83,9 +83,9 @@ export function SambutanRektor({
                   <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Tertanda Resmi,</p>
                   {/* Signature graphic / typography */}
                   <div className="py-2 text-[#1E3A8A] font-serif italic text-2xl tracking-wide select-none">
-                    Bambang Sudarmono
+                    {rectorName}
                   </div>
-                  <p className="text-xs text-slate-500 font-medium">NIP. 19680514 199403 1 002</p>
+                  <p className="text-xs text-slate-500 font-medium">{rectorTitle}</p>
                 </div>
 
                 <div className="bg-white px-4 py-2 rounded-xl border border-slate-200 text-xs text-slate-500 max-w-xs shadow-xs">

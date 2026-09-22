@@ -16,6 +16,7 @@ import {
   Target,
   Users,
 } from 'lucide-react';
+import { getInstitutionProfile } from '@/lib/institution';
 
 export const metadata = {
   title: 'Profil Institusi - Institut Teknologi Nusantara (ITN)',
@@ -23,39 +24,44 @@ export const metadata = {
     'Sejarah, Visi, Misi, Pimpinan, dan Nilai-Nilai Dasar Institut Teknologi Nusantara (ITN). Menjadi Perguruan Tinggi Berstandar Dunia yang Berbudaya dan Berdaya Saing Global.',
 };
 
-export default function ProfilPage() {
+// Pisahkan "Nama, Gelar (Bidang Tugas)" -> { name, bidang }
+function splitNameAndBidang(value: string): { name: string; bidang: string } {
+  const match = value.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+  if (match) return { name: match[1].trim(), bidang: match[2].trim() };
+  return { name: value, bidang: '' };
+}
+
+export default async function ProfilPage() {
+  const profile = await getInstitutionProfile();
+
+  const leadershipImages = [
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=600&q=80',
+  ];
+
   const leadership = [
     {
-      name: 'Prof. Dr. Ir. H. Muhammad Arif, M.Sc., IPU.',
-      role: 'Rektor Institut Teknologi Nusantara',
-      bidang: 'Guru Besar Teknik Sistem Energi & Komputasi Lanjut',
-      image:
-        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
-      pendidikan: 'S3 Imperial College London • S2 TU Delft • S1 ITB',
+      name: profile.rectorName,
+      role: profile.rectorTitle,
+      bidang: 'Pimpinan Tertinggi Institusi',
+      image: profile.rectorImageUrl || leadershipImages[0],
     },
     {
-      name: 'Dr. Anita Rahmawati, S.T., M.T.',
-      role: 'Wakil Rektor I (Bidang Akademik & Riset)',
-      bidang: 'Pengembangan Kurikulum OBE & Inovasi Pembelajaran Digital',
-      image:
-        'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=600&q=80',
-      pendidikan: 'S3 Universitas Indonesia • S2 ITB • S1 UGM',
+      role: 'Wakil Rektor I',
+      ...splitNameAndBidang(profile.viceRector1),
+      image: leadershipImages[1],
     },
     {
-      name: 'Dr. Hendra Saputra, S.E., M.Ak., Ak., CA.',
-      role: 'Wakil Rektor II (Bidang Keuangan & SDM)',
-      bidang: 'Tata Kelola Keuangan Modern & Transformasi SDM Berkelanjutan',
-      image:
-        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80',
-      pendidikan: 'S3 Universitas Gadjah Mada • S2 UI • S1 Undip',
+      role: 'Wakil Rektor II',
+      ...splitNameAndBidang(profile.viceRector2),
+      image: leadershipImages[2],
     },
     {
-      name: 'Dr. Bayu Wicaksono, S.Kom., M.Kom.',
-      role: 'Wakil Rektor III (Kemahasiswaan & Kerjasama)',
-      bidang: 'Pengembangan Karir, Kewirausahaan & Kemitraan Internasional',
-      image:
-        'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=600&q=80',
-      pendidikan: 'S3 Nanyang Technological Univ. • S2 ITS • S1 ITN',
+      role: 'Wakil Rektor III',
+      ...splitNameAndBidang(profile.viceRector3),
+      image: leadershipImages[3],
     },
   ];
 
@@ -88,7 +94,7 @@ export default function ProfilPage() {
 
   const milestones = [
     {
-      year: '1988',
+      year: String(profile.establishmentYear),
       title: 'Pendirian Akademi Teknologi',
       desc: 'Dirintis oleh tokoh cendekiawan nasional dengan 3 program studi keteknikan awal guna mencetak insinyur unggul tanah air.',
     },
@@ -131,7 +137,7 @@ export default function ProfilPage() {
 
               <p className="mt-4 text-sm sm:text-base text-blue-100/90 leading-relaxed">
                 Membangun generasi cerdas berkarakter, berdaya saing global, dan berakar pada
-                nilai-nilai kebudayaan luhur bangsa sejak 1988.
+                nilai-nilai kebudayaan luhur bangsa sejak {profile.establishmentYear}.
               </p>
 
               <div className="mt-4">
@@ -151,7 +157,7 @@ export default function ProfilPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center divide-y md:divide-y-0 md:divide-x divide-slate-100">
               <div className="pt-3 md:pt-0">
-                <p className="text-2xl sm:text-3xl font-extrabold text-[#1E3A8A]">Unggul (A)</p>
+                <p className="text-2xl sm:text-3xl font-extrabold text-[#1E3A8A]">{profile.accreditation}</p>
                 <p className="text-xs text-slate-500 mt-0.5">Akreditasi BAN-PT</p>
               </div>
               <div className="pt-3 md:pt-0">
@@ -328,11 +334,10 @@ export default function ProfilPage() {
                 <div className="p-5 flex-1 flex flex-col justify-between">
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 leading-snug">{leader.name}</h3>
-                    <p className="text-xs text-[#1E3A8A] font-semibold mt-1">{leader.bidang}</p>
+                    {leader.bidang && (
+                      <p className="text-xs text-[#1E3A8A] font-semibold mt-1">{leader.bidang}</p>
+                    )}
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-3 pt-3 border-t border-slate-100">
-                    {leader.pendidikan}
-                  </p>
                 </div>
               </div>
             ))}

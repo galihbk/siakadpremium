@@ -198,8 +198,11 @@ export class AcademicService {
       this.prisma.room.count(),
     ]);
 
-    // Real system services health (Feeder PDDIKTI is NOT yet configured, so it is honestly shown as disconnected)
-    const isFeederConnected = Boolean(process.env.FEEDER_PDDIKTI_URL && process.env.FEEDER_PDDIKTI_TOKEN);
+    // Real system services health: cek konfigurasi Feeder PDDIKTI di database (fallback ke env var lama)
+    const pddiktiSetting = await this.prisma.pddiktiSetting.findUnique({ where: { id: 'default-pddikti-setting' } }).catch(() => null);
+    const isFeederConnected = Boolean(
+      pddiktiSetting?.isActive && pddiktiSetting?.baseUrl && pddiktiSetting?.username && pddiktiSetting?.password,
+    ) || Boolean(process.env.FEEDER_PDDIKTI_URL && process.env.FEEDER_PDDIKTI_TOKEN);
 
     const servicesMonitoring = [
       {
@@ -213,7 +216,7 @@ export class AcademicService {
           ? 'bg-emerald-100 text-emerald-800'
           : 'bg-rose-100 text-rose-800 border border-rose-200',
         dotClass: isFeederConnected ? 'bg-emerald-500' : 'bg-rose-500',
-        actionUrl: '/admin/laporan#konfigurasi',
+        actionUrl: '/admin/superadmin/pengaturan-dikti',
         actionLabel: 'Konfigurasi Token WS',
       },
       {

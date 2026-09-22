@@ -11,19 +11,21 @@ import { StatistikSection } from '@/components/StatistikSection';
 import { TestimoniSection } from '@/components/TestimoniSection';
 import { CtaSection } from '@/components/CtaSection';
 import { Footer } from '@/components/Footer';
+import { getApiBaseUrl } from '@/lib/api';
 import { Megaphone } from 'lucide-react';
 
 async function getLandingPageData() {
   try {
+    const apiBase = getApiBaseUrl();
     // Log real visit to analytics
-    fetch('http://localhost:3001/api/v1/analytics/track', {
+    fetch(`${apiBase}/analytics/track`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: '/', referer: 'Google' }),
     }).catch(() => {});
 
-    const res = await fetch('http://localhost:3001/api/v1/landing-page', {
-      next: { revalidate: 1 },
+    const res = await fetch(`${apiBase}/landing-page`, {
+      cache: 'no-store',
     });
     if (res.ok) {
       const json = await res.json();
