@@ -87,6 +87,30 @@ export class AuthService {
           student: null,
           lecturer: null,
         };
+      } else if (identifier === 'p2m@itn.ac.id') {
+        user = {
+          id: 'demo-p2m-id',
+          email: 'p2m@itn.ac.id',
+          fullName: 'Dr. Siti Marlina, M.Pd. (Ketua P2M)',
+          role: UserRole.ADMIN_P2M,
+          avatarUrl: null,
+          student: null,
+          lecturer: null,
+        };
+      } else if (identifier === 'prodi@itn.ac.id') {
+        // Login demo Admin Prodi dipasangkan ke program studi SUNGGUHAN yang punya data
+        // mahasiswa/dosen/mata kuliah, supaya dashboard-nya benar-benar terisi saat testing.
+        const realProdi = await this.findDemoStudyProgram();
+        user = {
+          id: 'demo-prodi-id',
+          email: 'prodi@itn.ac.id',
+          fullName: realProdi ? `Admin ${realProdi.name} (Demo)` : 'Admin Program Studi (Demo)',
+          role: UserRole.ADMIN_PRODI,
+          avatarUrl: null,
+          student: null,
+          lecturer: null,
+          studyProgramId: realProdi?.id || null,
+        };
       } else if (identifier === 'keuangan@itn.ac.id' || identifier === 'finance@itn.ac.id') {
         user = {
           id: 'demo-finance-id',
@@ -108,23 +132,30 @@ export class AuthService {
           lecturer: null,
         };
       } else if (identifier === 'dosen@itn.ac.id' || identifier === 'lecturer@itn.ac.id') {
+        // Login demo dosen dipasangkan ke dosen SUNGGUHAN yang punya kelas di tahun akademik
+        // aktif, supaya akun demo ini benar-benar bisa dipakai testing (jadwal mengajar, upload
+        // RPS, dst) -- bukan cuma ID palsu yang tidak match data manapun di database.
+        const realLecturer = await this.findDemoLecturer();
         user = {
-          id: 'demo-dosen-id',
+          id: realLecturer?.userId || 'demo-dosen-id',
           email: 'dosen@itn.ac.id',
-          fullName: 'Dr. Bayu Wicaksono, M.Kom.',
+          fullName: realLecturer ? `${realLecturer.fullName} (Demo Dosen)` : 'Dr. Bayu Wicaksono, M.Kom.',
           role: UserRole.LECTURER,
           avatarUrl: null,
           student: null,
-          lecturer: { id: 'lec-1', nidn: '0412088501' },
+          lecturer: realLecturer ? { id: realLecturer.id, nidn: realLecturer.nidn } : { id: 'lec-1', nidn: '0412088501' },
         };
       } else if (identifier === 'mahasiswa@itn.ac.id' || identifier === 'student@itn.ac.id') {
+        // Sama seperti dosen demo -- dipasangkan ke mahasiswa sungguhan yang aktif supaya KRS,
+        // nilai, dan jadwal kuliahnya betulan terisi saat dipakai testing.
+        const realStudent = await this.findDemoStudent();
         user = {
-          id: 'demo-mhs-id',
+          id: realStudent?.userId || 'demo-mhs-id',
           email: 'student@itn.ac.id',
-          fullName: 'Mahasiswa ITN (Demo)',
+          fullName: realStudent ? `${realStudent.fullName} (Demo Mahasiswa)` : 'Mahasiswa ITN (Demo)',
           role: UserRole.STUDENT,
           avatarUrl: null,
-          student: { id: 'std-demo-id', nim: '27261150001' },
+          student: realStudent ? { id: realStudent.id, nim: realStudent.nim } : { id: 'std-demo-id', nim: '27261150001' },
           lecturer: null,
         };
       } else {
@@ -139,6 +170,7 @@ export class AuthService {
       role: user.role,
       studentId: user.student?.id || null,
       lecturerId: user.lecturer?.id || null,
+      studyProgramId: user.studyProgramId || null,
     };
 
     const accessToken = this.jwtService.sign(payload);
@@ -158,8 +190,70 @@ export class AuthService {
         lecturerId: user.lecturer?.id || null,
         nim: user.student?.nim || null,
         student: user.student ? { id: user.student.id, nim: user.student.nim } : null,
+        studyProgramId: user.studyProgramId || null,
       },
     };
+  }
+
+  // Cari dosen sungguhan yang punya kelas di tahun akademik aktif, untuk dipasangkan ke akun
+  // login demo dosen (lihat login() di atas) supaya data pengajaran yang tampil itu nyata.
+  private async findDemoLecturer(): Promise<{ id: string; userId: string; nidn: string | null; fullName: string } | null> {
+    try {
+      const activeYear = await this.prisma.academicYear.findFirst({ where: { isActive: true } });
+      const classWithLecturer = await this.prisma.courseClass.findFirst({
+        where: { academicYearId: activeYear?.id, lecturerId: { not: null } },
+        include: { lecturer: { include: { user: true } } },
+        orderBy: { createdAt: 'asc' },
+      });
+      const lecturer = classWithLecturer?.lecturer;
+      if (lecturer) {
+        return { id: lecturer.id, userId: lecturer.userId, nidn: lecturer.nidn, fullName: lecturer.user.fullName };
+      }
+      // Fallback: dosen manapun kalau tidak ada kelas di tahun aktif
+      const anyLecturer = await this.prisma.lecturer.findFirst({ include: { user: true } });
+      return anyLecturer ? { id: anyLecturer.id, userId: anyLecturer.userId, nidn: anyLecturer.nidn, fullName: anyLecturer.user.fullName } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Cari mahasiswa aktif sungguhan untuk dipasangkan ke akun login demo mahasiswa.
+  private async findDemoStudent(): Promise<{ id: string; userId: string; nim: string; fullName: string } | null> {
+    try {
+      const activeYear = await this.prisma.academicYear.findFirst({ where: { isActive: true } });
+      const enrollment = await this.prisma.courseEnrollment.findFirst({
+        where: { academicYearId: activeYear?.id, status: { in: ['SUBMITTED', 'APPROVED'] } },
+        include: { student: { include: { user: true } } },
+        orderBy: { createdAt: 'asc' },
+      });
+      const student = enrollment?.student;
+      if (student) {
+        return { id: student.id, userId: student.userId, nim: student.nim, fullName: student.user.fullName };
+      }
+      // Fallback: mahasiswa aktif manapun kalau belum ada yang mengisi KRS tahun ini
+      const anyActiveStudent = await this.prisma.student.findFirst({ where: { status: 'ACTIVE' }, include: { user: true } });
+      return anyActiveStudent
+        ? { id: anyActiveStudent.id, userId: anyActiveStudent.userId, nim: anyActiveStudent.nim, fullName: anyActiveStudent.user.fullName }
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Cari program studi sungguhan yang punya mahasiswa, untuk dipasangkan ke akun login demo
+  // Admin Prodi supaya dashboard-nya terisi data nyata (bukan prodi kosong).
+  private async findDemoStudyProgram(): Promise<{ id: string; name: string } | null> {
+    try {
+      const prodiWithStudents = await this.prisma.studyProgram.findFirst({
+        where: { students: { some: {} } },
+        orderBy: { code: 'asc' },
+      });
+      if (prodiWithStudents) return { id: prodiWithStudents.id, name: prodiWithStudents.name };
+      const anyProdi = await this.prisma.studyProgram.findFirst();
+      return anyProdi ? { id: anyProdi.id, name: anyProdi.name } : null;
+    } catch {
+      return null;
+    }
   }
 
   async getProfile(userId: string) {

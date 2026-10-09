@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { Modal } from '@/components/ui/Modal';
+import { copyToClipboard } from '@/lib/clipboard';
 import {
   GraduationCap,
   Users,
@@ -30,6 +31,7 @@ import {
   Check,
   AlertCircle,
   Loader2,
+  Landmark,
 } from 'lucide-react';
 
 export interface LecturerItem {
@@ -50,6 +52,11 @@ export interface LecturerItem {
   isActive: boolean;
   role?: string;
   createdAt?: string;
+  structuralPosition?: 'DEKAN' | 'KAPRODI' | null;
+  structuralFacultyId?: string | null;
+  structuralFacultyName?: string | null;
+  structuralStudyProgramId?: string | null;
+  structuralStudyProgramName?: string | null;
 }
 
 export interface StudyProgramOption {
@@ -59,9 +66,16 @@ export interface StudyProgramOption {
   facultyName?: string;
 }
 
+export interface FacultyOption {
+  id: string;
+  name: string;
+  code: string;
+}
+
 export default function SuperAdminDosenPage() {
   const [lecturers, setLecturers] = useState<LecturerItem[]>([]);
   const [studyPrograms, setStudyPrograms] = useState<StudyProgramOption[]>([]);
+  const [faculties, setFaculties] = useState<FacultyOption[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
@@ -76,6 +90,13 @@ export default function SuperAdminDosenPage() {
   const [resettingLecturer, setResettingLecturer] = useState<LecturerItem | null>(null);
   const [viewingCredential, setViewingCredential] = useState<LecturerItem | null>(null);
   const [deletingLecturer, setDeletingLecturer] = useState<LecturerItem | null>(null);
+  const [structuralLecturer, setStructuralLecturer] = useState<LecturerItem | null>(null);
+  const [structuralForm, setStructuralForm] = useState<{ position: 'NONE' | 'DEKAN' | 'KAPRODI'; facultyId: string; studyProgramId: string }>({
+    position: 'NONE',
+    facultyId: '',
+    studyProgramId: '',
+  });
+  const [isSavingStructural, setIsSavingStructural] = useState(false);
 
   // Notifications
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -116,9 +137,10 @@ export default function SuperAdminDosenPage() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [lecturersRes, prodiRes] = await Promise.all([
+      const [lecturersRes, prodiRes, facultiesRes] = await Promise.all([
         fetch(`${apiBase}/lecturers`),
         fetch(`${apiBase}/study-programs`),
+        fetch(`${apiBase}/faculties`),
       ]);
 
       if (lecturersRes.ok) {
@@ -129,6 +151,11 @@ export default function SuperAdminDosenPage() {
       if (prodiRes.ok) {
         const json = await prodiRes.json();
         setStudyPrograms(json.data || []);
+      }
+
+      if (facultiesRes.ok) {
+        const json = await facultiesRes.json();
+        setFaculties(json.data || []);
       }
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -281,6 +308,54 @@ export default function SuperAdminDosenPage() {
     }
   };
 
+  const openStructuralModal = (lec: LecturerItem) => {
+    setStructuralLecturer(lec);
+    setStructuralForm({
+      position: (lec.structuralPosition as 'DEKAN' | 'KAPRODI' | undefined) || 'NONE',
+      facultyId: lec.structuralFacultyId || '',
+      studyProgramId: lec.structuralStudyProgramId || lec.studyProgramId || '',
+    });
+  };
+
+  const handleSaveStructural = async () => {
+    if (!structuralLecturer) return;
+    if (structuralForm.position === 'DEKAN' && !structuralForm.facultyId) {
+      showToast('Pilih fakultas yang akan dipimpin.', 'error');
+      return;
+    }
+    if (structuralForm.position === 'KAPRODI' && !structuralForm.studyProgramId) {
+      showToast('Pilih program studi yang akan dipimpin.', 'error');
+      return;
+    }
+
+    setIsSavingStructural(true);
+    try {
+      const body =
+        structuralForm.position === 'NONE'
+          ? { position: null }
+          : structuralForm.position === 'DEKAN'
+            ? { position: 'DEKAN', facultyId: structuralForm.facultyId }
+            : { position: 'KAPRODI', studyProgramId: structuralForm.studyProgramId };
+
+      const res = await fetch(`${apiBase}/lecturers/${structuralLecturer.id}/structural-position`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json().catch(() => null);
+      const result = json?.data ?? json;
+      if (!res.ok) throw new Error(result?.message || 'Gagal menyimpan jabatan struktural.');
+
+      showToast(result?.message || 'Jabatan struktural berhasil disimpan.');
+      setStructuralLecturer(null);
+      fetchData();
+    } catch (err: any) {
+      showToast(err.message || 'Gagal menyimpan jabatan struktural.', 'error');
+    } finally {
+      setIsSavingStructural(false);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       fullName: '',
@@ -319,8 +394,8 @@ export default function SuperAdminDosenPage() {
     });
   };
 
-  const copyToClipboard = (text: string, fieldName: string) => {
-    navigator.clipboard.writeText(text);
+  const handleCopyToClipboard = async (text: string, fieldName: string) => {
+    await copyToClipboard(text);
     setCopiedField(fieldName);
     setTimeout(() => setCopiedField(null), 2000);
   };
@@ -796,6 +871,25 @@ export default function SuperAdminDosenPage() {
                               <KeyRound className="w-4 h-4" />
                             </button>
 
+                            {/* Jabatan Struktural */}
+                            <button
+                              onClick={() => openStructuralModal(lec)}
+                              className={`p-1.5 rounded-lg transition-colors ${
+                                lec.structuralPosition
+                                  ? 'text-purple-600 hover:text-purple-800 hover:bg-purple-50'
+                                  : 'text-slate-400 hover:text-purple-700 hover:bg-purple-50'
+                              }`}
+                              title={
+                                lec.structuralPosition === 'DEKAN'
+                                  ? `Dekan ${lec.structuralFacultyName || ''}`
+                                  : lec.structuralPosition === 'KAPRODI'
+                                    ? `Kaprodi ${lec.structuralStudyProgramName || ''}`
+                                    : 'Atur Jabatan Struktural'
+                              }
+                            >
+                              <Landmark className="w-4 h-4" />
+                            </button>
+
                             {/* Edit */}
                             <button
                               onClick={() => openEditModal(lec)}
@@ -957,6 +1051,21 @@ export default function SuperAdminDosenPage() {
                         title="Reset Kata Sandi"
                       >
                         <KeyRound className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => openStructuralModal(lec)}
+                        className={`p-1.5 rounded-lg hover:bg-slate-100 transition-colors ${
+                          lec.structuralPosition ? 'text-purple-600' : 'text-slate-400 hover:text-purple-700'
+                        }`}
+                        title={
+                          lec.structuralPosition === 'DEKAN'
+                            ? `Dekan ${lec.structuralFacultyName || ''}`
+                            : lec.structuralPosition === 'KAPRODI'
+                              ? `Kaprodi ${lec.structuralStudyProgramName || ''}`
+                              : 'Atur Jabatan Struktural'
+                        }
+                      >
+                        <Landmark className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => openEditModal(lec)}
@@ -1510,7 +1619,7 @@ export default function SuperAdminDosenPage() {
                     </span>
                   </div>
                   <button
-                    onClick={() => copyToClipboard(viewingCredential.email, 'email')}
+                    onClick={() => handleCopyToClipboard(viewingCredential.email, 'email')}
                     className="p-2 rounded-lg bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors border border-slate-200"
                     title="Salin Email"
                   >
@@ -1533,7 +1642,7 @@ export default function SuperAdminDosenPage() {
                     </span>
                   </div>
                   <button
-                    onClick={() => copyToClipboard('http://localhost:3002/login', 'url')}
+                    onClick={() => handleCopyToClipboard('http://localhost:3002/login', 'url')}
                     className="p-2 rounded-lg bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors border border-slate-200"
                     title="Salin Tautan"
                   >
@@ -1607,6 +1716,93 @@ export default function SuperAdminDosenPage() {
                     <span>Ya, Hapus Akun</span>
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </Modal>
+
+        <Modal
+          isOpen={!!structuralLecturer}
+          onClose={() => setStructuralLecturer(null)}
+          title="Jabatan Struktural"
+          subtitle={structuralLecturer ? `${structuralLecturer.titlePrefix || ''} ${structuralLecturer.fullName}`.trim() : undefined}
+          icon={<Landmark className="w-5 h-5" />}
+        >
+          <div className="space-y-4 text-xs">
+            <p className="text-slate-500 leading-relaxed">
+              Nama Dekan fakultas & Kaprodi program studi diambil otomatis dari dosen yang ditetapkan di sini -- tidak
+              perlu diketik manual lagi di menu Fakultas / Program Studi.
+            </p>
+
+            <div className="space-y-1">
+              <label className="font-bold text-slate-700">Jabatan</label>
+              <select
+                value={structuralForm.position}
+                onChange={(e) =>
+                  setStructuralForm((prev) => ({ ...prev, position: e.target.value as 'NONE' | 'DEKAN' | 'KAPRODI' }))
+                }
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white font-semibold"
+              >
+                <option value="NONE">Tidak ada jabatan struktural</option>
+                <option value="DEKAN">Dekan</option>
+                <option value="KAPRODI">Ketua Program Studi (Kaprodi)</option>
+              </select>
+            </div>
+
+            {structuralForm.position === 'DEKAN' && (
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">Fakultas yang Dipimpin *</label>
+                <select
+                  value={structuralForm.facultyId}
+                  onChange={(e) => setStructuralForm((prev) => ({ ...prev, facultyId: e.target.value }))}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white font-semibold"
+                >
+                  <option value="">Pilih fakultas...</option>
+                  {faculties.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-amber-600">Kalau fakultas ini sudah punya Dekan lain, jabatannya otomatis dicopot.</p>
+              </div>
+            )}
+
+            {structuralForm.position === 'KAPRODI' && (
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">Program Studi yang Dipimpin *</label>
+                <select
+                  value={structuralForm.studyProgramId}
+                  onChange={(e) => setStructuralForm((prev) => ({ ...prev, studyProgramId: e.target.value }))}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white font-semibold"
+                >
+                  <option value="">Pilih program studi...</option>
+                  {studyPrograms.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-amber-600">Kalau prodi ini sudah punya Kaprodi lain, jabatannya otomatis dicopot.</p>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setStructuralLecturer(null)}
+                className="px-4 py-2 rounded-xl text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveStructural}
+                disabled={isSavingStructural}
+                className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#1E3A8A] hover:bg-blue-900 disabled:opacity-50 text-white text-xs font-semibold shadow-lg shadow-blue-900/20 transition-all"
+              >
+                {isSavingStructural ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                <span>Simpan</span>
               </button>
             </div>
           </div>

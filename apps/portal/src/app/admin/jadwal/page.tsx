@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { Modal } from '@/components/ui/Modal';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { useSortedPagination } from '@/lib/useSortedPagination';
 import { SortableTh } from '@/components/common/SortableTh';
 import { TablePagination } from '@/components/common/TablePagination';
@@ -13,6 +14,7 @@ import {
   Search,
   Plus,
   ChevronRight,
+  ChevronDown,
   Edit3,
   Trash2,
   CheckCircle2,
@@ -26,6 +28,8 @@ import {
   AlertCircle,
   Loader2,
   Calendar,
+  SlidersHorizontal,
+  Users,
 } from 'lucide-react';
 
 export interface ScheduleItem {
@@ -34,10 +38,12 @@ export interface ScheduleItem {
   courseName: string;
   sks: number;
   className: string;
-  day: string;
-  startTime: string;
-  endTime: string;
+  isFlexibleSchedule: boolean;
+  day: string | null;
+  startTime: string | null;
+  endTime: string | null;
   timeSlot: string;
+  roomId?: string | null;
   roomCode: string;
   roomName: string;
   buildingName: string;
@@ -48,6 +54,7 @@ export interface ScheduleItem {
   studyProgramName: string;
   facultyCode: string;
   semester: number;
+  academicYearId: string | null;
   academicYear: string;
   quota: number;
   enrolledCount: number;
@@ -62,6 +69,7 @@ export default function AdminJadwalPage() {
   const [lecturers, setLecturers] = useState<any[]>([]);
   const [rooms, setRooms] = useState<any[]>([]);
   const [prodis, setProdis] = useState<any[]>([]);
+  const [academicYears, setAcademicYears] = useState<{ id: string; code: string; name: string; semesterLabel: string; isActive: boolean }[]>([]);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -70,6 +78,11 @@ export default function AdminJadwalPage() {
   const [prodiFilter, setProdiFilter] = useState('Semua');
   const [dayFilter, setDayFilter] = useState('Semua');
   const [semesterFilter, setSemesterFilter] = useState('Semua');
+  // '' = belum ditentukan (tahun akademik aktif belum selesai dimuat) -- sengaja beda dari
+  // 'Semua', supaya fetch jadwal pertama tidak keburu jalan tanpa filter tahun akademik dulu.
+  const [academicYearFilter, setAcademicYearFilter] = useState('');
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [isRecapOpen, setIsRecapOpen] = useState(false);
 
   // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -84,6 +97,7 @@ export default function AdminJadwalPage() {
     courseName: '',
     sks: 3,
     className: '',
+    isFlexibleSchedule: false,
     day: 'Senin',
     startTime: '08:00',
     endTime: '10:30',
@@ -110,8 +124,10 @@ export default function AdminJadwalPage() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
+      const schParams = new URLSearchParams();
+      if (academicYearFilter !== 'Semua') schParams.set('academicYearId', academicYearFilter);
       const [schRes, coursesRes, lecRes, roomsRes, prodiRes] = await Promise.all([
-        fetch(`${apiBase}/academic/schedules`),
+        fetch(`${apiBase}/academic/schedules?${schParams.toString()}`),
         fetch(`${apiBase}/academic/courses`),
         fetch(`${apiBase}/lecturers`),
         fetch(`${apiBase}/buildings/rooms`),
@@ -147,14 +163,36 @@ export default function AdminJadwalPage() {
   };
 
   useEffect(() => {
+    // Jangan fetch jadwal dulu kalau tahun akademik aktif belum selesai dimuat -- kalau
+    // dibiarkan, render pertama akan sempat fetch tanpa filter (ambil SEMUA tahun) lalu
+    // langsung di-fetch ulang begitu tahun aktif ketemu, bikin flash data yang salah.
+    if (academicYearFilter === '') return;
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [academicYearFilter]);
+
+  useEffect(() => {
+    fetch(`${apiBase}/academic/years`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        const result = json?.data ?? json;
+        if (!Array.isArray(result)) return;
+        setAcademicYears(result);
+        const active = result.find((y: { isActive: boolean }) => y.isActive);
+        setAcademicYearFilter(active ? active.id : 'Semua');
+      })
+      .catch((e) => {
+        console.warn('Gagal memuat daftar tahun akademik:', e);
+        setAcademicYearFilter('Semua');
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Handle Create Schedule
   const handleCreateSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.courseName || !formData.className || !formData.lecturerName || !formData.roomName) {
-      showToast('Harap lengkapi seluruh data mata kuliah, kelas, dosen, dan ruangan.', 'error');
+    if (!formData.courseName || !formData.className) {
+      showToast('Harap lengkapi mata kuliah dan nama kelas.', 'error');
       return;
     }
 
@@ -237,6 +275,7 @@ export default function AdminJadwalPage() {
       courseName: '',
       sks: 3,
       className: '',
+      isFlexibleSchedule: false,
       day: 'Senin',
       startTime: '08:00',
       endTime: '10:30',
@@ -267,23 +306,6 @@ export default function AdminJadwalPage() {
         studyProgramName: courses[0].studyProgramName || '',
       }));
     }
-    if (lecturers[0]) {
-      setFormData((prev) => ({
-        ...prev,
-        lecturerId: lecturers[0].id,
-        lecturerNidn: lecturers[0].nidn,
-        lecturerName: lecturers[0].fullName,
-      }));
-    }
-    if (rooms[0]) {
-      setFormData((prev) => ({
-        ...prev,
-        roomId: rooms[0].id,
-        roomCode: rooms[0].code,
-        roomName: rooms[0].name,
-        buildingName: rooms[0].buildingName,
-      }));
-    }
     setIsAddModalOpen(true);
   };
 
@@ -295,10 +317,11 @@ export default function AdminJadwalPage() {
       courseName: sch.courseName,
       sks: sch.sks,
       className: sch.className,
-      day: sch.day,
-      startTime: sch.startTime,
-      endTime: sch.endTime,
-      roomId: sch.roomCode,
+      isFlexibleSchedule: sch.isFlexibleSchedule,
+      day: sch.day ?? 'Senin',
+      startTime: sch.startTime ?? '08:00',
+      endTime: sch.endTime ?? '10:30',
+      roomId: sch.roomId ?? '',
       roomCode: sch.roomCode,
       roomName: sch.roomName,
       buildingName: sch.buildingName,
@@ -324,7 +347,7 @@ export default function AdminJadwalPage() {
         s.className.toLowerCase().includes(q);
 
       const matchesProdi = prodiFilter === 'Semua' || s.studyProgramName === prodiFilter;
-      const matchesDay = dayFilter === 'Semua' || s.day.toLowerCase() === dayFilter.toLowerCase();
+      const matchesDay = dayFilter === 'Semua' || (s.day ?? '').toLowerCase() === dayFilter.toLowerCase();
       const matchesSemester = semesterFilter === 'Semua' || s.semester.toString() === semesterFilter;
 
       return matchesSearch && matchesProdi && matchesDay && matchesSemester;
@@ -336,14 +359,48 @@ export default function AdminJadwalPage() {
     'day',
   );
 
+  const activeAcademicYear = academicYears.find((y) => y.isActive);
+  const activeFilterCount =
+    (prodiFilter !== 'Semua' ? 1 : 0) +
+    (dayFilter !== 'Semua' ? 1 : 0) +
+    (semesterFilter !== 'Semua' ? 1 : 0) +
+    (activeAcademicYear && academicYearFilter !== activeAcademicYear.id ? 1 : 0);
+  const resetFilters = () => {
+    setProdiFilter('Semua');
+    setDayFilter('Semua');
+    setSemesterFilter('Semua');
+    if (activeAcademicYear) setAcademicYearFilter(activeAcademicYear.id);
+  };
+
+  // Rekap Dosen Mengajar -- diturunkan dari hasil filter yang sama dengan tabel jadwal
+  const lecturerRecap = useMemo(() => {
+    const map = new Map<
+      string,
+      { lecturerId: string; lecturerNidn: string; lecturerName: string; classCount: number; totalSks: number; studyPrograms: Set<string> }
+    >();
+    for (const s of filteredSchedules) {
+      const key = s.lecturerId || s.lecturerName;
+      if (!key || s.lecturerName === '-') continue;
+      let row = map.get(key);
+      if (!row) {
+        row = { lecturerId: s.lecturerId, lecturerNidn: s.lecturerNidn, lecturerName: s.lecturerName, classCount: 0, totalSks: 0, studyPrograms: new Set() };
+        map.set(key, row);
+      }
+      row.classCount += 1;
+      row.totalSks += s.sks;
+      if (s.studyProgramName) row.studyPrograms.add(s.studyProgramName);
+    }
+    return Array.from(map.values()).sort((a, b) => b.classCount - a.classCount);
+  }, [filteredSchedules]);
+
   // Statistics
   const stats = useMemo(() => {
-    const totalClasses = schedules.length;
-    const totalSks = schedules.reduce((acc, s) => acc + s.sks, 0);
-    const uniqueRooms = new Set(schedules.map((s) => s.roomCode)).size;
-    const uniqueLecturers = new Set(schedules.map((s) => s.lecturerNidn)).size;
+    const totalClasses = filteredSchedules.length;
+    const totalSks = filteredSchedules.reduce((acc, s) => acc + s.sks, 0);
+    const uniqueRooms = new Set(filteredSchedules.map((s) => s.roomCode)).size;
+    const uniqueLecturers = new Set(filteredSchedules.map((s) => s.lecturerNidn)).size;
     return { totalClasses, totalSks, uniqueRooms, uniqueLecturers };
-  }, [schedules]);
+  }, [filteredSchedules]);
 
   return (
     <PortalLayout role="admin" userName="Admin BAAK" userIdText="Biro Administrasi Akademik & Kemahasiswaan" activeMenuHref="/admin/jadwal">
@@ -460,44 +517,18 @@ export default function AdminJadwalPage() {
               />
             </div>
 
-            <select
-              value={prodiFilter}
-              onChange={(e) => setProdiFilter(e.target.value)}
-              className="px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
+            <button
+              onClick={() => setIsFilterModalOpen(true)}
+              className="relative inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-all shrink-0"
             >
-              <option value="Semua">Semua Program Studi</option>
-              {prodis.map((p) => (
-                <option key={p.id} value={p.name}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={dayFilter}
-              onChange={(e) => setDayFilter(e.target.value)}
-              className="px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
-            >
-              <option value="Semua">Semua Hari</option>
-              {DAYS_ORDER.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={semesterFilter}
-              onChange={(e) => setSemesterFilter(e.target.value)}
-              className="px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
-            >
-              <option value="Semua">Semua Semester</option>
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((sm) => (
-                <option key={sm} value={sm.toString()}>
-                  Semester {sm}
-                </option>
-              ))}
-            </select>
+              <SlidersHorizontal className="w-4 h-4" />
+              <span>Filter</span>
+              {activeFilterCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-[#1E3A8A] text-white text-[9px] font-bold flex items-center justify-center">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
           </div>
 
           <div className="flex items-center gap-2 self-end lg:self-auto">
@@ -522,6 +553,61 @@ export default function AdminJadwalPage() {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Rekap Dosen Mengajar (collapsible) */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+          <button
+            onClick={() => setIsRecapOpen((o) => !o)}
+            className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left hover:bg-slate-50/70 transition-colors"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 border border-amber-100 flex items-center justify-center shrink-0">
+                <Users className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-900">Rekap Dosen Mengajar</p>
+                <p className="text-[11px] text-slate-400">{lecturerRecap.length} dosen pengampu pada hasil filter saat ini</p>
+              </div>
+            </div>
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${isRecapOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {isRecapOpen && (
+            <div className="border-t border-slate-100 max-h-80 overflow-y-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-500 sticky top-0">
+                  <tr>
+                    <th className="py-2.5 px-4">Dosen</th>
+                    <th className="py-2.5 px-3 text-center">Jml Kelas</th>
+                    <th className="py-2.5 px-3 text-center">Total SKS</th>
+                    <th className="py-2.5 px-3">Program Studi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {lecturerRecap.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="py-6 text-center text-slate-400">
+                        Tidak ada data untuk filter saat ini.
+                      </td>
+                    </tr>
+                  ) : (
+                    lecturerRecap.map((r) => (
+                      <tr key={r.lecturerId || r.lecturerName} className="hover:bg-slate-50/70">
+                        <td className="py-2 px-4">
+                          <div className="font-semibold text-slate-800">{r.lecturerName}</div>
+                          <div className="text-[11px] text-slate-400 font-mono">NIDN: {r.lecturerNidn}</div>
+                        </td>
+                        <td className="py-2 px-3 text-center font-bold text-slate-800">{r.classCount}</td>
+                        <td className="py-2 px-3 text-center font-bold text-[#1E3A8A]">{r.totalSks}</td>
+                        <td className="py-2 px-3 text-slate-600">{Array.from(r.studyPrograms).join(', ')}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Content */}
@@ -560,7 +646,7 @@ export default function AdminJadwalPage() {
                       <td className="px-4 py-3.5 whitespace-nowrap">
                         <div className="font-bold text-slate-800 flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                          {sch.day}
+                          {sch.isFlexibleSchedule ? 'Fleksibel' : sch.day}
                         </div>
                         <div className="text-[11px] text-slate-400 font-mono mt-0.5">{sch.timeSlot}</div>
                       </td>
@@ -684,6 +770,93 @@ export default function AdminJadwalPage() {
           </div>
         )}
 
+        {/* MODAL FILTER */}
+        <Modal
+          isOpen={isFilterModalOpen}
+          onClose={() => setIsFilterModalOpen(false)}
+          title="Filter Jadwal Kuliah"
+          icon={<SlidersHorizontal className="w-5 h-5" />}
+          maxWidth="md"
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Tahun Akademik</label>
+              <SearchableSelect
+                value={academicYearFilter === 'Semua' ? '' : academicYearFilter}
+                onChange={(v) => setAcademicYearFilter(v || 'Semua')}
+                emptyLabel="Semua Tahun Akademik"
+                placeholder="Semua Tahun Akademik"
+                searchPlaceholder="Cari tahun akademik..."
+                options={academicYears.map((y) => ({
+                  value: y.id,
+                  label: `${y.name} ${y.semesterLabel}${y.isActive ? ' (Aktif)' : ''}`,
+                }))}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Program Studi</label>
+              <SearchableSelect
+                value={prodiFilter === 'Semua' ? '' : prodiFilter}
+                onChange={(v) => setProdiFilter(v || 'Semua')}
+                emptyLabel="Semua Program Studi"
+                placeholder="Semua Program Studi"
+                searchPlaceholder="Cari program studi..."
+                options={prodis.map((p) => ({ value: p.name, label: p.name }))}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Hari</label>
+                <select
+                  value={dayFilter}
+                  onChange={(e) => setDayFilter(e.target.value)}
+                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white font-medium"
+                >
+                  <option value="Semua">Semua Hari</option>
+                  {DAYS_ORDER.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Semester</label>
+                <select
+                  value={semesterFilter}
+                  onChange={(e) => setSemesterFilter(e.target.value)}
+                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white font-medium"
+                >
+                  <option value="Semua">Semua Semester</option>
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((sm) => (
+                    <option key={sm} value={sm.toString()}>
+                      Semester {sm}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                onClick={resetFilters}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Reset Filter
+              </button>
+              <button
+                onClick={() => setIsFilterModalOpen(false)}
+                className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-900 transition-colors cursor-pointer"
+              >
+                Terapkan
+              </button>
+            </div>
+          </div>
+        </Modal>
+
         {/* MODAL TAMBAH JADWAL */}
         <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Tambah Jadwal Perkuliahan Baru">
           <form onSubmit={handleCreateSchedule} className="space-y-4">
@@ -692,11 +865,11 @@ export default function AdminJadwalPage() {
               <label className="block text-xs font-bold text-slate-700 mb-1">
                 Mata Kuliah <span className="text-rose-500">*</span>
               </label>
-              <select
+              <SearchableSelect
                 required
                 value={formData.courseCode}
-                onChange={(e) => {
-                  const sel = courses.find((c) => c.code === e.target.value);
+                onChange={(code) => {
+                  const sel = courses.find((c) => c.code === code);
                   if (sel) {
                     setFormData({
                       ...formData,
@@ -705,18 +878,14 @@ export default function AdminJadwalPage() {
                       sks: sel.sks || 3,
                       studyProgramId: sel.studyProgramId || '',
                       studyProgramName: sel.studyProgramName || '',
+                      isFlexibleSchedule: Boolean(sel.requiresThesisSupervision) || formData.isFlexibleSchedule,
                     });
                   }
                 }}
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white"
-              >
-                <option value="">Pilih Mata Kuliah</option>
-                {courses.map((c) => (
-                  <option key={c.id} value={c.code}>
-                    {c.code} - {c.name} ({c.sks} SKS)
-                  </option>
-                ))}
-              </select>
+                placeholder="Pilih Mata Kuliah"
+                searchPlaceholder="Cari kode atau nama mata kuliah..."
+                options={courses.map((c) => ({ value: c.code, label: `${c.code} - ${c.name} (${c.sks} SKS)` }))}
+              />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -728,11 +897,15 @@ export default function AdminJadwalPage() {
                 <input
                   type="text"
                   required
-                  placeholder="Contoh: TIF-5A, REG-A"
+                  placeholder="Contoh: A, 5A, REG-A"
+                  maxLength={5}
                   value={formData.className}
                   onChange={(e) => setFormData({ ...formData, className: e.target.value })}
                   className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
                 />
+                <p className="mt-1 text-[10px] text-slate-400">
+                  Maksimal 5 karakter (batas Neo Feeder) &bull; {formData.className.length}/5
+                </p>
               </div>
 
               {/* Semester */}
@@ -757,103 +930,123 @@ export default function AdminJadwalPage() {
             {/* Dosen Pengampu */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Dosen Pengampu <span className="text-rose-500">*</span>
+                Dosen Pengampu <span className="text-slate-400 font-normal">(opsional, bisa menyusul)</span>
               </label>
-              <select
-                required
+              <SearchableSelect
                 value={formData.lecturerId}
-                onChange={(e) => {
-                  const sel = lecturers.find((l) => l.id === e.target.value);
-                  if (sel) {
-                    setFormData({
-                      ...formData,
-                      lecturerId: sel.id,
-                      lecturerNidn: sel.nidn,
-                      lecturerName: sel.fullName,
-                    });
-                  }
+                onChange={(id) => {
+                  const sel = lecturers.find((l) => l.id === id);
+                  setFormData({
+                    ...formData,
+                    lecturerId: sel?.id ?? '',
+                    lecturerNidn: sel?.nidn ?? '',
+                    lecturerName: sel?.fullName ?? '',
+                  });
                 }}
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white"
-              >
-                <option value="">Pilih Dosen Pengampu</option>
-                {lecturers.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.fullName} (NIDN: {l.nidn})
-                  </option>
-                ))}
-              </select>
+                emptyLabel="Belum ditentukan"
+                placeholder="Belum ditentukan"
+                searchPlaceholder="Cari nama atau NIDN dosen..."
+                options={lecturers.map((l) => ({ value: l.id, label: `${l.fullName} (NIDN: ${l.nidn})` }))}
+              />
             </div>
 
-            {/* Ruangan */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Ruang Kuliah / Laboratorium <span className="text-rose-500">*</span>
-              </label>
-              <select
-                required
-                value={formData.roomCode}
-                onChange={(e) => {
-                  const sel = rooms.find((r) => r.code === e.target.value);
-                  if (sel) {
-                    setFormData({
-                      ...formData,
-                      roomId: sel.id,
-                      roomCode: sel.code,
-                      roomName: sel.name,
-                      buildingName: sel.buildingName,
-                    });
-                  }
-                }}
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white"
-              >
-                <option value="">Pilih Ruang Kelas</option>
-                {rooms.map((r) => (
-                  <option key={r.id} value={r.code}>
-                    {r.name} ({r.buildingName} - Kapasitas {r.capacity})
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Toggle: Tanpa Jadwal Tetap */}
+            {(() => {
+              const selectedCourse = courses.find((c) => c.code === formData.courseCode);
+              const lockedByCourse = Boolean(selectedCourse?.requiresThesisSupervision);
+              return (
+                <label className={`flex items-start gap-2.5 p-3 rounded-xl border border-slate-200 bg-slate-50/60 ${lockedByCourse ? '' : 'cursor-pointer'}`}>
+                  <input
+                    type="checkbox"
+                    checked={formData.isFlexibleSchedule}
+                    disabled={lockedByCourse}
+                    onChange={(e) => setFormData({ ...formData, isFlexibleSchedule: e.target.checked })}
+                    className={lockedByCourse ? 'mt-0.5' : 'mt-0.5 cursor-pointer'}
+                  />
+                  <span className="text-xs text-slate-700">
+                    <span className="font-bold block">Tanpa jadwal & ruang tetap</span>
+                    {lockedByCourse ? (
+                      <span className="text-amber-700">
+                        Otomatis aktif karena &quot;{selectedCourse?.name}&quot; dikategorikan Tugas Akhir & Lapangan di Master Mata Kuliah.
+                      </span>
+                    ) : (
+                      <span className="text-slate-500">Untuk Skripsi/TA, KKN, Kerja Praktik, atau bimbingan mandiri yang tidak punya hari, jam, dan ruang kelas rutin.</span>
+                    )}
+                  </span>
+                </label>
+              );
+            })()}
 
-            {/* Hari & Waktu */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Hari</label>
-                <select
-                  value={formData.day}
-                  onChange={(e) => setFormData({ ...formData, day: e.target.value })}
-                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white"
-                >
-                  {DAYS_ORDER.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {!formData.isFlexibleSchedule && (
+              <>
+                {/* Ruangan */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Ruang Kuliah / Laboratorium <span className="text-slate-400 font-normal">(opsional, bisa menyusul)</span>
+                  </label>
+                  <SearchableSelect
+                    value={formData.roomCode}
+                    onChange={(code) => {
+                      const sel = rooms.find((r) => r.code === code);
+                      setFormData({
+                        ...formData,
+                        roomId: sel?.id ?? '',
+                        roomCode: sel?.code ?? '',
+                        roomName: sel?.name ?? '',
+                        buildingName: sel?.buildingName ?? '',
+                      });
+                    }}
+                    emptyLabel="Belum ditentukan"
+                    placeholder="Belum ditentukan"
+                    searchPlaceholder="Cari nama ruang atau gedung..."
+                    options={rooms.map((r) => ({
+                      value: r.code,
+                      label: `${r.name} (${r.buildingName} - Kapasitas ${r.capacity})`,
+                    }))}
+                  />
+                </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Jam Mulai</label>
-                <input
-                  type="time"
-                  required
-                  value={formData.startTime}
-                  onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-                />
-              </div>
+                {/* Hari & Waktu */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Hari</label>
+                    <select
+                      value={formData.day}
+                      onChange={(e) => setFormData({ ...formData, day: e.target.value })}
+                      className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white"
+                    >
+                      {DAYS_ORDER.map((d) => (
+                        <option key={d} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Jam Selesai</label>
-                <input
-                  type="time"
-                  required
-                  value={formData.endTime}
-                  onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-                />
-              </div>
-            </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Jam Mulai</label>
+                    <input
+                      type="time"
+                      required
+                      value={formData.startTime}
+                      onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                      className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Jam Selesai</label>
+                    <input
+                      type="time"
+                      required
+                      value={formData.endTime}
+                      onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                      className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Kuota */}
             <div>
@@ -905,50 +1098,70 @@ export default function AdminJadwalPage() {
               <input
                 type="text"
                 required
+                maxLength={5}
                 value={formData.className}
                 onChange={(e) => setFormData({ ...formData, className: e.target.value })}
                 className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
               />
+              <p className="mt-1 text-[10px] text-slate-400">
+                Maksimal 5 karakter (batas Neo Feeder) &bull; {formData.className.length}/5
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Hari</label>
-                <select
-                  value={formData.day}
-                  onChange={(e) => setFormData({ ...formData, day: e.target.value })}
-                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white"
-                >
-                  {DAYS_ORDER.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {/* Toggle: Tanpa Jadwal Tetap */}
+            <label className="flex items-start gap-2.5 p-3 rounded-xl border border-slate-200 bg-slate-50/60 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.isFlexibleSchedule}
+                onChange={(e) => setFormData({ ...formData, isFlexibleSchedule: e.target.checked })}
+                className="mt-0.5 cursor-pointer"
+              />
+              <span className="text-xs text-slate-700">
+                <span className="font-bold block">Tanpa jadwal & ruang tetap</span>
+                <span className="text-slate-500">Untuk Skripsi/TA, KKN, Kerja Praktik, atau bimbingan mandiri.</span>
+              </span>
+            </label>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Jam Mulai</label>
-                <input
-                  type="time"
-                  required
-                  value={formData.startTime}
-                  onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-                />
-              </div>
+            {!formData.isFlexibleSchedule && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Hari</label>
+                  <select
+                    value={formData.day}
+                    onChange={(e) => setFormData({ ...formData, day: e.target.value })}
+                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white"
+                  >
+                    {DAYS_ORDER.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Jam Selesai</label>
-                <input
-                  type="time"
-                  required
-                  value={formData.endTime}
-                  onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-                />
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Jam Mulai</label>
+                  <input
+                    type="time"
+                    required
+                    value={formData.startTime}
+                    onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Jam Selesai</label>
+                  <input
+                    type="time"
+                    required
+                    value={formData.endTime}
+                    onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Kapasitas Kuota</label>

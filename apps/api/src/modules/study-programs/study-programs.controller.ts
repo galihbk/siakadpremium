@@ -20,6 +20,12 @@ export class StudyProgramsController {
     return this.studyProgramsService.findOne(id);
   }
 
+  @Get(':id/summary')
+  @ApiOperation({ summary: 'Ringkasan statistik program studi untuk dashboard Admin Prodi' })
+  async getSummary(@Param('id') id: string) {
+    return this.studyProgramsService.getSummary(id);
+  }
+
   @Post()
   @ApiOperation({ summary: 'Menambahkan program studi baru' })
   async create(@Body() body: any) {

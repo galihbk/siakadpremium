@@ -1,5 +1,53 @@
 import { GradeLetter, PaginatedResult } from '@siakad/types';
 
+// ============================================================================
+// COPYRIGHT NOTICE — JANGAN DIHAPUS / JANGAN DIUBAH TANPA IZIN NEXTVERSA
+// Satu-satunya sumber teks copyright untuk seluruh aplikasi (portal, web, api).
+// Ubah nilainya HANYA di sini agar tetap konsisten di semua permukaan.
+// ============================================================================
+export const COPYRIGHT_NOTICE = Object.freeze({
+  product: 'SIAKAD Premium',
+  owner: 'Nextversa',
+  year: new Date().getFullYear(),
+  url: 'https://nextversa.id',
+});
+
+/**
+ * Mencetak notifikasi hak cipta ke console browser (client-side).
+ * Dipanggil dari root layout tiap aplikasi Next.js (portal & web).
+ */
+export function printBrowserCopyright(): void {
+  // Paket ini dibangun dengan target Node (tanpa lib DOM), jadi `window`/`console`
+  // diakses lewat globalThis dengan cast aman alih-alih deklarasi tipe DOM langsung.
+  const g = globalThis as { window?: unknown; console?: { log: (...args: unknown[]) => void } };
+  if (typeof g.window === 'undefined' || !g.console) return;
+  const { product, owner, year, url } = COPYRIGHT_NOTICE;
+  g.console.log(
+    `%c${product} %c© ${year} ${owner}. All rights reserved.`,
+    'font-weight:700;font-size:14px;color:#1E3A8A;',
+    'font-size:12px;color:#64748b;',
+  );
+  g.console.log(
+    `%cPerangkat lunak ini dan seluruh kode sumbernya adalah hak cipta ${owner} (${url}). ` +
+      'Dilarang menyalin, memodifikasi, menghapus notifikasi ini, atau mendistribusikan ulang tanpa izin tertulis.',
+    'font-size:11px;color:#94a3b8;',
+  );
+}
+
+/**
+ * Mencetak notifikasi hak cipta ke console server (Node/Nest) saat aplikasi start.
+ */
+export function printServerCopyright(): void {
+  const { product, owner, year, url } = COPYRIGHT_NOTICE;
+  const line1 = `${product} — © ${year} ${owner}. All rights reserved.`;
+  const line2 = `${url} — Dilarang menyalin/mendistribusikan ulang tanpa izin tertulis.`;
+  const width = Math.max(line1.length, line2.length) + 2;
+  const border = '─'.repeat(width);
+  const pad = (s: string) => `│ ${s.padEnd(width - 1)}│`;
+  const log = (globalThis as { console?: { log: (...args: unknown[]) => void } }).console?.log;
+  log?.(`\n┌${border}┐\n${pad(line1)}\n${pad(line2)}\n└${border}┘\n`);
+}
+
 /**
  * Format currency into Indonesian Rupiah (IDR)
  */

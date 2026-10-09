@@ -5,7 +5,8 @@ import { getApiBaseUrl } from '@/lib/api';
 import { useSortedPagination } from '@/lib/useSortedPagination';
 import { SortableTh } from '@/components/common/SortableTh';
 import { TablePagination } from '@/components/common/TablePagination';
-import { Search, Printer, X } from 'lucide-react';
+import { Modal } from '@/components/ui/Modal';
+import { Search, Printer, SlidersHorizontal } from 'lucide-react';
 
 export interface ClassAttendance {
   id: string;
@@ -53,6 +54,7 @@ export function PresensiTable({
   const [filterYearId, setFilterYearId] = useState(initialYearId);
   const [selectedClass, setSelectedClass] = useState<ClassAttendance | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
 
   const fetchAttendances = async (yearId: string) => {
     setLoading(true);
@@ -103,6 +105,13 @@ export function PresensiTable({
   );
 
   const avgAttendance = attendances.length ? (attendances.reduce((sum, curr) => sum + curr.attendanceRate, 0) / attendances.length).toFixed(1) : '0';
+
+  const activeYear = years.find((y) => y.isActive);
+  const activeFilterCount = (filterProdi !== 'ALL' ? 1 : 0) + (activeYear && filterYearId !== activeYear.id ? 1 : 0);
+  const resetFilters = () => {
+    setFilterProdi('ALL');
+    if (activeYear) setFilterYearId(activeYear.id);
+  };
 
   return (
     <div className="w-full space-y-6">
@@ -172,32 +181,18 @@ export function PresensiTable({
           />
         </div>
 
-        <div className="flex items-center gap-2">
-          <select
-            value={filterYearId}
-            onChange={(e) => setFilterYearId(e.target.value)}
-            className="px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-medium focus:outline-none focus:border-[#1E3A8A]"
-          >
-            <option value="">Semua Tahun Akademik</option>
-            {years.map((y) => (
-              <option key={y.id} value={y.id}>
-                {y.name} {y.semesterLabel} {y.isActive ? '(Aktif)' : ''}
-              </option>
-            ))}
-          </select>
-          <select
-            value={filterProdi}
-            onChange={(e) => setFilterProdi(e.target.value)}
-            className="px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-medium focus:outline-none focus:border-[#1E3A8A]"
-          >
-            <option value="ALL">Semua Program Studi</option>
-            {studyPrograms.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-        </div>
+        <button
+          onClick={() => setIsFilterModalOpen(true)}
+          className="relative inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition-all shrink-0"
+        >
+          <SlidersHorizontal className="w-3.5 h-3.5" />
+          <span>Filter</span>
+          {activeFilterCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-[#1E3A8A] text-white text-[9px] font-bold flex items-center justify-center">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Table List */}
@@ -281,21 +276,79 @@ export function PresensiTable({
         )}
       </div>
 
-      {/* Modal Berita Acara Presensi */}
-      {modalOpen && selectedClass && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div>
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#1E3A8A]">BERITA ACARA PERKULIAHAN & PRESENSI (BAP)</span>
-                <h3 className="text-lg font-black text-slate-900">{selectedClass.courseName}</h3>
-                <p className="text-xs font-mono text-[#1E3A8A] font-bold">Kode: {selectedClass.courseCode}</p>
-              </div>
-              <button onClick={() => setModalOpen(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {/* Modal Filter */}
+      <Modal
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        title="Filter Presensi"
+        icon={<SlidersHorizontal className="w-5 h-5" />}
+        maxWidth="sm"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Tahun Akademik</label>
+            <select
+              value={filterYearId}
+              onChange={(e) => setFilterYearId(e.target.value)}
+              className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white font-medium"
+            >
+              <option value="">Semua Tahun Akademik</option>
+              {years.map((y) => (
+                <option key={y.id} value={y.id}>
+                  {y.name} {y.semesterLabel} {y.isActive ? '(Aktif)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
 
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Program Studi</label>
+            <select
+              value={filterProdi}
+              onChange={(e) => setFilterProdi(e.target.value)}
+              className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white font-medium"
+            >
+              <option value="ALL">Semua Program Studi</option>
+              {studyPrograms.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <button
+              onClick={resetFilters}
+              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              Reset Filter
+            </button>
+            <button
+              onClick={() => setIsFilterModalOpen(false)}
+              className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-900 transition-colors cursor-pointer"
+            >
+              Terapkan
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal Berita Acara Presensi */}
+      {selectedClass && (
+        <Modal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          title={
+            <div>
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#1E3A8A]">BERITA ACARA PERKULIAHAN & PRESENSI (BAP)</span>
+              <h3 className="text-base sm:text-lg font-black text-slate-900 leading-tight">{selectedClass.courseName}</h3>
+              <p className="text-xs font-mono text-[#1E3A8A] font-bold">Kode: {selectedClass.courseCode}</p>
+            </div>
+          }
+          maxWidth="lg"
+        >
+          <div className="space-y-4">
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs space-y-2">
               <div className="flex justify-between">
                 <span className="text-slate-500">Tahun Akademik:</span>
@@ -355,7 +408,7 @@ export function PresensiTable({
               </button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

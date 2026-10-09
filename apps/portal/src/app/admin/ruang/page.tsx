@@ -1,0 +1,972 @@
+'use client';
+
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { PortalLayout } from '@/components/layout/PortalLayout';
+import { Modal } from '@/components/ui/Modal';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import {
+  DoorOpen,
+  Building2,
+  Users,
+  Monitor,
+  Search,
+  Plus,
+  Download,
+  ChevronRight,
+  ChevronLeft,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Edit3,
+  Trash2,
+  CheckCircle2,
+  X,
+  Layers,
+  Tv,
+  Wifi,
+  Sparkles,
+  Award,
+  Loader2,
+} from 'lucide-react';
+
+interface RoomItem {
+  id: string;
+  code: string;
+  name: string;
+  buildingCode: string;
+  buildingName: string;
+  floor: number;
+  type: string;
+  capacity: number;
+  facilities: string[];
+  status: 'Tersedia' | 'Sedang Digunakan' | 'Dalam Pemeliharaan';
+  notes: string;
+}
+
+function RuangContent() {
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+  const searchParams = useSearchParams();
+  const initialBuildingParam = searchParams.get('building');
+
+  const [rooms, setRooms] = useState<RoomItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [buildingFilter, setBuildingFilter] = useState<string>(initialBuildingParam || 'Semua');
+  const [typeFilter, setTypeFilter] = useState<string>('Semua');
+  const [statusFilter, setStatusFilter] = useState<string>('Semua');
+
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingRoom, setEditingRoom] = useState<RoomItem | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const [buildings, setBuildings] = useState<{ id: string; code: string; name: string }[]>([]);
+
+  const loadBuildings = async () => {
+    try {
+      const res = await fetch(`${apiBase}/buildings`);
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data || json;
+        if (Array.isArray(data)) setBuildings(data);
+      }
+    } catch (err) {
+      console.error('Gagal memuat data gedung:', err);
+    }
+  };
+
+  const loadRooms = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/buildings/rooms`);
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data || json;
+        if (Array.isArray(data)) {
+          setRooms(data);
+        }
+      } else {
+        console.error('Gagal memuat data ruangan:', res.status);
+      }
+    } catch (err) {
+      console.error('Koneksi ke sistem ruangan terputus:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRooms();
+    loadBuildings();
+  }, []);
+
+  useEffect(() => {
+    if (initialBuildingParam) {
+      setBuildingFilter(initialBuildingParam);
+    }
+  }, [initialBuildingParam]);
+
+  // Form State
+  const [formData, setFormData] = useState<{
+    code: string;
+    name: string;
+    buildingCode: string;
+    buildingName: string;
+    floor: number;
+    type: string;
+    capacity: number;
+    facilitiesInput: string;
+    status: RoomItem['status'];
+    notes: string;
+  }>({
+    code: '',
+    name: '',
+    buildingCode: '',
+    buildingName: '',
+    floor: 1,
+    type: 'Kelas Teori',
+    capacity: 40,
+    facilitiesInput: '',
+    status: 'Tersedia',
+    notes: '',
+  });
+
+  // Sorting & Pagination State
+  const [sortField, setSortField] = useState<string>('code');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(5);
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, buildingFilter, typeFilter, statusFilter]);
+
+  const filteredRooms = useMemo(() => {
+    return rooms.filter((r) => {
+      const matchSearch =
+        (r.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (r.code || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (r.facilities || []).some((f) => f.toLowerCase().includes(searchQuery.toLowerCase()));
+
+      const matchBuilding =
+        buildingFilter === 'Semua' || r.buildingCode === buildingFilter;
+      const matchType = typeFilter === 'Semua' || r.type === typeFilter;
+      const matchStatus = statusFilter === 'Semua' || r.status === statusFilter;
+
+      return matchSearch && matchBuilding && matchType && matchStatus;
+    });
+  }, [rooms, searchQuery, buildingFilter, typeFilter, statusFilter]);
+
+  const sortedRooms = useMemo(() => {
+    return [...filteredRooms].sort((a, b) => {
+      const aVal: any = (a as any)[sortField];
+      const bVal: any = (b as any)[sortField];
+      if (typeof aVal === 'string') {
+        return sortOrder === 'asc'
+          ? aVal.localeCompare(bVal)
+          : bVal.localeCompare(aVal);
+      }
+      if (typeof aVal === 'number') {
+        return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
+      }
+      return 0;
+    });
+  }, [filteredRooms, sortField, sortOrder]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedRooms.length / itemsPerPage));
+  const paginatedRooms = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return sortedRooms.slice(startIndex, startIndex + itemsPerPage);
+  }, [sortedRooms, currentPage, itemsPerPage]);
+
+  const metrics = useMemo(() => {
+    const totalRuang = rooms.length;
+    const kelasTeori = rooms.filter((r) => r.type === 'Kelas Teori').length;
+    const labStudio = rooms.filter((r) => r.type === 'Lab Komputer' || r.type === 'Lab Teknik' || r.type === 'Studio Desain').length;
+    const auditorium = rooms.filter((r) => r.type === 'Auditorium & Seminar').length;
+    return { totalRuang, kelasTeori, labStudio, auditorium };
+  }, [rooms]);
+
+  const handleOpenAddModal = () => {
+    setEditingRoom(null);
+    setFormData({
+      code: '',
+      name: '',
+      buildingCode: buildings[0]?.code ?? '',
+      buildingName: buildings[0]?.name ?? '',
+      floor: 1,
+      type: 'Kelas Teori',
+      capacity: 40,
+      facilitiesInput: '',
+      status: 'Tersedia',
+      notes: '',
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEditModal = (r: RoomItem) => {
+    setEditingRoom(r);
+    setFormData({
+      code: r.code,
+      name: r.name,
+      buildingCode: r.buildingCode,
+      buildingName: r.buildingName,
+      floor: r.floor,
+      type: r.type,
+      capacity: r.capacity,
+      facilitiesInput: (r.facilities || []).join(', '),
+      status: r.status,
+      notes: r.notes || '',
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.buildingCode) {
+      showToast('Pilih gedung terlebih dahulu. Tambahkan gedung di menu Gedung bila belum ada.');
+      return;
+    }
+    setIsSubmitting(true);
+    const facilitiesArray = formData.facilitiesInput
+      .split(',')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+
+    const payload = {
+      code: formData.code,
+      name: formData.name,
+      buildingCode: formData.buildingCode,
+      floor: Number(formData.floor),
+      type: formData.type,
+      capacity: Number(formData.capacity),
+      facilities: facilitiesArray,
+      status: formData.status,
+      notes: formData.notes,
+    };
+
+    try {
+      if (editingRoom) {
+        const res = await fetch(`${apiBase}/buildings/rooms/${editingRoom.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          showToast(`Data ruang "${formData.name}" berhasil diperbarui.`);
+          await loadRooms();
+          setIsModalOpen(false);
+        } else {
+          showToast('Gagal memperbarui data ruangan.');
+        }
+      } else {
+        const res = await fetch(`${apiBase}/buildings/rooms`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          showToast(`Ruangan baru "${formData.name}" berhasil ditambahkan.`);
+          await loadRooms();
+          setIsModalOpen(false);
+        } else {
+          showToast('Gagal menambahkan ruangan baru.');
+        }
+      }
+    } catch {
+      showToast('Terjadi gangguan koneksi saat menyimpan data ruangan.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+    if (confirm(`Hapus ruangan "${name}"? Jadwal perkuliahan di ruang ini akan dibatalkan.`)) {
+      try {
+        const res = await fetch(`${apiBase}/buildings/rooms/${id}`, {
+          method: 'DELETE',
+        });
+        if (res.ok) {
+          showToast(`Ruangan "${name}" berhasil dihapus.`);
+          await loadRooms();
+        } else {
+          showToast('Gagal menghapus ruangan.');
+        }
+      } catch {
+        showToast('Terjadi gangguan koneksi saat menghapus ruangan.');
+      }
+    }
+  };
+
+  return (
+    <PortalLayout
+      role="admin"
+      userName="Admin BAAK"
+      userIdText="Biro Administrasi Akademik & Kemahasiswaan"
+    >
+      <div className="w-full space-y-6">
+        {/* Toast Notification */}
+        {toastMessage && (
+          <div className="fixed bottom-6 right-6 z-50 bg-[#0F172A] text-white px-5 py-3.5 rounded-2xl shadow-2xl border border-blue-500/30 flex items-center gap-3 animate-fade-in">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+            <span className="text-sm font-medium">{toastMessage}</span>
+          </div>
+        )}
+
+        {/* Header Breadcrumb & Actions */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 mb-1">
+              <Link href="/admin" className="hover:text-[#1E3A8A] transition-colors">
+                Dashboard
+              </Link>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+              <span className="text-slate-500">Master Data</span>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+              <span className="text-[#1E3A8A] font-bold">Ruang Kuliah & Lab</span>
+            </div>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
+              <DoorOpen className="w-7 h-7 text-[#1E3A8A]" />
+              <span>Manajemen Ruang Perkuliahan & Lab</span>
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-600 mt-1">
+              Inventaris ruang kelas teori, laboratorium komputasi/rekayasa, studio kreatif, dan auditorium kampus ITN.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2.5 shrink-0">
+            <Link
+              href="/admin/gedung"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer shadow-xs"
+            >
+              <Building2 className="w-4 h-4 text-slate-500" />
+              <span>Data Gedung</span>
+            </Link>
+            <button
+              onClick={handleOpenAddModal}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 transition-all cursor-pointer shadow-sm hover:shadow-md"
+            >
+              <Plus className="w-4 h-4 text-[#D4A017]" />
+              <span>Tambah Ruangan Baru</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 4 Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Ruangan</p>
+              <h3 className="text-2xl font-black text-slate-900 mt-1">{metrics.totalRuang} Ruang</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Seluruh sarana perkuliahan</p>
+            </div>
+            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#1E3A8A] border border-blue-100 flex items-center justify-center font-bold text-lg">
+              <DoorOpen className="w-6 h-6" />
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Kelas Teori Utama</p>
+              <h3 className="text-2xl font-black text-indigo-700 mt-1">{metrics.kelasTeori} Kelas</h3>
+              <p className="text-xs text-indigo-600 font-medium mt-0.5">Dilengkapi Smart Classroom</p>
+            </div>
+            <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-700 border border-indigo-100 flex items-center justify-center font-bold text-lg">
+              <Tv className="w-6 h-6" />
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Laboratorium & Studio</p>
+              <h3 className="text-2xl font-black text-emerald-700 mt-1">{metrics.labStudio} Lab/Studio</h3>
+              <p className="text-xs text-emerald-600 font-medium mt-0.5">Komputer, Teknik & Desain</p>
+            </div>
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center justify-center font-bold text-lg">
+              <Monitor className="w-6 h-6" />
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Auditorium & Aula</p>
+              <h3 className="text-2xl font-black text-amber-600 mt-1">{metrics.auditorium} Ruang</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Kapasitas besar & seminar</p>
+            </div>
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center font-bold text-lg">
+              <Award className="w-6 h-6" />
+            </div>
+          </div>
+        </div>
+
+        {/* Filter & Search Bar */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          <div className="relative flex-1 min-w-[260px]">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari kode ruang (A-201), nama ruangan, atau fasilitas..."
+              className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-slate-50/50"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Filter Gedung */}
+            <SearchableSelect
+              className="min-w-[13rem]"
+              value={buildingFilter === 'Semua' ? '' : buildingFilter}
+              onChange={(v) => setBuildingFilter(v || 'Semua')}
+              emptyLabel="Semua Gedung"
+              placeholder="Semua Gedung"
+              searchPlaceholder="Cari gedung..."
+              options={buildings.map((b) => ({ value: b.code, label: b.name }))}
+            />
+
+            {/* Filter Tipe Ruangan */}
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 cursor-pointer"
+            >
+              <option value="Semua">Semua Tipe Ruang</option>
+              <option value="Kelas Teori">Kelas Teori</option>
+              <option value="Lab Komputer">Lab Komputer</option>
+              <option value="Lab Teknik">Lab Teknik</option>
+              <option value="Studio Desain">Studio Desain</option>
+              <option value="Auditorium & Seminar">Auditorium & Seminar</option>
+            </select>
+
+            {/* Filter Status */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 cursor-pointer"
+            >
+              <option value="Semua">Semua Status</option>
+              <option value="Tersedia">Tersedia</option>
+              <option value="Sedang Digunakan">Sedang Digunakan</option>
+              <option value="Dalam Pemeliharaan">Dalam Pemeliharaan</option>
+            </select>
+
+            {(searchQuery || buildingFilter !== 'Semua' || typeFilter !== 'Semua' || statusFilter !== 'Semua') && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setBuildingFilter('Semua');
+                  setTypeFilter('Semua');
+                  setStatusFilter('Semua');
+                }}
+                className="text-xs text-rose-600 hover:underline px-2"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Table Ruang Perkuliahan */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-600 select-none">
+                  {/* Sort: Kode & Ruang */}
+                  <th
+                    onClick={() => handleSort('code')}
+                    className="py-3.5 px-5 cursor-pointer hover:bg-slate-100 transition-colors group"
+                    title="Klik untuk mengurutkan kode ruang"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Kode & Nama Ruangan</span>
+                      {sortField === 'code' ? (
+                        sortOrder === 'asc' ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 opacity-40 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </div>
+                  </th>
+
+                  {/* Sort: Gedung & Lantai */}
+                  <th
+                    onClick={() => handleSort('buildingName')}
+                    className="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors group"
+                    title="Klik untuk mengurutkan gedung"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Gedung & Lantai</span>
+                      {sortField === 'buildingName' ? (
+                        sortOrder === 'asc' ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 opacity-40 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </div>
+                  </th>
+
+                  {/* Sort: Tipe Ruangan */}
+                  <th
+                    onClick={() => handleSort('type')}
+                    className="py-3.5 px-4 text-center cursor-pointer hover:bg-slate-100 transition-colors group"
+                    title="Klik untuk mengurutkan tipe ruang"
+                  >
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span>Tipe Ruang</span>
+                      {sortField === 'type' ? (
+                        sortOrder === 'asc' ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 opacity-40 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </div>
+                  </th>
+
+                  {/* Sort: Kapasitas */}
+                  <th
+                    onClick={() => handleSort('capacity')}
+                    className="py-3.5 px-4 text-center cursor-pointer hover:bg-slate-100 transition-colors group"
+                    title="Klik untuk mengurutkan kapasitas"
+                  >
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span>Kapasitas</span>
+                      {sortField === 'capacity' ? (
+                        sortOrder === 'asc' ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 opacity-40 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </div>
+                  </th>
+
+                  <th className="py-3.5 px-4">Fasilitas Utama</th>
+
+                  {/* Sort: Status */}
+                  <th
+                    onClick={() => handleSort('status')}
+                    className="py-3.5 px-4 text-center cursor-pointer hover:bg-slate-100 transition-colors group"
+                    title="Klik untuk mengurutkan status ruangan"
+                  >
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span>Status</span>
+                      {sortField === 'status' ? (
+                        sortOrder === 'asc' ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 opacity-40 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </div>
+                  </th>
+
+                  <th className="py-3.5 px-5 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-16 text-slate-500">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <Loader2 className="w-8 h-8 text-[#1E3A8A] animate-spin" />
+                        <p className="font-semibold text-sm text-slate-700">Memuat data ruangan & fasilitas...</p>
+                        <p className="text-xs text-slate-400">Sinkronisasi data master sarana dan prasarana kampus</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : paginatedRooms.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-12 text-slate-500">
+                      <DoorOpen className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                      <p className="font-semibold text-sm">Tidak ada data ruangan ditemukan</p>
+                      <p className="text-xs text-slate-400 mt-0.5">Coba sesuaikan kata kunci atau filter gedung Anda</p>
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedRooms.map((r) => (
+                    <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3.5 px-5">
+                        <div className="flex items-start gap-2.5">
+                          <span className="font-mono text-xs font-black text-[#1E3A8A] bg-blue-50 px-2 py-1 rounded-lg border border-blue-200 shrink-0 mt-0.5">
+                            {r.code}
+                          </span>
+                          <div>
+                            <div className="font-bold text-slate-900 text-sm leading-snug">{r.name}</div>
+                            <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">{r.notes}</p>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <div className="font-bold text-slate-800 text-xs">{r.buildingName}</div>
+                        <span className="text-[10px] text-slate-500 font-semibold">Lantai {r.floor}</span>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-center">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                            r.type === 'Kelas Teori'
+                              ? 'bg-blue-50 text-[#1E3A8A] border border-blue-200'
+                              : r.type === 'Lab Komputer'
+                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                : r.type === 'Lab Teknik'
+                                  ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                  : r.type === 'Studio Desain'
+                                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          }`}
+                        >
+                          {r.type}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-center">
+                        <span className="font-black text-slate-900 text-sm">{r.capacity}</span>
+                        <span className="text-[10px] text-slate-400 block font-medium">Kursi</span>
+                      </td>
+
+                      <td className="py-3.5 px-4 max-w-xs">
+                        <div className="flex flex-wrap gap-1">
+                          {r.facilities.slice(0, 3).map((f, i) => (
+                            <span
+                              key={i}
+                              className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-medium line-clamp-1"
+                            >
+                              {f}
+                            </span>
+                          ))}
+                          {r.facilities.length > 3 && (
+                            <span className="text-[10px] text-slate-400 font-bold px-1">
+                              +{r.facilities.length - 3} lagi
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-center">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                            r.status === 'Tersedia'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : r.status === 'Sedang Digunakan'
+                                ? 'bg-blue-100 text-[#1E3A8A]'
+                                : 'bg-rose-100 text-rose-800'
+                          }`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              r.status === 'Tersedia'
+                                ? 'bg-emerald-500'
+                                : r.status === 'Sedang Digunakan'
+                                  ? 'bg-[#1E3A8A]'
+                                  : 'bg-rose-500'
+                            }`}
+                          ></span>
+                          {r.status}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => handleOpenEditModal(r)}
+                            className="p-1.5 text-slate-500 hover:text-[#1E3A8A] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                            title="Edit Ruangan"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(r.id, r.name)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            title="Hapus Ruangan"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination Controls Footer */}
+          <div className="p-4 border-t border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+            <div className="flex items-center gap-2">
+              <span>Tampilkan</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1E3A8A]"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>Semua (20)</option>
+              </select>
+              <span>per halaman</span>
+              <span className="text-slate-400 ml-2 hidden md:inline">
+                &bull; Menampilkan {Math.min(filteredRooms.length, (currentPage - 1) * itemsPerPage + 1)} - {Math.min(currentPage * itemsPerPage, filteredRooms.length)} dari {filteredRooms.length} ruangan
+              </span>
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-slate-700 font-semibold transition-all cursor-pointer disabled:cursor-not-allowed flex items-center gap-1"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Sebelumnya</span>
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      currentPage === page
+                        ? 'bg-[#1E3A8A] text-white shadow-xs'
+                        : 'bg-white border border-slate-200 hover:bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-slate-700 font-semibold transition-all cursor-pointer disabled:cursor-not-allowed flex items-center gap-1"
+                >
+                  <span className="hidden sm:inline">Berikutnya</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Modal: Tambah / Edit Ruangan */}
+        <Modal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          title={editingRoom ? 'Edit Data Ruangan' : 'Tambah Ruangan Baru'}
+          subtitle="Sarana perkuliahan & riset Institut Teknologi Nusantara"
+          icon={<DoorOpen className="w-5 h-5" />}
+          maxWidth="xl"
+        >
+          <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Kode Ruangan <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. A-301"
+                      value={formData.code}
+                      onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                      className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] font-mono font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Kapasitas Kursi (Orang) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min={5}
+                      max={600}
+                      value={formData.capacity}
+                      onChange={(e) => setFormData({ ...formData, capacity: Number(e.target.value) })}
+                      className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Nama Ruangan <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Ruang Teori Multimedia 301"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Lokasi Gedung <span className="text-rose-500">*</span>
+                    </label>
+                    <SearchableSelect
+                      required
+                      value={formData.buildingCode}
+                      onChange={(code) =>
+                        setFormData({
+                          ...formData,
+                          buildingCode: code,
+                          buildingName: buildings.find((b) => b.code === code)?.name ?? '',
+                        })
+                      }
+                      placeholder={buildings.length === 0 ? 'Belum ada gedung' : 'Pilih gedung'}
+                      searchPlaceholder="Cari gedung..."
+                      options={buildings.map((b) => ({ value: b.code, label: b.name }))}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Lantai</label>
+                    <select
+                      value={formData.floor}
+                      onChange={(e) => setFormData({ ...formData, floor: Number(e.target.value) })}
+                      className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white font-medium"
+                    >
+                      {[1, 2, 3, 4, 5, 6].map((fl) => (
+                        <option key={fl} value={fl}>
+                          Lantai {fl}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Tipe / Fungsi Ruang</label>
+                    <select
+                      value={formData.type}
+                      onChange={(e) => setFormData({ ...formData, type: e.target.value as RoomItem['type'] })}
+                      className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white font-medium"
+                    >
+                      <option value="Kelas Teori">Kelas Teori</option>
+                      <option value="Lab Komputer">Lab Komputer</option>
+                      <option value="Lab Teknik">Lab Teknik</option>
+                      <option value="Studio Desain">Studio Desain</option>
+                      <option value="Auditorium & Seminar">Auditorium & Seminar</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Status Ketersediaan</label>
+                    <select
+                      value={formData.status}
+                      onChange={(e) =>
+                        setFormData({ ...formData, status: e.target.value as RoomItem['status'] })
+                      }
+                      className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white font-medium"
+                    >
+                      <option value="Tersedia">Tersedia</option>
+                      <option value="Sedang Digunakan">Sedang Digunakan</option>
+                      <option value="Dalam Pemeliharaan">Dalam Pemeliharaan</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Fasilitas Ruangan (Pisahkan dengan tanda koma)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Smart TV 75 inch, AC (2 Unit), Sound System, Wi-Fi 6"
+                    value={formData.facilitiesInput}
+                    onChange={(e) => setFormData({ ...formData, facilitiesInput: e.target.value })}
+                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Catatan / Keterangan Ruangan</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Catatan khusus pemakaian atau peruntukan ruang..."
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                  ></textarea>
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 disabled:opacity-50 transition-all shadow-xs cursor-pointer"
+                  >
+                    {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span>{editingRoom ? 'Simpan Perubahan' : 'Tambah Ruangan'}</span>
+                  </button>
+                </div>
+              </form>
+        </Modal>
+      </div>
+    </PortalLayout>
+  );
+}
+
+export default function AdminRuangPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-xs text-slate-400">Loading...</div>}>
+      <RuangContent />
+    </Suspense>
+  );
+}

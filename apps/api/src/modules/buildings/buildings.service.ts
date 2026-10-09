@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 
 export interface BuildingResponse {
@@ -36,7 +36,7 @@ export class BuildingsService {
       alias: b.alias || '',
       functionDesc: b.functionDesc || '',
       floorsCount: b.floorsCount,
-      roomsCount: b.rooms.length > 0 ? b.rooms.length : b.roomsCount,
+      roomsCount: b.rooms.length,
       capacity: b.capacity,
       picName: b.picName || '',
       picPhone: b.picPhone || '',
@@ -67,7 +67,7 @@ export class BuildingsService {
       alias: b.alias || '',
       functionDesc: b.functionDesc || '',
       floorsCount: b.floorsCount,
-      roomsCount: b.rooms.length > 0 ? b.rooms.length : b.roomsCount,
+      roomsCount: b.rooms.length,
       capacity: b.capacity,
       picName: b.picName || '',
       picPhone: b.picPhone || '',
@@ -144,7 +144,7 @@ export class BuildingsService {
       alias: updated.alias || '',
       functionDesc: updated.functionDesc || '',
       floorsCount: updated.floorsCount,
-      roomsCount: updated.rooms.length > 0 ? updated.rooms.length : updated.roomsCount,
+      roomsCount: updated.rooms.length,
       capacity: updated.capacity,
       picName: updated.picName || '',
       picPhone: updated.picPhone || '',
@@ -192,20 +192,20 @@ export class BuildingsService {
   }
 
   async createRoom(data: any) {
-    let building = await this.prisma.building.findFirst({
+    const building = await this.prisma.building.findFirst({
       where: { code: data.buildingCode },
     });
     if (!building) {
-      building = await this.prisma.building.findFirst();
+      throw new BadRequestException('Gedung tidak ditemukan. Pilih gedung yang sudah terdaftar.');
     }
 
     const created = await this.prisma.room.create({
       data: {
         code: data.code.trim().toUpperCase(),
         name: data.name.trim(),
-        buildingId: building?.id || 'b-1',
-        buildingCode: data.buildingCode || building?.code || 'TWR-A',
-        buildingName: data.buildingName || building?.name || 'Gedung BJ Habibie',
+        buildingId: building.id,
+        buildingCode: building.code,
+        buildingName: building.name,
         floor: Number(data.floor) || 1,
         type: data.type || 'Kelas Teori',
         capacity: Number(data.capacity) || 40,

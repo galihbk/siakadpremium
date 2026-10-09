@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { Modal } from '@/components/ui/Modal';
+import { getAuthSession } from '@/lib/auth';
 import {
   GraduationCap,
   Landmark,
@@ -28,7 +29,20 @@ import {
   ArrowDown,
   ChevronLeft,
   Loader2,
+  AlertTriangle,
+  ArrowDownToLine,
+  RefreshCw,
 } from 'lucide-react';
+
+interface RemoteProdiItem {
+  code: string;
+  diktiCode?: string;
+  name: string;
+  degreeLevel?: string;
+  facultyCode?: string;
+  facultyName?: string;
+  accreditation?: string;
+}
 
 interface StudyProgram {
   id: string;
@@ -37,13 +51,14 @@ interface StudyProgram {
   name: string;
   degreeLevel: 'S1' | 'D4' | 'D3' | 'S2';
   degreeTitle: string;
-  facultyCode: 'FASILKOM' | 'FTI' | 'FEBD' | 'FDKV';
+  facultyId: string;
+  facultyCode: string;
   facultyName: string;
   headOfProgram: string;
   headNip: string;
   studentsCount: number;
   lecturersCount: number;
-  accreditation: 'Unggul' | 'Baik Sekali' | 'A' | 'B';
+  accreditation: 'Unggul' | 'Baik Sekali' | 'Baik' | 'A' | 'B';
   accreditationAgency: string;
   skAkreditasi: string;
   status: 'Aktif' | 'Nonaktif';
@@ -100,6 +115,123 @@ function ProdiContent() {
     }
   }, [initialFacultyParam]);
 
+  // Tarik & Sinkronkan Data Prodi dari Feeder
+  const [isPullingProdi, setIsPullingProdi] = useState(false);
+  const [isSyncingProdi, setIsSyncingProdi] = useState(false);
+  const [prodiPullMessage, setProdiPullMessage] = useState<{ success: boolean; text: string } | null>(null);
+  // Prodi dari Feeder yang kodenya TIDAK ditemukan di data Program Studi lokal --
+  // yang sudah ada otomatis ditandai sinkron tanpa perlu aksi apa pun.
+  const [prodiPullItems, setProdiPullItems] = useState<RemoteProdiItem[]>([]);
+  const [prodiMatchedCount, setProdiMatchedCount] = useState<number | null>(null);
+  // PDDIKTI tidak punya entitas Fakultas sama sekali, jadi fakultas induk prodi baru
+  // wajib dipilih manual di sini -- tidak pernah ditebak otomatis oleh sistem.
+  const [facultiesList, setFacultiesList] = useState<{ id: string; code: string; name: string }[]>([]);
+  const [prodiFacultyChoice, setProdiFacultyChoice] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    fetch(`${apiBase}/faculties`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        const list = Array.isArray(json) ? json : json?.data || [];
+        setFacultiesList(list.map((f: any) => ({ id: f.id, code: f.code, name: f.name })));
+      })
+      .catch((err) => console.warn('Gagal memuat daftar fakultas:', err));
+  }, []);
+
+  // Handler: Tarik Data Prodi dari Feeder
+  const handlePullProdi = async () => {
+    setIsPullingProdi(true);
+    setProdiPullMessage(null);
+    setProdiPullItems([]);
+    setProdiMatchedCount(null);
+    setProdiFacultyChoice({});
+    try {
+      const { token } = getAuthSession();
+      const res = await fetch(`${apiBase}/integration-settings/pddikti/prodi`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.status === 401 || res.status === 403) {
+        setProdiPullMessage({ success: false, text: 'Anda tidak memiliki izin menarik data ini. Fitur ini khusus Super Admin.' });
+        return;
+      }
+      const json = await res.json().catch(() => null);
+      // Respons API dibungkus TransformInterceptor: { success, message, data: {...} }.
+      // success/message di level atas itu status HTTP generik, BUKAN hasil tarikan data
+      // Feeder sesungguhnya -- hasil aslinya ada di dalam `data`.
+      const result = json?.data ?? json;
+      if (!result) {
+        setProdiPullMessage({ success: false, text: 'Gagal membaca respons server.' });
+        return;
+      }
+
+      if (!result.success) {
+        setProdiPullMessage({ success: false, text: result.message });
+        return;
+      }
+
+      const items: RemoteProdiItem[] = Array.isArray(result.items) ? result.items : [];
+      // Cocokkan ke kode ATAU kode DIKTI lokal -- jangan cuma kode internal, karena
+      // admin bisa saja sudah mengganti "Kode Internal Prodi" jadi penomoran sendiri
+      // (mis. "01", "04") yang beda dari kode_program_studi asli dari Feeder.
+      const localCodes = new Set(
+        programs.flatMap((p) => [p.code?.trim().toLowerCase(), p.diktiCode?.trim().toLowerCase()].filter(Boolean))
+      );
+      const unmatched = items.filter((i) => !localCodes.has(i.code.trim().toLowerCase()));
+      const matchedCount = items.length - unmatched.length;
+
+      setProdiMatchedCount(matchedCount);
+      setProdiPullItems(unmatched);
+      // Kalau cuma ada satu fakultas lokal, tidak ada ambiguitas -- isi otomatis.
+      // Kalau lebih dari satu, admin wajib pilih sendiri per prodi (lihat komentar
+      // di RemoteProdiItem: Feeder tidak pernah memberi tahu fakultas induknya).
+      if (facultiesList.length === 1) {
+        setProdiFacultyChoice(Object.fromEntries(unmatched.map((i) => [i.code, facultiesList[0].id])));
+      }
+      setProdiPullMessage({
+        success: true,
+        text:
+          unmatched.length === 0
+            ? `${items.length} program studi ditarik dari Feeder, semuanya sudah sinkron dengan data lokal.`
+            : `${items.length} program studi ditarik dari Feeder: ${matchedCount} sudah sinkron, ${unmatched.length} belum ada di data lokal.`,
+      });
+    } catch (err) {
+      setProdiPullMessage({ success: false, text: err instanceof Error ? err.message : 'Gagal menghubungi server.' });
+    } finally {
+      setIsPullingProdi(false);
+    }
+  };
+
+  // Handler: Menambahkan Program Studi yang belum ada di lokal (hasil Pull yang tidak cocok)
+  const handleSyncProdi = async () => {
+    if (prodiPullItems.length === 0) return;
+    const missingFaculty = prodiPullItems.some((i) => !prodiFacultyChoice[i.code]?.trim());
+    if (missingFaculty) {
+      showToast('Pilih fakultas untuk setiap program studi terlebih dahulu -- Feeder tidak mengirim data fakultas.');
+      return;
+    }
+    setIsSyncingProdi(true);
+    try {
+      const { token } = getAuthSession();
+      const items = prodiPullItems.map((i) => ({ ...i, facultyId: prodiFacultyChoice[i.code] }));
+      const res = await fetch(`${apiBase}/integration-settings/pddikti/prodi/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ items }),
+      });
+      const json = await res.json().catch(() => null);
+      const result = json?.data ?? json;
+      if (!res.ok) throw new Error(result?.message || `HTTP ${res.status}`);
+      showToast(result?.message || 'Sinkronisasi prodi selesai.');
+      setProdiPullItems([]);
+      setProdiFacultyChoice({});
+      loadPrograms();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Gagal menyinkronkan data prodi.');
+    } finally {
+      setIsSyncingProdi(false);
+    }
+  };
+
   // Form State
   const [formData, setFormData] = useState<{
     code: string;
@@ -107,9 +239,7 @@ function ProdiContent() {
     name: string;
     degreeLevel: StudyProgram['degreeLevel'];
     degreeTitle: string;
-    facultyCode: StudyProgram['facultyCode'];
-    headOfProgram: string;
-    headNip: string;
+    facultyId: string;
     studentsCount: number;
     lecturersCount: number;
     accreditation: StudyProgram['accreditation'];
@@ -121,9 +251,7 @@ function ProdiContent() {
     name: '',
     degreeLevel: 'S1',
     degreeTitle: 'S.Kom.',
-    facultyCode: 'FASILKOM',
-    headOfProgram: '',
-    headNip: '',
+    facultyId: '',
     studentsCount: 100,
     lecturersCount: 10,
     accreditation: 'Unggul',
@@ -208,9 +336,7 @@ function ProdiContent() {
       name: '',
       degreeLevel: 'S1',
       degreeTitle: 'S.Kom.',
-      facultyCode: 'FASILKOM',
-      headOfProgram: '',
-      headNip: '',
+      facultyId: facultiesList[0]?.id || '',
       studentsCount: 100,
       lecturersCount: 10,
       accreditation: 'Unggul',
@@ -228,9 +354,7 @@ function ProdiContent() {
       name: p.name,
       degreeLevel: p.degreeLevel,
       degreeTitle: p.degreeTitle || '',
-      facultyCode: p.facultyCode,
-      headOfProgram: p.headOfProgram || '',
-      headNip: p.headNip || '',
+      facultyId: p.facultyId,
       studentsCount: p.studentsCount || 0,
       lecturersCount: p.lecturersCount || 0,
       accreditation: p.accreditation,
@@ -242,29 +366,19 @@ function ProdiContent() {
 
   const handleSaveProgram = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.code || !formData.name || !formData.headOfProgram) {
-      alert('Mohon isi field wajib!');
+    if (!formData.code || !formData.name || !formData.facultyId) {
+      alert('Mohon isi field wajib (termasuk Fakultas Induk)!');
       return;
     }
 
     setIsSubmitting(true);
-    const facultyMap: Record<string, string> = {
-      FASILKOM: 'Fakultas Ilmu Komputer & Informatika',
-      FTI: 'Fakultas Teknik & Teknologi Industri',
-      FEBD: 'Fakultas Ekonomi & Bisnis Digital',
-      FDKV: 'Fakultas Desain Komunikasi Visual & Seni',
-    };
-
     const payload = {
       code: formData.code.toUpperCase(),
       diktiCode: formData.diktiCode || '00000',
       name: formData.name,
       degreeLevel: formData.degreeLevel,
       degreeTitle: formData.degreeTitle,
-      facultyCode: formData.facultyCode,
-      facultyName: facultyMap[formData.facultyCode] || 'Fakultas',
-      headOfProgram: formData.headOfProgram,
-      headNip: formData.headNip || '-',
+      facultyId: formData.facultyId,
       studentsCount: Number(formData.studentsCount) || 0,
       lecturersCount: Number(formData.lecturersCount) || 0,
       accreditation: formData.accreditation,
@@ -380,6 +494,105 @@ function ProdiContent() {
           </div>
         </div>
 
+        {/* Card: Tarik Data Program Studi dari PDDIKTI (Neo Feeder) */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-3">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#1E3A8A] flex items-center justify-center shrink-0">
+                <GraduationCap className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-extrabold text-slate-900 text-sm">Sinkronisasi Program Studi dari Web Service Neo Feeder PDDIKTI</h3>
+                <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                  Ambil daftar prodi resmi dari Feeder, lalu cocokkan dengan Program Studi lokal. Prodi yang belum ada lokal akan ditambahkan ke master data ini setelah fakultas induknya dipilih.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handlePullProdi}
+              disabled={isPullingProdi}
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-900 rounded-xl shadow-xs transition-all disabled:opacity-60 cursor-pointer shrink-0"
+            >
+              {isPullingProdi ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ArrowDownToLine className="w-3.5 h-3.5" />}
+              <span>{isPullingProdi ? 'Menarik...' : 'Pull dari Feeder'}</span>
+            </button>
+          </div>
+
+          {prodiPullMessage && (
+            <div
+              className={`flex items-start gap-2 text-[11px] p-2.5 rounded-xl border ${
+                prodiPullMessage.success ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'
+              }`}
+            >
+              {prodiPullMessage.success ? (
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              ) : (
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              )}
+              <span>{prodiPullMessage.text}</span>
+            </div>
+          )}
+
+          {prodiPullItems.length > 0 && (
+            <div className="pt-2 border-t border-slate-100 space-y-3">
+              <div>
+                <h4 className="font-bold text-slate-900 text-xs">Program Studi Belum Ada di Lokal</h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  {prodiPullItems.length} prodi ditemukan di Feeder tapi kodenya tidak cocok dengan data Program Studi lokal mana pun.
+                  Pilih fakultas induknya terlebih dahulu -- Feeder tidak mengirim data fakultas.
+                </p>
+              </div>
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-500">
+                    <tr>
+                      <th className="py-2.5 px-3">Kode</th>
+                      <th className="py-2.5 px-3">Nama Prodi</th>
+                      <th className="py-2.5 px-3">Jenjang</th>
+                      <th className="py-2.5 px-3">Fakultas</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {prodiPullItems.map((item) => (
+                      <tr key={item.code} className="hover:bg-slate-50/70">
+                        <td className="py-2 px-3 font-mono font-bold text-[#1E3A8A]">{item.code}</td>
+                        <td className="py-2 px-3 font-semibold text-slate-800">{item.name}</td>
+                        <td className="py-2 px-3 text-slate-600">{item.degreeLevel || '-'}</td>
+                        <td className="py-2 px-3">
+                          <select
+                            value={prodiFacultyChoice[item.code] || ''}
+                            onChange={(e) => setProdiFacultyChoice((prev) => ({ ...prev, [item.code]: e.target.value }))}
+                            className={`text-[11px] border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 ${
+                              prodiFacultyChoice[item.code] ? 'border-slate-200' : 'border-amber-300'
+                            }`}
+                          >
+                            <option value="">Pilih fakultas...</option>
+                            {facultiesList.map((f) => (
+                              <option key={f.id} value={f.id}>
+                                {f.name}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex justify-end">
+                <button
+                  onClick={handleSyncProdi}
+                  disabled={isSyncingProdi}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs transition-all disabled:opacity-60 cursor-pointer"
+                >
+                  {isSyncingProdi ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  <span>{isSyncingProdi ? 'Menambahkan...' : `Tambahkan ${prodiPullItems.length} Prodi ke Lokal`}</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* 4 Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
@@ -456,10 +669,11 @@ function ProdiContent() {
               className="px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 cursor-pointer"
             >
               <option value="Semua">Semua Fakultas</option>
-              <option value="FASILKOM">Fakultas Ilmu Komputer (FASILKOM)</option>
-              <option value="FTI">Fakultas Teknik & Teknologi Industri (FTI)</option>
-              <option value="FEBD">Fakultas Ekonomi & Bisnis Digital (FEBD)</option>
-              <option value="FDKV">Fakultas Desain Komunikasi Visual (FDKV)</option>
+              {facultiesList.map((f) => (
+                <option key={f.id} value={f.code}>
+                  {f.name} ({f.code})
+                </option>
+              ))}
             </select>
 
             {/* Filter Jenjang */}
@@ -483,6 +697,9 @@ function ProdiContent() {
               <option value="Semua">Semua Akreditasi</option>
               <option value="Unggul">Unggul</option>
               <option value="Baik Sekali">Baik Sekali</option>
+              <option value="Baik">Baik</option>
+              <option value="A">A (Legacy)</option>
+              <option value="B">B (Legacy)</option>
             </select>
 
             {(facultyFilter !== 'Semua' || degreeFilter !== 'Semua' || accreditationFilter !== 'Semua') && (
@@ -839,14 +1056,17 @@ function ProdiContent() {
                   <div className="sm:col-span-2 space-y-1">
                     <label className="font-bold text-slate-700">Fakultas Induk *</label>
                     <select
-                      value={formData.facultyCode}
-                      onChange={(e) => setFormData({ ...formData, facultyCode: e.target.value as any })}
+                      value={formData.facultyId}
+                      onChange={(e) => setFormData({ ...formData, facultyId: e.target.value })}
+                      required
                       className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white font-semibold"
                     >
-                      <option value="FASILKOM">Fakultas Ilmu Komputer & Informatika (FASILKOM)</option>
-                      <option value="FTI">Fakultas Teknik & Teknologi Industri (FTI)</option>
-                      <option value="FEBD">Fakultas Ekonomi & Bisnis Digital (FEBD)</option>
-                      <option value="FDKV">Fakultas Desain Komunikasi Visual & Seni (FDKV)</option>
+                      <option value="">Pilih fakultas...</option>
+                      {facultiesList.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.name} ({f.code})
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -919,8 +1139,9 @@ function ProdiContent() {
                     >
                       <option value="Unggul">Unggul</option>
                       <option value="Baik Sekali">Baik Sekali</option>
-                      <option value="A">A</option>
-                      <option value="B">B</option>
+                      <option value="Baik">Baik</option>
+                      <option value="A">A (Legacy)</option>
+                      <option value="B">B (Legacy)</option>
                     </select>
                   </div>
 
@@ -935,28 +1156,6 @@ function ProdiContent() {
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="font-bold text-slate-700">Nama Ketua Prodi (Kaprodi) *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Nama lengkap & gelar"
-                      value={formData.headOfProgram}
-                      onChange={(e) => setFormData({ ...formData, headOfProgram: e.target.value })}
-                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-                    />
-                  </div>
-
-                  <div className="sm:col-span-2 space-y-1">
-                    <label className="font-bold text-slate-700">NIP / NIDN Kaprodi</label>
-                    <input
-                      type="text"
-                      placeholder="19790112 200501 1 002"
-                      value={formData.headNip}
-                      onChange={(e) => setFormData({ ...formData, headNip: e.target.value })}
-                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] font-mono"
-                    />
-                  </div>
                 </div>
 
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 mt-6">

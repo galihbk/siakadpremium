@@ -1,0 +1,474 @@
+<title>Peta Fitur SIAKAD Premium</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     DESIGN PLAN
+     Layout: sticky top bar with jump-pills -> hero -> stacked role
+     sections (each a bordered card: icon + intro + feature grid),
+     closing strip on cross-cutting infrastructure. Single column,
+     reads top to bottom like a catalog.
+     Color: institutional navy + gold, mirrored from the product's
+     own brand (#1E3A8A / #D4A017), not invented fresh.
+     Type: Fraunces (display, institutional gravitas) for headings,
+     Inter for body/UI text, JetBrains Mono for codes & counts.
+     ============================================================ */
+  :root{
+    --bg:#f7f7f5;
+    --surface:#ffffff;
+    --surface-2:#f1f0ec;
+    --border:#e3e1d9;
+    --ink:#1b1d22;
+    --ink-soft:#52565f;
+    --ink-faint:#8b8f99;
+    --navy:#1E3A8A;
+    --navy-deep:#132654;
+    --gold:#b8860b;
+    --gold-soft:#d4a017;
+    --good:#2f7a4f;
+    --font-display:'Fraunces', Georgia, 'Times New Roman', serif;
+    --font-body:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono:'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#121317;
+      --surface:#1a1c22;
+      --surface-2:#20232a;
+      --border:#30333c;
+      --ink:#eceef2;
+      --ink-soft:#aeb2bd;
+      --ink-faint:#787d89;
+      --navy:#5b7fd8;
+      --navy-deep:#0f1a38;
+      --gold:#e0b03a;
+      --gold-soft:#e0b03a;
+      --good:#52b985;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#121317;
+    --surface:#1a1c22;
+    --surface-2:#20232a;
+    --border:#30333c;
+    --ink:#eceef2;
+    --ink-soft:#aeb2bd;
+    --ink-faint:#787d89;
+    --navy:#5b7fd8;
+    --navy-deep:#0f1a38;
+    --gold:#e0b03a;
+    --gold-soft:#e0b03a;
+    --good:#52b985;
+    color-scheme: dark;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--font-body);
+    padding-inline:20px;
+    padding-block:0 48px;
+    line-height:1.55;
+  }
+  .wrap{max-width:860px;margin:0 auto;}
+
+  /* ---- top bar ---- */
+  .topbar{
+    position:sticky;
+    top:env(safe-area-inset-top,0px);
+    z-index:20;
+    background:color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--border);
+    margin-inline:-20px;
+    padding-inline:20px;
+  }
+  .topbar-inner{max-width:860px;margin:0 auto;padding-block:12px;}
+  .topbar-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .brand{display:flex;align-items:center;gap:9px;font-family:var(--font-display);font-weight:600;font-size:15px;letter-spacing:.01em;white-space:nowrap;}
+  .brand .mark{width:22px;height:22px;border-radius:7px;background:linear-gradient(135deg,var(--navy),var(--navy-deep));display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:.02em;flex:none;}
+  .pillnav{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;}
+  .pillnav::-webkit-scrollbar{display:none;}
+  .pillnav a{
+    flex:none;
+    font-size:11.5px;
+    font-weight:600;
+    color:var(--ink-soft);
+    text-decoration:none;
+    padding:6px 11px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    background:var(--surface);
+    white-space:nowrap;
+    transition:border-color .15s, color .15s;
+  }
+  .pillnav a:hover{border-color:var(--navy);color:var(--navy);}
+
+  /* ---- hero ---- */
+  .hero{padding-block:40px 28px;}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:6px;
+    font-family:var(--font-mono);font-size:10.5px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--gold);
+    background:color-mix(in srgb, var(--gold) 12%, transparent);
+    border:1px solid color-mix(in srgb, var(--gold) 35%, transparent);
+    padding:4px 10px;border-radius:999px;
+    margin-bottom:16px;
+  }
+  h1.title{
+    font-family:var(--font-display);
+    font-weight:600;
+    font-size:clamp(28px,5vw,42px);
+    line-height:1.08;
+    letter-spacing:-0.01em;
+    text-wrap:balance;
+    margin:0 0 14px;
+  }
+  h1.title em{font-style:italic;font-weight:500;color:var(--navy);}
+  .lede{font-size:16px;color:var(--ink-soft);max-width:60ch;margin:0 0 22px;}
+  .statrow{display:flex;gap:22px;flex-wrap:wrap;padding-top:6px;border-top:1px solid var(--border);}
+  .stat{padding-top:14px;}
+  .stat b{display:block;font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:22px;font-weight:600;color:var(--navy);line-height:1;}
+  .stat span{font-size:11.5px;color:var(--ink-faint);}
+
+  /* ---- section ---- */
+  section.role{
+    scroll-margin-top:84px;
+    margin-top:28px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:18px;
+    padding:26px 24px 24px;
+  }
+  .role-head{display:flex;align-items:flex-start;gap:14px;margin-bottom:18px;}
+  .role-icon{
+    flex:none;width:42px;height:42px;border-radius:12px;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--surface-2);border:1px solid var(--border);
+    color:var(--navy);
+  }
+  .role-icon svg{width:21px;height:21px;}
+  .role-title-group{min-width:0;flex:1;}
+  .role-kicker{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:3px;}
+  h2.role-title{font-family:var(--font-display);font-size:21px;font-weight:600;margin:0 0 4px;line-height:1.2;}
+  .role-desc{font-size:13.5px;color:var(--ink-soft);max-width:64ch;}
+  .badge-new{
+    flex:none;
+    font-family:var(--font-mono);font-size:9.5px;font-weight:600;letter-spacing:.04em;
+    color:var(--good);
+    background:color-mix(in srgb, var(--good) 13%, transparent);
+    border:1px solid color-mix(in srgb, var(--good) 35%, transparent);
+    padding:3px 8px;border-radius:999px;
+    white-space:nowrap;margin-top:2px;
+  }
+
+  .feat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+  @media (max-width:560px){.feat-grid{grid-template-columns:1fr;}}
+  .feat{background:var(--surface);padding:13px 14px;min-width:0;}
+  .feat h3{font-size:13px;font-weight:700;margin:0 0 3px;display:flex;align-items:baseline;gap:6px;}
+  .feat h3 .dot{width:5px;height:5px;border-radius:50%;background:var(--gold-soft);flex:none;}
+  .feat p{font-size:12.3px;color:var(--ink-soft);margin:0;line-height:1.5;}
+
+  /* ---- cross-cutting strip ---- */
+  .infra{
+    margin-top:28px;
+    border-radius:18px;
+    padding:26px 24px;
+    background:linear-gradient(155deg, var(--navy-deep), var(--navy));
+    color:#eef1fb;
+  }
+  .infra h2{font-family:var(--font-display);font-size:20px;font-weight:600;margin:0 0 4px;}
+  .infra > p{font-size:13px;color:#c3cdf0;max-width:60ch;margin:0 0 18px;}
+  .infra-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+  @media (max-width:640px){.infra-grid{grid-template-columns:1fr 1fr;}}
+  @media (max-width:420px){.infra-grid{grid-template-columns:1fr;}}
+  .infra-item{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:12px;padding:13px 14px;}
+  .infra-item h3{font-size:12.5px;font-weight:700;margin:0 0 4px;color:#fff;}
+  .infra-item p{font-size:11.8px;color:#b9c3e6;margin:0;line-height:1.5;}
+
+  footer{margin-top:30px;padding-top:18px;border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-faint);}
+  footer .fmark{font-family:var(--font-mono);}
+</style>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="topbar-row">
+      <div class="brand"><span class="mark">ITN</span> SIAKAD Premium</div>
+      <nav class="pillnav">
+        <a href="#mahasiswa">Mahasiswa</a>
+        <a href="#dosen">Dosen</a>
+        <a href="#baak">BAAK</a>
+        <a href="#superadmin">Super Admin</a>
+        <a href="#pmb">PMB</a>
+        <a href="#lp3m">LP3M</a>
+        <a href="#p2m">P2M</a>
+        <a href="#prodi">Prodi</a>
+        <a href="#keuangan">Keuangan</a>
+        <a href="#publik">Situs Publik</a>
+        <a href="#infra">Infrastruktur</a>
+      </nav>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div class="hero">
+    <span class="eyebrow">Peta Fitur &middot; Oktober 2026</span>
+    <h1 class="title">Satu sistem, <em>sembilan</em> cara masuk ke kampus yang sama.</h1>
+    <p class="lede">
+      SIAKAD Premium adalah sistem informasi akademik terpadu Institut Teknologi Nusantara —
+      satu basis data, sembilan peran login yang masing-masing melihat hanya bagian yang relevan
+      bagi mereka: dari mahasiswa mengisi KRS sampai Super Admin mengatur seluruh institusi.
+    </p>
+    <div class="statrow">
+      <div class="stat"><b>9</b><span>peran login</span></div>
+      <div class="stat"><b>12</b><span>role akses sistem</span></div>
+      <div class="stat"><b>1</b><span>integrasi PDDIKTI Neo&nbsp;Feeder</span></div>
+      <div class="stat"><b>&infin;</b><span>satu basis data bersama</span></div>
+    </div>
+  </div>
+
+  <!-- MAHASISWA -->
+  <section class="role" id="mahasiswa">
+    <div class="role-head">
+      <div class="role-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/></svg>
+      </div>
+      <div class="role-title-group">
+        <div class="role-kicker">Portal Mahasiswa</div>
+        <h2 class="role-title">Mengurus studi dari satu layar</h2>
+        <p class="role-desc">Semua yang dibutuhkan mahasiswa aktif, mulai mendaftar mata kuliah tiap semester sampai memantau status pembayaran — tanpa harus ke loket BAAK.</p>
+      </div>
+    </div>
+    <div class="feat-grid">
+      <div class="feat"><h3><span class="dot"></span>Dashboard Akademik</h3><p>Ringkasan IPK, total SKS lulus, status KRS semester berjalan, dan status tagihan SPP dalam satu pandangan.</p></div>
+      <div class="feat"><h3><span class="dot"></span>KRS Online</h3><p>Pilih mata kuliah per semester dengan batas maksimal SKS otomatis, dan jendela waktu pengisian yang diatur BAAK.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Jadwal Kuliah</h3><p>Jadwal mingguan tersusun otomatis dari KRS yang sudah disetujui dosen pembimbing akademik.</p></div>
+      <div class="feat"><h3><span class="dot"></span>KHS &amp; Nilai</h3><p>Kartu Hasil Studi per semester dan rincian nilai Tugas/UTS/UAS tiap mata kuliah yang sudah terbit.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Presensi</h3><p>Rekap kehadiran per mata kuliah, sinkron dengan absensi yang diinput dosen tiap pertemuan.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Layanan Surat</h3><p>Ajukan surat (pengantar KP/magang, izin penelitian, rekomendasi beasiswa, dll) langsung dari portal — status terlacak sampai terbit.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Profil &amp; Biodata</h3><p>Kelola data diri, kontak, dan foto profil (dengan kompresi otomatis sebelum diunggah).</p></div>
+    </div>
+  </section>
+
+  <!-- DOSEN -->
+  <section class="role" id="dosen">
+    <div class="role-head">
+      <div class="role-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>
+      </div>
+      <div class="role-title-group">
+        <div class="role-kicker">Portal Dosen</div>
+        <h2 class="role-title">Dari jadwal mengajar sampai RPS resmi</h2>
+        <p class="role-desc">Satu tempat untuk seluruh kewajiban akademik dosen: mengajar, menilai, membimbing, dan menyusun dokumen pembelajaran yang disahkan resmi.</p>
+      </div>
+    </div>
+    <div class="feat-grid">
+      <div class="feat"><h3><span class="dot"></span>Jadwal Mengajar</h3><p>Daftar kelas yang diampu per tahun akademik, lengkap hari, jam, ruang, dan jumlah peserta.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Absensi Perkuliahan</h3><p>Catat kehadiran mahasiswa per pertemuan, dengan rekap otomatis per kelas sepanjang semester.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Kontrak Kuliah</h3><p>Tetapkan bobot penilaian (Tugas/UTS/UAS/Kehadiran) per kelas dan publikasikan ke mahasiswa.</p></div>
+      <div class="feat"><h3><span class="dot"></span>RPS Terstruktur <span style="font-weight:600;color:var(--good);font-size:10px;">BARU</span></h3><p>Formulir RPS lengkap format SN-Dikti — CPL/CPMK, bahan kajian, metode, pustaka, dan matriks 16 minggu — ditulis dengan editor teks kaya, lalu diajukan untuk disahkan P2M.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Input Nilai Semester</h3><p>Entri nilai per kelas dengan simpan-draf atau terbitkan, terkunci otomatis di luar jendela waktu yang ditetapkan BAAK.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Bimbingan PA</h3><p>Daftar mahasiswa bimbingan akademik: riwayat KRS, konsultasi, dan persetujuan pengajuan KRS.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Persetujuan Surat</h3><p>Setujui atau tolak permohonan surat dari mahasiswa bimbingan sebelum diteruskan ke BAAK.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Laporan Penelitian &amp; PkM</h3><p>Catat luaran penelitian dan pengabdian masyarakat untuk direkap LP3M.</p></div>
+    </div>
+  </section>
+
+  <!-- BAAK -->
+  <section class="role" id="baak">
+    <div class="role-head">
+      <div class="role-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      </div>
+      <div class="role-title-group">
+        <div class="role-kicker">Admin BAAK</div>
+        <h2 class="role-title">Pusat kendali administrasi akademik</h2>
+        <p class="role-desc">Biro Administrasi Akademik &amp; Kemahasiswaan mengelola seluruh data induk, kurikulum, penjadwalan, dan proses perkuliahan institusi dari sini.</p>
+      </div>
+    </div>
+    <div class="feat-grid">
+      <div class="feat"><h3><span class="dot"></span>Dashboard Real-Time</h3><p>Sebaran mahasiswa per prodi, status (aktif/cuti/lulus/DO), komposisi gender, dan tren angkatan — dihitung langsung dari basis data.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Data Mahasiswa &amp; Dosen</h3><p>CRUD penuh, filter berlapis, status aktif/nonaktif lewat toggle, dan ekspor Excel/PDF sesuai hasil filter.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Kurikulum &amp; Mata Kuliah</h3><p>Katalog mata kuliah per kurikulum, penanda kategori Tugas Akhir/Lapangan (Skripsi, KKN, PLP, dst), rekap per prodi.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Penjadwalan</h3><p>Tahun akademik, gedung, ruang, dan jadwal kelas kuliah — dengan deteksi bentrok otomatis.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Monitoring KRS</h3><p>Pantau pengajuan KRS lintas prodi, atur jendela waktu buka/tutup periode pengisian.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Bimbingan Tugas Akhir</h3><p>Daftar mahasiswa yang mengambil mata kuliah kategori TA/Lapangan, menunggu penetapan pembimbing.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Presensi &amp; Nilai</h3><p>Rekap kehadiran lintas kelas plus Berita Acara Perkuliahan; monitoring dan koreksi nilai dengan jendela waktu terkunci per tahun aktif.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Layanan Surat</h3><p>Terbitkan surat resmi setelah disetujui dosen pembimbing, dengan nomor surat otomatis.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Berita &amp; Pengumuman <span style="font-weight:600;color:var(--good);font-size:10px;">BARU</span></h3><p>Tulis berita dan pengumuman kampus dengan editor teks kaya, tayang langsung di situs publik.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Pelaporan PDDIKTI</h3><p>Sinkronisasi dua arah dengan Neo Feeder Kemdikbud — tarik data mahasiswa/dosen/nilai, dorong mahasiswa baru.</p></div>
+    </div>
+  </section>
+
+  <!-- SUPER ADMIN -->
+  <section class="role" id="superadmin">
+    <div class="role-head">
+      <div class="role-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 2 8 4v6c0 5-3.4 8-8 10-4.6-2-8-5-8-10V6l8-4Z"/></svg>
+      </div>
+      <div class="role-title-group">
+        <div class="role-kicker">Super Admin</div>
+        <h2 class="role-title">Konfigurasi institusi &amp; keamanan sistem</h2>
+        <p class="role-desc">Akses penuh: dari struktur fakultas sampai konten situs publik, dan satu-satunya peran yang bisa membuat akun peran lain.</p>
+      </div>
+    </div>
+    <div class="feat-grid">
+      <div class="feat"><h3><span class="dot"></span>Monitoring Server</h3><p>Status kesehatan basis data, latensi, dan konektivitas Feeder PDDIKTI secara real-time.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Analitik Kunjungan Web</h3><p>Statistik trafik situs publik kampus.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Master Data Institusi</h3><p>Profil institusi, fakultas, program studi (dengan jabatan struktural Dekan/Kaprodi), dan kalender akademik.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Manajemen Pengguna</h3><p>Kelola 1684+ akun lintas peran, dipisah tab Dosen &amp; Mahasiswa vs. User Khusus (admin/staf/reviewer).</p></div>
+      <div class="feat"><h3><span class="dot"></span>Format NIM</h3><p>Rancang pola penomoran NIM otomatis sesuai kebijakan kampus.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Pengaturan Bank &amp; DIKTI</h3><p>Konfigurasi gateway pembayaran dan kredensial Neo Feeder PDDIKTI.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Aturan Tanda Tangan</h3><p>Tetapkan pejabat penandatangan untuk tiap jenis surat resmi.</p></div>
+      <div class="feat"><h3><span class="dot"></span>CMS Situs Publik</h3><p>Ubah Hero, sambutan rektor, banner pengumuman, dan kontak kampus yang tayang di landing page.</p></div>
+    </div>
+  </section>
+
+  <!-- PMB -->
+  <section class="role" id="pmb">
+    <div class="role-head">
+      <div class="role-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </div>
+      <div class="role-title-group">
+        <div class="role-kicker">Admin PMB</div>
+        <h2 class="role-title">Penerimaan mahasiswa baru, ujung ke ujung</h2>
+        <p class="role-desc">Dari pendaftaran online sampai calon mahasiswa resmi terdaftar sebagai mahasiswa aktif.</p>
+      </div>
+    </div>
+    <div class="feat-grid">
+      <div class="feat"><h3><span class="dot"></span>Gelombang Pendaftaran</h3><p>Atur periode, kuota, dan biaya tiap gelombang penerimaan.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Jalur &amp; Kelas</h3><p>Kelola jalur seleksi, jenis pendaftaran, dan kelas yang ditawarkan.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Verifikasi Berkas</h3><p>Tinjau dan validasi dokumen pendaftar sebelum lanjut ke tahap kelulusan.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Kelulusan &amp; Registrasi</h3><p>Tetapkan status lulus seleksi dan proses registrasi ulang jadi mahasiswa aktif.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Pembayaran</h3><p>Pantau status pembayaran biaya pendaftaran dan her-registrasi.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Program Affiliate</h3><p>Lacak pendaftar yang masuk lewat tautan referral per mitra/afiliasi.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Rekapitulasi PMB</h3><p>Statistik pendaftar per jalur, gelombang, dan prodi dalam satu dashboard.</p></div>
+    </div>
+  </section>
+
+  <!-- LP3M -->
+  <section class="role" id="lp3m">
+    <div class="role-head">
+      <div class="role-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      </div>
+      <div class="role-title-group">
+        <div class="role-kicker">Admin LP3M</div>
+        <h2 class="role-title">Riset, pengabdian, dan kekayaan intelektual</h2>
+        <p class="role-desc">Lembaga Penelitian &amp; Pengabdian kepada Masyarakat mencatat seluruh luaran Tri Dharma kedua dan ketiga.</p>
+      </div>
+    </div>
+    <div class="feat-grid">
+      <div class="feat"><h3><span class="dot"></span>Laporan Penelitian</h3><p>Rekap kegiatan penelitian dosen lengkap skema, pendanaan, dan status verifikasi.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Pengabdian (PkM)</h3><p>Catat kegiatan pengabdian kepada masyarakat dan mitra sasarannya.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Sentra HAKI &amp; Paten</h3><p>Kelola permohonan Hak Cipta, Paten Sederhana/Biasa, hingga sertifikat terbit.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Bank Dokumen</h3><p>Repositori panduan, regulasi, dan template proposal riset &amp; PkM.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Rekap Borang Akreditasi</h3><p>Ringkasan data per prodi untuk keperluan borang akreditasi BAN-PT.</p></div>
+    </div>
+  </section>
+
+  <!-- P2M -->
+  <section class="role" id="p2m">
+    <div class="role-head">
+      <div class="role-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.47.5.85 1 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+      </div>
+      <div class="role-title-group">
+        <div class="role-kicker">Admin P2M</div>
+        <h2 class="role-title">Penjaminan mutu akademik</h2>
+        <p class="role-desc">Menjaga siklus SPMI tetap berjalan: tetapkan standar, audit terhadap standar itu, dan sahkan dokumen pembelajaran.</p>
+      </div>
+      <span class="badge-new">Modul Baru</span>
+    </div>
+    <div class="feat-grid">
+      <div class="feat"><h3><span class="dot"></span>Standar Mutu</h3><p>Daftar standar SPMI per kategori lengkap indikator dan target capaian.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Audit Mutu Internal</h3><p>Jadwalkan dan catat hasil AMI per program studi: sesuai, temuan minor, atau temuan mayor.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Validasi RPS</h3><p>Tinjau RPS yang diajukan dosen, lalu sahkan atau kembalikan dengan catatan revisi — status langsung terlihat dosen.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Tindak Lanjut Audit</h3><p>Pantau temuan yang belum selesai ditindaklanjuti lintas prodi, dengan penanda lewat tenggat.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Dokumen Mutu</h3><p>Bank panduan, regulasi, template borang, dan instrumen AMI.</p></div>
+    </div>
+  </section>
+
+  <!-- PRODI -->
+  <section class="role" id="prodi">
+    <div class="role-head">
+      <div class="role-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9.5 12 4l9 5.5-9 5.5-9-5.5Z"/><path d="M7 12v5c0 1.2 2.2 3 5 3s5-1.8 5-3v-5"/></svg>
+      </div>
+      <div class="role-title-group">
+        <div class="role-kicker">Admin Prodi</div>
+        <h2 class="role-title">Kendali satu program studi</h2>
+        <p class="role-desc">Akun terbatas yang hanya melihat dan mengelola data program studinya sendiri — tidak bisa menjangkau prodi lain.</p>
+      </div>
+      <span class="badge-new">Modul Baru</span>
+    </div>
+    <div class="feat-grid">
+      <div class="feat"><h3><span class="dot"></span>Dashboard Prodi</h3><p>Identitas prodi, Ketua Program Studi, dan statistik real-time: mahasiswa aktif, dosen, mata kuliah, kelas berjalan, serta rincian status mahasiswa.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Mata Kuliah</h3><p>CRUD katalog mata kuliah terkunci ke prodinya sendiri — kurikulum, SKS, semester, dan kategori Tugas Akhir/Lapangan.</p></div>
+    </div>
+  </section>
+
+  <!-- KEUANGAN -->
+  <section class="role" id="keuangan">
+    <div class="role-head">
+      <div class="role-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+      </div>
+      <div class="role-title-group">
+        <div class="role-kicker">Biro Keuangan</div>
+        <h2 class="role-title">Tagihan &amp; pembayaran mahasiswa</h2>
+        <p class="role-desc">Memantau arus pembayaran SPP dan biaya lain dari seluruh mahasiswa aktif.</p>
+      </div>
+    </div>
+    <div class="feat-grid">
+      <div class="feat"><h3><span class="dot"></span>Dashboard Keuangan</h3><p>Ringkasan status tagihan dan pembayaran lintas mahasiswa.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Aturan Biaya</h3><p>Tetapkan skema biaya per program studi dan angkatan.</p></div>
+    </div>
+  </section>
+
+  <!-- PUBLIK -->
+  <section class="role" id="publik">
+    <div class="role-head">
+      <div class="role-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z"/></svg>
+      </div>
+      <div class="role-title-group">
+        <div class="role-kicker">Situs Publik</div>
+        <h2 class="role-title">Wajah kampus di internet</h2>
+        <p class="role-desc">Diakses siapa saja tanpa login — tempat calon mahasiswa pertama kali mengenal kampus.</p>
+      </div>
+    </div>
+    <div class="feat-grid">
+      <div class="feat"><h3><span class="dot"></span>Landing Page</h3><p>Hero, keunggulan kampus, daftar fakultas &amp; program studi, statistik, dan testimoni — semua dikelola dari CMS Super Admin.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Berita &amp; Agenda</h3><p>Artikel dan agenda kampus yang ditulis BAAK, tayang otomatis di sini.</p></div>
+      <div class="feat"><h3><span class="dot"></span>Pendaftaran PMB Online</h3><p>Formulir pendaftaran calon mahasiswa baru yang masuk langsung ke antrean verifikasi Admin PMB.</p></div>
+    </div>
+  </section>
+
+  <!-- INFRA -->
+  <div class="infra" id="infra">
+    <h2>Yang menyatukan semuanya</h2>
+    <p>Hal-hal lintas peran yang tidak kelihatan dari satu menu saja, tapi dipakai di hampir semua modul di atas.</p>
+    <div class="infra-grid">
+      <div class="infra-item"><h3>Integrasi PDDIKTI Neo Feeder</h3><p>Sinkron dua arah dengan Kemdikbud: tarik data existing, dorong mahasiswa &amp; nilai baru, dengan pencocokan ulang yang stabil lewat ID Feeder.</p></div>
+      <div class="infra-item"><h3>12 Role Akses</h3><p>Super Admin, BAAK, PMB, Keuangan, LP3M + Reviewer, P2M + Reviewer, Admin Prodi, Dosen, Mahasiswa — tiap rute dijaga middleware sesuai peran.</p></div>
+      <div class="infra-item"><h3>Editor Teks Kaya</h3><p>Dipakai untuk RPS dan Berita — format tebal/miring/judul/daftar/tautan, bukan sekadar kotak teks polos.</p></div>
+      <div class="infra-item"><h3>Ekspor Excel &amp; PDF</h3><p>Hampir semua tabel data (mahasiswa, dosen, dsb) bisa diunduh sesuai hasil filter yang sedang aktif.</p></div>
+      <div class="infra-item"><h3>Jendela Waktu Terkunci</h3><p>KRS dan input nilai otomatis tertutup di luar rentang tanggal yang ditetapkan BAAK per tahun akademik aktif.</p></div>
+      <div class="infra-item"><h3>Jabatan Struktural Otomatis</h3><p>Nama Dekan &amp; Ketua Program Studi diturunkan dari penetapan di Data Dosen — tidak diketik manual di tempat lain.</p></div>
+    </div>
+  </div>
+
+  <footer>
+    <span>SIAKAD Premium &middot; Institut Teknologi Nusantara</span>
+    <span class="fmark">v2026.10</span>
+  </footer>
+
+</div>

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getApiBaseUrl } from '@/lib/api';
+import { copyToClipboard } from '@/lib/clipboard';
 import {
   Share2,
   Users,
@@ -159,10 +160,10 @@ export default function PmbAffiliatePage() {
     fetchAffiliates();
   }, []);
 
-  const handleCopyLink = (code: string) => {
+  const handleCopyLink = async (code: string) => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const registrationUrl = `${origin}/pmb/daftar?ref=${encodeURIComponent(code)}`;
-    navigator.clipboard.writeText(registrationUrl);
+    await copyToClipboard(registrationUrl);
     setCopiedCode(code);
     setTimeout(() => {
       setCopiedCode(null);

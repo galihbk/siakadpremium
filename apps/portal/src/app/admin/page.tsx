@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import {
   Users,
@@ -10,6 +11,11 @@ import {
   RefreshCw,
   Download,
   Building,
+  GraduationCap,
+  CalendarDays,
+  ClipboardList,
+  BookOpenCheck,
+  UserRound,
 } from 'lucide-react';
 import { getApiBaseUrl } from '@/lib/api';
 
@@ -31,7 +37,28 @@ interface DashboardSummary {
   persentaseRegistrasiKRS: number;
   mahasiswaBaruTerdaftar: number;
   facultyList: FacultyRow[];
+  studentsByProdi: { name: string; count: number }[];
+  studentStatusBreakdown: { status: string; count: number }[];
+  studentGenderBreakdown: { label: string; count: number }[];
+  studentsByEntryYear: { year: number; count: number }[];
 }
+
+const STATUS_COLORS: Record<string, string> = {
+  Aktif: 'bg-emerald-500',
+  Cuti: 'bg-amber-500',
+  Lulus: 'bg-blue-500',
+  DO: 'bg-rose-500',
+  Pindah: 'bg-slate-400',
+};
+
+const QUICK_LINKS = [
+  { href: '/admin/mahasiswa', label: 'Data Mahasiswa', icon: Users, color: 'bg-blue-50 text-[#1E3A8A]' },
+  { href: '/admin/dosen', label: 'Data Dosen', icon: UserCheck, color: 'bg-emerald-50 text-emerald-700' },
+  { href: '/admin/jadwal', label: 'Jadwal Kelas', icon: CalendarDays, color: 'bg-amber-50 text-amber-700' },
+  { href: '/admin/krs', label: 'KRS', icon: ClipboardList, color: 'bg-violet-50 text-violet-700' },
+  { href: '/admin/nilai', label: 'Nilai', icon: BookOpenCheck, color: 'bg-rose-50 text-rose-700' },
+  { href: '/admin/kurikulum', label: 'Kurikulum & MK', icon: GraduationCap, color: 'bg-indigo-50 text-indigo-700' },
+];
 
 export default function AdminDashboardPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -143,6 +170,147 @@ export default function AdminDashboardPage() {
             <p className="text-3xl font-extrabold text-slate-900">{loading ? '-' : summary?.mahasiswaBaruTerdaftar ?? 0}</p>
             <p className="text-xs text-slate-500 mt-1">Formulir pendaftaran yang sudah disubmit</p>
           </div>
+        </div>
+
+        {/* Quick Links */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {QUICK_LINKS.map((q) => (
+            <Link
+              key={q.href}
+              href={q.href}
+              className="flex flex-col items-center gap-2 p-4 bg-white rounded-2xl border border-slate-200 shadow-subtle hover:border-[#1E3A8A]/30 hover:shadow-sm transition-all text-center"
+            >
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${q.color}`}>
+                <q.icon className="w-4 h-4" />
+              </div>
+              <span className="text-[11px] font-bold text-slate-700 leading-tight">{q.label}</span>
+            </Link>
+          ))}
+        </div>
+
+        {/* Sebaran Mahasiswa: per Prodi, Status, Gender, Angkatan */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
+          <div className="lg:col-span-3 bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-subtle">
+            <h3 className="text-base font-bold text-slate-900">Sebaran Mahasiswa per Program Studi</h3>
+            <p className="text-xs text-slate-500 mt-0.5 mb-4">Jumlah mahasiswa terdaftar per prodi, dari yang terbanyak</p>
+            {loading ? (
+              <div className="flex items-center justify-center gap-2 py-8 text-slate-400 text-xs">
+                <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
+                <span>Memuat data...</span>
+              </div>
+            ) : (summary?.studentsByProdi?.length ?? 0) === 0 ? (
+              <p className="text-center text-xs text-slate-400 py-8">Belum ada data mahasiswa.</p>
+            ) : (
+              <div className="space-y-3">
+                {summary!.studentsByProdi.map((p) => {
+                  const max = summary!.studentsByProdi[0]?.count || 1;
+                  const pct = Math.max(4, Math.round((p.count / max) * 100));
+                  return (
+                    <div key={p.name}>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="font-semibold text-slate-700 truncate pr-2">{p.name}</span>
+                        <span className="font-bold text-[#1E3A8A] shrink-0">{p.count.toLocaleString('id-ID')}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                        <div className="h-full rounded-full bg-gradient-to-r from-[#1E3A8A] to-blue-500" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-subtle">
+              <h3 className="text-sm font-bold text-slate-900 mb-3.5">Status Mahasiswa</h3>
+              {loading || (summary?.studentStatusBreakdown?.length ?? 0) === 0 ? (
+                <p className="text-xs text-slate-400">{loading ? 'Memuat...' : 'Belum ada data.'}</p>
+              ) : (
+                <>
+                  <div className="h-2.5 rounded-full overflow-hidden flex w-full bg-slate-100 mb-3">
+                    {summary!.studentStatusBreakdown.map((s) => {
+                      const total = summary!.totalMahasiswaAktif || 1;
+                      const pct = Math.max(2, (s.count / total) * 100);
+                      return (
+                        <div
+                          key={s.status}
+                          className={STATUS_COLORS[s.status] || 'bg-slate-400'}
+                          style={{ width: `${pct}%` }}
+                          title={`${s.status}: ${s.count}`}
+                        />
+                      );
+                    })}
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                    {summary!.studentStatusBreakdown.map((s) => (
+                      <div key={s.status} className="flex items-center gap-1.5 text-[11px]">
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_COLORS[s.status] || 'bg-slate-400'}`} />
+                        <span className="text-slate-600 truncate">{s.status}</span>
+                        <span className="ml-auto font-bold text-slate-800">{s.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-subtle">
+              <h3 className="text-sm font-bold text-slate-900 mb-3.5">Jenis Kelamin</h3>
+              {loading || (summary?.studentGenderBreakdown?.length ?? 0) === 0 ? (
+                <p className="text-xs text-slate-400">{loading ? 'Memuat...' : 'Belum ada data.'}</p>
+              ) : (
+                <div className="flex items-center gap-4">
+                  {summary!.studentGenderBreakdown.map((g) => {
+                    const total = summary!.totalMahasiswaAktif || 1;
+                    const pct = Math.round((g.count / total) * 100);
+                    return (
+                      <div key={g.label} className="flex items-center gap-2">
+                        <UserRound className={`w-4 h-4 ${g.label === 'Perempuan' ? 'text-rose-500' : 'text-blue-500'}`} />
+                        <div>
+                          <p className="text-xs font-bold text-slate-800">
+                            {g.label} <span className="text-slate-400 font-medium">{pct}%</span>
+                          </p>
+                          <p className="text-[11px] text-slate-500">{g.count.toLocaleString('id-ID')} mahasiswa</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Tren Mahasiswa per Angkatan */}
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-subtle">
+          <h3 className="text-base font-bold text-slate-900">Tren Mahasiswa Baru per Angkatan</h3>
+          <p className="text-xs text-slate-500 mt-0.5 mb-5">6 angkatan terakhir berdasarkan tahun masuk</p>
+          {loading ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-slate-400 text-xs">
+              <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
+              <span>Memuat data...</span>
+            </div>
+          ) : (summary?.studentsByEntryYear?.length ?? 0) === 0 ? (
+            <p className="text-center text-xs text-slate-400 py-8">Belum ada data angkatan.</p>
+          ) : (
+            <div className="flex items-end justify-between gap-2 sm:gap-4 h-40">
+              {summary!.studentsByEntryYear.map((y) => {
+                const max = Math.max(...summary!.studentsByEntryYear.map((x) => x.count), 1);
+                const pct = Math.max(6, Math.round((y.count / max) * 100));
+                return (
+                  <div key={y.year} className="flex-1 flex flex-col items-center justify-end h-full gap-1.5">
+                    <span className="text-xs font-bold text-slate-800">{y.count}</span>
+                    <div
+                      className="w-full max-w-12 rounded-t-lg bg-gradient-to-t from-[#1E3A8A] to-blue-400"
+                      style={{ height: `${pct}%` }}
+                    />
+                    <span className="text-[11px] font-semibold text-slate-500">{y.year}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Faculty Distribution Table */}

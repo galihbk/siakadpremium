@@ -87,6 +87,12 @@ export default function LoginPage() {
       if (user.email === 'lp3m@itn.ac.id' || user.email === 'p3m@itn.ac.id') {
         targetPath = '/admin/p3m';
       }
+      if (user.email === 'p2m@itn.ac.id' || user.role === 'ADMIN_P2M') {
+        targetPath = '/admin/p2m';
+      }
+      if (user.email === 'prodi@itn.ac.id' || user.role === 'ADMIN_PRODI') {
+        targetPath = '/admin/prodi';
+      }
       if (user.email === 'admin.pmb@itn.ac.id' || user.email === 'pmb@itn.ac.id' || user.role === 'ADMIN_PMB') {
         targetPath = '/admin/pmb';
       }
@@ -241,6 +247,34 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => {
+                    setValue('email', 'p2m@itn.ac.id');
+                    setValue('password', 'Password123!');
+                  }}
+                  className="px-2.5 py-2 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 text-[#1E3A8A] text-xs font-bold text-left transition-all cursor-pointer col-span-2 flex items-center justify-between"
+                >
+                  <div>
+                    <span className="block font-bold">✅ Penjaminan Mutu (P2M)</span>
+                    <span className="text-[10px] text-blue-700 font-normal">p2m@itn.ac.id</span>
+                  </div>
+                  <span className="text-[10px] bg-[#1E3A8A] text-white px-2 py-0.5 rounded-md font-semibold">Demo P2M</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setValue('email', 'prodi@itn.ac.id');
+                    setValue('password', 'Password123!');
+                  }}
+                  className="px-2.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-900 text-xs font-bold text-left transition-all cursor-pointer col-span-2 flex items-center justify-between"
+                >
+                  <div>
+                    <span className="block font-bold">🏫 Admin Program Studi</span>
+                    <span className="text-[10px] text-indigo-700 font-normal">prodi@itn.ac.id</span>
+                  </div>
+                  <span className="text-[10px] bg-indigo-700 text-white px-2 py-0.5 rounded-md font-semibold">Demo Prodi</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
                     setValue('email', 'keuangan@itn.ac.id');
                     setValue('password', 'Password123!');
                   }}
@@ -274,13 +308,13 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setValue('email', 'lecturer@itn.ac.id');
+                    setValue('email', 'dosen@itn.ac.id');
                     setValue('password', 'Password123!');
                   }}
                   className="px-2.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-blue-50 text-slate-800 text-xs font-semibold text-left transition-all cursor-pointer"
                 >
                   <span className="block font-bold">👨‍🏫 Dosen</span>
-                  <span className="text-[10px] text-slate-500 font-normal">lecturer@itn.ac.id</span>
+                  <span className="text-[10px] text-slate-500 font-normal">dosen@itn.ac.id</span>
                 </button>
                 <button
                   type="button"

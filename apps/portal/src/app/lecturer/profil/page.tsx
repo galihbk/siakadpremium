@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getAuthSession } from '@/lib/auth';
 import { getApiBaseUrl } from '@/lib/api';
-import { compressUploadedFile, fileToBase64, formatFileSize } from '@/lib/fileCompression';
+import { compressUploadedFile, fileToBase64 } from '@/lib/fileCompression';
 import {
   User,
   Camera,
@@ -37,7 +37,9 @@ function toTitleCase(str: string) {
 }
 
 export default function LecturerProfilePage() {
-  const [activeTab, setActiveTab] = useState<'identitas' | 'alamat' | 'kepegawaian' | 'keamanan'>('identitas');
+  const [activeTab, setActiveTab] = useState<'identitas' | 'alamat' | 'kepegawaian' | 'keamanan'>(
+    'identitas',
+  );
   const [loading, setLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -143,7 +145,8 @@ export default function LecturerProfilePage() {
           if (lec.functionalPosition) setFunctionalPosition(lec.functionalPosition);
           if (lec.lastEducation) setLastEducation(lec.lastEducation);
           if (lec.expertise) setExpertise(lec.expertise);
-          if (typeof lec.isAcademicAdvisor === 'boolean') setIsAcademicAdvisor(lec.isAcademicAdvisor);
+          if (typeof lec.isAcademicAdvisor === 'boolean')
+            setIsAcademicAdvisor(lec.isAcademicAdvisor);
           if (lec.studyProgram?.name) setStudyProgram(lec.studyProgram.name);
           if (lec.studyProgram?.faculty?.name) setFaculty(lec.studyProgram.faculty.name);
         }
@@ -174,7 +177,9 @@ export default function LecturerProfilePage() {
   useEffect(() => {
     if (!province || provinces.length === 0 || selectedProvinceId) return;
     const upper = province.toUpperCase().trim();
-    const match = provinces.find((p) => p.name === upper || p.name.includes(upper) || upper.includes(p.name));
+    const match = provinces.find(
+      (p) => p.name === upper || p.name.includes(upper) || upper.includes(p.name),
+    );
     if (match) setSelectedProvinceId(match.id);
   }, [province, provinces, selectedProvinceId]);
 
@@ -186,7 +191,9 @@ export default function LecturerProfilePage() {
     async function loadRegencies() {
       setLoadingRegencies(true);
       try {
-        const res = await fetch(`https://www.emsifa.com/api-wilayah-indonesia/api/regencies/${selectedProvinceId}.json`);
+        const res = await fetch(
+          `https://www.emsifa.com/api-wilayah-indonesia/api/regencies/${selectedProvinceId}.json`,
+        );
         if (res.ok) setRegencies(await res.json());
       } catch {
         // biarkan input manual jika API wilayah tidak dapat diakses
@@ -200,7 +207,9 @@ export default function LecturerProfilePage() {
   useEffect(() => {
     if (!city || regencies.length === 0 || selectedRegencyId) return;
     const upper = city.toUpperCase().trim();
-    const match = regencies.find((r) => r.name === upper || r.name.includes(upper) || upper.includes(r.name));
+    const match = regencies.find(
+      (r) => r.name === upper || r.name.includes(upper) || upper.includes(r.name),
+    );
     if (match) setSelectedRegencyId(match.id);
   }, [city, regencies, selectedRegencyId]);
 
@@ -222,7 +231,9 @@ export default function LecturerProfilePage() {
     async function loadDistricts() {
       setLoadingDistricts(true);
       try {
-        const res = await fetch(`https://www.emsifa.com/api-wilayah-indonesia/api/districts/${selectedRegencyId}.json`);
+        const res = await fetch(
+          `https://www.emsifa.com/api-wilayah-indonesia/api/districts/${selectedRegencyId}.json`,
+        );
         if (res.ok) setDistricts(await res.json());
       } catch {
         // biarkan input manual jika API wilayah tidak dapat diakses
@@ -236,7 +247,9 @@ export default function LecturerProfilePage() {
   useEffect(() => {
     if (!kecamatan || districts.length === 0 || selectedDistrictId) return;
     const upper = kecamatan.toUpperCase().trim();
-    const match = districts.find((d) => d.name === upper || d.name.includes(upper) || upper.includes(d.name));
+    const match = districts.find(
+      (d) => d.name === upper || d.name.includes(upper) || upper.includes(d.name),
+    );
     if (match) setSelectedDistrictId(match.id);
   }, [kecamatan, districts, selectedDistrictId]);
 
@@ -248,7 +261,9 @@ export default function LecturerProfilePage() {
     async function loadVillages() {
       setLoadingVillages(true);
       try {
-        const res = await fetch(`https://www.emsifa.com/api-wilayah-indonesia/api/villages/${selectedDistrictId}.json`);
+        const res = await fetch(
+          `https://www.emsifa.com/api-wilayah-indonesia/api/villages/${selectedDistrictId}.json`,
+        );
         if (res.ok) setVillages(await res.json());
       } catch {
         // biarkan input manual jika API wilayah tidak dapat diakses
@@ -262,7 +277,9 @@ export default function LecturerProfilePage() {
   useEffect(() => {
     if (!kelurahan || villages.length === 0 || selectedVillageId) return;
     const upper = kelurahan.toUpperCase().trim();
-    const match = villages.find((v) => v.name === upper || v.name.includes(upper) || upper.includes(v.name));
+    const match = villages.find(
+      (v) => v.name === upper || v.name.includes(upper) || upper.includes(v.name),
+    );
     if (match) setSelectedVillageId(match.id);
   }, [kelurahan, villages, selectedVillageId]);
 
@@ -326,10 +343,7 @@ export default function LecturerProfilePage() {
       }
       window.dispatchEvent(new Event('siakad_profile_updated'));
 
-      const saveInfo = compressResult.wasCompressed
-        ? ` (${formatFileSize(compressResult.originalSize)} ➔ ${formatFileSize(compressResult.compressedSize)}, hemat ${compressResult.savedPercent}%)`
-        : '';
-      setSaveSuccess(`Foto profil berhasil diperbarui!${saveInfo}`);
+      setSaveSuccess('Foto profil berhasil diperbarui!');
 
       try {
         const apiBase = getApiBaseUrl();
@@ -402,7 +416,10 @@ export default function LecturerProfilePage() {
       }
 
       if (user) {
-        localStorage.setItem('siakad_user', JSON.stringify({ ...user, fullName, avatarUrl: avatarUrl || null }));
+        localStorage.setItem(
+          'siakad_user',
+          JSON.stringify({ ...user, fullName, avatarUrl: avatarUrl || null }),
+        );
       }
       window.dispatchEvent(new Event('siakad_profile_updated'));
 
@@ -448,7 +465,10 @@ export default function LecturerProfilePage() {
         throw new Error(errJson?.message || 'Gagal memperbarui password');
       }
 
-      setPasswordMsg({ text: 'Password berhasil diperbarui! Gunakan password baru saat login berikutnya.', isError: false });
+      setPasswordMsg({
+        text: 'Password berhasil diperbarui! Gunakan password baru saat login berikutnya.',
+        isError: false,
+      });
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -459,10 +479,15 @@ export default function LecturerProfilePage() {
     }
   };
 
-  const displayTitle = [titlePrefix, fullName].filter(Boolean).join(' ') + (titleSuffix ? `, ${titleSuffix}` : '');
+  const displayTitle =
+    [titlePrefix, fullName].filter(Boolean).join(' ') + (titleSuffix ? `, ${titleSuffix}` : '');
 
   return (
-    <PortalLayout role="lecturer" userName={fullName} userIdText={`NIDN: ${nidn} • ${studyProgram}`}>
+    <PortalLayout
+      role="lecturer"
+      userName={fullName}
+      userIdText={`NIDN: ${nidn} • ${studyProgram}`}
+    >
       <div className="w-full space-y-6">
         {/* Top Header & Breadcrumb */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
@@ -473,11 +498,6 @@ export default function LecturerProfilePage() {
               <span>&rsaquo;</span>
               <span className="text-[#1E3A8A] font-bold">Profil & Data Dosen</span>
             </p>
-          </div>
-
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold shadow-2xs self-start sm:self-auto">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Data Tersinkron dengan Database</span>
           </div>
         </div>
 
@@ -529,7 +549,9 @@ export default function LecturerProfilePage() {
                 </div>
               </div>
 
-              <h2 className="text-lg font-black text-slate-900 tracking-tight leading-snug">{displayTitle}</h2>
+              <h2 className="text-lg font-black text-slate-900 tracking-tight leading-snug">
+                {displayTitle}
+              </h2>
               <p className="text-xs font-mono font-bold text-slate-500 mt-0.5">NIDN: {nidn}</p>
 
               <div className="mt-2.5">
@@ -546,7 +568,9 @@ export default function LecturerProfilePage() {
 
               <div className="grid grid-cols-1 gap-3 mt-4">
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 text-left">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Status Dosen PA</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Status Dosen PA
+                  </span>
                   <span className="text-sm font-black text-slate-900 mt-0.5 block">
                     {isAcademicAdvisor ? 'Aktif sebagai Pembimbing Akademik' : 'Bukan Dosen PA'}
                   </span>
@@ -555,7 +579,9 @@ export default function LecturerProfilePage() {
             </div>
 
             <div className="bg-white rounded-2xl border border-slate-200 shadow-subtle p-5 space-y-3.5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Ringkasan Kepegawaian</h3>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Ringkasan Kepegawaian
+              </h3>
               <div className="space-y-2.5 text-xs">
                 <div className="flex items-center justify-between py-1 border-b border-slate-100">
                   <span className="flex items-center gap-2 text-slate-700 font-medium">
@@ -569,7 +595,9 @@ export default function LecturerProfilePage() {
                     <GraduationCap className="w-4 h-4 text-slate-400" />
                     <span>Pendidikan Terakhir</span>
                   </span>
-                  <span className="text-slate-800 font-bold text-right">{lastEducation || '-'}</span>
+                  <span className="text-slate-800 font-bold text-right">
+                    {lastEducation || '-'}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between py-1">
                   <span className="flex items-center gap-2 text-slate-700 font-medium">
@@ -612,7 +640,10 @@ export default function LecturerProfilePage() {
 
             {/* TAB: IDENTITAS */}
             {activeTab === 'identitas' && (
-              <form onSubmit={handleSubmitProfile} className="bg-white rounded-2xl border border-slate-200 shadow-subtle p-6 space-y-6">
+              <form
+                onSubmit={handleSubmitProfile}
+                className="bg-white rounded-2xl border border-slate-200 shadow-subtle p-6 space-y-6"
+              >
                 <div className="border-b border-slate-100 pb-4">
                   <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <User className="w-5 h-5 text-[#1E3A8A]" />
@@ -625,7 +656,9 @@ export default function LecturerProfilePage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Gelar Depan</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Gelar Depan
+                    </label>
                     <input
                       type="text"
                       value={titlePrefix}
@@ -649,7 +682,9 @@ export default function LecturerProfilePage() {
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Gelar Belakang</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Gelar Belakang
+                    </label>
                     <input
                       type="text"
                       value={titleSuffix}
@@ -697,7 +732,9 @@ export default function LecturerProfilePage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Jenis Kelamin</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Jenis Kelamin
+                    </label>
                     <select
                       value={gender}
                       onChange={(e) => setGender(e.target.value)}
@@ -727,7 +764,9 @@ export default function LecturerProfilePage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Nomor HP / WhatsApp Aktif</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Nomor HP / WhatsApp Aktif
+                    </label>
                     <input
                       type="tel"
                       value={phone}
@@ -737,7 +776,9 @@ export default function LecturerProfilePage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Email Akun</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Email Akun
+                    </label>
                     <input
                       type="email"
                       readOnly
@@ -753,7 +794,11 @@ export default function LecturerProfilePage() {
                     disabled={loading}
                     className="px-6 py-3 bg-[#1E3A8A] hover:bg-blue-900 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-60"
                   >
-                    {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4 text-[#D4A017]" />}
+                    {loading ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 text-[#D4A017]" />
+                    )}
                     <span>Simpan Perubahan Identitas</span>
                   </button>
                 </div>
@@ -762,18 +807,25 @@ export default function LecturerProfilePage() {
 
             {/* TAB: ALAMAT */}
             {activeTab === 'alamat' && (
-              <form onSubmit={handleSubmitProfile} className="bg-white rounded-2xl border border-slate-200 shadow-subtle p-6 space-y-6">
+              <form
+                onSubmit={handleSubmitProfile}
+                className="bg-white rounded-2xl border border-slate-200 shadow-subtle p-6 space-y-6"
+              >
                 <div className="border-b border-slate-100 pb-4">
                   <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <MapPin className="w-5 h-5 text-[#1E3A8A]" />
                     <span>Informasi Alamat & Domisili</span>
                   </h2>
-                  <p className="text-xs text-slate-500 mt-0.5">Alamat tempat tinggal dosen saat ini.</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Alamat tempat tinggal dosen saat ini.
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Alamat Lengkap</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Alamat Lengkap
+                    </label>
                     <textarea
                       rows={3}
                       value={address}
@@ -784,61 +836,85 @@ export default function LecturerProfilePage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Provinsi</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Provinsi
+                    </label>
                     <select
                       value={selectedProvinceId}
                       onChange={handleProvinceChange}
                       disabled={loadingProvinces}
                       className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-900 bg-white disabled:bg-slate-50"
                     >
-                      <option value="">{province || (loadingProvinces ? 'Memuat...' : 'Pilih Provinsi')}</option>
+                      <option value="">
+                        {province || (loadingProvinces ? 'Memuat...' : 'Pilih Provinsi')}
+                      </option>
                       {provinces.map((p) => (
-                        <option key={p.id} value={p.id}>{toTitleCase(p.name)}</option>
+                        <option key={p.id} value={p.id}>
+                          {toTitleCase(p.name)}
+                        </option>
                       ))}
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Kota / Kabupaten</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Kota / Kabupaten
+                    </label>
                     <select
                       value={selectedRegencyId}
                       onChange={handleRegencyChange}
                       disabled={!selectedProvinceId || loadingRegencies}
                       className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-900 bg-white disabled:bg-slate-50"
                     >
-                      <option value="">{city || (loadingRegencies ? 'Memuat...' : 'Pilih Kota/Kabupaten')}</option>
+                      <option value="">
+                        {city || (loadingRegencies ? 'Memuat...' : 'Pilih Kota/Kabupaten')}
+                      </option>
                       {regencies.map((r) => (
-                        <option key={r.id} value={r.id}>{toTitleCase(r.name)}</option>
+                        <option key={r.id} value={r.id}>
+                          {toTitleCase(r.name)}
+                        </option>
                       ))}
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Kecamatan</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Kecamatan
+                    </label>
                     <select
                       value={selectedDistrictId}
                       onChange={handleDistrictChange}
                       disabled={!selectedRegencyId || loadingDistricts}
                       className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-900 bg-white disabled:bg-slate-50"
                     >
-                      <option value="">{kecamatan || (loadingDistricts ? 'Memuat...' : 'Pilih Kecamatan')}</option>
+                      <option value="">
+                        {kecamatan || (loadingDistricts ? 'Memuat...' : 'Pilih Kecamatan')}
+                      </option>
                       {districts.map((d) => (
-                        <option key={d.id} value={d.id}>{toTitleCase(d.name)}</option>
+                        <option key={d.id} value={d.id}>
+                          {toTitleCase(d.name)}
+                        </option>
                       ))}
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Kelurahan / Desa</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Kelurahan / Desa
+                    </label>
                     <select
                       value={selectedVillageId}
                       onChange={handleVillageChange}
                       disabled={!selectedDistrictId || loadingVillages}
                       className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-900 bg-white disabled:bg-slate-50"
                     >
-                      <option value="">{kelurahan || (loadingVillages ? 'Memuat...' : 'Pilih Kelurahan/Desa')}</option>
+                      <option value="">
+                        {kelurahan || (loadingVillages ? 'Memuat...' : 'Pilih Kelurahan/Desa')}
+                      </option>
                       {villages.map((v) => (
-                        <option key={v.id} value={v.id}>{toTitleCase(v.name)}</option>
+                        <option key={v.id} value={v.id}>
+                          {toTitleCase(v.name)}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -855,7 +931,9 @@ export default function LecturerProfilePage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Kode Pos</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Kode Pos
+                    </label>
                     <input
                       type="text"
                       value={postalCode}
@@ -872,7 +950,11 @@ export default function LecturerProfilePage() {
                     disabled={loading}
                     className="px-6 py-3 bg-[#1E3A8A] hover:bg-blue-900 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-60"
                   >
-                    {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4 text-[#D4A017]" />}
+                    {loading ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 text-[#D4A017]" />
+                    )}
                     <span>Simpan Perubahan Alamat</span>
                   </button>
                 </div>
@@ -881,7 +963,10 @@ export default function LecturerProfilePage() {
 
             {/* TAB: KEPEGAWAIAN & AKADEMIK */}
             {activeTab === 'kepegawaian' && (
-              <form onSubmit={handleSubmitProfile} className="bg-white rounded-2xl border border-slate-200 shadow-subtle p-6 space-y-6">
+              <form
+                onSubmit={handleSubmitProfile}
+                className="bg-white rounded-2xl border border-slate-200 shadow-subtle p-6 space-y-6"
+              >
                 <div className="border-b border-slate-100 pb-4">
                   <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <GraduationCap className="w-5 h-5 text-[#1E3A8A]" />
@@ -894,7 +979,9 @@ export default function LecturerProfilePage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Homebase Program Studi</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Homebase Program Studi
+                    </label>
                     <input
                       type="text"
                       readOnly
@@ -904,7 +991,9 @@ export default function LecturerProfilePage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Fakultas</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Fakultas
+                    </label>
                     <input
                       type="text"
                       readOnly
@@ -914,7 +1003,9 @@ export default function LecturerProfilePage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Status Kepegawaian</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Status Kepegawaian
+                    </label>
                     <select
                       value={employmentStatus}
                       onChange={(e) => setEmploymentStatus(e.target.value)}
@@ -928,7 +1019,9 @@ export default function LecturerProfilePage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Jabatan Fungsional Akademik</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Jabatan Fungsional Akademik
+                    </label>
                     <select
                       value={functionalPosition}
                       onChange={(e) => setFunctionalPosition(e.target.value)}
@@ -944,7 +1037,9 @@ export default function LecturerProfilePage() {
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Pendidikan Terakhir</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Pendidikan Terakhir
+                    </label>
                     <input
                       type="text"
                       value={lastEducation}
@@ -955,7 +1050,9 @@ export default function LecturerProfilePage() {
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Bidang Keahlian</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Bidang Keahlian
+                    </label>
                     <input
                       type="text"
                       value={expertise}
@@ -968,7 +1065,8 @@ export default function LecturerProfilePage() {
                   <div className="md:col-span-2 flex items-center gap-2.5 p-3.5 rounded-xl bg-blue-50 border border-blue-200">
                     <IdCard className="w-4 h-4 text-[#1E3A8A] shrink-0" />
                     <p className="text-xs text-blue-900">
-                      Status <strong>Dosen Pembimbing Akademik (PA)</strong> dan homebase program studi dikelola oleh BAAK / Super Admin dan tidak dapat diubah mandiri di sini.
+                      Status <strong>Dosen Pembimbing Akademik (PA)</strong> dan homebase program
+                      studi dikelola oleh BAAK / Super Admin dan tidak dapat diubah mandiri di sini.
                     </p>
                   </div>
                 </div>
@@ -979,7 +1077,11 @@ export default function LecturerProfilePage() {
                     disabled={loading}
                     className="px-6 py-3 bg-[#1E3A8A] hover:bg-blue-900 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-60"
                   >
-                    {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4 text-[#D4A017]" />}
+                    {loading ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 text-[#D4A017]" />
+                    )}
                     <span>Simpan Perubahan Kepegawaian</span>
                   </button>
                 </div>
@@ -988,29 +1090,42 @@ export default function LecturerProfilePage() {
 
             {/* TAB: KEAMANAN */}
             {activeTab === 'keamanan' && (
-              <form onSubmit={handleSubmitPassword} className="bg-white rounded-2xl border border-slate-200 shadow-subtle p-6 space-y-6">
+              <form
+                onSubmit={handleSubmitPassword}
+                className="bg-white rounded-2xl border border-slate-200 shadow-subtle p-6 space-y-6"
+              >
                 <div className="border-b border-slate-100 pb-4">
                   <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <Lock className="w-5 h-5 text-[#1E3A8A]" />
                     <span>Keamanan Akun</span>
                   </h2>
-                  <p className="text-xs text-slate-500 mt-0.5">Ubah kata sandi login Portal Dosen secara berkala untuk menjaga keamanan akun.</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Ubah kata sandi login Portal Dosen secara berkala untuk menjaga keamanan akun.
+                  </p>
                 </div>
 
                 {passwordMsg && (
                   <div
                     className={`rounded-xl p-3.5 flex items-center gap-2.5 text-xs font-medium ${
-                      passwordMsg.isError ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      passwordMsg.isError
+                        ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                     }`}
                   >
-                    {passwordMsg.isError ? <AlertCircle className="w-4 h-4 shrink-0" /> : <CheckCircle2 className="w-4 h-4 shrink-0" />}
+                    {passwordMsg.isError ? (
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    )}
                     <span>{passwordMsg.text}</span>
                   </div>
                 )}
 
                 <div className="grid grid-cols-1 gap-5 max-w-md">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Password Saat Ini</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Password Saat Ini
+                    </label>
                     <div className="relative">
                       <input
                         type={showPassword ? 'text' : 'password'}
@@ -1023,13 +1138,19 @@ export default function LecturerProfilePage() {
                         onClick={() => setShowPassword((v) => !v)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
                       >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showPassword ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
                       </button>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Password Baru</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Password Baru
+                    </label>
                     <input
                       type={showPassword ? 'text' : 'password'}
                       required
@@ -1041,7 +1162,9 @@ export default function LecturerProfilePage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Konfirmasi Password Baru</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Konfirmasi Password Baru
+                    </label>
                     <input
                       type={showPassword ? 'text' : 'password'}
                       required
@@ -1058,7 +1181,11 @@ export default function LecturerProfilePage() {
                     disabled={passwordLoading}
                     className="px-6 py-3 bg-[#1E3A8A] hover:bg-blue-900 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-60"
                   >
-                    {passwordLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4 text-[#D4A017]" />}
+                    {passwordLoading ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Lock className="w-4 h-4 text-[#D4A017]" />
+                    )}
                     <span>Perbarui Password</span>
                   </button>
                 </div>

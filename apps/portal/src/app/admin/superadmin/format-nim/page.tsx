@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getApiBaseUrl } from '@/lib/api';
+import { copyToClipboard } from '@/lib/clipboard';
 import {
   Hash,
   Sliders,
@@ -18,8 +19,6 @@ import {
   Copy,
   Check,
   Zap,
-  Edit3,
-  RefreshCw,
   Search,
 } from 'lucide-react';
 
@@ -27,77 +26,10 @@ interface CustomProdiFormat {
   id: string;
   name: string;
   degree: string;
+  code: string;
   diktiCode: string;
-  nimCode: string;
   facultyName: string;
-  lastSequence: number;
 }
-
-const DEFAULT_PRODI_LIST: CustomProdiFormat[] = [
-  {
-    id: 'prodi-1',
-    name: 'Teknik Informatika',
-    degree: 'S1',
-    diktiCode: '55201',
-    nimCode: '115',
-    facultyName: 'Fakultas Teknologi Informasi',
-    lastSequence: 42,
-  },
-  {
-    id: 'prodi-2',
-    name: 'Sistem Informasi',
-    degree: 'S1',
-    diktiCode: '57201',
-    nimCode: '116',
-    facultyName: 'Fakultas Teknologi Informasi',
-    lastSequence: 28,
-  },
-  {
-    id: 'prodi-3',
-    name: 'Teknik Elektro',
-    degree: 'S1',
-    diktiCode: '20201',
-    nimCode: '111',
-    facultyName: 'Fakultas Teknik Industri',
-    lastSequence: 15,
-  },
-  {
-    id: 'prodi-4',
-    name: 'Teknik Mesin',
-    degree: 'S1',
-    diktiCode: '21201',
-    nimCode: '112',
-    facultyName: 'Fakultas Teknik Industri',
-    lastSequence: 19,
-  },
-  {
-    id: 'prodi-5',
-    name: 'Teknik Industri',
-    degree: 'S1',
-    diktiCode: '24201',
-    nimCode: '114',
-    facultyName: 'Fakultas Teknik Industri',
-    lastSequence: 22,
-  },
-  {
-    id: 'prodi-6',
-    name: 'Teknik Sipil',
-    degree: 'S1',
-    diktiCode: '22201',
-    nimCode: '121',
-    facultyName: 'Fakultas Teknik Sipil & Perencanaan',
-    lastSequence: 34,
-  },
-  {
-    id: 'prodi-7',
-    name: 'Arsitektur',
-    degree: 'S1',
-    diktiCode: '23201',
-    nimCode: '122',
-    facultyName: 'Fakultas Teknik Sipil & Perencanaan',
-    lastSequence: 11,
-  },
-];
 
 export default function SettingFormatNimPage() {
   // Config state
@@ -105,7 +37,7 @@ export default function SettingFormatNimPage() {
   const [institutionCode, setInstitutionCode] = useState<string>('27');
   const [useFacultyCode, setUseFacultyCode] = useState<boolean>(false);
   const [facultyCodeFormat, setFacultyCodeFormat] = useState<'2DIGIT' | '1DIGIT'>('2DIGIT');
-  const [prodiCodeFormat, setProdiCodeFormat] = useState<'3DIGIT' | '2DIGIT' | 'DIKTI'>('3DIGIT');
+  const [prodiCodeFormat, setProdiCodeFormat] = useState<'INTERNAL' | 'DIKTI'>('INTERNAL');
   const [useJalurCode, setUseJalurCode] = useState<boolean>(true);
   const [sequenceLength, setSequenceLength] = useState<number>(4);
   const [delimiter, setDelimiter] = useState<string>(''); // '', '.', '-'
@@ -114,15 +46,14 @@ export default function SettingFormatNimPage() {
   );
   const [isAdvancedMode, setIsAdvancedMode] = useState<boolean>(false);
 
-  // Prodi Table State
-  const [prodiList, setProdiList] = useState<CustomProdiFormat[]>(DEFAULT_PRODI_LIST);
+  // Prodi Table State -- diisi dari /study-programs asli, bukan data contoh lagi.
+  const [prodiList, setProdiList] = useState<CustomProdiFormat[]>([]);
+  const [isLoadingProdi, setIsLoadingProdi] = useState<boolean>(true);
   const [searchProdi, setSearchProdi] = useState<string>('');
-  const [editingProdiId, setEditingProdiId] = useState<string | null>(null);
-  const [tempNimCode, setTempNimCode] = useState<string>('');
 
   // Simulation State
   const [simYear, setSimYear] = useState<number>(2026);
-  const [simProdiId, setSimProdiId] = useState<string>('prodi-1');
+  const [simProdiId, setSimProdiId] = useState<string>('');
   const [simJalurCode, setSimJalurCode] = useState<string>('1');
   const [simSequence, setSimSequence] = useState<number>(1);
   const [copiedNim, setCopiedNim] = useState<boolean>(false);
@@ -141,7 +72,9 @@ export default function SettingFormatNimPage() {
           if (parsed.institutionCode !== undefined) setInstitutionCode(parsed.institutionCode);
           if (parsed.useFacultyCode !== undefined) setUseFacultyCode(parsed.useFacultyCode);
           if (parsed.facultyCodeFormat) setFacultyCodeFormat(parsed.facultyCodeFormat);
-          if (parsed.prodiCodeFormat) setProdiCodeFormat(parsed.prodiCodeFormat);
+          if (parsed.prodiCodeFormat === 'INTERNAL' || parsed.prodiCodeFormat === 'DIKTI') {
+            setProdiCodeFormat(parsed.prodiCodeFormat);
+          }
           if (parsed.useJalurCode !== undefined) setUseJalurCode(parsed.useJalurCode);
           if (parsed.sequenceLength) setSequenceLength(parsed.sequenceLength);
           if (parsed.delimiter !== undefined) setDelimiter(parsed.delimiter);
@@ -149,14 +82,42 @@ export default function SettingFormatNimPage() {
           if (parsed.isAdvancedMode !== undefined) setIsAdvancedMode(parsed.isAdvancedMode);
         }
 
-        const savedProdi = localStorage.getItem('siakad_prodi_nim_codes');
-        if (savedProdi) {
-          setProdiList(JSON.parse(savedProdi));
-        }
       } catch (e) {
         console.error('Failed to parse NIM format config:', e);
       }
     }
+  }, []);
+
+  // Muat daftar program studi ASLI dari database -- dulu halaman ini pakai
+  // DEFAULT_PRODI_LIST hardcoded (Teknik Informatika, dst) yang sama sekali tidak
+  // mencerminkan prodi sungguhan kampus.
+  useEffect(() => {
+    async function loadRealPrograms() {
+      setIsLoadingProdi(true);
+      try {
+        const apiBase = getApiBaseUrl();
+        const res = await fetch(`${apiBase}/study-programs`);
+        if (res.ok) {
+          const json = await res.json();
+          const data = json.data || json;
+          const mapped: CustomProdiFormat[] = (Array.isArray(data) ? data : []).map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            degree: p.degreeLevel,
+            code: p.code || '-',
+            diktiCode: p.diktiCode || '-',
+            facultyName: p.facultyName || 'Belum ada fakultas',
+          }));
+          setProdiList(mapped);
+          if (mapped.length > 0) setSimProdiId(mapped[0].id);
+        }
+      } catch (e) {
+        console.error('Gagal memuat daftar program studi:', e);
+      } finally {
+        setIsLoadingProdi(false);
+      }
+    }
+    loadRealPrograms();
   }, []);
 
   const showToast = (msg: string) => {
@@ -172,13 +133,14 @@ export default function SettingFormatNimPage() {
     seq: number
   ) => {
     const selectedProdi = prodiList.find((p) => p.id === prodiId) || prodiList[0];
+    if (!selectedProdi) return '';
 
     if (isAdvancedMode && customPatternInput.trim()) {
       const yearFull = String(year);
       const yearShort = yearFull.slice(-2);
       const seqPadded = String(seq).padStart(sequenceLength, '0');
       const prodiCodeVal =
-        prodiCodeFormat === 'DIKTI' ? selectedProdi.diktiCode : selectedProdi.nimCode;
+        prodiCodeFormat === 'DIKTI' ? selectedProdi.diktiCode : selectedProdi.code;
       const facultyCodeVal = '01';
 
       return customPatternInput
@@ -207,13 +169,7 @@ export default function SettingFormatNimPage() {
       parts.push(facultyCodeFormat === '2DIGIT' ? '01' : '1');
     }
 
-    if (prodiCodeFormat === 'DIKTI') {
-      parts.push(selectedProdi.diktiCode);
-    } else if (prodiCodeFormat === '2DIGIT') {
-      parts.push(selectedProdi.nimCode.slice(-2));
-    } else {
-      parts.push(selectedProdi.nimCode);
-    }
+    parts.push(prodiCodeFormat === 'DIKTI' ? selectedProdi.diktiCode : selectedProdi.code);
 
     if (useJalurCode) {
       parts.push(jalurCode);
@@ -249,7 +205,6 @@ export default function SettingFormatNimPage() {
 
     if (typeof window !== 'undefined') {
       localStorage.setItem('siakad_format_nim_config', JSON.stringify(configData));
-      localStorage.setItem('siakad_prodi_nim_codes', JSON.stringify(prodiList));
     }
 
     try {
@@ -275,7 +230,7 @@ export default function SettingFormatNimPage() {
       setAngkatanFormat('2DIGIT');
       setInstitutionCode('27');
       setUseFacultyCode(false);
-      setProdiCodeFormat('3DIGIT');
+      setProdiCodeFormat('INTERNAL');
       setUseJalurCode(true);
       setSequenceLength(4);
       setDelimiter('');
@@ -296,7 +251,7 @@ export default function SettingFormatNimPage() {
       setAngkatanFormat('2DIGIT');
       setInstitutionCode('');
       setUseFacultyCode(false);
-      setProdiCodeFormat('2DIGIT');
+      setProdiCodeFormat('INTERNAL');
       setUseJalurCode(false);
       setSequenceLength(3);
       setDelimiter('');
@@ -306,7 +261,7 @@ export default function SettingFormatNimPage() {
       setAngkatanFormat('2DIGIT');
       setInstitutionCode('27');
       setUseFacultyCode(false);
-      setProdiCodeFormat('3DIGIT');
+      setProdiCodeFormat('INTERNAL');
       setUseJalurCode(true);
       setSequenceLength(4);
       setDelimiter('-');
@@ -315,39 +270,20 @@ export default function SettingFormatNimPage() {
     }
   };
 
-  const handleCopyNim = () => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(sampleOutput);
-      setCopiedNim(true);
-      setTimeout(() => setCopiedNim(false), 2000);
-    }
-  };
-
-  const handleSaveProdiNimCode = (id: string) => {
-    if (!tempNimCode.trim()) return;
-    setProdiList((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, nimCode: tempNimCode.trim() } : p))
-    );
-    setEditingProdiId(null);
-    setTempNimCode('');
-    showToast('Kode NIM Program Studi berhasil diperbarui!');
-  };
-
-  const handleResetCounter = (id: string, name: string) => {
-    setProdiList((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, lastSequence: 0 } : p))
-    );
-    showToast(`Counter nomor urut untuk ${name} telah direset ke 0!`);
+  const handleCopyNim = async () => {
+    await copyToClipboard(sampleOutput);
+    setCopiedNim(true);
+    setTimeout(() => setCopiedNim(false), 2000);
   };
 
   const filteredProdi = prodiList.filter(
     (p) =>
       p.name.toLowerCase().includes(searchProdi.toLowerCase()) ||
       p.diktiCode.includes(searchProdi) ||
-      p.nimCode.includes(searchProdi)
+      p.code.includes(searchProdi)
   );
 
-  const selectedProdiObj = prodiList.find((p) => p.id === simProdiId) || prodiList[0];
+  const selectedProdiObj = prodiList.find((p) => p.id === simProdiId);
 
   return (
     <PortalLayout
@@ -415,7 +351,12 @@ export default function SettingFormatNimPage() {
               {institutionCode && <span>Kode Kampus: <strong>{institutionCode}</strong> &bull; </span>}
               {angkatanFormat !== 'NONE' && <span>Angkatan: <strong>{angkatanFormat === '2DIGIT' ? String(simYear).slice(-2) : simYear}</strong> &bull; </span>}
               {useFacultyCode && <span>Fakultas: <strong>01</strong> &bull; </span>}
-              <span>Prodi ({selectedProdiObj.name}): <strong>{selectedProdiObj.nimCode}</strong> &bull; </span>
+              {selectedProdiObj && (
+                <span>
+                  Prodi ({selectedProdiObj.name}):{' '}
+                  <strong>{prodiCodeFormat === 'DIKTI' ? selectedProdiObj.diktiCode : selectedProdiObj.code}</strong> &bull;{' '}
+                </span>
+              )}
               {useJalurCode && <span>Jalur: <strong>{simJalurCode}</strong> &bull; </span>}
               <span>Urutan: <strong>{String(simSequence).padStart(sequenceLength, '0')}</strong></span>
             </p>
@@ -592,10 +533,12 @@ export default function SettingFormatNimPage() {
                         onChange={(e) => setProdiCodeFormat(e.target.value as any)}
                         className="w-full text-sm border border-slate-200 rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-[#1E3A8A] bg-white"
                       >
-                        <option value="3DIGIT">3 Digit Internal (Contoh: 115 Teknik Informatika)</option>
-                        <option value="2DIGIT">2 Digit Ringkas (Contoh: 15 / 50)</option>
-                        <option value="DIKTI">Kode Asli PDDIKTI (Contoh: 55201)</option>
+                        <option value="INTERNAL">Kode Internal Prodi (dari menu Program Studi)</option>
+                        <option value="DIKTI">Kode DIKTI (dari menu Program Studi)</option>
                       </select>
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Kedua kode ini diambil langsung dari data Program Studi asli -- ubah di menu Program Studi, bukan di sini.
+                      </p>
                     </div>
                   </div>
 
@@ -728,13 +671,20 @@ export default function SettingFormatNimPage() {
                   <select
                     value={simProdiId}
                     onChange={(e) => setSimProdiId(e.target.value)}
-                    className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 bg-white text-slate-800 font-semibold"
+                    disabled={isLoadingProdi || prodiList.length === 0}
+                    className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 bg-white text-slate-800 font-semibold disabled:bg-slate-100 disabled:text-slate-400"
                   >
-                    {prodiList.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({p.degree}) - Kode {p.nimCode}
-                      </option>
-                    ))}
+                    {isLoadingProdi ? (
+                      <option>Memuat program studi...</option>
+                    ) : prodiList.length === 0 ? (
+                      <option>Belum ada program studi</option>
+                    ) : (
+                      prodiList.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.degree}) - {prodiCodeFormat === 'DIKTI' ? p.diktiCode : p.code}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
 
@@ -778,10 +728,14 @@ export default function SettingFormatNimPage() {
           <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h2 className="font-bold text-slate-900 text-base flex items-center gap-2">
-                <GraduationCap className="w-5 h-5 text-[#1E3A8A]" /> Master Kode NIM & Counter Nomor Urut per Program Studi
+                <GraduationCap className="w-5 h-5 text-[#1E3A8A]" /> Daftar Kode Program Studi
               </h2>
               <p className="text-xs text-slate-500">
-                Kelola kode internal NIM tiap prodi dan pantau nomor urut pendaftaran mahasiswa terakhir.
+                Kode Internal & Kode DIKTI diambil langsung dari data Program Studi asli. Untuk mengubahnya, edit di menu{' '}
+                <a href="/admin/superadmin/prodi" className="font-semibold text-[#1E3A8A] underline">
+                  Program Studi
+                </a>
+                .
               </p>
             </div>
 
@@ -803,71 +757,47 @@ export default function SettingFormatNimPage() {
                 <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-700 font-bold uppercase tracking-wider">
                   <th className="py-3 px-4">Nama Program Studi</th>
                   <th className="py-3 px-4">Fakultas</th>
-                  <th className="py-3 px-4 text-center">Kode Dikti</th>
-                  <th className="py-3 px-4 text-center">Kode Internal NIM</th>
-                  <th className="py-3 px-4 text-center">No Urut Terakhir</th>
-                  <th className="py-3 px-4 text-right">Aksi</th>
+                  <th className="py-3 px-4 text-center">Kode Internal Prodi</th>
+                  <th className="py-3 px-4 text-center">Kode DIKTI</th>
+                  <th className="py-3 px-4 text-center">Dipakai di Format NIM</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredProdi.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3.5 px-4 font-bold text-slate-900">
-                      {p.name} <span className="text-[11px] font-normal text-slate-500">({p.degree})</span>
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-600">{p.facultyName}</td>
-                    <td className="py-3.5 px-4 text-center font-mono font-semibold text-slate-700">
-                      {p.diktiCode}
-                    </td>
-                    <td className="py-3.5 px-4 text-center">
-                      {editingProdiId === p.id ? (
-                        <div className="flex items-center justify-center gap-1">
-                          <input
-                            type="text"
-                            value={tempNimCode}
-                            onChange={(e) => setTempNimCode(e.target.value)}
-                            className="w-16 font-mono text-center border border-blue-500 rounded py-0.5 text-xs font-bold"
-                          />
-                          <button
-                            onClick={() => handleSaveProdiNimCode(p.id)}
-                            className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700"
-                            title="Simpan"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="font-mono font-bold text-[#1E3A8A]">
-                          {p.nimCode}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3.5 px-4 text-center font-mono font-semibold text-slate-800">
-                      {String(p.lastSequence).padStart(sequenceLength, '0')}
-                    </td>
-                    <td className="py-3.5 px-4 text-right space-x-2 whitespace-nowrap">
-                      <button
-                        onClick={() => {
-                          setEditingProdiId(p.id);
-                          setTempNimCode(p.nimCode);
-                        }}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors inline-flex items-center gap-1 text-xs font-semibold"
-                        title="Edit Kode NIM"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                        <span>Edit Kode</span>
-                      </button>
-                      <button
-                        onClick={() => handleResetCounter(p.id, p.name)}
-                        className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors inline-flex items-center gap-1 text-xs font-semibold"
-                        title="Reset Nomor Urut Ke 0"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5" />
-                        <span>Reset Counter</span>
-                      </button>
+                {isLoadingProdi ? (
+                  <tr>
+                    <td colSpan={5} className="text-center py-10 text-slate-400">
+                      Memuat program studi dari database...
                     </td>
                   </tr>
-                ))}
+                ) : filteredProdi.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="text-center py-10 text-slate-400">
+                      Belum ada program studi. Tambahkan dulu di menu Program Studi.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredProdi.map((p) => (
+                    <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3.5 px-4 font-bold text-slate-900">
+                        {p.name} <span className="text-[11px] font-normal text-slate-500">({p.degree})</span>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-600">{p.facultyName}</td>
+                      <td className="py-3.5 px-4 text-center font-mono font-semibold text-[#1E3A8A]">{p.code}</td>
+                      <td className="py-3.5 px-4 text-center font-mono font-semibold text-slate-700">{p.diktiCode}</td>
+                      <td className="py-3.5 px-4 text-center">
+                        {prodiCodeFormat === 'DIKTI' ? (
+                          <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100">
+                            Kode DIKTI
+                          </span>
+                        ) : (
+                          <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
+                            Kode Internal
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

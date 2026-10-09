@@ -1,7 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { RedisService } from '../../shared/redis/redis.service';
 import { UpdateLandingPageDto } from './dto/update-landing-page.dto';
+import { CreateArticleDto, UpdateArticleDto } from './dto/article.dto';
+
+function slugify(title: string): string {
+  return title
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+}
 
 const DEFAULT_SETTINGS = {
   id: 'default-setting',
@@ -147,6 +157,76 @@ export class LandingPageService {
       // Fallback
     }
 
+    return this.getDemoArticles();
+  }
+
+  // Dipakai halaman admin (BAAK/Super Admin) -- semua artikel termasuk yang belum dipublikasikan.
+  async getAllArticlesAdmin() {
+    try {
+      const articles = await this.prisma.landingPageArticle.findMany({
+        orderBy: { createdAt: 'desc' },
+      });
+      return articles;
+    } catch {
+      return this.getDemoArticles();
+    }
+  }
+
+  async getArticleById(id: string) {
+    const article = await this.prisma.landingPageArticle.findUnique({ where: { id } });
+    if (!article) throw new NotFoundException('Berita tidak ditemukan.');
+    return article;
+  }
+
+  async createArticle(dto: CreateArticleDto, authorName: string) {
+    let slug = slugify(dto.title);
+    const existing = await this.prisma.landingPageArticle.findUnique({ where: { slug } });
+    if (existing) {
+      slug = `${slug}-${Date.now().toString(36)}`;
+    }
+    return this.prisma.landingPageArticle.create({
+      data: {
+        title: dto.title,
+        slug,
+        category: dto.category || 'Akademik',
+        excerpt: dto.excerpt,
+        content: dto.content,
+        imageUrl: dto.imageUrl || null,
+        authorName,
+        readTime: dto.readTime || '4 min read',
+        isFeatured: Boolean(dto.isFeatured),
+        isPublished: dto.isPublished !== undefined ? dto.isPublished : true,
+      },
+    });
+  }
+
+  async updateArticle(id: string, dto: UpdateArticleDto) {
+    const existing = await this.prisma.landingPageArticle.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Berita tidak ditemukan.');
+
+    return this.prisma.landingPageArticle.update({
+      where: { id },
+      data: {
+        title: dto.title !== undefined ? dto.title : undefined,
+        category: dto.category !== undefined ? dto.category : undefined,
+        excerpt: dto.excerpt !== undefined ? dto.excerpt : undefined,
+        content: dto.content !== undefined ? dto.content : undefined,
+        imageUrl: dto.imageUrl !== undefined ? dto.imageUrl : undefined,
+        readTime: dto.readTime !== undefined ? dto.readTime : undefined,
+        isFeatured: dto.isFeatured !== undefined ? dto.isFeatured : undefined,
+        isPublished: dto.isPublished !== undefined ? dto.isPublished : undefined,
+      },
+    });
+  }
+
+  async deleteArticle(id: string) {
+    const existing = await this.prisma.landingPageArticle.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Berita tidak ditemukan.');
+    await this.prisma.landingPageArticle.delete({ where: { id } });
+    return { success: true };
+  }
+
+  private getDemoArticles() {
     return [
       {
         id: 'demo-art-1',

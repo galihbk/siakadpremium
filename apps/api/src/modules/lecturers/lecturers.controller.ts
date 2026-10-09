@@ -1,25 +1,31 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { LecturersService, CreateLecturerDto, UpdateLecturerDto } from './lecturers.service';
 
 @ApiTags('Lecturers (Dosen)')
 @Controller('lecturers')
 export class LecturersController {
-  constructor(private lecturersService: LecturersService) {}
+  constructor(
+    private lecturersService: LecturersService,
+    private jwtService: JwtService,
+  ) {}
 
-  private extractLecturerId(req: any): string | undefined {
+  // Identitas dosen HANYA dari JWT yang tervalidasi tanda tangannya (header x-lecturer-id tidak dipercaya).
+  // Jika token tidak memuat lecturerId, dicari dari userId (sub) supaya sesi lama tetap valid.
+  private async extractLecturerId(req: any): Promise<string | undefined> {
     const authHeader = req?.headers?.['authorization'] || req?.headers?.['Authorization'];
-    if (authHeader?.startsWith('Bearer ')) {
-      try {
-        const token = authHeader.slice(7);
-        const parts = token.split('.');
-        if (parts.length === 3) {
-          const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-          if (payload?.lecturerId) return payload.lecturerId;
-        }
-      } catch {}
+    if (!authHeader?.startsWith('Bearer ')) {
+      throw new UnauthorizedException('Token otentikasi tidak ditemukan.');
     }
-    return req?.headers?.['x-lecturer-id'];
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(authHeader.slice(7));
+    } catch {
+      throw new UnauthorizedException('Token otentikasi tidak valid atau telah kedaluwarsa.');
+    }
+    if (payload?.lecturerId) return payload.lecturerId;
+    return this.lecturersService.findLecturerIdByUserId(payload?.sub);
   }
 
   @Get('dashboard')
@@ -31,16 +37,23 @@ export class LecturersController {
 
   @Get('schedules')
   @ApiOperation({ summary: 'Mendapatkan jadwal mengajar dosen aktif semester ini' })
-  async getTeachingSchedule(@Req() req: any) {
-    const lecturerId = this.extractLecturerId(req);
-    return this.lecturersService.getTeachingSchedule(lecturerId);
+  async getTeachingSchedule(@Req() req: any, @Query('academicYearId') academicYearId?: string) {
+    const lecturerId = await this.extractLecturerId(req);
+    return this.lecturersService.getTeachingSchedule(lecturerId, academicYearId);
+  }
+
+  @Get('academic-years')
+  @ApiOperation({ summary: 'Riwayat tahun akademik tempat dosen mengampu kelas' })
+  async getTeachingYears(@Req() req: any) {
+    const lecturerId = await this.extractLecturerId(req);
+    return this.lecturersService.getTeachingYears(lecturerId);
   }
 
   // ================= ABSENSI PERKULIAHAN =================
   @Get('classes/:classId/attendance')
   @ApiOperation({ summary: 'Mendapatkan roster & status kehadiran mahasiswa untuk satu pertemuan' })
   async getAttendance(@Req() req: any, @Param('classId') classId: string, @Query('meeting') meeting: string) {
-    const lecturerId = this.extractLecturerId(req);
+    const lecturerId = await this.extractLecturerId(req);
     return this.lecturersService.getAttendance(lecturerId, classId, Number(meeting) || 1);
   }
 
@@ -51,14 +64,14 @@ export class LecturersController {
     @Param('classId') classId: string,
     @Body() body: { meetingNumber: number; date?: string; topic?: string; records: Array<{ studentId: string; status: string; notes?: string }> },
   ) {
-    const lecturerId = this.extractLecturerId(req);
+    const lecturerId = await this.extractLecturerId(req);
     return this.lecturersService.saveAttendance(lecturerId, classId, body);
   }
 
   @Get('classes/:classId/attendance/recap')
   @ApiOperation({ summary: 'Rekap kehadiran mahasiswa satu kelas sepanjang semester' })
   async getAttendanceRecap(@Req() req: any, @Param('classId') classId: string) {
-    const lecturerId = this.extractLecturerId(req);
+    const lecturerId = await this.extractLecturerId(req);
     return this.lecturersService.getAttendanceRecap(lecturerId, classId);
   }
 
@@ -66,14 +79,14 @@ export class LecturersController {
   @Get('classes/:classId/contract')
   @ApiOperation({ summary: 'Mendapatkan kontrak kuliah (RPS) satu kelas' })
   async getCourseContract(@Req() req: any, @Param('classId') classId: string) {
-    const lecturerId = this.extractLecturerId(req);
+    const lecturerId = await this.extractLecturerId(req);
     return this.lecturersService.getCourseContract(lecturerId, classId);
   }
 
   @Put('classes/:classId/contract')
   @ApiOperation({ summary: 'Menyimpan kontrak kuliah (RPS) satu kelas' })
   async saveCourseContract(@Req() req: any, @Param('classId') classId: string, @Body() body: any) {
-    const lecturerId = this.extractLecturerId(req);
+    const lecturerId = await this.extractLecturerId(req);
     return this.lecturersService.saveCourseContract(lecturerId, classId, body);
   }
 
@@ -81,14 +94,14 @@ export class LecturersController {
   @Get('classes/:classId/rps')
   @ApiOperation({ summary: 'Mendapatkan berkas RPS yang sudah diunggah untuk satu kelas' })
   async getRps(@Req() req: any, @Param('classId') classId: string) {
-    const lecturerId = this.extractLecturerId(req);
+    const lecturerId = await this.extractLecturerId(req);
     return this.lecturersService.getRps(lecturerId, classId);
   }
 
   @Post('classes/:classId/rps')
   @ApiOperation({ summary: 'Mengunggah berkas RPS untuk satu kelas (URL berkas dari /storage/upload)' })
   async saveRps(@Req() req: any, @Param('classId') classId: string, @Body() body: { fileUrl: string; fileName: string }) {
-    const lecturerId = this.extractLecturerId(req);
+    const lecturerId = await this.extractLecturerId(req);
     return this.lecturersService.saveRps(lecturerId, classId, body);
   }
 
@@ -100,7 +113,7 @@ export class LecturersController {
     @Query('status') status?: string,
     @Query('search') search?: string,
   ) {
-    const lecturerId = this.extractLecturerId(req);
+    const lecturerId = await this.extractLecturerId(req);
     return this.lecturersService.getAdvisees(lecturerId, {
       angkatan: angkatan ? parseInt(angkatan, 10) : undefined,
       status,
@@ -111,14 +124,14 @@ export class LecturersController {
   @Get('advisees/:id/detail')
   @ApiOperation({ summary: 'Detail lengkap mahasiswa bimbingan: biodata, keluarga, jalur masuk, riwayat KRS' })
   async getAdviseeDetail(@Req() req: any, @Param('id') id: string) {
-    const lecturerId = this.extractLecturerId(req);
+    const lecturerId = await this.extractLecturerId(req);
     return this.lecturersService.getAdviseeDetail(lecturerId, id);
   }
 
   @Post('advisees/:id/approve-krs')
   @ApiOperation({ summary: 'Validasi dan setujui KRS mahasiswa bimbingan' })
   async approveStudentKrs(@Req() req: any, @Param('id') id: string, @Body() body: { note?: string }) {
-    const lecturerId = this.extractLecturerId(req);
+    const lecturerId = await this.extractLecturerId(req);
     return this.lecturersService.approveStudentKrs(lecturerId, id, body?.note);
   }
 
@@ -129,7 +142,7 @@ export class LecturersController {
     @Param('id') id: string,
     @Body() body: { topic: string; note: string },
   ) {
-    const lecturerId = this.extractLecturerId(req);
+    const lecturerId = await this.extractLecturerId(req);
     return this.lecturersService.addAdviseeConsultation(lecturerId, id, body);
   }
 
@@ -202,5 +215,14 @@ export class LecturersController {
   @ApiOperation({ summary: 'Reset password akun dosen' })
   async resetPassword(@Param('id') id: string, @Body() body: { newPassword?: string }) {
     return this.lecturersService.resetPassword(id, body?.newPassword);
+  }
+
+  @Put(':id/structural-position')
+  @ApiOperation({ summary: 'Menetapkan/menghapus jabatan struktural dosen (Dekan/Kaprodi)' })
+  async setStructuralPosition(
+    @Param('id') id: string,
+    @Body() body: { position: 'DEKAN' | 'KAPRODI' | null; facultyId?: string; studyProgramId?: string },
+  ) {
+    return this.lecturersService.setStructuralPosition(id, body);
   }
 }

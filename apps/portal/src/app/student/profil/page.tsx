@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getAuthSession } from '@/lib/auth';
 import { getApiBaseUrl } from '@/lib/api';
-import { compressUploadedFile, fileToBase64, formatFileSize } from '@/lib/fileCompression';
+import { compressUploadedFile, fileToBase64 } from '@/lib/fileCompression';
 import {
   User,
   Camera,
@@ -579,10 +579,7 @@ export default function StudentProfilePage() {
       }
       window.dispatchEvent(new Event('siakad_profile_updated'));
 
-      const saveInfo = compressResult.wasCompressed
-        ? ` (${formatFileSize(compressResult.originalSize)} ➔ ${formatFileSize(compressResult.compressedSize)}, hemat ${compressResult.savedPercent}%)`
-        : '';
-      setSaveSuccess(`Foto profil berhasil diperbarui!${saveInfo}`);
+      setSaveSuccess('Foto profil berhasil diperbarui!');
 
       // Persist to backend in background
       try {

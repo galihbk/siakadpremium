@@ -6,50 +6,182 @@ export class FinanceService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getSummary() {
-    const [totalStudentsCount, prodis, invoiceCounts] = await Promise.all([
-      this.prisma.student.count(),
-      this.prisma.studyProgram.findMany(),
+    const [invoiceGroups, unpaidInvoices, bankAccounts, budgetItems] = await Promise.all([
       this.prisma.paymentInvoice.groupBy({
         by: ['status'],
         _count: { id: true },
         _sum: { amount: true },
-      }).catch(() => []),
+      }),
+      this.prisma.paymentInvoice.findMany({
+        where: { status: { not: 'LUNAS' } },
+        select: { nim: true, dueDate: true },
+      }),
+      this.prisma.financeBankAccount.findMany({ where: { isActive: true }, orderBy: { createdAt: 'asc' } }),
+      this.prisma.financeBudgetItem.findMany({ orderBy: { createdAt: 'asc' } }),
     ]);
 
-    const aggregateStudents = prodis.reduce((acc, p) => acc + (p.studentsCount || 0), 0);
-    const totalStudents = aggregateStudents > 0 ? aggregateStudents : (totalStudentsCount || 9270);
-    const uktPerSemester = 4500000;
-    const targetPenerimaan = totalStudents * uktPerSemester;
+    const sumOf = (status: string) => (invoiceGroups.find((g) => g.status === status)?._sum.amount ?? 0);
+    const totalPenerimaan = sumOf('LUNAS');
+    const totalTunggakan = sumOf('TERTUNDA') + sumOf('MENUNGGU_VERIFIKASI');
+    const targetPenerimaan = totalPenerimaan + totalTunggakan;
+    const persentaseTarget = targetPenerimaan > 0 ? Math.round((totalPenerimaan / targetPenerimaan) * 1000) / 10 : 0;
+    const jumlahMahasiswaTunggakan = new Set(unpaidInvoices.map((i) => i.nim)).size;
+    const batasPelunasan = unpaidInvoices.map((i) => i.dueDate).filter(Boolean).sort()[0] ?? null;
 
-    const lunasData = (invoiceCounts as any[]).find((g: any) => g.status === 'LUNAS');
-    const menungguData = (invoiceCounts as any[]).find((g: any) => g.status === 'MENUNGGU_VERIFIKASI');
-    const tertundaData = (invoiceCounts as any[]).find((g: any) => g.status === 'TERTUNDA');
+    const totalPagu = budgetItems.reduce((acc, b) => acc + b.allocated, 0);
+    const totalPengeluaran = budgetItems.reduce((acc, b) => acc + b.spent, 0);
+    const saldoKasBank = bankAccounts.reduce((acc, b) => acc + b.balance, 0);
 
-    const totalPenerimaanDB = lunasData?._sum?.amount || 0;
-    const totalPenerimaan = totalPenerimaanDB > 0 ? totalPenerimaanDB : Math.round(targetPenerimaan * 0.825);
-    const persentaseTarget = targetPenerimaan > 0 ? Math.round((totalPenerimaan / targetPenerimaan) * 100 * 10) / 10 : 82.5;
-    const totalTunggakan = targetPenerimaan - totalPenerimaan;
-    const jumlahMahasiswaTunggakan = (tertundaData?._count?.id || 0) + (menungguData?._count?.id || 0);
-    const totalPengeluaran = 9420000000;
-    const saldoKasBank = 28640500000;
+    return {
+      totalPenerimaan,
+      targetPenerimaan,
+      persentaseTarget,
+      totalTunggakan,
+      jumlahMahasiswaTunggakan,
+      batasPelunasan,
+      totalPagu,
+      totalPengeluaran,
+      saldoKasBank,
+      bankAccounts: bankAccounts.map((b) => ({
+        id: b.id,
+        bank: b.bankName,
+        description: b.description,
+        accountNumber: b.accountNumber,
+        accountName: b.accountName,
+        balance: b.balance,
+      })),
+      budgetAllocation: budgetItems.map((b) => ({
+        id: b.id,
+        category: b.category,
+        allocated: b.allocated,
+        spent: b.spent,
+        percentage: b.allocated > 0 ? Math.round((b.spent / b.allocated) * 100) : 0,
+      })),
+    };
+  }
 
-    const bankAccounts = [
-      { bank: 'Bank BNI (Virtual Account & Host-to-Host)', accountNumber: '08234-9988-121', accountName: 'Yayasan ITN Malang - Rek Operasional UKT', balance: 12450000000, status: 'Online Terintegrasi' },
-      { bank: 'Bank Mandiri (Mandiri Bill Payment)', accountNumber: '144-00-9821-331', accountName: 'Institut Teknologi Nusantara - Kas Umum', balance: 8120500000, status: 'Online Terintegrasi' },
-      { bank: 'Bank BRI (BRIVA Terpadu)', accountNumber: '0021-01-002931-50-2', accountName: 'ITN Malang - Dana Mahasiswa & Wisuda', balance: 5340000000, status: 'Online Terintegrasi' },
-      { bank: 'Bank BCA (Payroll & Sarpras Kampus)', accountNumber: '822-019-3381', accountName: 'Institut Teknologi Nusantara - Sarpras', balance: 2730000000, status: 'Online Terintegrasi' },
-    ];
+  // --- Rekapitulasi mengajar ---
+  async getTeachingRecap(academicYearId?: string) {
+    const years = await this.prisma.academicYear.findMany({ orderBy: { startDate: 'desc' } });
+    const year = years.find((y) => y.id === academicYearId) ?? years.find((y) => y.isActive) ?? years[0];
+    if (!year) return { academicYears: [], selectedAcademicYearId: null, lecturers: [], totals: null };
 
-    const budgetAllocation = [
-      { category: 'Gaji Dosen & Pegawai', allocated: 5000000000, spent: 4250000000, percentage: 85 },
-      { category: 'Sarana Prasarana & Pemeliharaan', allocated: 4000000000, spent: 2400000000, percentage: 60 },
-      { category: 'Operasional Akademik, Ujian & Lab', allocated: 2000000000, spent: 1400000000, percentage: 70 },
-      { category: 'Dana Penelitian & Pengabdian P3M', allocated: 1500000000, spent: 825000000, percentage: 55 },
-      { category: 'Beasiswa Mahasiswa & Bantuan UKT', allocated: 1200000000, spent: 545000000, percentage: 45 },
-      { category: 'Kemahasiswaan & Event', allocated: 800000000, spent: 420000000, percentage: 53 },
-    ];
+    const classes = await this.prisma.courseClass.findMany({
+      where: { academicYearId: year.id, lecturerId: { not: null } },
+      include: {
+        course: { select: { code: true, name: true, sks: true } },
+        lecturer: { include: { user: { select: { fullName: true } }, studyProgram: { select: { name: true } } } },
+        _count: { select: { attendanceSessions: true } },
+      },
+      orderBy: { className: 'asc' },
+    });
 
-    return { totalPenerimaan, targetPenerimaan, persentaseTarget, totalTunggakan, jumlahMahasiswaTunggakan, totalPengeluaran, saldoKasBank, bankAccounts, budgetAllocation };
+    const byLecturer = new Map<string, any>();
+    for (const c of classes) {
+      if (!c.lecturer) continue;
+      const meetings = c._count.attendanceSessions;
+
+      let row = byLecturer.get(c.lecturer.id);
+      if (!row) {
+        const l = c.lecturer;
+        row = {
+          lecturerId: l.id,
+          nidn: l.nidn,
+          name: `${l.titlePrefix ? l.titlePrefix + ' ' : ''}${l.user.fullName}${l.titleSuffix ? ', ' + l.titleSuffix : ''}`,
+          studyProgram: l.studyProgram?.name ?? '-',
+          totalClasses: 0,
+          totalSks: 0,
+          totalMeetings: 0,
+          classes: [],
+        };
+        byLecturer.set(l.id, row);
+      }
+      row.totalClasses += 1;
+      row.totalSks += c.course.sks;
+      row.totalMeetings += meetings;
+      row.classes.push({
+        id: c.id,
+        className: c.className,
+        courseCode: c.course.code,
+        courseName: c.course.name,
+        sks: c.course.sks,
+        day: c.day,
+        time: `${c.startTime}-${c.endTime}`,
+        meetings,
+      });
+    }
+
+    const lecturers = [...byLecturer.values()].sort((a, b) => a.name.localeCompare(b.name));
+
+    const totals = {
+      lecturers: lecturers.length,
+      classes: lecturers.reduce((a, r) => a + r.totalClasses, 0),
+      sks: lecturers.reduce((a, r) => a + r.totalSks, 0),
+      meetings: lecturers.reduce((a, r) => a + r.totalMeetings, 0),
+    };
+
+    return {
+      academicYears: years.map((y) => ({ id: y.id, name: y.name, semesterType: y.semesterType, isActive: y.isActive })),
+      selectedAcademicYearId: year.id,
+      lecturers,
+      totals,
+    };
+  }
+
+  // --- Rekening bank ---
+  getBankAccounts() {
+    return this.prisma.financeBankAccount.findMany({ orderBy: { createdAt: 'asc' } });
+  }
+
+  async createBankAccount(dto: any) {
+    return await this.prisma.financeBankAccount.create({ data: this.pickBank(dto) });
+  }
+
+  async updateBankAccount(id: string, dto: any) {
+    return await this.prisma.financeBankAccount.update({ where: { id }, data: this.pickBank(dto) });
+  }
+
+  async deleteBankAccount(id: string) {
+    await this.prisma.financeBankAccount.delete({ where: { id } });
+    return { success: true };
+  }
+
+  private pickBank(dto: any) {
+    return {
+      bankName: String(dto.bankName ?? '').trim(),
+      description: dto.description || null,
+      accountNumber: String(dto.accountNumber ?? '').trim(),
+      accountName: String(dto.accountName ?? '').trim(),
+      balance: Number(dto.balance) || 0,
+      ...(dto.isActive !== undefined ? { isActive: !!dto.isActive } : {}),
+    };
+  }
+
+  // --- Anggaran ---
+  getBudgetItems() {
+    return this.prisma.financeBudgetItem.findMany({ orderBy: { createdAt: 'asc' } });
+  }
+
+  async createBudgetItem(dto: any) {
+    return await this.prisma.financeBudgetItem.create({ data: this.pickBudget(dto) });
+  }
+
+  async updateBudgetItem(id: string, dto: any) {
+    return await this.prisma.financeBudgetItem.update({ where: { id }, data: this.pickBudget(dto) });
+  }
+
+  async deleteBudgetItem(id: string) {
+    await this.prisma.financeBudgetItem.delete({ where: { id } });
+    return { success: true };
+  }
+
+  private pickBudget(dto: any) {
+    return {
+      category: String(dto.category ?? '').trim(),
+      allocated: Number(dto.allocated) || 0,
+      spent: Number(dto.spent) || 0,
+      ...(dto.academicYear ? { academicYear: String(dto.academicYear) } : {}),
+    };
   }
 
   async getTransactions(query?: { status?: string; search?: string; type?: string }) {

@@ -38,9 +38,11 @@ import {
   Activity,
   TrendingUp,
   Building2,
+  DoorOpen,
   Key,
   Layers,
   Settings,
+  PenTool,
   Database,
   ListOrdered,
   Clock,
@@ -56,6 +58,9 @@ import {
   UserCog,
   PanelLeftClose,
   PanelLeftOpen,
+  Megaphone,
+  AlertTriangle,
+  FileCheck2,
   PanelLeft,
   Landmark,
   Briefcase,
@@ -72,7 +77,7 @@ import {
 
 interface PortalLayoutProps {
   children: React.ReactNode;
-  role: 'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' | 'lp3m' | 'pmb';
+  role: 'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' | 'lp3m' | 'p2m' | 'prodi' | 'pmb';
   userName?: string;
   userIdText?: string;
   activeMenuHref?: string;
@@ -85,7 +90,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
   const [institutionProfile, setInstitutionProfile] = useState<InstitutionProfile>(FALLBACK_INSTITUTION_PROFILE);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [effectiveRole, setEffectiveRole] = useState<
-    'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' | 'lp3m' | 'pmb'
+    'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' | 'lp3m' | 'p2m' | 'prodi' | 'pmb'
   >(role);
   const [isVerifying, setIsVerifying] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -118,11 +123,16 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Di layar mobile sidebar selalu overlay (menutupi konten), jadi defaultnya tertutup
+      // terlepas dari preferensi tersimpan dari sesi desktop -- preferensi "terbuka" itu
+      // cuma relevan untuk layout push-content di layar lebar (lg+).
+      if (window.innerWidth < 1024) {
+        setSidebarOpen(false);
+        return;
+      }
       const saved = localStorage.getItem('siakad_sidebar_open');
       if (saved !== null) {
         setSidebarOpen(saved === 'true');
-      } else if (window.innerWidth < 1024) {
-        setSidebarOpen(false);
       }
     }
   }, []);
@@ -180,6 +190,12 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
     let computedRole = getPortalRoleFromBackend(user.role, user.email);
     if (role === 'lp3m' || user.email === 'lp3m@itn.ac.id' || pathname.startsWith('/admin/p3m')) {
       computedRole = 'lp3m';
+    }
+    if (role === 'p2m' || user.email === 'p2m@itn.ac.id' || pathname.startsWith('/admin/p2m')) {
+      computedRole = 'p2m';
+    }
+    if (role === 'prodi' || user.email === 'prodi@itn.ac.id' || pathname.startsWith('/admin/prodi')) {
+      computedRole = 'prodi';
     }
     setEffectiveRole(computedRole);
 
@@ -293,13 +309,16 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         { name: 'Jadwal Mengajar', href: '/lecturer/jadwal', icon: Calendar },
         { name: 'Absensi Perkuliahan', href: '/lecturer/absensi', icon: ClipboardCheck },
         { name: 'Kontrak Kuliah', href: '/lecturer/kontrak', icon: FileSignature },
-        { name: 'Upload RPS', href: '/lecturer/rps', icon: UploadCloud },
+        { name: 'Rencana Pembelajaran (RPS)', href: '/lecturer/rps', icon: UploadCloud },
         { name: 'Input Nilai Semester', href: '/lecturer/nilai', icon: Award },
       ],
     },
     {
       title: 'BIMBINGAN',
-      items: [{ name: 'Mahasiswa Bimbingan PA', href: '/lecturer/bimbingan', icon: Users }],
+      items: [
+        { name: 'Mahasiswa Bimbingan PA', href: '/lecturer/bimbingan', icon: Users },
+        { name: 'Persetujuan Surat', href: '/lecturer/surat', icon: Mail },
+      ],
     },
     {
       title: 'PENELITIAN & PENGABDIAN (P3M)',
@@ -315,19 +334,45 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       items: [{ name: 'Dashboard BAAK', href: '/admin', icon: LayoutDashboard }],
     },
     {
-      title: 'ADMINISTRASI AKADEMIK',
+      title: 'DATA INDUK',
       items: [
         { name: 'Data Mahasiswa', href: '/admin/mahasiswa', icon: Users },
         { name: 'Data Dosen', href: '/admin/dosen', icon: UserCheck },
+      ],
+    },
+    {
+      title: 'KURIKULUM',
+      items: [
         { name: 'Kurikulum & Mata Kuliah', href: '/admin/kurikulum', icon: BookOpen },
         { name: 'Master Kurikulum', href: '/admin/master-kurikulum', icon: Layers },
+      ],
+    },
+    {
+      title: 'PENJADWALAN',
+      items: [
         { name: 'Tahun Akademik', href: '/admin/tahun-akademik', icon: Calendar },
-        { name: 'Jadwal', href: '/admin/jadwal', icon: CalendarDays },
+        { name: 'Gedung', href: '/admin/gedung', icon: Building2 },
+        { name: 'Ruang', href: '/admin/ruang', icon: DoorOpen },
+        { name: 'Jadwal Kelas', href: '/admin/jadwal', icon: CalendarDays },
+      ],
+    },
+    {
+      title: 'PERKULIAHAN',
+      items: [
         { name: 'KRS', href: '/admin/krs', icon: FileText },
+        { name: 'Bimbingan Tugas Akhir', href: '/admin/bimbingan-ta', icon: GraduationCap },
+        { name: 'Presensi', href: '/admin/presensi', icon: UserCheck },
         { name: 'Nilai', href: '/admin/nilai', icon: Award },
         { name: 'Skala Nilai', href: '/admin/skala-nilai', icon: Award },
-        { name: 'Presensi', href: '/admin/presensi', icon: UserCheck },
       ],
+    },
+    {
+      title: 'LAYANAN MAHASISWA',
+      items: [{ name: 'Layanan Surat', href: '/admin/surat', icon: Mail }],
+    },
+    {
+      title: 'PUBLIKASI',
+      items: [{ name: 'Berita & Pengumuman', href: '/admin/berita', icon: Megaphone }],
     },
     {
       title: 'PELAPORAN & INTEGRASI',
@@ -370,6 +415,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         { name: 'Format NIM', href: '/admin/superadmin/format-nim', icon: Hash },
         { name: 'Pengaturan Bank', href: '/admin/superadmin/pengaturan-bank', icon: Landmark },
         { name: 'Pengaturan DIKTI', href: '/admin/superadmin/pengaturan-dikti', icon: ShieldCheck },
+        { name: 'Aturan Tanda Tangan', href: '/admin/superadmin/tanda-tangan', icon: PenTool },
         { name: 'Pengaturan Sistem', href: '/admin/superadmin/pengaturan', icon: Settings },
         { name: 'Logout', href: '#logout', icon: LogOut, isLogout: true },
       ],
@@ -390,6 +436,12 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         { name: 'Daftar Tagihan Mahasiswa', href: '/finance/tagihan', icon: FileText },
         { name: 'Verifikasi Pembayaran', href: '/finance/verifikasi', icon: ShieldCheck },
         { name: 'Aturan Biaya Perkuliahan', href: '/finance/aturan-pembiayaan', icon: BookOpen },
+      ],
+    },
+    {
+      title: 'HONOR & PENGAJARAN',
+      items: [
+        { name: 'Rekapitulasi Mengajar', href: '/finance/rekap-mengajar', icon: Clock },
       ],
     },
     {
@@ -421,6 +473,55 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       items: [
         { name: 'Bank Dokumen Panduan', href: '/admin/p3m/dokumen', icon: FileText },
         { name: 'Rekap Borang Akreditasi', href: '/admin/p3m/borang', icon: BarChart3 },
+      ],
+    },
+    {
+      title: 'AKUN & SISTEM',
+      items: [
+        { name: 'Logout', href: '#logout', icon: LogOut, isLogout: true },
+      ],
+    },
+  ];
+
+  const p2mNavGroups = [
+    {
+      title: 'MENU UTAMA P2M',
+      items: [
+        { name: 'Dashboard P2M', href: '/admin/p2m', icon: LayoutDashboard },
+      ],
+    },
+    {
+      title: 'PENJAMINAN MUTU',
+      items: [
+        { name: 'Standar Mutu', href: '/admin/p2m/standar-mutu', icon: Award },
+        { name: 'Audit Mutu Internal', href: '/admin/p2m/audit-mutu', icon: ClipboardCheck },
+        { name: 'Validasi RPS', href: '/admin/p2m/validasi-rps', icon: FileCheck2 },
+        { name: 'Tindak Lanjut Audit', href: '/admin/p2m/tindak-lanjut', icon: AlertTriangle },
+      ],
+    },
+    {
+      title: 'REGULASI & DOKUMEN',
+      items: [{ name: 'Dokumen Mutu', href: '/admin/p2m/dokumen', icon: FileText }],
+    },
+    {
+      title: 'AKUN & SISTEM',
+      items: [
+        { name: 'Logout', href: '#logout', icon: LogOut, isLogout: true },
+      ],
+    },
+  ];
+
+  const prodiNavGroups = [
+    {
+      title: 'MENU UTAMA PRODI',
+      items: [
+        { name: 'Dashboard Prodi', href: '/admin/prodi', icon: LayoutDashboard },
+      ],
+    },
+    {
+      title: 'KURIKULUM',
+      items: [
+        { name: 'Mata Kuliah', href: '/admin/prodi/mata-kuliah', icon: BookOpen },
       ],
     },
     {
@@ -475,9 +576,13 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
             ? financeNavGroups
             : effectiveRole === 'lp3m'
               ? lp3mNavGroups
-              : effectiveRole === 'pmb'
-                ? pmbNavGroups
-                : adminNavGroups;
+              : effectiveRole === 'p2m'
+                ? p2mNavGroups
+                : effectiveRole === 'prodi'
+                  ? prodiNavGroups
+                  : effectiveRole === 'pmb'
+                    ? pmbNavGroups
+                    : adminNavGroups;
 
   const roleLabel =
     effectiveRole === 'student'
@@ -490,9 +595,13 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
             ? 'Biro Keuangan (Finance)'
             : effectiveRole === 'lp3m'
               ? 'Lembaga Penelitian & Pengabdian (LP3M)'
-              : effectiveRole === 'pmb'
-                ? 'Panitia PMB (Admissions)'
-                : 'Administrator BAAK';
+              : effectiveRole === 'p2m'
+                ? 'Penjaminan Mutu (P2M)'
+                : effectiveRole === 'prodi'
+                  ? 'Admin Program Studi'
+                  : effectiveRole === 'pmb'
+                    ? 'Panitia PMB (Admissions)'
+                    : 'Administrator BAAK';
 
   const defaultNameByRole =
     effectiveRole === 'student'
@@ -505,9 +614,13 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
             ? 'Biro Keuangan'
             : effectiveRole === 'lp3m'
               ? 'Pengelola / Reviewer LP3M'
-              : effectiveRole === 'pmb'
-                ? 'Panitia PMB ITN'
-                : 'Administrator BAAK';
+              : effectiveRole === 'p2m'
+                ? 'Pengelola Penjaminan Mutu'
+                : effectiveRole === 'prodi'
+                  ? 'Admin Program Studi'
+                  : effectiveRole === 'pmb'
+                    ? 'Panitia PMB ITN'
+                    : 'Administrator BAAK';
 
   const displayName = currentUser?.fullName || userName || defaultNameByRole;
   const displayAvatar = currentUser?.avatarUrl;
@@ -518,9 +631,13 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       ? 'Super Administrator (Platform)'
       : effectiveRole === 'lp3m'
         ? 'Pengelola / Reviewer LP3M'
-        : effectiveRole === 'pmb'
-          ? 'Panitia Penerimaan Mahasiswa Baru'
-          : effectiveRole === 'finance'
+        : effectiveRole === 'p2m'
+          ? 'Pengelola Penjaminan Mutu'
+          : effectiveRole === 'prodi'
+            ? 'Admin Program Studi'
+            : effectiveRole === 'pmb'
+              ? 'Panitia Penerimaan Mahasiswa Baru'
+            : effectiveRole === 'finance'
             ? 'Biro Keuangan Kampus'
             : effectiveRole === 'admin'
               ? 'Biro BAAK Pusat'
@@ -606,6 +723,8 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                     '/admin/superadmin',
                     '/finance',
                     '/admin/p3m',
+                    '/admin/p2m',
+                    '/admin/prodi',
                     '/admin/pmb',
                   ].includes(item.href);
 
@@ -790,13 +909,17 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                         ? 'Dosen'
                         : effectiveRole === 'lp3m'
                           ? 'Ketua LP3M & Reviewer'
-                          : effectiveRole === 'superadmin'
-                            ? 'Super Admin'
-                            : effectiveRole === 'finance'
-                              ? 'Biro Keuangan'
-                              : effectiveRole === 'pmb'
-                                ? 'Panitia PMB'
-                                : 'Admin BAAK'}
+                          : effectiveRole === 'p2m'
+                            ? 'Ketua Penjaminan Mutu'
+                            : effectiveRole === 'prodi'
+                              ? 'Admin Program Studi'
+                              : effectiveRole === 'superadmin'
+                              ? 'Super Admin'
+                              : effectiveRole === 'finance'
+                                ? 'Biro Keuangan'
+                                : effectiveRole === 'pmb'
+                                  ? 'Panitia PMB'
+                                  : 'Admin BAAK'}
                   </span>
                 </div>
 
@@ -833,9 +956,13 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                                 ? 'Panitia PMB'
                                 : effectiveRole === 'lp3m'
                                   ? 'LP3M'
-                                  : effectiveRole === 'superadmin'
-                                    ? 'Super Admin'
-                                    : 'Admin BAAK'}
+                                  : effectiveRole === 'p2m'
+                                    ? 'P2M'
+                                    : effectiveRole === 'prodi'
+                                      ? 'Admin Prodi'
+                                      : effectiveRole === 'superadmin'
+                                        ? 'Super Admin'
+                                      : 'Admin BAAK'}
                         </span>
                       </div>
                     </div>

@@ -1,8 +1,13 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
+import { Modal } from '@/components/ui/Modal';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { getApiBaseUrl } from '@/lib/api';
+import { useSortedPagination } from '@/lib/useSortedPagination';
+import { SortableTh } from '@/components/common/SortableTh';
+import { TablePagination } from '@/components/common/TablePagination';
 import {
   FileText,
   Search,
@@ -10,17 +15,21 @@ import {
   Clock,
   AlertCircle,
   X,
-  Check,
-  Eye,
   Printer,
-  Download,
-  Building2,
-  Users,
-  BookOpen,
-  Award,
   RefreshCw,
   SlidersHorizontal,
+  Calendar,
+  Loader2,
 } from 'lucide-react';
+
+export interface KrsCourseRow {
+  code: string;
+  name: string;
+  sks: number;
+  classRoom: string;
+  schedule: string;
+  lecturer: string;
+}
 
 export interface KrsRecord {
   id: string;
@@ -33,136 +42,50 @@ export interface KrsRecord {
   status: 'APPROVED' | 'SUBMITTED' | 'DRAFT' | 'REJECTED';
   dosenPA: string;
   submittedAt: string;
-  courses: {
-    code: string;
-    name: string;
-    sks: number;
-    classRoom: string;
-    schedule: string;
-    lecturer: string;
-  }[];
+  courses: KrsCourseRow[];
 }
 
-const INITIAL_KRS: KrsRecord[] = [
-  {
-    id: 'krs-1',
-    nim: '2311501001',
-    studentName: 'Muhammad Rizky Pratama',
-    studyProgram: 'Teknik Informatika (S1)',
-    semester: 5,
-    academicYear: '2026/2027 Gasal',
-    totalSks: 21,
-    status: 'APPROVED',
-    dosenPA: 'Dr. Bayu Wicaksono, M.Kom.',
-    submittedAt: '25 Agu 2026 09:30',
-    courses: [
-      { code: 'TIF-301', name: 'Pemrograman Web Lanjut (Fullstack)', sks: 3, classRoom: 'Lab Komputasi A', schedule: 'Senin, 08.00 - 10.30', lecturer: 'Dr. Bayu Wicaksono, M.Kom.' },
-      { code: 'TIF-302', name: 'Rekayasa Perangkat Lunak', sks: 3, classRoom: 'R. Teori 204', schedule: 'Senin, 13.00 - 15.30', lecturer: 'Dr. Siti Rahmawati, S.T., M.Kom.' },
-      { code: 'TIF-303', name: 'Kecerdasan Buatan (AI & ML)', sks: 3, classRoom: 'Lab AI & Data', schedule: 'Selasa, 10.00 - 12.30', lecturer: 'Dr. Eng. Satria Pratama, M.T.' },
-      { code: 'TIF-304', name: 'Keamanan Siber & Jaringan', sks: 3, classRoom: 'Lab Jaringan', schedule: 'Rabu, 08.00 - 10.30', lecturer: 'Dr. Eng. Satria Pratama, M.T.' },
-      { code: 'TIF-305', name: 'Basis Data Terdistribusi (Cloud DB)', sks: 3, classRoom: 'Lab Komputasi B', schedule: 'Kamis, 13.00 - 15.30', lecturer: 'Dr. Siti Rahmawati, S.T., M.Kom.' },
-      { code: 'TIF-306', name: 'Interaksi Manusia & Komputer (UI/UX)', sks: 3, classRoom: 'R. Multimedia', schedule: 'Jumat, 08.00 - 10.30', lecturer: 'Bagus Wicaksono, S.Kom.' },
-      { code: 'UNI-201', name: 'Kewirausahaan Teknologi (Technopreneur)', sks: 3, classRoom: 'Auditorium 1', schedule: 'Jumat, 13.30 - 16.00', lecturer: 'Dr. Nurul Hidayati, S.E., M.M.' },
-    ],
-  },
-  {
-    id: 'krs-2',
-    nim: '2311501002',
-    studentName: 'Rina Salsabila',
-    studyProgram: 'Sistem Informasi (S1)',
-    semester: 3,
-    academicYear: '2026/2027 Gasal',
-    totalSks: 20,
-    status: 'SUBMITTED',
-    dosenPA: 'Dr. Bayu Wicaksono, M.Kom.',
-    submittedAt: '28 Agu 2026 14:15',
-    courses: [
-      { code: 'SI-201', name: 'Analisis & Perancangan Sistem Informasi', sks: 3, classRoom: 'R. 302', schedule: 'Senin, 10.00 - 12.30', lecturer: 'Ir. Anita Rahmawati, M.T.' },
-      { code: 'SI-202', name: 'Manajemen Basis Data Relasional', sks: 3, classRoom: 'Lab SI', schedule: 'Selasa, 08.00 - 10.30', lecturer: 'Dr. Bayu Wicaksono, M.Kom.' },
-      { code: 'SI-203', name: 'Sistem Informasi Manajemen Bisnis', sks: 3, classRoom: 'R. 304', schedule: 'Rabu, 10.00 - 12.30', lecturer: 'Ir. Anita Rahmawati, M.T.' },
-      { code: 'SI-204', name: 'Algoritma & Struktur Data Lanjut', sks: 4, classRoom: 'Lab Komputasi A', schedule: 'Kamis, 08.00 - 11.20', lecturer: 'Dr. Siti Rahmawati, S.T., M.Kom.' },
-      { code: 'SI-205', name: 'Statistika & Analitika Bisnis', sks: 3, classRoom: 'R. 201', schedule: 'Jumat, 08.00 - 10.30', lecturer: 'Dr. Nurul Hidayati, S.E., M.M.' },
-      { code: 'UNI-105', name: 'Bahasa Inggris Akademik & TOEFL', sks: 4, classRoom: 'Lab Bahasa', schedule: 'Jumat, 13.30 - 16.50', lecturer: 'Drs. Herman Prasetyo, M.Pd.' },
-    ],
-  },
-  {
-    id: 'krs-3',
-    nim: '2211502010',
-    studentName: 'Ahmad Faisal Pratama',
-    studyProgram: 'Teknik Mesin (S1)',
-    semester: 7,
-    academicYear: '2026/2027 Gasal',
-    totalSks: 18,
-    status: 'APPROVED',
-    dosenPA: 'Prof. Dr. Ir. Hendra Gunawan, M.Eng.',
-    submittedAt: '26 Agu 2026 11:20',
-    courses: [
-      { code: 'TM-401', name: 'Perancangan Sistem Mekatronika & Otomasi', sks: 4, classRoom: 'Workshop Mesin', schedule: 'Senin, 08.00 - 11.20', lecturer: 'Prof. Dr. Ir. Hendra Gunawan, M.Eng.' },
-      { code: 'TM-402', name: 'Manajemen Rekayasa Industri & Manufaktur', sks: 3, classRoom: 'R. Mesin 102', schedule: 'Selasa, 13.00 - 15.30', lecturer: 'Dr. Ir. Budi Hartono, M.T.' },
-      { code: 'TM-403', name: 'Seminar Proposal Skripsi', sks: 2, classRoom: 'Ruang Sidang FT', schedule: 'Kamis, 10.00 - 11.40', lecturer: 'Tim Dosen Penguji' },
-      { code: 'TM-404', name: 'Kerja Praktik Industri (Magang BUMN)', sks: 4, classRoom: 'Industri Mitra', schedule: 'Fleksibel', lecturer: 'Prof. Dr. Ir. Hendra Gunawan, M.Eng.' },
-      { code: 'UNI-401', name: 'Kuliah Kerja Nyata Tematik (KKN)', sks: 5, classRoom: 'Lokasi Pengabdian', schedule: 'Blended', lecturer: 'Tim LP3M ITN' },
-    ],
-  },
-  {
-    id: 'krs-4',
-    nim: '2411503005',
-    studentName: 'Anisa Putri Maharani',
-    studyProgram: 'Bisnis Digital (S1)',
-    semester: 3,
-    academicYear: '2026/2027 Gasal',
-    totalSks: 21,
-    status: 'APPROVED',
-    dosenPA: 'Dr. Nurul Hidayati, S.E., M.M., Ak.',
-    submittedAt: '24 Agu 2026 16:00',
-    courses: [
-      { code: 'BD-201', name: 'E-Commerce Platform Development', sks: 3, classRoom: 'Lab Bisnis Digital', schedule: 'Senin, 10.00 - 12.30', lecturer: 'Dr. Nurul Hidayati, S.E., M.M.' },
-      { code: 'BD-202', name: 'Digital Marketing & Growth Hacking', sks: 3, classRoom: 'R. Kreatif FEB', schedule: 'Selasa, 08.00 - 10.30', lecturer: 'Dewi Lestari, S.E., M.Ak.' },
-      { code: 'BD-203', name: 'Financial Technology (FinTech)', sks: 3, classRoom: 'R. 401', schedule: 'Rabu, 13.00 - 15.30', lecturer: 'Dewi Lestari, S.E., M.Ak.' },
-      { code: 'BD-204', name: 'UI/UX Design for Digital Products', sks: 3, classRoom: 'Lab Komputasi A', schedule: 'Kamis, 10.00 - 12.30', lecturer: 'Bagus Wicaksono, S.Kom.' },
-      { code: 'BD-205', name: 'Hukum Siber & Etika Bisnis Digital', sks: 3, classRoom: 'R. 301', schedule: 'Kamis, 14.00 - 16.30', lecturer: 'Dr. Nurul Hidayati, S.E., M.M.' },
-      { code: 'BD-206', name: 'Data Analytics with Python for Business', sks: 3, classRoom: 'Lab AI & Data', schedule: 'Jumat, 08.00 - 10.30', lecturer: 'Dr. Bayu Wicaksono, M.Kom.' },
-      { code: 'UNI-202', name: 'Etika Profesi & Kepemimpinan Global', sks: 3, classRoom: 'Auditorium 2', schedule: 'Jumat, 13.30 - 16.00', lecturer: 'Dr. Eng. Satria Pratama, M.T.' },
-    ],
-  },
-  {
-    id: 'krs-5',
-    nim: '2111501099',
-    studentName: 'Dimas Bagaskara',
-    studyProgram: 'Teknik Informatika (S1)',
-    semester: 9,
-    academicYear: '2026/2027 Gasal',
-    totalSks: 12,
-    status: 'SUBMITTED',
-    dosenPA: 'Dr. Siti Rahmawati, S.T., M.Kom.',
-    submittedAt: '30 Agu 2026 19:40',
-    courses: [
-      { code: 'TIF-499', name: 'Skripsi / Tugas Akhir', sks: 6, classRoom: 'Laboratorium Riset', schedule: 'Bimbingan Mandiri', lecturer: 'Dr. Siti Rahmawati, S.T., M.Kom.' },
-      { code: 'TIF-402', name: 'Etika Profesi Teknologi Informasi', sks: 2, classRoom: 'R. 202', schedule: 'Selasa, 13.00 - 14.40', lecturer: 'Dr. Bayu Wicaksono, M.Kom.' },
-      { code: 'TIF-403', name: 'Metodologi Penelitian Informatika', sks: 4, classRoom: 'R. 204', schedule: 'Kamis, 08.00 - 11.20', lecturer: 'Dr. Siti Rahmawati, S.T., M.Kom.' },
-    ],
-  },
-];
-
-export default function SuperAdminKrsPage() {
-  const [krsList, setKrsList] = useState<KrsRecord[]>(INITIAL_KRS);
-  const [loadingDb, setLoadingDb] = useState(false);
+export default function AdminKrsPage() {
+  const [krsList, setKrsList] = useState<KrsRecord[]>([]);
+  const [academicYearName, setAcademicYearName] = useState<string | null>(null);
+  const [loadingDb, setLoadingDb] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterProdi, setFilterProdi] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
+  const [academicYears, setAcademicYears] = useState<{ id: string; code: string; name: string; semesterLabel: string; isActive: boolean }[]>([]);
+  const [filterAcademicYearId, setFilterAcademicYearId] = useState('');
   const [selectedKrs, setSelectedKrs] = useState<KrsRecord | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
-  const [krsStatus, setKrsStatus] = useState<{ isKrsOpen: boolean; academicYearName: string } | null>(null);
+  const [krsStatus, setKrsStatus] = useState<{
+    academicYearId: string;
+    isKrsOpen: boolean;
+    academicYearName: string;
+    krsStartDate: string | null;
+    krsEndDate: string | null;
+  } | null>(null);
   const [krsStatusLoading, setKrsStatusLoading] = useState(false);
-  const [togglingKrs, setTogglingKrs] = useState(false);
+  const [isKrsWindowModalOpen, setIsKrsWindowModalOpen] = useState(false);
+  const [krsWindowStart, setKrsWindowStart] = useState('');
+  const [krsWindowEnd, setKrsWindowEnd] = useState('');
+  const [isSavingKrsWindow, setIsSavingKrsWindow] = useState(false);
+
+  const showToast = (m: string) => {
+    setToast(m);
+    setTimeout(() => setToast(null), 4000);
+  };
 
   const fetchKrsStatus = async () => {
     setKrsStatusLoading(true);
     try {
       const res = await fetch(`${getApiBaseUrl()}/academic/krs-status`);
       if (res.ok) {
-        setKrsStatus(await res.json());
+        const json = await res.json();
+        setKrsStatus(json.data ?? json);
       }
     } catch (e) {
       console.warn('Gagal memuat status KRS:', e);
@@ -171,96 +94,119 @@ export default function SuperAdminKrsPage() {
     }
   };
 
-  const handleToggleKrs = async () => {
-    setTogglingKrs(true);
+  const toDateInput = (v: string | null | undefined) => (v ? v.slice(0, 10) : '');
+
+  const handleOpenKrsWindowModal = () => {
+    setKrsWindowStart(toDateInput(krsStatus?.krsStartDate));
+    setKrsWindowEnd(toDateInput(krsStatus?.krsEndDate));
+    setIsKrsWindowModalOpen(true);
+  };
+
+  const handleSaveKrsWindow = async () => {
+    if (!krsStatus?.academicYearId) return;
+    setIsSavingKrsWindow(true);
     try {
-      const res = await fetch(`${getApiBaseUrl()}/academic/krs-status/toggle`, { method: 'POST' });
-      if (res.ok) {
-        const json = await res.json();
-        setKrsStatus((prev) => (prev ? { ...prev, isKrsOpen: json.isKrsOpen } : prev));
-        alert(json.message);
-      } else {
-        const err = await res.json().catch(() => null);
-        alert(err?.message || 'Gagal mengubah status periode KRS');
-      }
+      const res = await fetch(`${getApiBaseUrl()}/academic/years/${krsStatus.academicYearId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          krsStartDate: krsWindowStart || null,
+          krsEndDate: krsWindowEnd || null,
+        }),
+      });
+      if (!res.ok) throw new Error('Gagal menyimpan jendela tanggal periode KRS.');
+      showToast('Jendela tanggal periode KRS berhasil disimpan.');
+      setIsKrsWindowModalOpen(false);
+      await fetchKrsStatus();
     } catch (e) {
-      alert('Gagal menghubungi server');
+      showToast(e instanceof Error ? e.message : 'Gagal menyimpan jendela tanggal periode KRS.');
     } finally {
-      setTogglingKrs(false);
+      setIsSavingKrsWindow(false);
     }
   };
+
+  const fetchKrsOverview = useCallback(async () => {
+    setLoadingDb(true);
+    try {
+      const params = new URLSearchParams();
+      if (filterStatus !== 'ALL') params.set('status', filterStatus);
+      if (searchQuery.trim()) params.set('search', searchQuery.trim());
+      if (filterAcademicYearId) params.set('academicYearId', filterAcademicYearId);
+      const res = await fetch(`${getApiBaseUrl()}/academic/krs-overview?${params.toString()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      setKrsList(json.data?.items ?? []);
+      setAcademicYearName(json.data?.academicYearName ?? null);
+      setLoadError(false);
+    } catch (e) {
+      console.error('Gagal memuat KRS dari database:', e);
+      setLoadError(true);
+    } finally {
+      setLoadingDb(false);
+    }
+  }, [filterStatus, searchQuery, filterAcademicYearId]);
 
   useEffect(() => {
     fetchKrsStatus();
   }, []);
 
-  const fetchDbKrs = async () => {
-    setLoadingDb(true);
-    try {
-      const res = await fetch(`${getApiBaseUrl()}/students/krs`);
-      if (res.ok) {
-        const json = await res.json();
-        if (Array.isArray(json.data) && json.data.length > 0) {
-          const dbCourses = json.data.map((c: any) => ({
-            code: c.code,
-            name: c.name,
-            sks: c.sks || 3,
-            classRoom: c.ruang !== '-' ? c.ruang : 'Lab Komputasi A',
-            schedule: c.hari !== '-' ? `${c.hari}, ${c.jam}` : 'Senin, 08.00 - 10.30',
-            lecturer: c.dosen || 'Tim Dosen Pengampu',
-          }));
-
-          // Attach real DB courses to students in list
-          setKrsList((prev) =>
-            prev.map((item, idx) =>
-              idx === 0
-                ? {
-                    ...item,
-                    courses: dbCourses,
-                    totalSks: dbCourses.reduce((sum: number, c: any) => sum + c.sks, 0),
-                  }
-                : item,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      console.warn('Gagal memuat KRS dari DB:', e);
-    } finally {
-      setLoadingDb(false);
-    }
-  };
+  useEffect(() => {
+    fetch(`${getApiBaseUrl()}/academic/years`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        const result = json?.data ?? json;
+        if (!Array.isArray(result)) return;
+        setAcademicYears(result);
+        const active = result.find((y: { isActive: boolean }) => y.isActive);
+        if (active) setFilterAcademicYearId(active.id);
+      })
+      .catch((e) => console.warn('Gagal memuat daftar tahun akademik:', e));
+  }, []);
 
   useEffect(() => {
-    fetchDbKrs();
-  }, []);
+    fetchKrsOverview();
+  }, [fetchKrsOverview]);
 
   const filteredKrs = useMemo(() => {
     return krsList.filter((k) => {
-      if (filterProdi !== 'ALL' && !k.studyProgram.includes(filterProdi)) return false;
-      if (filterStatus !== 'ALL' && k.status !== filterStatus) return false;
-
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        return (
-          k.studentName.toLowerCase().includes(q) ||
-          k.nim.includes(q) ||
-          k.dosenPA.toLowerCase().includes(q)
-        );
-      }
+      if (filterProdi !== 'ALL' && k.studyProgram !== filterProdi) return false;
       return true;
     });
-  }, [krsList, searchQuery, filterProdi, filterStatus]);
+  }, [krsList, filterProdi]);
 
-  // Handle Approve / Reject
-  const handleUpdateKrsStatus = (id: string, newStatus: 'APPROVED' | 'REJECTED') => {
-    setKrsList((prev) =>
-      prev.map((k) => (k.id === id ? { ...k, status: newStatus } : k)),
-    );
-    if (selectedKrs && selectedKrs.id === id) {
-      setSelectedKrs((prev) => prev ? { ...prev, status: newStatus } : null);
+  const prodiOptions = useMemo(() => Array.from(new Set(krsList.map((k) => k.studyProgram))).sort(), [krsList]);
+
+  const activeAcademicYear = academicYears.find((y) => y.isActive);
+  const activeFilterCount =
+    (filterProdi !== 'ALL' ? 1 : 0) +
+    (filterStatus !== 'ALL' ? 1 : 0) +
+    (activeAcademicYear && filterAcademicYearId !== activeAcademicYear.id ? 1 : 0);
+  const resetFilters = () => {
+    setFilterProdi('ALL');
+    setFilterStatus('ALL');
+    if (activeAcademicYear) setFilterAcademicYearId(activeAcademicYear.id);
+  };
+
+  const { paginated, sortKey, sortDir, handleSort, page, setPage, totalPages, pageSize } =
+    useSortedPagination<KrsRecord>(filteredKrs, 'studentName');
+
+  const handleUpdateKrsStatus = async (id: string, newStatus: 'APPROVED' | 'REJECTED') => {
+    setActionLoading(true);
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/academic/krs-overview/${id}/${newStatus === 'APPROVED' ? 'approve' : 'reject'}`, {
+        method: 'POST',
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.message || `HTTP ${res.status}`);
+      showToast(json?.message || 'Status KRS berhasil diperbarui.');
+      setDetailModalOpen(false);
+      setSelectedKrs(null);
+      await fetchKrsOverview();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Gagal memperbarui status KRS.');
+    } finally {
+      setActionLoading(false);
     }
-    alert(`Status KRS berhasil diubah menjadi ${newStatus}!`);
   };
 
   const renderStatusBadge = (status: string) => {
@@ -297,15 +243,18 @@ export default function SuperAdminKrsPage() {
     }
   };
 
+  const avgSks = krsList.length > 0 ? krsList.reduce((acc, curr) => acc + curr.totalSks, 0) / krsList.length : 0;
+
   return (
-    <PortalLayout
-      role="superadmin"
-      userName="Bambang Pratama, S.Kom., M.Cs."
-      userIdText="Super Administrator"
-      activeMenuHref="/admin/krs"
-    >
+    <PortalLayout role="admin" userName="" userIdText="" activeMenuHref="/admin/krs">
       <div className="w-full space-y-6">
-        
+
+        {toast && (
+          <div className="fixed top-20 right-6 z-50 bg-slate-900 text-white text-xs font-semibold px-5 py-3 rounded-xl shadow-xl flex items-center gap-3">
+            <span>{toast}</span>
+          </div>
+        )}
+
         {/* Header Section */}
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-subtle p-5 sm:p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -313,17 +262,25 @@ export default function SuperAdminKrsPage() {
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-blue-50 text-[#1E3A8A] border border-blue-200">
                 PEMANTAUAN AKADEMIK & STUDI
               </span>
-              <span className="text-xs text-slate-400 font-medium">&bull; Semester Gasal 2026/2027</span>
+              {academicYearName && <span className="text-xs text-slate-400 font-medium">&bull; {academicYearName}</span>}
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
               Kartu Rencana Studi (KRS) Mahasiswa
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Monitoring pengambilan SKS, validasi jadwal perkuliahan, dan persetujuan Dosen Pembimbing Akademik.
+              Monitoring pengambilan SKS lintas program studi dan pengambilalihan persetujuan bila diperlukan.
             </p>
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={fetchKrsOverview}
+              disabled={loadingDb}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingDb ? 'animate-spin' : ''}`} />
+              <span>Segarkan</span>
+            </button>
             <button
               onClick={() => window.print()}
               className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all"
@@ -334,7 +291,14 @@ export default function SuperAdminKrsPage() {
           </div>
         </div>
 
-        {/* Buka / Tutup Periode KRS */}
+        {loadError && (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs px-4 py-3 flex items-center justify-between">
+            <span>Gagal memuat data KRS dari server.</span>
+            <button onClick={fetchKrsOverview} className="font-bold underline cursor-pointer">Coba lagi</button>
+          </div>
+        )}
+
+        {/* Jendela Tanggal Periode KRS */}
         <div
           className={`rounded-2xl border shadow-subtle p-5 sm:p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${
             krsStatus?.isKrsOpen === false
@@ -363,21 +327,28 @@ export default function SuperAdminKrsPage() {
               </p>
               <p className="text-xs text-slate-500 mt-0.5">
                 {krsStatus?.academicYearName ? `Tahun akademik ${krsStatus.academicYearName}. ` : ''}
-                Saat ditutup, mahasiswa tidak dapat mengajukan atau mengubah KRS.
+                {krsStatus?.krsStartDate && krsStatus?.krsEndDate ? (
+                  <>
+                    Jendela:{' '}
+                    <span className="font-semibold text-slate-700">
+                      {new Date(krsStatus.krsStartDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })} &ndash;{' '}
+                      {new Date(krsStatus.krsEndDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </span>
+                  </>
+                ) : (
+                  'Belum ada jendela tanggal diatur -- periode selalu terbuka selama tahun akademik aktif.'
+                )}
               </p>
             </div>
           </div>
 
           <button
-            onClick={handleToggleKrs}
-            disabled={togglingKrs || krsStatusLoading || !krsStatus}
-            className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all disabled:opacity-50 ${
-              krsStatus?.isKrsOpen === false
-                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                : 'bg-rose-600 hover:bg-rose-700 text-white'
-            }`}
+            onClick={handleOpenKrsWindowModal}
+            disabled={krsStatusLoading || !krsStatus}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all disabled:opacity-50"
           >
-            {togglingKrs ? 'Memproses...' : krsStatus?.isKrsOpen === false ? 'Buka Periode KRS' : 'Tutup Periode KRS'}
+            <Calendar className="w-3.5 h-3.5" />
+            <span>Atur Periode KRS</span>
           </button>
         </div>
 
@@ -394,7 +365,7 @@ export default function SuperAdminKrsPage() {
             <p className="text-2xl sm:text-3xl font-black text-emerald-800 mt-1">
               {krsList.filter((k) => k.status === 'APPROVED').length}
             </p>
-            <span className="text-[11px] text-emerald-700 font-semibold">Tercetak otomatis</span>
+            <span className="text-[11px] text-emerald-700 font-semibold">Sesuai data bimbingan</span>
           </div>
 
           <div className="bg-white p-4 rounded-2xl border border-amber-200/80 bg-amber-50/20 shadow-subtle">
@@ -407,9 +378,7 @@ export default function SuperAdminKrsPage() {
 
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-subtle">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Rata-rata SKS</span>
-            <p className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">
-              {(krsList.reduce((acc, curr) => acc + curr.totalSks, 0) / krsList.length).toFixed(1)}
-            </p>
+            <p className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">{avgSks.toFixed(1)}</p>
             <span className="text-[11px] text-blue-600 font-semibold">SKS per mahasiswa</span>
           </div>
         </div>
@@ -427,30 +396,18 @@ export default function SuperAdminKrsPage() {
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={filterProdi}
-              onChange={(e) => setFilterProdi(e.target.value)}
-              className="px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-medium focus:outline-none focus:border-[#1E3A8A]"
-            >
-              <option value="ALL">Semua Program Studi</option>
-              <option value="Informatika">Teknik Informatika</option>
-              <option value="Sistem Informasi">Sistem Informasi</option>
-              <option value="Mesin">Teknik Mesin</option>
-              <option value="Bisnis Digital">Bisnis Digital</option>
-            </select>
-
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-medium focus:outline-none focus:border-[#1E3A8A]"
-            >
-              <option value="ALL">Semua Status Persetujuan</option>
-              <option value="APPROVED">Disetujui Dosen PA</option>
-              <option value="SUBMITTED">Menunggu Persetujuan</option>
-              <option value="REJECTED">Ditolak / Perlu Revisi</option>
-            </select>
-          </div>
+          <button
+            onClick={() => setIsFilterModalOpen(true)}
+            className="relative inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition-all"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>Filter</span>
+            {activeFilterCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-[#1E3A8A] text-white text-[9px] font-bold flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Table List */}
@@ -459,24 +416,30 @@ export default function SuperAdminKrsPage() {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-100/70 text-slate-600 font-bold border-b border-slate-200 uppercase tracking-wider text-[10px]">
                 <tr>
-                  <th className="px-5 py-3.5">NIM / Mahasiswa</th>
-                  <th className="px-5 py-3.5">Program Studi</th>
-                  <th className="px-5 py-3.5 text-center">Semester</th>
-                  <th className="px-5 py-3.5 text-center">Beban SKS</th>
+                  <SortableTh<KrsRecord> label="NIM / Mahasiswa" column="studentName" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-5 py-3.5" />
+                  <SortableTh<KrsRecord> label="Program Studi" column="studyProgram" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-5 py-3.5" />
+                  <SortableTh<KrsRecord> label="Semester" column="semester" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="center" className="px-5 py-3.5" />
+                  <SortableTh<KrsRecord> label="Beban SKS" column="totalSks" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="center" className="px-5 py-3.5" />
                   <th className="px-5 py-3.5">Dosen Pembimbing PA</th>
                   <th className="px-5 py-3.5">Status KRS</th>
                   <th className="px-5 py-3.5 text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredKrs.length === 0 ? (
+                {loadingDb ? (
+                  <tr>
+                    <td colSpan={7} className="px-5 py-12 text-center text-slate-400">Memuat data KRS...</td>
+                  </tr>
+                ) : filteredKrs.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-5 py-12 text-center text-slate-400">
-                      Tidak ditemukan data KRS dengan kriteria pencarian saat ini.
+                      {krsList.length === 0
+                        ? 'Belum ada mahasiswa yang mengajukan KRS pada tahun akademik aktif.'
+                        : 'Tidak ditemukan data KRS dengan kriteria pencarian saat ini.'}
                     </td>
                   </tr>
                 ) : (
-                  filteredKrs.map((k) => (
+                  paginated.map((k) => (
                     <tr key={k.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-5 py-3.5">
                         <p className="font-bold text-slate-900">{k.studentName}</p>
@@ -516,44 +479,108 @@ export default function SuperAdminKrsPage() {
               </tbody>
             </table>
           </div>
+          <TablePagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filteredKrs.length} pageSize={pageSize} itemLabel="KRS" />
         </div>
 
-        {/* Modal Detail Mata Kuliah KRS */}
-        {detailModalOpen && selectedKrs && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-            <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div>
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#1E3A8A]">
-                    KARTU RENCANA STUDI (KRS) &bull; {selectedKrs.academicYear}
-                  </span>
-                  <h3 className="text-lg font-black text-slate-900">{selectedKrs.studentName}</h3>
-                  <p className="text-xs font-mono text-[#1E3A8A] font-bold">
-                    NIM: {selectedKrs.nim} &bull; {selectedKrs.studyProgram}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setDetailModalOpen(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+        {/* Modal Filter */}
+        <Modal
+          isOpen={isFilterModalOpen}
+          onClose={() => setIsFilterModalOpen(false)}
+          title="Filter KRS Mahasiswa"
+          icon={<SlidersHorizontal className="w-5 h-5" />}
+          maxWidth="md"
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Tahun Akademik</label>
+              <SearchableSelect
+                value={filterAcademicYearId}
+                onChange={setFilterAcademicYearId}
+                placeholder="Pilih tahun akademik..."
+                searchPlaceholder="Cari tahun akademik..."
+                options={academicYears.map((y) => ({
+                  value: y.id,
+                  label: `${y.name} ${y.semesterLabel}${y.isActive ? ' (Aktif)' : ''}`,
+                }))}
+              />
+            </div>
 
-              <div className="flex items-center justify-between bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Program Studi</label>
+              <SearchableSelect
+                value={filterProdi}
+                onChange={setFilterProdi}
+                placeholder="Semua Program Studi"
+                searchPlaceholder="Cari program studi..."
+                options={[{ value: 'ALL', label: 'Semua Program Studi' }, ...prodiOptions.map((p) => ({ value: p, label: p }))]}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Status Persetujuan</label>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white font-medium"
+              >
+                <option value="ALL">Semua Status Persetujuan</option>
+                <option value="APPROVED">Disetujui Dosen PA</option>
+                <option value="SUBMITTED">Menunggu Persetujuan</option>
+                <option value="REJECTED">Ditolak / Perlu Revisi</option>
+                <option value="DRAFT">Draft Mahasiswa</option>
+              </select>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                onClick={resetFilters}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Reset Filter
+              </button>
+              <button
+                onClick={() => setIsFilterModalOpen(false)}
+                className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-900 transition-colors cursor-pointer"
+              >
+                Terapkan
+              </button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Modal Detail Mata Kuliah KRS */}
+        {selectedKrs && (
+          <Modal
+            isOpen={detailModalOpen}
+            onClose={() => setDetailModalOpen(false)}
+            maxWidth="2xl"
+            title={
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#1E3A8A]">
+                  KARTU RENCANA STUDI (KRS) &bull; {selectedKrs.academicYear}
+                </span>
+                <h3 className="text-base sm:text-lg font-black text-slate-900 leading-tight">{selectedKrs.studentName}</h3>
+                <p className="text-xs font-mono text-[#1E3A8A] font-bold">
+                  NIM: {selectedKrs.nim} &bull; {selectedKrs.studyProgram}
+                </p>
+              </div>
+            }
+          >
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
                 <div>
                   <span className="text-slate-400">Dosen Pembimbing PA:</span>
                   <p className="font-bold text-slate-800">{selectedKrs.dosenPA}</p>
                 </div>
-                <div className="text-right">
+                <div className="sm:text-right">
                   <span className="text-slate-400">Total SKS Diambil:</span>
                   <p className="font-extrabold text-[#1E3A8A] text-sm">{selectedKrs.totalSks} SKS</p>
                 </div>
               </div>
 
-              {/* Course List Table */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
-                <table className="w-full text-left text-xs">
+              {/* Course List Table -- overflow-x-auto supaya di layar sempit/mobile kolomnya scroll ke samping, bukan ketekan/rusak */}
+              <div className="border border-slate-200 rounded-xl overflow-x-auto">
+                <table className="w-full min-w-[560px] text-left text-xs">
                   <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200 text-[11px]">
                     <tr>
                       <th className="p-2.5">Kode</th>
@@ -580,41 +607,98 @@ export default function SuperAdminKrsPage() {
                 </table>
               </div>
 
-              <div className="pt-3 flex items-center justify-between border-t border-slate-100 text-xs">
+              <div className="pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 text-xs">
                 <div className="flex items-center gap-2">
                   <span className="text-slate-500">Status Validasi:</span>
                   {renderStatusBadge(selectedKrs.status)}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {selectedKrs.status !== 'APPROVED' && (
                     <button
                       onClick={() => handleUpdateKrsStatus(selectedKrs.id, 'APPROVED')}
-                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all shadow-xs"
+                      disabled={actionLoading}
+                      className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all shadow-xs disabled:opacity-50"
                     >
-                      Setujui KRS Mahasiswa
+                      {actionLoading ? 'Memproses...' : 'Setujui KRS Mahasiswa'}
                     </button>
                   )}
                   {selectedKrs.status === 'SUBMITTED' && (
                     <button
                       onClick={() => handleUpdateKrsStatus(selectedKrs.id, 'REJECTED')}
-                      className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold transition-all border border-rose-200"
+                      disabled={actionLoading}
+                      className="flex-1 sm:flex-none px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold transition-all border border-rose-200 disabled:opacity-50"
                     >
                       Tolak / Minta Revisi
                     </button>
                   )}
                   <button
                     onClick={() => setDetailModalOpen(false)}
-                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 font-bold hover:bg-slate-50"
+                    className="flex-1 sm:flex-none px-4 py-2 rounded-xl border border-slate-200 text-slate-700 font-bold hover:bg-slate-50"
                   >
                     Tutup
                   </button>
                 </div>
               </div>
             </div>
-          </div>
+          </Modal>
         )}
 
+        {/* MODAL JENDELA TANGGAL PERIODE KRS */}
+        <Modal
+          isOpen={isKrsWindowModalOpen}
+          onClose={() => setIsKrsWindowModalOpen(false)}
+          title="Jendela Waktu Periode KRS"
+          subtitle={krsStatus?.academicYearName ? `Berlaku untuk tahun akademik ${krsStatus.academicYearName}` : undefined}
+          icon={<Calendar className="w-5 h-5" />}
+          maxWidth="sm"
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Mulai Periode KRS</label>
+                <input
+                  type="date"
+                  value={krsWindowStart}
+                  onChange={(e) => setKrsWindowStart(e.target.value)}
+                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Akhir Periode KRS</label>
+                <input
+                  type="date"
+                  value={krsWindowEnd}
+                  onChange={(e) => setKrsWindowEnd(e.target.value)}
+                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                />
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Di luar rentang tanggal ini, mahasiswa otomatis tidak bisa mengajukan/mengubah KRS. Kosongkan keduanya untuk membiarkan
+              periode selalu terbuka (tidak ada batasan tanggal) selama tahun akademik ini aktif.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsKrsWindowModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveKrsWindow}
+                disabled={isSavingKrsWindow}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1E3A8A] hover:bg-blue-900 text-white text-xs font-semibold shadow-xs disabled:opacity-50"
+              >
+                {isSavingKrsWindow && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>Simpan</span>
+              </button>
+            </div>
+          </div>
+        </Modal>
       </div>
     </PortalLayout>
   );

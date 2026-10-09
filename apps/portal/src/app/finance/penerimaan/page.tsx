@@ -61,8 +61,8 @@ export default function PenerimaanPage() {
     fetchData();
   }, []);
 
-  const totalDiterima = summary?.totalPenerimaan || 14850000000;
-  const totalTunggakan = summary?.totalTunggakan || 3150000000;
+  const totalDiterima = summary?.totalPenerimaan ?? 0;
+  const totalTunggakan = summary?.totalTunggakan ?? 0;
   const pendingCount = transactions.filter(
     (t) => t.status === 'MENUNGGU VERIFIKASI' || t.status === 'MENUNGGU_VERIFIKASI',
   ).length;

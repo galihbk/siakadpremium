@@ -46,6 +46,7 @@ export class UsersController {
       password?: string;
       isActive?: boolean;
       avatarUrl?: string;
+      studyProgramId?: string;
     },
   ) {
     return this.usersService.create(body);
@@ -62,6 +63,7 @@ export class UsersController {
       role?: Role;
       isActive?: boolean;
       avatarUrl?: string;
+      studyProgramId?: string;
     },
   ) {
     return this.usersService.update(id, body);

@@ -49,10 +49,10 @@ interface Transaction {
 
 interface BankAccount {
   bank: string;
+  description?: string | null;
   accountNumber: string;
   accountName: string;
   balance: number;
-  status: string;
 }
 
 interface BudgetExpenditure {
@@ -62,189 +62,57 @@ interface BudgetExpenditure {
   percentage: number;
 }
 
-const DEFAULT_BANKS: BankAccount[] = [
-  {
-    bank: 'Bank BNI (Virtual Account & Host-to-Host)',
-    accountNumber: '08234-9988-121',
-    accountName: 'Yayasan ITN Malang - Rek Operasional UKT',
-    balance: 12450000000,
-    status: 'Online Terintegrasi',
-  },
-  {
-    bank: 'Bank Mandiri (Mandiri Bill Payment)',
-    accountNumber: '144-00-9821-331',
-    accountName: 'Institut Teknologi Nusantara - Kas Umum',
-    balance: 8120500000,
-    status: 'Online Terintegrasi',
-  },
-  {
-    bank: 'Bank BRI (BRIVA Terpadu)',
-    accountNumber: '0021-01-002931-50-2',
-    accountName: 'ITN Malang - Dana Mahasiswa & Wisuda',
-    balance: 5340000000,
-    status: 'Online Terintegrasi',
-  },
-  {
-    bank: 'Bank BCA (Payroll & Sarpras Kampus)',
-    accountNumber: '822-019-3381',
-    accountName: 'Institut Teknologi Nusantara - Sarpras',
-    balance: 2730000000,
-    status: 'Online Terintegrasi',
-  },
-];
+interface Summary {
+  totalPenerimaan: number;
+  targetPenerimaan: number;
+  persentaseTarget: number;
+  totalTunggakan: number;
+  jumlahMahasiswaTunggakan: number;
+  batasPelunasan: string | null;
+  totalPagu: number;
+  totalPengeluaran: number;
+  saldoKasBank: number;
+}
 
-const DEFAULT_BUDGET: BudgetExpenditure[] = [
-  {
-    category: 'Gaji Dosen, Pengajar & Pegawai',
-    allocated: 5000000000,
-    spent: 4250000000,
-    percentage: 85,
-  },
-  {
-    category: 'Sarana Prasarana & Pemeliharaan Kampus',
-    allocated: 4000000000,
-    spent: 2400000000,
-    percentage: 60,
-  },
-  {
-    category: 'Operasional Akademik, Ujian & Lab',
-    allocated: 2000000000,
-    spent: 1400000000,
-    percentage: 70,
-  },
-  {
-    category: 'Dana Penelitian & Pengabdian P3M',
-    allocated: 1500000000,
-    spent: 825000000,
-    percentage: 55,
-  },
-  {
-    category: 'Beasiswa Mahasiswa & Bantuan UKT',
-    allocated: 1200000000,
-    spent: 545000000,
-    percentage: 45,
-  },
-];
+const EMPTY_SUMMARY: Summary = {
+  totalPenerimaan: 0,
+  targetPenerimaan: 0,
+  persentaseTarget: 0,
+  totalTunggakan: 0,
+  jumlahMahasiswaTunggakan: 0,
+  batasPelunasan: null,
+  totalPagu: 0,
+  totalPengeluaran: 0,
+  saldoKasBank: 0,
+};
 
-const INITIAL_TRANSACTIONS: Transaction[] = [
-  {
-    id: 'TRX-101',
-    invoiceNo: 'INV/2026/GASAL/0819',
-    nim: '2211001',
-    studentName: 'Ahmad Faiz Pratama',
-    studyProgram: 'Teknik Informatika',
-    semester: 5,
-    type: 'SPP / UKT Gasal',
-    amount: 4500000,
-    paymentMethod: 'VA BNI (Host to Host)',
-    date: '08 Sep 2026 14:22',
-    status: 'LUNAS',
-    notes: 'Pembayaran otomatis lunas via BNI H2H Gateway',
-  },
-  {
-    id: 'TRX-102',
-    invoiceNo: 'INV/2026/GASAL/0820',
-    nim: '2211002',
-    studentName: 'Dewi Lestari',
-    studyProgram: 'Teknik Informatika',
-    semester: 5,
-    type: 'SPP / UKT Gasal',
-    amount: 4500000,
-    paymentMethod: 'Mandiri Bill',
-    date: '08 Sep 2026 11:05',
-    status: 'LUNAS',
-    notes: 'Terverifikasi sistem perbankan Mandiri',
-  },
-  {
-    id: 'TRX-103',
-    invoiceNo: 'INV/2026/GASAL/0821',
-    nim: '2321015',
-    studentName: 'Bima Satria Nugraha',
-    studyProgram: 'Sistem Informasi',
-    semester: 3,
-    type: 'Biaya Praktikum & Laboratorium',
-    amount: 1250000,
-    paymentMethod: 'Teller Bank BNI',
-    date: '09 Sep 2026 09:30',
-    status: 'MENUNGGU VERIFIKASI',
-    notes: 'Bukti transfer teller telah diunggah mahasiswa. Butuh verifikasi kasir.',
-  },
-  {
-    id: 'TRX-104',
-    invoiceNo: 'INV/2026/GASAL/0822',
-    nim: '2111044',
-    studentName: 'Siti Rahmawati',
-    studyProgram: 'Teknik Elektro',
-    semester: 7,
-    type: 'Biaya Wisuda & Yudisium ke-48',
-    amount: 2200000,
-    paymentMethod: 'QRIS Dinamis',
-    date: '09 Sep 2026 10:15',
-    status: 'LUNAS',
-    notes: 'Pembayaran instan QRIS Nasional',
-  },
-  {
-    id: 'TRX-105',
-    invoiceNo: 'INV/2026/GASAL/0823',
-    nim: '2411089',
-    studentName: 'Muhammad Rizky Firdaus',
-    studyProgram: 'Teknik Sipil',
-    semester: 1,
-    type: 'Registrasi Mahasiswa Baru (PMB)',
-    amount: 5750000,
-    paymentMethod: 'BRIVA BRI',
-    date: '07 Sep 2026 16:40',
-    status: 'LUNAS',
-    notes: 'Gelombang 1 Reguler',
-  },
-  {
-    id: 'TRX-106',
-    invoiceNo: 'INV/2026/GASAL/0824',
-    nim: '2211056',
-    studentName: 'Anisa Putri Maharani',
-    studyProgram: 'Teknik Mesin',
-    semester: 5,
-    type: 'SPP / UKT Gasal',
-    amount: 4500000,
-    paymentMethod: 'Virtual Account',
-    date: '01 Sep 2026',
-    status: 'TERTUNDA',
-    notes: 'Belum dibayarkan. Jatuh tempo tgl 20 Sep 2026',
-  },
-  {
-    id: 'TRX-107',
-    invoiceNo: 'INV/2026/GASAL/0825',
-    nim: '2311032',
-    studentName: 'Farhan Dwi Saputra',
-    studyProgram: 'Teknik Informatika',
-    semester: 3,
-    type: 'SPP / UKT Gasal',
-    amount: 4500000,
-    paymentMethod: 'Teller Bank Mandiri',
-    date: '09 Sep 2026 13:45',
-    status: 'MENUNGGU VERIFIKASI',
-    notes: 'Setoran tunai cabang Klojen Malang. Menunggu konfirmasi admin.',
-  },
-  {
-    id: 'TRX-108',
-    invoiceNo: 'INV/2026/GASAL/0826',
-    nim: '2011012',
-    studentName: 'Dina Kusuma Wardani',
-    studyProgram: 'Teknik Industri',
-    semester: 9,
-    type: 'SPP / UKT Perpanjangan Skripsi',
-    amount: 2250000,
-    paymentMethod: 'Virtual Account BCA',
-    date: '02 Sep 2026',
-    status: 'TERTUNDA',
-    notes: 'Tunggakan perpanjangan studi tahap 1',
-  },
-];
+const formatCompact = (val: number) => `Rp ${(val / 1e9).toFixed(2).replace('.', ',')} M`;
+
+const formatDate = (iso: string) =>
+  new Date(iso).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mapInvoice = (t: any): Transaction => ({
+  id: t.id,
+  invoiceNo: t.invoiceNo,
+  nim: t.nim,
+  studentName: t.studentName,
+  studyProgram: t.studyProgram,
+  semester: t.semester,
+  type: t.paymentType,
+  amount: t.amount,
+  paymentMethod: t.paymentMethod,
+  date: formatDate(t.createdAt),
+  status: t.status,
+  notes: t.notes ?? undefined,
+});
 
 export default function FinanceDashboardPage() {
-  const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
-  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>(DEFAULT_BANKS);
-  const [budgetAllocation, setBudgetAllocation] = useState<BudgetExpenditure[]>(DEFAULT_BUDGET);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [budgetAllocation, setBudgetAllocation] = useState<BudgetExpenditure[]>([]);
+  const [summary, setSummary] = useState<Summary>(EMPTY_SUMMARY);
+  const [loadError, setLoadError] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'LUNAS' | 'MENUNGGU VERIFIKASI' | 'TERTUNDA'>('ALL');
   const [typeFilter, setTypeFilter] = useState('ALL');
@@ -276,30 +144,29 @@ export default function FinanceDashboardPage() {
     }, 4000);
   };
 
-  // Fetch initial data from backend if available
-  useEffect(() => {
-    async function loadBackendData() {
-      setIsLoadingApi(true);
-      try {
-        const res = await fetch(`${getApiBaseUrl()}/finance/dashboard`);
-        if (res.ok) {
-          const json = await res.json();
-          if (json.data) {
-            if (json.data.bankAccounts) setBankAccounts(json.data.bankAccounts);
-            if (json.data.budgetAllocation) setBudgetAllocation(json.data.budgetAllocation);
-            if (json.data.recentTransactions && json.data.recentTransactions.length > 0) {
-              setTransactions(json.data.recentTransactions);
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('Backend finance endpoint not reachable, running with default verified campus dataset.', err);
-      } finally {
-        setIsLoadingApi(false);
-      }
+  const loadBackendData = React.useCallback(async () => {
+    setIsLoadingApi(true);
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/finance/transactions`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const sum = json.data.summary;
+      setSummary(sum);
+      setBankAccounts(sum.bankAccounts ?? []);
+      setBudgetAllocation(sum.budgetAllocation ?? []);
+      setTransactions((json.data.transactions ?? []).map(mapInvoice));
+      setLoadError(false);
+    } catch (err) {
+      console.error('Gagal memuat data keuangan', err);
+      setLoadError(true);
+    } finally {
+      setIsLoadingApi(false);
     }
-    loadBackendData();
   }, []);
+
+  useEffect(() => {
+    loadBackendData();
+  }, [loadBackendData]);
 
   // Format currency
   const formatRupiah = (val: number) => {
@@ -310,12 +177,9 @@ export default function FinanceDashboardPage() {
     }).format(val);
   };
 
-  // Metrics summary
-  const totalPenerimaan = 14850000000;
-  const targetPenerimaan = 18000000000;
-  const totalTunggakan = 3150000000;
-  const totalPengeluaran = 9420000000;
-  const totalSaldoBank = bankAccounts.reduce((acc, b) => acc + b.balance, 0);
+  const { totalPenerimaan, targetPenerimaan, totalTunggakan, totalPengeluaran, totalPagu } = summary;
+  const totalSaldoBank = summary.saldoKasBank;
+  const pctPengeluaran = totalPagu > 0 ? Math.round((totalPengeluaran / totalPagu) * 1000) / 10 : 0;
 
   // Filtered transactions
   const filteredTransactions = useMemo(() => {
@@ -335,29 +199,15 @@ export default function FinanceDashboardPage() {
   // Handle Verify Transaction
   const handleVerify = async (trx: Transaction) => {
     try {
-      // Send to backend API
-      fetch(`${getApiBaseUrl()}/finance/transactions/${trx.id}/verify`, {
-        method: 'POST',
-      }).catch((e) => console.log('Background API call done/mocked:', e));
-
-      setTransactions((prev) =>
-        prev.map((item) =>
-          item.id === trx.id
-            ? {
-                ...item,
-                status: 'LUNAS',
-                paymentMethod: item.paymentMethod + ' (Diverifikasi)',
-                notes: 'Telah diverifikasi dan disahkan oleh staf biro keuangan.',
-              }
-            : item
-        )
-      );
-
+      const res = await fetch(`${getApiBaseUrl()}/finance/transactions/${trx.id}/verify`, { method: 'POST' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setIsVerifyModalOpen(false);
       setTrxToVerify(null);
       showToast(`Berhasil! Pembayaran tagihan ${trx.invoiceNo} telah diverifikasi dan berstatus LUNAS.`);
+      await loadBackendData();
     } catch (err) {
       console.error(err);
+      showToast('Gagal memverifikasi pembayaran. Coba lagi.');
     }
   };
 
@@ -369,42 +219,38 @@ export default function FinanceDashboardPage() {
       return;
     }
 
-    const randomInvNum = Math.floor(1000 + Math.random() * 9000);
-    const invoiceNo = `INV/2026/GASAL/${randomInvNum}`;
-    const newTrx: Transaction = {
-      id: `TRX-${Date.now()}`,
-      invoiceNo,
-      nim: newInvoice.nim,
-      studentName: newInvoice.studentName,
-      studyProgram: newInvoice.studyProgram,
-      semester: Number(newInvoice.semester),
-      type: newInvoice.type,
-      amount: Number(newInvoice.amount),
-      paymentMethod: 'Virtual Account BNI / BRIVA',
-      date: '09 Sep 2026 (Hari ini)',
-      status: 'TERTUNDA',
-      notes: newInvoice.notes,
-    };
-
-    // Try posting to API
-    fetch(`${getApiBaseUrl()}/finance/invoices`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newInvoice),
-    }).catch((e) => console.log('Invoice API sync:', e));
-
-    setTransactions((prev) => [newTrx, ...prev]);
-    setIsNewInvoiceModalOpen(false);
-    showToast(`Tagihan baru ${invoiceNo} atas nama ${newInvoice.studentName} berhasil diterbitkan.`);
-    setNewInvoice({
-      nim: '',
-      studentName: '',
-      studyProgram: 'Teknik Informatika',
-      semester: 1,
-      type: 'SPP / UKT Gasal',
-      amount: 4500000,
-      notes: 'Tagihan resmi semester aktif',
-    });
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/finance/invoices`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nim: newInvoice.nim,
+          studentName: newInvoice.studentName,
+          studyProgram: newInvoice.studyProgram,
+          semester: Number(newInvoice.semester),
+          paymentType: newInvoice.type,
+          amount: Number(newInvoice.amount),
+          notes: newInvoice.notes,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      setIsNewInvoiceModalOpen(false);
+      showToast(`Tagihan baru ${json.data?.data?.invoiceNo ?? ''} atas nama ${newInvoice.studentName} berhasil diterbitkan.`);
+      setNewInvoice({
+        nim: '',
+        studentName: '',
+        studyProgram: 'Teknik Informatika',
+        semester: 1,
+        type: 'SPP / UKT Gasal',
+        amount: 4500000,
+        notes: 'Tagihan resmi semester aktif',
+      });
+      await loadBackendData();
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal menerbitkan tagihan. Coba lagi.');
+    }
   };
 
   // Export to CSV
@@ -452,6 +298,12 @@ export default function FinanceDashboardPage() {
       )}
 
       <div className="space-y-6">
+        {loadError && (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs px-4 py-3 flex items-center justify-between">
+            <span>Gagal memuat data keuangan dari server.</span>
+            <button onClick={loadBackendData} className="font-bold underline cursor-pointer">Coba lagi</button>
+          </div>
+        )}
         {/* Banner Header Kampus */}
         <div className="rounded-2xl bg-gradient-to-r from-[#1E3A8A] via-[#1E40AF] to-indigo-900 text-white p-6 sm:p-8 shadow-sm relative overflow-hidden">
           <div className="absolute right-0 top-0 bottom-0 w-96 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-400/20 via-transparent to-transparent pointer-events-none" />
@@ -502,21 +354,21 @@ export default function FinanceDashboardPage() {
               </div>
               <div className="mt-3">
                 <h2 className="text-2xl font-bold text-slate-900">
-                  Rp 14,85 M
+                  {formatCompact(totalPenerimaan)}
                 </h2>
                 <div className="mt-1 flex items-center gap-1.5 text-xs font-medium text-emerald-600">
                   <TrendingUp className="w-3.5 h-3.5" />
-                  <span>82,5% dari target semester</span>
+                  <span>{String(summary.persentaseTarget).replace('.', ',')}% dari total tagihan</span>
                 </div>
               </div>
             </div>
             <div className="mt-4 pt-3 border-t border-slate-100">
               <div className="flex justify-between text-[11px] text-slate-500 mb-1">
-                <span>Target Semester Gasal</span>
-                <span className="font-semibold text-slate-700">Rp 18,00 M</span>
+                <span>Total Tagihan Diterbitkan</span>
+                <span className="font-semibold text-slate-700">{formatCompact(targetPenerimaan)}</span>
               </div>
               <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                <div className="bg-[#1E3A8A] h-2 rounded-full" style={{ width: '82.5%' }}></div>
+                <div className="bg-[#1E3A8A] h-2 rounded-full" style={{ width: `${summary.persentaseTarget}%` }}></div>
               </div>
             </div>
           </div>
@@ -534,17 +386,17 @@ export default function FinanceDashboardPage() {
               </div>
               <div className="mt-3">
                 <h2 className="text-2xl font-bold text-slate-900">
-                  Rp 3,15 M
+                  {formatCompact(totalTunggakan)}
                 </h2>
                 <div className="mt-1 flex items-center gap-1.5 text-xs font-medium text-amber-700">
                   <AlertTriangle className="w-3.5 h-3.5" />
-                  <span>512 Mahasiswa belum lunas</span>
+                  <span>{summary.jumlahMahasiswaTunggakan} Mahasiswa belum lunas</span>
                 </div>
               </div>
             </div>
             <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
               <span>Batas Akhir Pelunasan:</span>
-              <span className="font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md">20 Sep 2026</span>
+              <span className="font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md">{summary.batasPelunasan ?? '-'}</span>
             </div>
           </div>
 
@@ -561,20 +413,20 @@ export default function FinanceDashboardPage() {
               </div>
               <div className="mt-3">
                 <h2 className="text-2xl font-bold text-slate-900">
-                  Rp 9,42 M
+                  {formatCompact(totalPengeluaran)}
                 </h2>
                 <div className="mt-1 flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                  <span>62,8% dari total pagu tahunan</span>
+                  <span>{String(pctPengeluaran).replace('.', ',')}% dari total pagu tahunan</span>
                 </div>
               </div>
             </div>
             <div className="mt-4 pt-3 border-t border-slate-100">
               <div className="flex justify-between text-[11px] text-slate-500 mb-1">
-                <span>Pagu Anggaran 2026</span>
-                <span className="font-semibold text-slate-700">Rp 15,00 M</span>
+                <span>Pagu Anggaran</span>
+                <span className="font-semibold text-slate-700">{formatCompact(totalPagu)}</span>
               </div>
               <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                <div className="bg-emerald-500 h-2 rounded-full" style={{ width: '62.8%' }}></div>
+                <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${Math.min(pctPengeluaran, 100)}%` }}></div>
               </div>
             </div>
           </div>
@@ -592,20 +444,13 @@ export default function FinanceDashboardPage() {
               </div>
               <div className="mt-3">
                 <h2 className="text-2xl font-bold text-[#1E3A8A]">
-                  Rp 28,64 M
+                  {formatCompact(totalSaldoBank)}
                 </h2>
                 <div className="mt-1 flex items-center gap-1.5 text-xs font-medium text-blue-600">
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>4 Rekening Bank Resmi ITN</span>
+                  <span>{bankAccounts.length} Rekening Bank Resmi ITN</span>
                 </div>
               </div>
-            </div>
-            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-              <span>Status Integrasi:</span>
-              <span className="font-semibold text-emerald-700 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                Host to Host Aktif
-              </span>
             </div>
           </div>
         </div>
@@ -625,6 +470,9 @@ export default function FinanceDashboardPage() {
             </div>
 
             <div className="mt-4 space-y-3">
+              {bankAccounts.length === 0 && (
+                <p className="text-xs text-slate-400 py-6 text-center">Belum ada rekening. Tambahkan di menu Rekening Bank &amp; Kas.</p>
+              )}
               {bankAccounts.map((b, idx) => (
                 <div
                   key={idx}
@@ -632,7 +480,7 @@ export default function FinanceDashboardPage() {
                 >
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-xs font-bold text-slate-900">{b.bank}</p>
+                      <p className="text-xs font-bold text-slate-900">{b.bank}{b.description ? ` (${b.description})` : ''}</p>
                       <p className="text-[11px] font-mono text-slate-600 mt-0.5">{b.accountNumber}</p>
                       <p className="text-[10px] text-slate-400 mt-0.5">{b.accountName}</p>
                     </div>
@@ -654,14 +502,17 @@ export default function FinanceDashboardPage() {
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-emerald-600" />
-                <h3 className="font-bold text-slate-800 text-sm">Alokasi & Realisasi Anggaran Kampus TA 2026</h3>
+                <h3 className="font-bold text-slate-800 text-sm">Alokasi & Realisasi Anggaran Kampus</h3>
               </div>
               <span className="text-[11px] font-semibold text-slate-500">
-                Pagu Total: <strong className="text-slate-800">Rp 15,00 M</strong>
+                Pagu Total: <strong className="text-slate-800">{formatCompact(totalPagu)}</strong>
               </span>
             </div>
 
             <div className="mt-4 space-y-4">
+              {budgetAllocation.length === 0 && (
+                <p className="text-xs text-slate-400 py-6 text-center">Belum ada anggaran. Tambahkan di menu Realisasi Anggaran Kampus.</p>
+              )}
               {budgetAllocation.map((item, idx) => (
                 <div key={idx} className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
@@ -684,19 +535,13 @@ export default function FinanceDashboardPage() {
                             ? 'bg-[#1E3A8A]'
                             : 'bg-emerald-500'
                       }`}
-                      style={{ width: `${item.percentage}%` }}
+                      style={{ width: `${Math.min(item.percentage, 100)}%` }}
                     />
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="mt-5 p-3.5 rounded-xl bg-blue-50/70 border border-blue-100 flex items-start gap-3">
-              <ShieldCheck className="w-5 h-5 text-[#1E3A8A] shrink-0 mt-0.5" />
-              <div className="text-xs text-slate-700 leading-relaxed">
-                <strong className="text-[#1E3A8A] font-semibold">Kepatuhan Anggaran:</strong> Penyerapan dana semester berjalan terpantau sehat dalam koridor Rencana Anggaran Pendapatan dan Belanja (RAPB) tahun 2026 yang disetujui Senat dan Yayasan.
-              </div>
-            </div>
           </div>
         </div>
 
@@ -895,11 +740,6 @@ export default function FinanceDashboardPage() {
             <span>
               Menampilkan <strong>{filteredTransactions.length}</strong> transaksi keuangan mahasiswa
             </span>
-            <div className="flex items-center gap-3">
-              <span className="text-[11px]">
-                Sinkronisasi Host-to-Host Terakhir: <strong>09 Sep 2026, 23:10 WIB</strong>
-              </span>
-            </div>
           </div>
         </div>
       </div>

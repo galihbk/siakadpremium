@@ -26,6 +26,8 @@ export function middleware(request: NextRequest) {
       if (role === 'SUPER_ADMIN') target = '/admin/superadmin';
       else if (role === 'ADMIN_PMB') target = '/admin/pmb';
       else if (['ADMIN_LP3M', 'LP3M'].includes(role)) target = '/admin/p3m';
+      else if (['ADMIN_P2M', 'P2M'].includes(role)) target = '/admin/p2m';
+      else if (role === 'ADMIN_PRODI') target = '/admin/prodi';
       else if (['ADMIN_KEUANGAN', 'FINANCE'].includes(role)) target = '/finance';
       else if (role === 'ADMIN_BAAK' || role === 'STAFF') target = '/admin';
       else if (role === 'LECTURER') target = '/lecturer';
@@ -42,6 +44,8 @@ export function middleware(request: NextRequest) {
     if (role === 'SUPER_ADMIN') target = '/admin/superadmin';
     else if (role === 'ADMIN_PMB') target = '/admin/pmb';
     else if (['ADMIN_LP3M', 'LP3M'].includes(role)) target = '/admin/p3m';
+    else if (['ADMIN_P2M', 'P2M'].includes(role)) target = '/admin/p2m';
+    else if (role === 'ADMIN_PRODI') target = '/admin/prodi';
     else if (['ADMIN_KEUANGAN', 'FINANCE'].includes(role)) target = '/finance';
     else if (role === 'ADMIN_BAAK' || role === 'STAFF') target = '/admin';
     else if (role === 'LECTURER') target = '/lecturer';
@@ -57,6 +61,8 @@ export function middleware(request: NextRequest) {
       let home = '/login';
       if (['ADMIN_KEUANGAN', 'FINANCE'].includes(role)) home = '/finance';
       else if (['ADMIN_LP3M', 'LP3M'].includes(role)) home = '/admin/p3m';
+      else if (['ADMIN_P2M', 'P2M'].includes(role)) home = '/admin/p2m';
+      else if (role === 'ADMIN_PRODI') home = '/admin/prodi';
       else if (role === 'LECTURER') home = '/lecturer';
       else if (role === 'STUDENT') home = '/student';
       return NextResponse.redirect(new URL(home, request.url));
@@ -71,6 +77,8 @@ export function middleware(request: NextRequest) {
     if (pathname.startsWith('/admin/p3m') && !['ADMIN_LP3M', 'LP3M', 'SUPER_ADMIN'].includes(role)) {
       let home = '/login';
       if (role === 'ADMIN_PMB') home = '/admin/pmb';
+      else if (['ADMIN_P2M', 'P2M'].includes(role)) home = '/admin/p2m';
+      else if (role === 'ADMIN_PRODI') home = '/admin/prodi';
       else if (['ADMIN_KEUANGAN', 'FINANCE'].includes(role)) home = '/finance';
       else if (['ADMIN_BAAK', 'STAFF'].includes(role)) home = '/admin';
       else if (role === 'LECTURER') home = '/lecturer';
@@ -83,12 +91,50 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/admin/p3m', request.url));
     }
 
+    // 3e. HANYA Pengelola P2M (role ADMIN_P2M / P2M) dan Super Admin yang boleh membuka /admin/p2m
+    if (pathname.startsWith('/admin/p2m') && !['ADMIN_P2M', 'P2M', 'SUPER_ADMIN'].includes(role)) {
+      let home = '/login';
+      if (role === 'ADMIN_PMB') home = '/admin/pmb';
+      else if (['ADMIN_LP3M', 'LP3M'].includes(role)) home = '/admin/p3m';
+      else if (role === 'ADMIN_PRODI') home = '/admin/prodi';
+      else if (['ADMIN_KEUANGAN', 'FINANCE'].includes(role)) home = '/finance';
+      else if (['ADMIN_BAAK', 'STAFF'].includes(role)) home = '/admin';
+      else if (role === 'LECTURER') home = '/lecturer';
+      else if (role === 'STUDENT') home = '/student';
+      return NextResponse.redirect(new URL(home, request.url));
+    }
+
+    // 3f. Role P2M HANYA boleh membuka /admin/p2m (jika mencoba ke rute admin lain, kembalikan ke /admin/p2m)
+    if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/p2m') && ['ADMIN_P2M', 'P2M'].includes(role)) {
+      return NextResponse.redirect(new URL('/admin/p2m', request.url));
+    }
+
+    // 3g. HANYA Admin Prodi dan Super Admin yang boleh membuka /admin/prodi
+    if (pathname.startsWith('/admin/prodi') && !['ADMIN_PRODI', 'SUPER_ADMIN'].includes(role)) {
+      let home = '/login';
+      if (role === 'ADMIN_PMB') home = '/admin/pmb';
+      else if (['ADMIN_LP3M', 'LP3M'].includes(role)) home = '/admin/p3m';
+      else if (['ADMIN_P2M', 'P2M'].includes(role)) home = '/admin/p2m';
+      else if (['ADMIN_KEUANGAN', 'FINANCE'].includes(role)) home = '/finance';
+      else if (['ADMIN_BAAK', 'STAFF'].includes(role)) home = '/admin';
+      else if (role === 'LECTURER') home = '/lecturer';
+      else if (role === 'STUDENT') home = '/student';
+      return NextResponse.redirect(new URL(home, request.url));
+    }
+
+    // 3h. Role ADMIN_PRODI HANYA boleh membuka /admin/prodi (jika mencoba ke rute admin lain, kembalikan ke /admin/prodi)
+    if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/prodi') && role === 'ADMIN_PRODI') {
+      return NextResponse.redirect(new URL('/admin/prodi', request.url));
+    }
+
     // Hanya Finance (role ADMIN_KEUANGAN / FINANCE) yang boleh membuka /finance
     if (pathname.startsWith('/finance') && !['ADMIN_KEUANGAN', 'FINANCE'].includes(role)) {
       let home = '/login';
       if (role === 'SUPER_ADMIN') home = '/admin/superadmin';
       else if (role === 'ADMIN_PMB') home = '/admin/pmb';
       else if (['ADMIN_LP3M', 'LP3M'].includes(role)) home = '/admin/p3m';
+      else if (['ADMIN_P2M', 'P2M'].includes(role)) home = '/admin/p2m';
+      else if (role === 'ADMIN_PRODI') home = '/admin/prodi';
       else if (['ADMIN_BAAK', 'STAFF'].includes(role)) home = '/admin';
       else if (role === 'LECTURER') home = '/lecturer';
       else if (role === 'STUDENT') home = '/student';
@@ -102,19 +148,26 @@ export function middleware(request: NextRequest) {
 
     // Hanya Super Admin yang boleh membuka dashboard super admin
     if (pathname.startsWith('/admin/superadmin') && role !== 'SUPER_ADMIN') {
-      const home = role === 'ADMIN_PMB' ? '/admin/pmb' : ['ADMIN_LP3M', 'LP3M'].includes(role) ? '/admin/p3m' : ['ADMIN_BAAK', 'STAFF'].includes(role) ? '/admin' : ['ADMIN_KEUANGAN', 'FINANCE'].includes(role) ? '/finance' : role === 'STUDENT' ? '/student' : '/lecturer';
+      const home = role === 'ADMIN_PMB' ? '/admin/pmb' : ['ADMIN_LP3M', 'LP3M'].includes(role) ? '/admin/p3m' : ['ADMIN_P2M', 'P2M'].includes(role) ? '/admin/p2m' : role === 'ADMIN_PRODI' ? '/admin/prodi' : ['ADMIN_BAAK', 'STAFF'].includes(role) ? '/admin' : ['ADMIN_KEUANGAN', 'FINANCE'].includes(role) ? '/finance' : role === 'STUDENT' ? '/student' : '/lecturer';
       return NextResponse.redirect(new URL(home, request.url));
     }
 
     // Hanya Super Admin yang boleh membuka CMS Landing Page
     if (pathname.startsWith('/admin/cms') && role !== 'SUPER_ADMIN') {
-      const home = role === 'ADMIN_PMB' ? '/admin/pmb' : ['ADMIN_LP3M', 'LP3M'].includes(role) ? '/admin/p3m' : ['ADMIN_BAAK', 'STAFF'].includes(role) ? '/admin' : ['ADMIN_KEUANGAN', 'FINANCE'].includes(role) ? '/finance' : role === 'STUDENT' ? '/student' : '/lecturer';
+      const home = role === 'ADMIN_PMB' ? '/admin/pmb' : ['ADMIN_LP3M', 'LP3M'].includes(role) ? '/admin/p3m' : ['ADMIN_P2M', 'P2M'].includes(role) ? '/admin/p2m' : role === 'ADMIN_PRODI' ? '/admin/prodi' : ['ADMIN_BAAK', 'STAFF'].includes(role) ? '/admin' : ['ADMIN_KEUANGAN', 'FINANCE'].includes(role) ? '/finance' : role === 'STUDENT' ? '/student' : '/lecturer';
       return NextResponse.redirect(new URL(home, request.url));
     }
 
-    // Hanya Administrator BAAK/Staff yang boleh membuka halaman /admin (kecuali /admin/p3m dan /admin/pmb)
-    if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/p3m') && !pathname.startsWith('/admin/pmb') && !['SUPER_ADMIN', 'ADMIN_BAAK', 'STAFF'].includes(role)) {
-      const home = role === 'ADMIN_PMB' ? '/admin/pmb' : ['ADMIN_LP3M', 'LP3M'].includes(role) ? '/admin/p3m' : ['ADMIN_KEUANGAN', 'FINANCE'].includes(role) ? '/finance' : role === 'STUDENT' ? '/student' : '/lecturer';
+    // Hanya Administrator BAAK/Staff yang boleh membuka halaman /admin (kecuali /admin/p3m, /admin/p2m, /admin/prodi, dan /admin/pmb)
+    if (
+      pathname.startsWith('/admin') &&
+      !pathname.startsWith('/admin/p3m') &&
+      !pathname.startsWith('/admin/p2m') &&
+      !pathname.startsWith('/admin/prodi') &&
+      !pathname.startsWith('/admin/pmb') &&
+      !['SUPER_ADMIN', 'ADMIN_BAAK', 'STAFF'].includes(role)
+    ) {
+      const home = role === 'ADMIN_PMB' ? '/admin/pmb' : ['ADMIN_LP3M', 'LP3M'].includes(role) ? '/admin/p3m' : ['ADMIN_P2M', 'P2M'].includes(role) ? '/admin/p2m' : role === 'ADMIN_PRODI' ? '/admin/prodi' : ['ADMIN_KEUANGAN', 'FINANCE'].includes(role) ? '/finance' : role === 'STUDENT' ? '/student' : '/lecturer';
       return NextResponse.redirect(new URL(home, request.url));
     }
 
@@ -123,6 +176,8 @@ export function middleware(request: NextRequest) {
       let home = '/login';
       if (role === 'SUPER_ADMIN') home = '/admin/superadmin';
       else if (['ADMIN_LP3M', 'LP3M'].includes(role)) home = '/admin/p3m';
+      else if (['ADMIN_P2M', 'P2M'].includes(role)) home = '/admin/p2m';
+      else if (role === 'ADMIN_PRODI') home = '/admin/prodi';
       else if (['ADMIN_KEUANGAN', 'FINANCE'].includes(role)) home = '/finance';
       else if (['ADMIN_BAAK', 'STAFF'].includes(role)) home = '/admin';
       else if (role === 'LECTURER') home = '/lecturer';
@@ -134,6 +189,8 @@ export function middleware(request: NextRequest) {
       let home = '/login';
       if (role === 'SUPER_ADMIN') home = '/admin/superadmin';
       else if (['ADMIN_LP3M', 'LP3M'].includes(role)) home = '/admin/p3m';
+      else if (['ADMIN_P2M', 'P2M'].includes(role)) home = '/admin/p2m';
+      else if (role === 'ADMIN_PRODI') home = '/admin/prodi';
       else if (['ADMIN_KEUANGAN', 'FINANCE'].includes(role)) home = '/finance';
       else if (['ADMIN_BAAK', 'STAFF'].includes(role)) home = '/admin';
       else if (role === 'STUDENT') home = '/student';

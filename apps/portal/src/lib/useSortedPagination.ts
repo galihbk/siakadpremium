@@ -1,8 +1,13 @@
 import { useState, useMemo, useEffect } from 'react';
 
-export function useSortedPagination<T>(data: T[], initialSortKey: keyof T, pageSize = 10) {
+export function useSortedPagination<T>(
+  data: T[],
+  initialSortKey: keyof T,
+  pageSize = 10,
+  initialSortDir: 'asc' | 'desc' = 'asc'
+) {
   const [sortKey, setSortKey] = useState<keyof T>(initialSortKey);
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>(initialSortDir);
   const [page, setPage] = useState(1);
 
   const sorted = useMemo(() => {

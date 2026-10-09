@@ -233,7 +233,7 @@ export default function SuperAdminMahasiswaPage() {
             nim: s.nim,
             fullName: s.name,
             email: s.email,
-            phone: s.phone || '081234567890',
+            phone: s.phone || '-',
             gender: (s.gender as 'MALE' | 'FEMALE') || 'MALE',
             studyProgram: s.studyProgram,
             faculty: s.faculty,
@@ -241,8 +241,8 @@ export default function SuperAdminMahasiswaPage() {
             currentSemester: s.currentSemester || 1,
             status: (s.status as 'ACTIVE' | 'LEAVE' | 'GRADUATED' | 'DROPOUT') || 'ACTIVE',
             ipk: s.ipk || 0,
-            sksTotal: s.currentSemester ? s.currentSemester * 20 : 20,
-            dosenPA: 'Dr. Bayu Wicaksono, M.Kom.',
+            sksTotal: s.totalSks ?? 0,
+            dosenPA: s.dosenPA || 'Belum ditentukan',
             address: s.address || '-',
           }));
           setStudents(mapped);

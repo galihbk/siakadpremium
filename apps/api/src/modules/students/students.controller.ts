@@ -1,7 +1,7 @@
-import { Controller, Get, Post, Body, Query, Req, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query, Req, UnauthorizedException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
-import { StudentsService } from './students.service';
+import { StudentsService, CreateStudentDto, UpdateStudentDto } from './students.service';
 import { SubmitKrsDto } from './dto/submit-krs.dto';
 
 @ApiTags('Students (Mahasiswa)')
@@ -44,6 +44,13 @@ export class StudentsController {
     return this.studentsService.getKrs(userId, studyProgramId);
   }
 
+  @Get('schedule')
+  @ApiOperation({ summary: 'Mendapatkan jadwal kuliah mingguan mahasiswa dari KRS yang sudah disetujui' })
+  async getSchedule(@Req() req: any) {
+    const userId = this.requireUserId(req);
+    return this.studentsService.getSchedule(userId);
+  }
+
   @Post('krs')
   @ApiOperation({ summary: 'Mengajukan/memperbarui pilihan mata kuliah KRS mahasiswa' })
   async submitKrs(@Req() req: any, @Body() dto: SubmitKrsDto) {
@@ -55,5 +62,29 @@ export class StudentsController {
   @ApiOperation({ summary: 'Mendapatkan daftar semua mahasiswa dari database' })
   async getStudentsList() {
     return this.studentsService.getStudentsList();
+  }
+
+  @Get('advisor-counts')
+  @ApiOperation({ summary: 'Jumlah mahasiswa bimbingan aktif per dosen PA (mahasiswa cuti/lulus/DO/pindah tidak dihitung)' })
+  async getActiveAdvisorCounts() {
+    return this.studentsService.getActiveAdvisorCounts();
+  }
+
+  @Post()
+  @ApiOperation({ summary: 'Membuat akun mahasiswa baru secara manual' })
+  async create(@Body() dto: CreateStudentDto) {
+    return this.studentsService.create(dto);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Mendapatkan detail satu mahasiswa berdasarkan ID' })
+  async findOne(@Param('id') id: string) {
+    return this.studentsService.findOne(id);
+  }
+
+  @Put(':id')
+  @ApiOperation({ summary: 'Memperbarui data satu mahasiswa berdasarkan ID' })
+  async update(@Param('id') id: string, @Body() dto: UpdateStudentDto) {
+    return this.studentsService.update(id, dto);
   }
 }

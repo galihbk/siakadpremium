@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Search, Download, Plus, RefreshCw, Loader2, Check } from 'lucide-react';
+import { Search, Download, Plus, RefreshCw, Loader2, Check, Pencil, Trash2, SlidersHorizontal, X, BookOpen, ChevronDown } from 'lucide-react';
 import { getApiBaseUrl } from '@/lib/api';
 import { useSortedPagination } from '@/lib/useSortedPagination';
 import { SortableTh } from '@/components/common/SortableTh';
@@ -19,6 +19,8 @@ export interface CourseData {
   totalSks?: number;
   semester: number;
   type: string;
+  requiresThesisSupervision?: boolean;
+  finalProjectLabel?: string;
   coordinator?: string;
   status: string;
   description?: string;
@@ -34,6 +36,8 @@ interface CurriculumOption {
   studyProgram: string;
 }
 
+const FINAL_PROJECT_LABELS = ['Skripsi/TA', 'KKN', 'PLP', 'Kerja Praktik', 'Magang', 'Lainnya'];
+
 const emptyForm = {
   code: '',
   name: '',
@@ -42,6 +46,8 @@ const emptyForm = {
   semester: 1,
   totalSks: 3,
   type: 'Wajib',
+  requiresThesisSupervision: false,
+  finalProjectLabel: '',
   coordinator: '',
   description: '',
 };
@@ -55,10 +61,19 @@ export function KurikulumTable({ initialCourses }: { initialCourses: CourseData[
   const [studyPrograms, setStudyPrograms] = useState<{ id: string; name: string }[]>([]);
   const [curriculums, setCurriculums] = useState<CurriculumOption[]>([]);
   const [curriculumFilter, setCurriculumFilter] = useState('ALL');
+  const [prodiFilter, setProdiFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [jenisFilter, setJenisFilter] = useState('ALL');
+  const [semesterFilter, setSemesterFilter] = useState('ALL');
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingCourse, setEditingCourse] = useState<CourseData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [formData, setFormData] = useState(emptyForm);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  const [isRecapOpen, setIsRecapOpen] = useState(false);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
@@ -103,11 +118,35 @@ export function KurikulumTable({ initialCourses }: { initialCourses: CourseData[
   }, []);
 
   const handleOpenAddModal = () => {
+    setEditingCourse(null);
     setFormData(emptyForm);
     setIsAddModalOpen(true);
   };
 
-  const handleCreateCourse = async (e: React.FormEvent) => {
+  const handleOpenEditModal = (d: CourseData) => {
+    setEditingCourse(d);
+    setFormData({
+      code: d.code,
+      name: d.name,
+      studyProgram: d.studyProgram && d.studyProgram !== 'Semua Prodi (MKDU)' ? d.studyProgram : '',
+      curriculumId: d.curriculumId || '',
+      semester: d.semester,
+      totalSks: d.totalSks ?? d.sks ?? 3,
+      type: d.type,
+      requiresThesisSupervision: Boolean(d.requiresThesisSupervision),
+      finalProjectLabel: d.finalProjectLabel || '',
+      coordinator: d.coordinator || '',
+      description: d.description || '',
+    });
+    setIsAddModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsAddModalOpen(false);
+    setEditingCourse(null);
+  };
+
+  const handleSubmitCourse = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.code.trim() || !formData.name.trim()) {
       showToast('Kode dan nama mata kuliah wajib diisi.', 'error');
@@ -115,18 +154,19 @@ export function KurikulumTable({ initialCourses }: { initialCourses: CourseData[
     }
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${apiBase}/academic/courses`, {
-        method: 'POST',
+      const isEdit = Boolean(editingCourse);
+      const res = await fetch(`${apiBase}/academic/courses${isEdit ? `/${editingCourse!.id}` : ''}`, {
+        method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
       const json = await res.json().catch(() => null);
       if (res.ok) {
-        showToast(`Mata kuliah "${formData.name}" berhasil ditambahkan.`);
-        setIsAddModalOpen(false);
+        showToast(`Mata kuliah "${formData.name}" berhasil ${isEdit ? 'diperbarui' : 'ditambahkan'}.`);
+        closeModal();
         await fetchCourses();
       } else {
-        showToast(json?.message || 'Gagal menambahkan mata kuliah.', 'error');
+        showToast(json?.message || `Gagal ${isEdit ? 'memperbarui' : 'menambahkan'} mata kuliah.`, 'error');
       }
     } catch {
       showToast('Gagal terhubung ke server.', 'error');
@@ -135,7 +175,50 @@ export function KurikulumTable({ initialCourses }: { initialCourses: CourseData[
     }
   };
 
-  const filtered = courses.filter((d) => {
+  const handleDeleteCourse = async (d: CourseData) => {
+    if (!confirm(`Hapus mata kuliah "${d.name}" (${d.code})? Tindakan ini tidak dapat dibatalkan.`)) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`${apiBase}/academic/courses/${d.id}`, { method: 'DELETE' });
+      const json = await res.json().catch(() => null);
+      if (res.ok) {
+        showToast(`Mata kuliah "${d.name}" berhasil dihapus.`);
+        await fetchCourses();
+      } else {
+        showToast(json?.message || 'Gagal menghapus mata kuliah.', 'error');
+      }
+    } catch {
+      showToast('Gagal terhubung ke server.', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleToggleStatus = async (course: CourseData) => {
+    const nextStatus = (course.status || 'Aktif') === 'Aktif' ? 'Nonaktif' : 'Aktif';
+    setTogglingId(course.id);
+    // Optimistic update -- langsung ubah tampilan, dibalikin lagi kalau request gagal.
+    setCourses((prev) => prev.map((c) => (c.id === course.id ? { ...c, status: nextStatus } : c)));
+    try {
+      const res = await fetch(`${apiBase}/academic/courses/${course.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      if (!res.ok) throw new Error('Gagal mengubah status mata kuliah.');
+    } catch (err) {
+      console.warn(err);
+      setCourses((prev) => prev.map((c) => (c.id === course.id ? { ...c, status: course.status } : c)));
+      showToast('Gagal mengubah status mata kuliah.', 'error');
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  // Semua filter kecuali prodi -- dipakai juga oleh rekap per-prodi supaya kartunya ikut
+  // menyempit sesuai filter lain yang sedang aktif (tapi bukan prodiFilter itu sendiri,
+  // karena kartunya dipakai untuk memilih prodi).
+  const matchesNonProdiFilters = (d: CourseData) => {
     if (curriculumFilter === 'ALL') {
       // no-op
     } else if (curriculumFilter === 'NONE') {
@@ -143,12 +226,41 @@ export function KurikulumTable({ initialCourses }: { initialCourses: CourseData[
     } else if (d.curriculumId !== curriculumFilter) {
       return false;
     }
+    if (statusFilter !== 'ALL' && (d.status || 'Aktif') !== statusFilter) return false;
+    if (jenisFilter !== 'ALL' && !d.type.toLowerCase().includes(jenisFilter.toLowerCase())) return false;
+    if (semesterFilter !== 'ALL' && String(d.semester) !== semesterFilter) return false;
     return (
       d.code.toLowerCase().includes(search.toLowerCase()) ||
       d.name.toLowerCase().includes(search.toLowerCase()) ||
       (d.studyProgram && d.studyProgram.toLowerCase().includes(search.toLowerCase()))
     );
-  });
+  };
+
+  const filtered = courses.filter(
+    (d) => matchesNonProdiFilters(d) && (prodiFilter === 'ALL' || (d.studyProgram || 'Semua Prodi (MKDU)') === prodiFilter),
+  );
+
+  const activeFilterCount = [curriculumFilter, prodiFilter, statusFilter, jenisFilter, semesterFilter].filter((f) => f !== 'ALL').length;
+  const resetFilters = () => {
+    setCurriculumFilter('ALL');
+    setProdiFilter('ALL');
+    setStatusFilter('ALL');
+    setJenisFilter('ALL');
+    setSemesterFilter('ALL');
+  };
+
+  // Rekap mata kuliah per prodi -- dipakai accordion rekap di atas tabel.
+  const prodiCounts = Array.from(
+    courses
+      .filter(matchesNonProdiFilters)
+      .reduce((map, d) => {
+        const name = d.studyProgram || 'Semua Prodi (MKDU)';
+        map.set(name, (map.get(name) || 0) + 1);
+        return map;
+      }, new Map<string, number>()),
+  )
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
 
   const { paginated, sortKey, sortDir, handleSort, page, setPage, totalPages, pageSize } =
     useSortedPagination<CourseData>(filtered, 'code');
@@ -173,6 +285,43 @@ export function KurikulumTable({ initialCourses }: { initialCourses: CourseData[
         </div>
       </div>
 
+      {prodiCounts.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <button
+            onClick={() => setIsRecapOpen((o) => !o)}
+            className="w-full flex items-center justify-between gap-3 px-5 py-3.5 text-left hover:bg-slate-50/70 transition-colors"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#1E3A8A] border border-blue-100 flex items-center justify-center shrink-0">
+                <BookOpen className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-900">Rekap Mata Kuliah per Program Studi</p>
+                <p className="text-[11px] text-slate-400">{prodiCounts.length} program studi</p>
+              </div>
+            </div>
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${isRecapOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {isRecapOpen && (
+            <div className="border-t border-slate-100 p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {prodiCounts.map((p) => (
+                <button
+                  key={p.name}
+                  onClick={() => setProdiFilter((prev) => (prev === p.name ? 'ALL' : p.name))}
+                  className={`text-left p-3.5 rounded-xl border shadow-xs transition-all ${
+                    prodiFilter === p.name ? 'bg-blue-50 border-[#1E3A8A]' : 'bg-white border-slate-200 hover:border-blue-200'
+                  }`}
+                >
+                  <p className="text-lg font-black text-slate-900 leading-tight">{p.count}</p>
+                  <p className="text-[11px] text-slate-500 truncate">{p.name}</p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-5 border-b border-slate-100">
           <div className="relative flex-1 sm:w-80">
@@ -184,20 +333,19 @@ export function KurikulumTable({ initialCourses }: { initialCourses: CourseData[
               className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
             />
           </div>
-          <select
-            value={curriculumFilter}
-            onChange={(e) => setCurriculumFilter(e.target.value)}
-            className="px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-          >
-            <option value="ALL">Semua Kurikulum</option>
-            <option value="NONE">Belum Ada Kurikulum</option>
-            {curriculums.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
           <div className="flex gap-2">
+            <button
+              onClick={() => setIsFilterModalOpen(true)}
+              className="relative flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              Filter
+              {activeFilterCount > 0 && (
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#1E3A8A] text-white text-[10px] font-bold">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
             <button
               onClick={fetchCourses}
               disabled={loading}
@@ -231,8 +379,8 @@ export function KurikulumTable({ initialCourses }: { initialCourses: CourseData[
                 <SortableTh<CourseData> label="SKS" column="sks" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="center" />
                 <SortableTh<CourseData> label="Semester" column="semester" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="center" />
                 <SortableTh<CourseData> label="Jenis" column="type" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                <SortableTh<CourseData> label="Koordinator" column="coordinator" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                 <SortableTh<CourseData> label="Status" column="status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <th className="px-4 py-3 text-right text-slate-500 font-semibold">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -256,10 +404,17 @@ export function KurikulumTable({ initialCourses }: { initialCourses: CourseData[
                   <tr key={d.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-4 py-3 font-mono font-bold text-slate-700">{d.code}</td>
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-slate-800">{d.name}</div>
-                      {d.description && (
-                        <div className="text-[11px] text-slate-400 line-clamp-1">{d.description}</div>
-                      )}
+                      <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                        {d.name}
+                        {d.requiresThesisSupervision && (
+                          <span
+                            className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700"
+                            title="Tugas Akhir & Lapangan — otomatis tanpa jadwal tetap & butuh penetapan pembimbing"
+                          >
+                            {d.finalProjectLabel || 'TA/Lapangan'}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-slate-600">{d.studyProgram || 'Semua Prodi (MKDU)'}</td>
                     <td className="px-4 py-3">
@@ -282,11 +437,52 @@ export function KurikulumTable({ initialCourses }: { initialCourses: CourseData[
                         {d.type}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{d.coordinator || '-'}</td>
                     <td className="px-4 py-3">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">
-                        {d.status || 'Aktif'}
-                      </span>
+                      {(() => {
+                        const isActive = (d.status || 'Aktif') === 'Aktif';
+                        return (
+                          <button
+                            onClick={() => handleToggleStatus(d)}
+                            disabled={togglingId === d.id}
+                            title={isActive ? 'Klik untuk nonaktifkan' : 'Klik untuk aktifkan'}
+                            className="inline-flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                          >
+                            <span
+                              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                                isActive ? 'bg-emerald-500' : 'bg-slate-300'
+                              }`}
+                            >
+                              <span
+                                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                                  isActive ? 'translate-x-5' : 'translate-x-1'
+                                }`}
+                              />
+                            </span>
+                            <span className={`text-[10px] font-bold ${isActive ? 'text-emerald-700' : 'text-slate-500'}`}>
+                              {isActive ? 'Aktif' : 'Nonaktif'}
+                            </span>
+                          </button>
+                        );
+                      })()}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => handleOpenEditModal(d)}
+                          title="Edit mata kuliah"
+                          className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-[#1E3A8A] transition-colors cursor-pointer"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCourse(d)}
+                          disabled={isDeleting}
+                          title="Hapus mata kuliah"
+                          className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -308,12 +504,123 @@ export function KurikulumTable({ initialCourses }: { initialCourses: CourseData[
       </div>
 
       <Modal
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        title="Filter Mata Kuliah"
+        subtitle="Persempit daftar mata kuliah berdasarkan kriteria berikut"
+      >
+        <div className="space-y-4 text-xs">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Program Studi</label>
+            <select
+              value={prodiFilter}
+              onChange={(e) => {
+                setProdiFilter(e.target.value);
+                // Kurikulum yang dipilih sebelumnya bisa jadi bukan milik prodi baru, reset biar tidak nyasar.
+                setCurriculumFilter('ALL');
+              }}
+              className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+            >
+              <option value="ALL">Semua Program Studi</option>
+              {studyPrograms.map((p) => (
+                <option key={p.id} value={p.name}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Kurikulum</label>
+            <select
+              value={curriculumFilter}
+              onChange={(e) => setCurriculumFilter(e.target.value)}
+              className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+            >
+              <option value="ALL">Semua Kurikulum</option>
+              <option value="NONE">Belum Ada Kurikulum</option>
+              {curriculums
+                .filter((c) => prodiFilter === 'ALL' || c.studyProgram === prodiFilter)
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3.5">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Status</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+              >
+                <option value="ALL">Semua Status</option>
+                <option value="Aktif">Aktif</option>
+                <option value="Nonaktif">Nonaktif</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Jenis</label>
+              <select
+                value={jenisFilter}
+                onChange={(e) => setJenisFilter(e.target.value)}
+                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+              >
+                <option value="ALL">Semua Jenis</option>
+                <option value="Wajib">Wajib</option>
+                <option value="Pilihan">Pilihan</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Semester</label>
+            <select
+              value={semesterFilter}
+              onChange={(e) => setSemesterFilter(e.target.value)}
+              className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+            >
+              <option value="ALL">Semua Semester</option>
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                <option key={s} value={s}>
+                  Semester {s}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center justify-between gap-2.5 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={resetFilters}
+              disabled={activeFilterCount === 0}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:bg-slate-100 transition-colors disabled:opacity-40 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+              Reset Filter
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsFilterModalOpen(false)}
+              className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 transition-all shadow-xs cursor-pointer"
+            >
+              <Check className="w-3.5 h-3.5" />
+              Terapkan
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
         isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        title="Tambah Mata Kuliah Baru"
+        onClose={closeModal}
+        title={editingCourse ? `Edit Mata Kuliah: ${editingCourse.code}` : 'Tambah Mata Kuliah Baru'}
         subtitle="Katalog mata kuliah institusi"
       >
-        <form onSubmit={handleCreateCourse} className="space-y-4 text-xs">
+        <form onSubmit={handleSubmitCourse} className="space-y-4 text-xs">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -425,32 +732,36 @@ export function KurikulumTable({ initialCourses }: { initialCourses: CourseData[
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Koordinator Mata Kuliah</label>
-            <input
-              type="text"
-              placeholder="Nama dosen koordinator (opsional)"
-              value={formData.coordinator}
-              onChange={(e) => setFormData({ ...formData, coordinator: e.target.value })}
-              className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Deskripsi</label>
-            <textarea
-              rows={2}
-              placeholder="Ringkasan materi/topik mata kuliah ini..."
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-            ></textarea>
+          <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/60">
+            <label className="block text-xs font-bold text-slate-700 mb-1">Kategori Tugas Akhir & Lapangan</label>
+            <select
+              value={formData.finalProjectLabel}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  finalProjectLabel: e.target.value,
+                  requiresThesisSupervision: Boolean(e.target.value),
+                })
+              }
+              className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white"
+            >
+              <option value="">Bukan Tugas Akhir/Lapangan</option>
+              {FINAL_PROJECT_LABELS.map((label) => (
+                <option key={label} value={label}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-slate-500 mt-1.5">
+              Semua kelas dari mata kuliah ini otomatis tanpa jadwal/ruang tetap, dan mahasiswa yang mengambilnya otomatis masuk daftar
+              Bimbingan Tugas Akhir untuk ditetapkan pembimbingnya.
+            </p>
           </div>
 
           <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
             <button
               type="button"
-              onClick={() => setIsAddModalOpen(false)}
+              onClick={closeModal}
               className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
             >
               Batal
@@ -461,7 +772,7 @@ export function KurikulumTable({ initialCourses }: { initialCourses: CourseData[
               className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 disabled:opacity-50 transition-all shadow-xs cursor-pointer"
             >
               {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-              <span>Tambah Mata Kuliah</span>
+              <span>{editingCourse ? 'Simpan Perubahan' : 'Tambah Mata Kuliah'}</span>
             </button>
           </div>
         </form>

@@ -51,6 +51,52 @@ export class FinanceController {
     return await this.financeService.getInvoicesByStudent(nim);
   }
 
+  @Get('teaching-recap')
+  @ApiOperation({ summary: 'Rekapitulasi mengajar dosen per semester (kelas, SKS, pertemuan)' })
+  async getTeachingRecap(@Query('academicYearId') academicYearId?: string) {
+    return await this.financeService.getTeachingRecap(academicYearId);
+  }
+
+  @Get('bank-accounts')
+  async getBankAccounts() {
+    return await this.financeService.getBankAccounts();
+  }
+
+  @Post('bank-accounts')
+  async createBankAccount(@Body() body: any) {
+    return await this.financeService.createBankAccount(body);
+  }
+
+  @Put('bank-accounts/:id')
+  async updateBankAccount(@Param('id') id: string, @Body() body: any) {
+    return await this.financeService.updateBankAccount(id, body);
+  }
+
+  @Delete('bank-accounts/:id')
+  async deleteBankAccount(@Param('id') id: string) {
+    return await this.financeService.deleteBankAccount(id);
+  }
+
+  @Get('budget-items')
+  async getBudgetItems() {
+    return await this.financeService.getBudgetItems();
+  }
+
+  @Post('budget-items')
+  async createBudgetItem(@Body() body: any) {
+    return await this.financeService.createBudgetItem(body);
+  }
+
+  @Put('budget-items/:id')
+  async updateBudgetItem(@Param('id') id: string, @Body() body: any) {
+    return await this.financeService.updateBudgetItem(id, body);
+  }
+
+  @Delete('budget-items/:id')
+  async deleteBudgetItem(@Param('id') id: string) {
+    return await this.financeService.deleteBudgetItem(id);
+  }
+
   // ===========================================================================
   // MASTER KOMPONEN BIAYA ENDPOINTS
   // ===========================================================================

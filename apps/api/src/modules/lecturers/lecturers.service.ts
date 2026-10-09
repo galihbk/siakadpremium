@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../shared/prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { Role } from '@siakad/database';
 import { LecturerDashboardSummary } from '@siakad/types';
 
@@ -9,6 +10,7 @@ export interface CreateLecturerDto {
   password?: string;
   fullName: string;
   nidn: string;
+  nuptk?: string;
   nip?: string;
   titlePrefix?: string;
   titleSuffix?: string;
@@ -23,6 +25,7 @@ export interface UpdateLecturerDto {
   password?: string;
   fullName?: string;
   nidn?: string;
+  nuptk?: string;
   nip?: string;
   titlePrefix?: string;
   titleSuffix?: string;
@@ -30,11 +33,46 @@ export interface UpdateLecturerDto {
   phone?: string;
   isAcademicAdvisor?: boolean;
   isActive?: boolean;
+  gender?: 'MALE' | 'FEMALE';
+  birthPlace?: string;
+  birthDate?: string | null;
+  religion?: string;
+  nik?: string;
+  npwp?: string;
+  officePhone?: string;
+  motherName?: string;
+  maritalStatus?: string;
+  spouseName?: string;
+  spouseNip?: string;
+  spouseOccupation?: string;
+  address?: string;
+  dusun?: string;
+  rtRw?: string;
+  kelurahan?: string;
+  kecamatan?: string;
+  city?: string;
+  province?: string;
+  postalCode?: string;
+  employmentStatus?: string;
+  functionalPosition?: string;
+  lastEducation?: string;
+  expertise?: string;
+  sdmType?: string;
+  rankGroup?: string;
+  salarySource?: string;
+  skNumber?: string;
+  skDate?: string | null;
+  appointingInstitution?: string;
+  bpjsKesehatan?: string;
+  bpjsKetenagakerjaan?: string;
 }
 
 @Injectable()
 export class LecturersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private storageService: StorageService,
+  ) {}
 
   async findAll() {
     const lecturers = await this.prisma.lecturer.findMany({
@@ -45,6 +83,8 @@ export class LecturersService {
             faculty: true,
           },
         },
+        structuralFaculty: true,
+        structuralStudyProgram: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -54,7 +94,8 @@ export class LecturersService {
     return lecturers.map((lec) => ({
       id: lec.id,
       userId: lec.userId,
-      nidn: lec.nidn,
+      nidn: lec.nidn || '-',
+      nuptk: lec.nuptk || '-',
       nip: lec.nip || '-',
       fullName: lec.user.fullName,
       titlePrefix: lec.titlePrefix || '',
@@ -69,6 +110,43 @@ export class LecturersService {
       isActive: lec.user.isActive,
       role: lec.user.role,
       createdAt: lec.createdAt,
+      gender: lec.gender,
+      birthPlace: lec.birthPlace || '-',
+      birthDate: lec.birthDate,
+      employmentStatus: lec.employmentStatus || '-',
+      functionalPosition: lec.functionalPosition || '-',
+      lastEducation: lec.lastEducation || '-',
+      expertise: lec.expertise || '-',
+      religion: lec.religion || '-',
+      nik: lec.nik || '-',
+      npwp: lec.npwp || '-',
+      officePhone: lec.officePhone || '-',
+      motherName: lec.motherName || '-',
+      maritalStatus: lec.maritalStatus || '-',
+      spouseName: lec.spouseName || '-',
+      spouseNip: lec.spouseNip || '-',
+      spouseOccupation: lec.spouseOccupation || '-',
+      address: lec.address || '-',
+      dusun: lec.dusun || '-',
+      rtRw: lec.rtRw || '-',
+      kelurahan: lec.kelurahan || '-',
+      kecamatan: lec.kecamatan || '-',
+      city: lec.city || '-',
+      province: lec.province || '-',
+      postalCode: lec.postalCode || '-',
+      sdmType: lec.sdmType || '-',
+      rankGroup: lec.rankGroup || '-',
+      salarySource: lec.salarySource || '-',
+      skNumber: lec.skNumber || '-',
+      skDate: lec.skDate,
+      appointingInstitution: lec.appointingInstitution || '-',
+      bpjsKesehatan: lec.bpjsKesehatan || '-',
+      bpjsKetenagakerjaan: lec.bpjsKetenagakerjaan || '-',
+      structuralPosition: lec.structuralPosition,
+      structuralFacultyId: lec.structuralFacultyId,
+      structuralFacultyName: lec.structuralFaculty?.name || null,
+      structuralStudyProgramId: lec.structuralStudyProgramId,
+      structuralStudyProgramName: lec.structuralStudyProgram?.name || null,
     }));
   }
 
@@ -82,6 +160,8 @@ export class LecturersService {
             faculty: true,
           },
         },
+        structuralFaculty: true,
+        structuralStudyProgram: true,
       },
     });
 
@@ -92,7 +172,8 @@ export class LecturersService {
     return {
       id: lec.id,
       userId: lec.userId,
-      nidn: lec.nidn,
+      nidn: lec.nidn || '-',
+      nuptk: lec.nuptk || '-',
       nip: lec.nip || '-',
       fullName: lec.user.fullName,
       titlePrefix: lec.titlePrefix || '',
@@ -107,7 +188,98 @@ export class LecturersService {
       isActive: lec.user.isActive,
       role: lec.user.role,
       createdAt: lec.createdAt,
+      gender: lec.gender,
+      birthPlace: lec.birthPlace || '-',
+      birthDate: lec.birthDate,
+      employmentStatus: lec.employmentStatus || '-',
+      functionalPosition: lec.functionalPosition || '-',
+      lastEducation: lec.lastEducation || '-',
+      expertise: lec.expertise || '-',
+      religion: lec.religion || '-',
+      nik: lec.nik || '-',
+      npwp: lec.npwp || '-',
+      officePhone: lec.officePhone || '-',
+      motherName: lec.motherName || '-',
+      maritalStatus: lec.maritalStatus || '-',
+      spouseName: lec.spouseName || '-',
+      spouseNip: lec.spouseNip || '-',
+      spouseOccupation: lec.spouseOccupation || '-',
+      address: lec.address || '-',
+      dusun: lec.dusun || '-',
+      rtRw: lec.rtRw || '-',
+      kelurahan: lec.kelurahan || '-',
+      kecamatan: lec.kecamatan || '-',
+      city: lec.city || '-',
+      province: lec.province || '-',
+      postalCode: lec.postalCode || '-',
+      sdmType: lec.sdmType || '-',
+      rankGroup: lec.rankGroup || '-',
+      salarySource: lec.salarySource || '-',
+      skNumber: lec.skNumber || '-',
+      skDate: lec.skDate,
+      appointingInstitution: lec.appointingInstitution || '-',
+      bpjsKesehatan: lec.bpjsKesehatan || '-',
+      bpjsKetenagakerjaan: lec.bpjsKetenagakerjaan || '-',
+      structuralPosition: lec.structuralPosition,
+      structuralFacultyId: lec.structuralFacultyId,
+      structuralFacultyName: lec.structuralFaculty?.name || null,
+      structuralStudyProgramId: lec.structuralStudyProgramId,
+      structuralStudyProgramName: lec.structuralStudyProgram?.name || null,
     };
+  }
+
+  // Menetapkan/menghapus jabatan struktural (Dekan/Kaprodi). Hanya boleh ada satu
+  // pemegang jabatan per fakultas/prodi -- pemegang lama di scope yang sama otomatis
+  // dicopot begitu dosen lain ditetapkan, supaya tidak ada dua Dekan untuk satu fakultas.
+  async setStructuralPosition(id: string, dto: { position: 'DEKAN' | 'KAPRODI' | null; facultyId?: string; studyProgramId?: string }) {
+    const lecturer = await this.prisma.lecturer.findUnique({ where: { id } });
+    if (!lecturer) {
+      throw new NotFoundException(`Dosen dengan ID "${id}" tidak ditemukan.`);
+    }
+
+    if (!dto.position) {
+      await this.prisma.lecturer.update({
+        where: { id },
+        data: { structuralPosition: null, structuralFacultyId: null, structuralStudyProgramId: null },
+      });
+      return { success: true, message: 'Jabatan struktural dosen ini dihapus.' };
+    }
+
+    if (dto.position === 'DEKAN') {
+      if (!dto.facultyId) {
+        throw new BadRequestException('Pilih fakultas yang akan dipimpin sebagai Dekan.');
+      }
+      await this.prisma.$transaction([
+        this.prisma.lecturer.updateMany({
+          where: { structuralPosition: 'DEKAN', structuralFacultyId: dto.facultyId, NOT: { id } },
+          data: { structuralPosition: null, structuralFacultyId: null },
+        }),
+        this.prisma.lecturer.update({
+          where: { id },
+          data: { structuralPosition: 'DEKAN', structuralFacultyId: dto.facultyId, structuralStudyProgramId: null },
+        }),
+      ]);
+      return { success: true, message: 'Dosen ditetapkan sebagai Dekan. Dekan sebelumnya di fakultas ini (jika ada) otomatis dicopot.' };
+    }
+
+    if (dto.position === 'KAPRODI') {
+      if (!dto.studyProgramId) {
+        throw new BadRequestException('Pilih program studi yang akan dipimpin sebagai Kaprodi.');
+      }
+      await this.prisma.$transaction([
+        this.prisma.lecturer.updateMany({
+          where: { structuralPosition: 'KAPRODI', structuralStudyProgramId: dto.studyProgramId, NOT: { id } },
+          data: { structuralPosition: null, structuralStudyProgramId: null },
+        }),
+        this.prisma.lecturer.update({
+          where: { id },
+          data: { structuralPosition: 'KAPRODI', structuralStudyProgramId: dto.studyProgramId, structuralFacultyId: null },
+        }),
+      ]);
+      return { success: true, message: 'Dosen ditetapkan sebagai Kaprodi. Kaprodi sebelumnya di prodi ini (jika ada) otomatis dicopot.' };
+    }
+
+    throw new BadRequestException('Jenis jabatan struktural tidak dikenali.');
   }
 
   async create(dto: CreateLecturerDto) {
@@ -152,6 +324,7 @@ export class LecturersService {
         userId: user.id,
         studyProgramId,
         nidn: dto.nidn || `04${Date.now().toString().slice(-8)}`,
+        nuptk: dto.nuptk || null,
         nip: dto.nip || null,
         titlePrefix: dto.titlePrefix || null,
         titleSuffix: dto.titleSuffix || null,
@@ -169,7 +342,8 @@ export class LecturersService {
     return {
       id: lecturer.id,
       userId: user.id,
-      nidn: lecturer.nidn,
+      nidn: lecturer.nidn || '-',
+      nuptk: lecturer.nuptk || '-',
       nip: lecturer.nip || '-',
       fullName: user.fullName,
       titlePrefix: lecturer.titlePrefix || '',
@@ -215,12 +389,45 @@ export class LecturersService {
     // Update Lecturer profile
     const lecturerUpdateData: any = {};
     if (dto.nidn) lecturerUpdateData.nidn = dto.nidn;
+    if (dto.nuptk !== undefined) lecturerUpdateData.nuptk = dto.nuptk;
     if (dto.nip !== undefined) lecturerUpdateData.nip = dto.nip;
     if (dto.titlePrefix !== undefined) lecturerUpdateData.titlePrefix = dto.titlePrefix;
     if (dto.titleSuffix !== undefined) lecturerUpdateData.titleSuffix = dto.titleSuffix;
     if (dto.phone !== undefined) lecturerUpdateData.phone = dto.phone;
     if (dto.studyProgramId) lecturerUpdateData.studyProgramId = dto.studyProgramId;
     if (dto.isAcademicAdvisor !== undefined) lecturerUpdateData.isAcademicAdvisor = dto.isAcademicAdvisor;
+    if (dto.gender !== undefined) lecturerUpdateData.gender = dto.gender;
+    if (dto.birthPlace !== undefined) lecturerUpdateData.birthPlace = dto.birthPlace;
+    if (dto.birthDate !== undefined) lecturerUpdateData.birthDate = dto.birthDate ? new Date(dto.birthDate) : null;
+    if (dto.religion !== undefined) lecturerUpdateData.religion = dto.religion;
+    if (dto.nik !== undefined) lecturerUpdateData.nik = dto.nik;
+    if (dto.npwp !== undefined) lecturerUpdateData.npwp = dto.npwp;
+    if (dto.officePhone !== undefined) lecturerUpdateData.officePhone = dto.officePhone;
+    if (dto.motherName !== undefined) lecturerUpdateData.motherName = dto.motherName;
+    if (dto.maritalStatus !== undefined) lecturerUpdateData.maritalStatus = dto.maritalStatus;
+    if (dto.spouseName !== undefined) lecturerUpdateData.spouseName = dto.spouseName;
+    if (dto.spouseNip !== undefined) lecturerUpdateData.spouseNip = dto.spouseNip;
+    if (dto.spouseOccupation !== undefined) lecturerUpdateData.spouseOccupation = dto.spouseOccupation;
+    if (dto.address !== undefined) lecturerUpdateData.address = dto.address;
+    if (dto.dusun !== undefined) lecturerUpdateData.dusun = dto.dusun;
+    if (dto.rtRw !== undefined) lecturerUpdateData.rtRw = dto.rtRw;
+    if (dto.kelurahan !== undefined) lecturerUpdateData.kelurahan = dto.kelurahan;
+    if (dto.kecamatan !== undefined) lecturerUpdateData.kecamatan = dto.kecamatan;
+    if (dto.city !== undefined) lecturerUpdateData.city = dto.city;
+    if (dto.province !== undefined) lecturerUpdateData.province = dto.province;
+    if (dto.postalCode !== undefined) lecturerUpdateData.postalCode = dto.postalCode;
+    if (dto.employmentStatus !== undefined) lecturerUpdateData.employmentStatus = dto.employmentStatus;
+    if (dto.functionalPosition !== undefined) lecturerUpdateData.functionalPosition = dto.functionalPosition;
+    if (dto.lastEducation !== undefined) lecturerUpdateData.lastEducation = dto.lastEducation;
+    if (dto.expertise !== undefined) lecturerUpdateData.expertise = dto.expertise;
+    if (dto.sdmType !== undefined) lecturerUpdateData.sdmType = dto.sdmType;
+    if (dto.rankGroup !== undefined) lecturerUpdateData.rankGroup = dto.rankGroup;
+    if (dto.salarySource !== undefined) lecturerUpdateData.salarySource = dto.salarySource;
+    if (dto.skNumber !== undefined) lecturerUpdateData.skNumber = dto.skNumber;
+    if (dto.skDate !== undefined) lecturerUpdateData.skDate = dto.skDate ? new Date(dto.skDate) : null;
+    if (dto.appointingInstitution !== undefined) lecturerUpdateData.appointingInstitution = dto.appointingInstitution;
+    if (dto.bpjsKesehatan !== undefined) lecturerUpdateData.bpjsKesehatan = dto.bpjsKesehatan;
+    if (dto.bpjsKetenagakerjaan !== undefined) lecturerUpdateData.bpjsKetenagakerjaan = dto.bpjsKetenagakerjaan;
 
     const updated = await this.prisma.lecturer.update({
       where: { id },
@@ -238,7 +445,8 @@ export class LecturersService {
     return {
       id: updated.id,
       userId: updated.userId,
-      nidn: updated.nidn,
+      nidn: updated.nidn || '-',
+      nuptk: updated.nuptk || '-',
       nip: updated.nip || '-',
       fullName: updated.user.fullName,
       titlePrefix: updated.titlePrefix || '',
@@ -296,10 +504,40 @@ export class LecturersService {
     };
   }
 
-  async getTeachingSchedule(lecturerId: string | undefined) {
+  async findLecturerIdByUserId(userId: string | undefined): Promise<string | undefined> {
+    if (!userId) return undefined;
+    const lec = await this.prisma.lecturer.findUnique({ where: { userId }, select: { id: true } });
+    return lec?.id;
+  }
+
+  // Riwayat tahun akademik tempat dosen pernah/sedang mengampu kelas
+  async getTeachingYears(lecturerId: string | undefined) {
+    if (!lecturerId) return [];
+    const rows = await this.prisma.courseClass.groupBy({
+      by: ['academicYearId'],
+      where: { lecturerId },
+      _count: { _all: true },
+    });
+    if (rows.length === 0) return [];
+    const years = await this.prisma.academicYear.findMany({
+      where: { id: { in: rows.map((r) => r.academicYearId) } },
+      orderBy: { name: 'desc' },
+    });
+    return years.map((y) => ({
+      id: y.id,
+      name: y.name,
+      semesterType: y.semesterType,
+      isActive: y.isActive,
+      classCount: rows.find((r) => r.academicYearId === y.id)?._count._all || 0,
+    }));
+  }
+
+  async getTeachingSchedule(lecturerId: string | undefined, academicYearId?: string) {
     if (!lecturerId) return [];
 
-    const activeYear = await this.prisma.academicYear.findFirst({ where: { isActive: true } });
+    const activeYear = academicYearId
+      ? { id: academicYearId }
+      : await this.prisma.academicYear.findFirst({ where: { isActive: true } });
     const classes = await this.prisma.courseClass.findMany({
       where: {
         lecturerId,
@@ -470,23 +708,34 @@ export class LecturersService {
   async saveCourseContract(lecturerId: string | undefined, classId: string, payload: any) {
     await this.assertClassOwnedByLecturer(classId, lecturerId);
 
+    const sharedData = {
+      rpsCode: payload.rpsCode?.trim() || null,
+      description: payload.description || null,
+      graduateLearningOutcomes: payload.graduateLearningOutcomes || null,
+      learningOutcomes: payload.learningOutcomes || null,
+      subCpmk: payload.subCpmk || null,
+      studyMaterials: payload.studyMaterials || null,
+      teachingMethods: payload.teachingMethods || null,
+      studentExperience: payload.studentExperience || null,
+      assessmentCriteria: payload.assessmentCriteria || null,
+      assessmentWeights: payload.assessmentWeights || undefined,
+      references: payload.references || null,
+      supportingReferences: payload.supportingReferences || null,
+      learningMedia: payload.learningMedia || null,
+      coordinatorName: payload.coordinatorName?.trim() || null,
+      headOfProdiName: payload.headOfProdiName?.trim() || null,
+      preparedDate: payload.preparedDate ? new Date(payload.preparedDate) : null,
+      isPublished: Boolean(payload.isPublished),
+      // Tiap kali dosen "Simpan & Publikasikan", RPS otomatis diajukan ulang untuk
+      // divalidasi P2M -- catatan revisi lama dibersihkan karena kontennya sudah berubah.
+      // Menyimpan draf (isPublished=false) tidak mengganggu status validasi yang sedang berjalan.
+      ...(payload.isPublished ? { p2mStatus: 'DIAJUKAN', p2mNote: null } : {}),
+    };
+
     const contract = await this.prisma.courseContract.upsert({
       where: { courseClassId: classId },
-      create: {
-        courseClassId: classId,
-        description: payload.description || null,
-        learningOutcomes: payload.learningOutcomes || null,
-        references: payload.references || null,
-        assessmentWeights: payload.assessmentWeights || undefined,
-        isPublished: Boolean(payload.isPublished),
-      },
-      update: {
-        description: payload.description || null,
-        learningOutcomes: payload.learningOutcomes || null,
-        references: payload.references || null,
-        assessmentWeights: payload.assessmentWeights || undefined,
-        isPublished: Boolean(payload.isPublished),
-      },
+      create: { courseClassId: classId, ...sharedData },
+      update: sharedData,
     });
 
     await this.prisma.courseContractWeek.deleteMany({ where: { contractId: contract.id } });
@@ -500,14 +749,28 @@ export class LecturersService {
           topic: w.topic,
           method: w.method || null,
           indicator: w.indicator || null,
+          duration: w.duration || null,
+          studentExperience: w.studentExperience || null,
+          assessmentWeight: w.assessmentWeight || null,
         },
       });
     }
 
-    return { success: true, message: 'Kontrak kuliah berhasil disimpan.' };
+    return { success: true, message: 'RPS berhasil disimpan.' };
   }
 
   // ================= UPLOAD RPS (BERKAS) =================
+  // Berkas privat disimpan sebagai key permanen; tautan bertanda tangan (kedaluwarsa 2 jam)
+  // dibuat ulang setiap kali dibuka. Data lama berupa URL bertanda tangan ikut diperbarui.
+  private toFreshFileUrl(stored: string | null | undefined): string | null {
+    if (!stored) return null;
+    let key = stored;
+    const m = stored.match(/[?&]key=([^&]+)/);
+    if (m) key = decodeURIComponent(m[1]);
+    else if (/^https?:\/\//i.test(stored)) return stored;
+    return this.storageService.generateSignedUrl(key, 3600);
+  }
+
   async getRps(lecturerId: string | undefined, classId: string): Promise<any> {
     const cc = await this.assertClassOwnedByLecturer(classId, lecturerId);
     const contract = await this.prisma.courseContract.findUnique({
@@ -519,7 +782,7 @@ export class LecturersService {
       courseCode: cc.course.code,
       courseName: cc.course.name,
       className: cc.className,
-      rpsFileUrl: contract?.rpsFileUrl || null,
+      rpsFileUrl: this.toFreshFileUrl(contract?.rpsFileUrl),
       rpsFileName: contract?.rpsFileName || null,
       rpsUploadedAt: contract?.rpsUploadedAt || null,
     };

@@ -4,6 +4,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { Modal } from '@/components/ui/Modal';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { getAuthSession } from '@/lib/auth';
 import {
   Landmark,
   GraduationCap,
@@ -38,11 +40,36 @@ interface Faculty {
   studyProgramsCount: number;
   studentsCount: number;
   lecturersCount: number;
-  accreditation: 'Unggul' | 'Baik Sekali' | 'A' | 'B';
+  accreditation: 'Unggul' | 'Baik Sekali' | 'Baik' | 'A' | 'B' | '';
   skAkreditasi: string;
-  establishedYear: number;
+  establishedYear: number | null;
   description: string;
 }
+
+const dash = (val: string | number | null | undefined) =>
+  val === '' || val === null || val === undefined || val === 0 ? '-' : val;
+
+const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
+interface DialogState {
+  isOpen: boolean;
+  title: string;
+  message: React.ReactNode;
+  type: 'danger' | 'warning' | 'info' | 'success';
+  isAlert: boolean;
+  confirmText?: string;
+  isLoading: boolean;
+  onConfirm?: () => void | Promise<void>;
+}
+
+const CLOSED_DIALOG: DialogState = {
+  isOpen: false,
+  title: '',
+  message: '',
+  type: 'danger',
+  isAlert: false,
+  isLoading: false,
+};
 
 export default function SuperAdminFakultasPage() {
   const [faculties, setFaculties] = useState<Faculty[]>([]);
@@ -53,58 +80,45 @@ export default function SuperAdminFakultasPage() {
   const [editingFaculty, setEditingFaculty] = useState<Faculty | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [dbConnected, setDbConnected] = useState<boolean | null>(null);
+  const [dialogState, setDialogState] = useState<DialogState>(CLOSED_DIALOG);
 
-  // Load from backend database on mount
-  useEffect(() => {
-    async function loadFaculties() {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-      setIsLoading(true);
-      try {
-        const stored = localStorage.getItem('siakad_faculties_data');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0 && !parsed.some((f: any) => f.code === 'FASILKOM')) {
-            setFaculties(parsed);
-          } else {
-            localStorage.removeItem('siakad_faculties_data');
-          }
-        }
-      } catch {}
-
-      try {
-        const res = await fetch(`${apiBase}/faculties`);
-        if (res.ok) {
-          const json = await res.json();
-          const data = json.data || json;
-          if (Array.isArray(data) && data.length > 0) {
-            setDbConnected(true);
-            const mapped: Faculty[] = data.map((d: any, idx: number) => ({
-              id: d.id || `fac-${idx + 1}`,
-              code: d.code || 'FT',
-              name: d.name,
-              deanName: d.deanName || 'Dekan Fakultas',
-              deanNip: d.deanNip || '19750812 200112 1 002',
-              building: d.building || 'Gedung Rektorat & Fakultas',
-              studyProgramsCount: d.studyPrograms?.length || 1,
-              studentsCount: d.studentsCount || 1200,
-              lecturersCount: d.lecturersCount || 45,
-              accreditation: (d.accreditation as any) || 'Unggul',
-              skAkreditasi: d.skAkreditasi || 'No. 320/SK/BAN-PT/2024',
-              establishedYear: d.establishedYear || 1998,
-              description: d.description || '',
-            }));
-            setFaculties(mapped);
-          }
-        } else {
-          setDbConnected(false);
-        }
-      } catch {
+  // Memuat daftar fakultas dari database. Tidak ada lagi fallback localStorage --
+  // itu dulu sumber data "hantu" yang bikin UI beda dengan database sungguhan.
+  const loadFaculties = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/faculties`);
+      if (res.ok) {
+        setDbConnected(true);
+        const json = await res.json();
+        const data = json.data || json;
+        const mapped: Faculty[] = (Array.isArray(data) ? data : []).map((d: any) => ({
+          id: d.id,
+          code: d.code,
+          name: d.name,
+          deanName: d.deanName || '',
+          deanNip: d.deanNip || '',
+          building: d.building || '',
+          studyProgramsCount: d.studyPrograms?.length || 0,
+          studentsCount: d.studentsCount || 0,
+          lecturersCount: d.lecturersCount || 0,
+          accreditation: d.accreditation || '',
+          skAkreditasi: d.skAkreditasi || '',
+          establishedYear: d.establishedYear || null,
+          description: d.description || '',
+        }));
+        setFaculties(mapped);
+      } else {
         setDbConnected(false);
-      } finally {
-        setIsLoading(false);
       }
+    } catch {
+      setDbConnected(false);
+    } finally {
+      setIsLoading(false);
     }
+  };
 
+  useEffect(() => {
     loadFaculties();
   }, []);
 
@@ -112,8 +126,6 @@ export default function SuperAdminFakultasPage() {
   const [formData, setFormData] = useState<{
     code: string;
     name: string;
-    deanName: string;
-    deanNip: string;
     building: string;
     studyProgramsCount: number;
     accreditation: Faculty['accreditation'];
@@ -123,8 +135,6 @@ export default function SuperAdminFakultasPage() {
   }>({
     code: '',
     name: '',
-    deanName: '',
-    deanNip: '',
     building: '',
     studyProgramsCount: 1,
     accreditation: 'Unggul',
@@ -205,8 +215,6 @@ export default function SuperAdminFakultasPage() {
     setFormData({
       code: '',
       name: '',
-      deanName: '',
-      deanNip: '',
       building: '',
       studyProgramsCount: 1,
       accreditation: 'Unggul',
@@ -222,89 +230,99 @@ export default function SuperAdminFakultasPage() {
     setFormData({
       code: f.code,
       name: f.name,
-      deanName: f.deanName,
-      deanNip: f.deanNip,
       building: f.building,
       studyProgramsCount: f.studyProgramsCount,
-      accreditation: f.accreditation,
+      accreditation: f.accreditation || 'Unggul',
       skAkreditasi: f.skAkreditasi,
-      establishedYear: f.establishedYear,
+      establishedYear: f.establishedYear ?? new Date().getFullYear(),
       description: f.description,
     });
     setIsAddModalOpen(true);
   };
 
-  const handleSaveFaculty = (e: React.FormEvent) => {
+  const [isSavingFaculty, setIsSavingFaculty] = useState(false);
+
+  const handleSaveFaculty = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.code || !formData.name || !formData.deanName) {
-      alert('Mohon isi field wajib (Kode, Nama, dan Dekan)!');
+    if (!formData.code || !formData.name) {
+      alert('Mohon isi field wajib (Kode dan Nama Fakultas)!');
       return;
     }
 
-    if (editingFaculty) {
-      setFaculties((prev) => {
-        const next = prev.map((f) =>
-          f.id === editingFaculty.id
-            ? {
-                ...f,
-                code: formData.code.toUpperCase(),
-                name: formData.name,
-                deanName: formData.deanName,
-                deanNip: formData.deanNip,
-                building: formData.building,
-                accreditation: formData.accreditation,
-                skAkreditasi: formData.skAkreditasi,
-                establishedYear: Number(formData.establishedYear),
-                description: formData.description,
-              }
-            : f
-        );
-        try {
-          localStorage.setItem('siakad_faculties_data', JSON.stringify(next));
-        } catch {}
-        return next;
-      });
-      showToast(`Data Fakultas "${formData.name}" berhasil diperbarui!`);
-    } else {
-      const newFac: Faculty = {
-        id: `fac-${Date.now()}`,
-        code: formData.code.toUpperCase(),
-        name: formData.name,
-        deanName: formData.deanName,
-        deanNip: formData.deanNip || '-',
-        building: formData.building || 'Gedung Pusat Akademik',
-        studyProgramsCount: Number(formData.studyProgramsCount) || 1,
-        studentsCount: 0,
-        lecturersCount: 0,
-        accreditation: formData.accreditation,
-        skAkreditasi: formData.skAkreditasi || 'Dalam Proses',
-        establishedYear: Number(formData.establishedYear) || new Date().getFullYear(),
-        description: formData.description,
-      };
-      setFaculties((prev) => {
-        const next = [...prev, newFac];
-        try {
-          localStorage.setItem('siakad_faculties_data', JSON.stringify(next));
-        } catch {}
-        return next;
-      });
-      showToast(`Fakultas "${newFac.name}" berhasil ditambahkan!`);
-    }
+    setIsSavingFaculty(true);
+    const payload = {
+      code: formData.code.toUpperCase(),
+      name: formData.name,
+      building: formData.building || undefined,
+      accreditation: formData.accreditation || undefined,
+      skAkreditasi: formData.skAkreditasi || undefined,
+      establishedYear: formData.establishedYear ? Number(formData.establishedYear) : undefined,
+      description: formData.description || undefined,
+    };
 
-    setIsAddModalOpen(false);
+    try {
+      const { token } = getAuthSession();
+      const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+      const res = editingFaculty
+        ? await fetch(`${apiBase}/faculties/${editingFaculty.id}`, { method: 'PUT', headers, body: JSON.stringify(payload) })
+        : await fetch(`${apiBase}/faculties`, { method: 'POST', headers, body: JSON.stringify(payload) });
+
+      const json = await res.json().catch(() => null);
+      const result = json?.data ?? json;
+      if (!res.ok) throw new Error(result?.message || 'Gagal menyimpan data fakultas.');
+
+      showToast(editingFaculty ? `Data Fakultas "${formData.name}" berhasil diperbarui!` : `Fakultas "${formData.name}" berhasil ditambahkan!`);
+      await loadFaculties();
+      setIsAddModalOpen(false);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Gagal menyimpan data fakultas.');
+    } finally {
+      setIsSavingFaculty(false);
+    }
   };
 
-  const handleDelete = (id: string, name: string) => {
-    if (confirm(`Hapus fakultas "${name}"? Seluruh data prodi terkait akan dipindahkan.`)) {
-      setFaculties((prev) => {
-        const next = prev.filter((f) => f.id !== id);
+  const handleDelete = (fac: Faculty) => {
+    setDialogState({
+      isOpen: true,
+      title: 'Hapus Fakultas?',
+      message: (
+        <span>
+          Hapus fakultas <strong className="text-slate-900 font-bold">&quot;{fac.name}&quot;</strong>? Fakultas hanya
+          bisa dihapus kalau sudah tidak ada program studi di dalamnya.
+        </span>
+      ),
+      type: 'danger',
+      isAlert: false,
+      confirmText: 'Ya, Hapus Fakultas',
+      isLoading: false,
+      onConfirm: async () => {
+        setDialogState((prev) => ({ ...prev, isLoading: true }));
         try {
-          localStorage.setItem('siakad_faculties_data', JSON.stringify(next));
-        } catch {}
-        return next;
-      });
-      showToast(`Fakultas "${name}" berhasil dihapus.`);
-    }
+          const { token } = getAuthSession();
+          const res = await fetch(`${apiBase}/faculties/${fac.id}`, {
+            method: 'DELETE',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          const json = await res.json().catch(() => null);
+          const result = json?.data ?? json;
+          if (!res.ok) throw new Error(result?.message || 'Gagal menghapus fakultas.');
+
+          setFaculties((prev) => prev.filter((f) => f.id !== fac.id));
+          setDialogState(CLOSED_DIALOG);
+          showToast(result?.message || `Fakultas "${fac.name}" berhasil dihapus.`);
+        } catch (err) {
+          setDialogState({
+            isOpen: true,
+            title: 'Tidak Bisa Menghapus Fakultas',
+            message: err instanceof Error ? err.message : 'Terjadi kesalahan saat menghapus fakultas.',
+            type: 'warning',
+            isAlert: true,
+            confirmText: 'Mengerti',
+            isLoading: false,
+          });
+        }
+      },
+    });
   };
 
   return (
@@ -378,7 +396,7 @@ export default function SuperAdminFakultasPage() {
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Program Studi</p>
               <h3 className="text-2xl font-black text-indigo-700 mt-1">{metrics.totalProdi}</h3>
-              <p className="text-xs text-indigo-600 font-medium mt-0.5">Terdistribusi di 4 fakultas</p>
+              <p className="text-xs text-indigo-600 font-medium mt-0.5">Terdistribusi di {metrics.total} fakultas</p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-700 border border-indigo-100 flex items-center justify-center font-bold text-lg">
               <GraduationCap className="w-6 h-6" />
@@ -440,6 +458,9 @@ export default function SuperAdminFakultasPage() {
               <option value="Semua">Semua Akreditasi</option>
               <option value="Unggul">Unggul</option>
               <option value="Baik Sekali">Baik Sekali</option>
+              <option value="Baik">Baik</option>
+              <option value="A">A (Legacy)</option>
+              <option value="B">B (Legacy)</option>
             </select>
           </div>
         </div>
@@ -625,7 +646,7 @@ export default function SuperAdminFakultasPage() {
                               <span className="font-mono text-[10px] font-extrabold text-[#1E3A8A] bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
                                 {fac.code}
                               </span>
-                              <span className="text-[11px] text-slate-400">Est. {fac.establishedYear}</span>
+                              <span className="text-[11px] text-slate-400">Est. {dash(fac.establishedYear)}</span>
                             </div>
                           </div>
                         </div>
@@ -633,15 +654,15 @@ export default function SuperAdminFakultasPage() {
 
                       <td className="py-4 px-4">
                         <div className="space-y-0.5">
-                          <p className="font-bold text-slate-900">{fac.deanName}</p>
-                          <p className="text-[10px] text-slate-500 font-mono">NIP: {fac.deanNip}</p>
+                          <p className="font-bold text-slate-900">{fac.deanName || <span className="text-slate-400 font-normal">Belum diisi</span>}</p>
+                          <p className="text-[10px] text-slate-500 font-mono">NIP: {dash(fac.deanNip)}</p>
                         </div>
                       </td>
 
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-1.5 text-slate-600 text-xs">
                           <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span>{fac.building}</span>
+                          <span>{fac.building || <span className="text-slate-400">Belum diisi</span>}</span>
                         </div>
                       </td>
 
@@ -657,23 +678,27 @@ export default function SuperAdminFakultasPage() {
                       </td>
 
                       <td className="py-4 px-4 text-center font-bold text-slate-900">
-                        {fac.studentsCount.toLocaleString('id-ID')}
+                        {dash(fac.studentsCount)}
                       </td>
 
                       <td className="py-4 px-4 text-center font-bold text-slate-800">
-                        {fac.lecturersCount}
+                        {dash(fac.lecturersCount)}
                       </td>
 
                       <td className="py-4 px-4 text-center">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                            fac.accreditation === 'Unggul'
-                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                              : 'bg-blue-100 text-[#1E3A8A] border border-blue-200'
-                          }`}
-                        >
-                          {fac.accreditation}
-                        </span>
+                        {fac.accreditation ? (
+                          <span
+                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                              fac.accreditation === 'Unggul'
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                : 'bg-blue-100 text-[#1E3A8A] border border-blue-200'
+                            }`}
+                          >
+                            {fac.accreditation}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-[11px]">-</span>
+                        )}
                       </td>
 
                       <td className="py-4 px-5 text-right">
@@ -686,7 +711,7 @@ export default function SuperAdminFakultasPage() {
                             <Edit3 className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => handleDelete(fac.id, fac.name)}
+                            onClick={() => handleDelete(fac)}
                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                             title="Hapus Fakultas"
                           >
@@ -793,8 +818,9 @@ export default function SuperAdminFakultasPage() {
                     >
                       <option value="Unggul">Unggul</option>
                       <option value="Baik Sekali">Baik Sekali</option>
-                      <option value="A">A</option>
-                      <option value="B">B</option>
+                      <option value="Baik">Baik</option>
+                      <option value="A">A (Legacy)</option>
+                      <option value="B">B (Legacy)</option>
                     </select>
                   </div>
 
@@ -807,29 +833,6 @@ export default function SuperAdminFakultasPage() {
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] font-semibold"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="font-bold text-slate-700">Nama Dekan & Gelar *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Dr. Ir. Hendra Gunawan, M.T."
-                      value={formData.deanName}
-                      onChange={(e) => setFormData({ ...formData, deanName: e.target.value })}
-                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="font-bold text-slate-700">NIP / NIDN Dekan</label>
-                    <input
-                      type="text"
-                      placeholder="19750812 200112 1 002"
-                      value={formData.deanNip}
-                      onChange={(e) => setFormData({ ...formData, deanNip: e.target.value })}
-                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] font-mono"
                     />
                   </div>
 
@@ -887,13 +890,26 @@ export default function SuperAdminFakultasPage() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 transition-all shadow-xs"
+                    disabled={isSavingFaculty}
+                    className="px-5 py-2 rounded-xl font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 transition-all shadow-xs disabled:opacity-60"
                   >
-                    {editingFaculty ? 'Simpan Perubahan' : 'Tambah Fakultas'}
+                    {isSavingFaculty ? 'Menyimpan...' : editingFaculty ? 'Simpan Perubahan' : 'Tambah Fakultas'}
                   </button>
                 </div>
               </form>
         </Modal>
+
+        <ConfirmModal
+          isOpen={dialogState.isOpen}
+          onClose={() => (dialogState.isLoading ? null : setDialogState(CLOSED_DIALOG))}
+          onConfirm={dialogState.onConfirm}
+          title={dialogState.title}
+          message={dialogState.message}
+          type={dialogState.type}
+          isAlert={dialogState.isAlert}
+          confirmText={dialogState.confirmText}
+          isLoading={dialogState.isLoading}
+        />
       </div>
     </PortalLayout>
   );

@@ -26,7 +26,7 @@ export class Lp3mController {
 
   // ================= 2. RESEARCH & PKM =================
   @Get('research')
-  @ApiOperation({ summary: 'Mendapatkan daftar usulan penelitian dan pengabdian dari database' })
+  @ApiOperation({ summary: 'Mendapatkan daftar laporan penelitian dan pengabdian dari database' })
   async getResearches(
     @Query('type') type?: string,
     @Query('year') year?: string,
@@ -38,25 +38,25 @@ export class Lp3mController {
   }
 
   @Get('research/:id')
-  @ApiOperation({ summary: 'Mendapatkan detail usulan riset berdasarkan ID' })
+  @ApiOperation({ summary: 'Mendapatkan detail laporan penelitian/pengabdian berdasarkan ID' })
   async getResearchById(@Param('id') id: string) {
     return this.lp3mService.getResearchById(id);
   }
 
   @Post('research')
-  @ApiOperation({ summary: 'Mendaftarkan usulan kegiatan penelitian atau pengabdian baru ke database' })
+  @ApiOperation({ summary: 'Mencatat laporan penelitian atau pengabdian yang sudah selesai' })
   async createResearch(@Body() body: any) {
     return this.lp3mService.createResearch(body);
   }
 
   @Put('research/:id')
-  @ApiOperation({ summary: 'Memperbarui usulan atau menyimpan catatan review evaluasi' })
+  @ApiOperation({ summary: 'Memperbarui laporan atau menyimpan hasil verifikasi laporan' })
   async updateResearch(@Param('id') id: string, @Body() body: any) {
     return this.lp3mService.updateResearch(id, body);
   }
 
   @Delete('research/:id')
-  @ApiOperation({ summary: 'Menghapus usulan kegiatan LP3M dari database' })
+  @ApiOperation({ summary: 'Menghapus laporan kegiatan LP3M dari database' })
   async deleteResearch(@Param('id') id: string) {
     return this.lp3mService.deleteResearch(id);
   }

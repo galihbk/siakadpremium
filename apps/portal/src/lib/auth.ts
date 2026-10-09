@@ -2,12 +2,25 @@ export interface AuthUser {
   id: string;
   email: string;
   fullName: string;
-  role: 'SUPER_ADMIN' | 'ADMIN_BAAK' | 'ADMIN_PMB' | 'ADMIN_KEUANGAN' | 'ADMIN_LP3M' | 'LP3M' | 'LECTURER' | 'STUDENT' | 'STAFF';
+  role:
+    | 'SUPER_ADMIN'
+    | 'ADMIN_BAAK'
+    | 'ADMIN_PMB'
+    | 'ADMIN_KEUANGAN'
+    | 'ADMIN_LP3M'
+    | 'LP3M'
+    | 'ADMIN_P2M'
+    | 'P2M'
+    | 'ADMIN_PRODI'
+    | 'LECTURER'
+    | 'STUDENT'
+    | 'STAFF';
   avatarUrl?: string | null;
   studentId?: string | null;
   lecturerId?: string | null;
   nim?: string | null;
   student?: { id: string; nim: string } | null;
+  studyProgramId?: string | null;
 }
 
 const TOKEN_KEY = 'siakad_token';
@@ -76,6 +89,11 @@ export function getRoleRedirectPath(role: string): string {
     case 'ADMIN_LP3M':
     case 'LP3M':
       return '/admin/p3m';
+    case 'ADMIN_P2M':
+    case 'P2M':
+      return '/admin/p2m';
+    case 'ADMIN_PRODI':
+      return '/admin/prodi';
     case 'ADMIN_KEUANGAN':
     case 'FINANCE':
       return '/finance';
@@ -91,12 +109,18 @@ export function getRoleRedirectPath(role: string): string {
   }
 }
 
-export function getPortalRoleFromBackend(backendRole: string, email?: string): 'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' | 'lp3m' | 'pmb' {
+export function getPortalRoleFromBackend(backendRole: string, email?: string): 'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' | 'lp3m' | 'p2m' | 'prodi' | 'pmb' {
   if (email === 'admin.pmb@itn.ac.id' || email === 'pmb@itn.ac.id' || backendRole === 'ADMIN_PMB' || backendRole === 'PMB') {
     return 'pmb';
   }
   if (email === 'lp3m@itn.ac.id' || email === 'p3m@itn.ac.id' || backendRole === 'ADMIN_LP3M' || backendRole === 'LP3M') {
     return 'lp3m';
+  }
+  if (email === 'p2m@itn.ac.id' || backendRole === 'ADMIN_P2M' || backendRole === 'P2M') {
+    return 'p2m';
+  }
+  if (email === 'prodi@itn.ac.id' || backendRole === 'ADMIN_PRODI') {
+    return 'prodi';
   }
   switch (backendRole) {
     case 'SUPER_ADMIN':
@@ -136,6 +160,26 @@ export function isRouteAllowedForRole(pathname: string, role: string): boolean {
   // Role LP3M HANYA boleh mengakses area LP3M (/admin/p3m)
   if (role === 'ADMIN_LP3M' || role === 'LP3M') {
     return pathname.startsWith('/admin/p3m') || pathname.startsWith('/p3m');
+  }
+
+  // Dashboard P2M HANYA boleh diakses oleh role P2M (ADMIN_P2M / P2M) dan Super Admin
+  if (pathname.startsWith('/admin/p2m')) {
+    return role === 'ADMIN_P2M' || role === 'P2M' || role === 'SUPER_ADMIN';
+  }
+
+  // Role P2M HANYA boleh mengakses area P2M (/admin/p2m)
+  if (role === 'ADMIN_P2M' || role === 'P2M') {
+    return pathname.startsWith('/admin/p2m');
+  }
+
+  // Dashboard Prodi HANYA boleh diakses oleh role ADMIN_PRODI dan Super Admin
+  if (pathname.startsWith('/admin/prodi')) {
+    return role === 'ADMIN_PRODI' || role === 'SUPER_ADMIN';
+  }
+
+  // Role ADMIN_PRODI HANYA boleh mengakses area Prodi (/admin/prodi)
+  if (role === 'ADMIN_PRODI') {
+    return pathname.startsWith('/admin/prodi');
   }
 
   // 3. Dashboard Keuangan diakses oleh role Keuangan (ADMIN_KEUANGAN / FINANCE) dan Super Admin

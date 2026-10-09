@@ -1,287 +1,40 @@
-import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
+
+// Penelitian & Pengabdian di LP3M adalah LAPORAN kegiatan yang sudah selesai (bukan proposal/usulan).
+// Status hanya menyatakan hasil verifikasi kelengkapan laporan oleh LP3M.
+export const REPORT_STATUSES = ['Menunggu Verifikasi', 'Terverifikasi', 'Perlu Perbaikan'] as const;
+type ReportStatus = (typeof REPORT_STATUSES)[number];
 
 @Injectable()
 export class Lp3mService implements OnModuleInit {
   constructor(private prisma: PrismaService) {}
 
   async onModuleInit() {
-    await this.seedInitialDataIfEmpty();
+    await this.normalizeLegacyResearchStatuses();
   }
 
-  // ================= SEED INITIAL DATA =================
-  private async seedInitialDataIfEmpty() {
+  // Status lama dari alur proposal dipetakan ke status laporan (idempotent).
+  private async normalizeLegacyResearchStatuses() {
     try {
-      // 1. Seed Research & Community Service
-      const researchCount = await this.prisma.lp3mResearch.count();
-      if (researchCount === 0) {
-        await this.prisma.lp3mResearch.createMany({
-          data: [
-            {
-              code: 'P3M-LIT-2026-001',
-              type: 'Penelitian',
-              title: 'Implementasi Deep Learning untuk Deteksi Dini Retinopati Diabetik pada Citra Fundus',
-              scheme: 'Penelitian Fundamental Internal',
-              focusArea: 'Kecerdasan Buatan & Kesehatan Digital',
-              leader: 'Dr. Bayu Wicaksono, M.Kom.',
-              nidn: '0412088501',
-              faculty: 'Fakultas Ilmu Komputer',
-              studyProgram: 'Teknik Informatika',
-              membersCount: 3,
-              year: 2026,
-              fundingAmount: 35000000,
-              fundingSource: 'DIPA Internal',
-              status: 'Sedang Berjalan',
-              targetOutput: 'Jurnal Internasional Terindeks Scopus Q2 & Prototipe Web',
-              reviewerNote: 'Proposal sangat baik, pastikan pengujian dataset klinis mencukupi.',
-              documentUrl: 'https://siakad.itn.ac.id/dokumen/p3m/laporan-retinopati.pdf',
-              submittedAt: '12 Jan 2026',
-            },
-            {
-              code: 'P3M-LIT-2026-002',
-              type: 'Penelitian',
-              title: 'Rancang Bangun Turbin Angin Sumbu Vertikal untuk Kawasan Pesisir Selatan Jawa',
-              scheme: 'Penelitian Terapan Unggulan',
-              focusArea: 'Energi Baru Terbarukan',
-              leader: 'Ir. Hendra Kusuma, M.T., Ph.D.',
-              nidn: '0423047802',
-              faculty: 'Fakultas Teknik',
-              studyProgram: 'Teknik Mesin',
-              membersCount: 4,
-              year: 2026,
-              fundingAmount: 48000000,
-              fundingSource: 'BIMA Kemendikbud',
-              status: 'Menunggu Verifikasi',
-              targetOutput: 'Paten Sederhana & Jurnal SINTA 2',
-              reviewerNote: '',
-              documentUrl: 'https://siakad.itn.ac.id/dokumen/p3m/laporan-turbin.pdf',
-              submittedAt: '18 Jan 2026',
-            },
-            {
-              code: 'P3M-LIT-2026-003',
-              type: 'Penelitian',
-              title: 'Studi Formulasi Beton Ramah Lingkungan Berbasis Abu Vulkanik dan Fly Ash',
-              scheme: 'Penelitian Kerjasama Industri',
-              focusArea: 'Material Maju & Infrastruktur Hijau',
-              leader: 'Dr. Siti Nurhaliza, S.T., M.T.',
-              nidn: '0405118903',
-              faculty: 'Fakultas Teknik',
-              studyProgram: 'Teknik Sipil',
-              membersCount: 2,
-              year: 2026,
-              fundingAmount: 42000000,
-              fundingSource: 'CSR Semen Indonesia & DIPA',
-              status: 'Sedang Berjalan',
-              targetOutput: 'Jurnal Internasional Terindeks Scopus & Uji Kuat Tekan Lab',
-              reviewerNote: 'Uji slump dan kuat tekan 28 hari wajib didokumentasikan resmi.',
-              documentUrl: 'https://siakad.itn.ac.id/dokumen/p3m/laporan-beton.pdf',
-              submittedAt: '25 Jan 2026',
-            },
-            {
-              code: 'P3M-PKM-2026-001',
-              type: 'Pengabdian',
-              title: 'Penerapan Sistem IoT Smart Farming untuk Petani Sayur Hidroponik di Desa Sukamaju',
-              scheme: 'Program Kemitraan Masyarakat (PKM)',
-              focusArea: 'Smart Agriculture & Ketahanan Pangan',
-              leader: 'Budi Santoso, S.Kom., M.T.',
-              nidn: '0415039001',
-              faculty: 'Fakultas Ilmu Komputer',
-              studyProgram: 'Sistem Informasi',
-              membersCount: 3,
-              year: 2026,
-              fundingAmount: 22500000,
-              fundingSource: 'DIPA Internal',
-              status: 'Sedang Berjalan',
-              targetOutput: 'Modul Pelatihan, Video Kegiatan di YouTube, & Publikasi Media Massa',
-              mitraSasaran: 'Kelompok Tani Hidroponik Makmur, Desa Sukamaju',
-              reviewerNote: 'Sertakan dokumentasi serah terima alat otomasi fertigasi ke mitra.',
-              documentUrl: 'https://siakad.itn.ac.id/dokumen/p3m/pkm-hidroponik.pdf',
-              submittedAt: '15 Jan 2026',
-            },
-            {
-              code: 'P3M-PKM-2026-002',
-              type: 'Pengabdian',
-              title: 'Pendampingan Sertifikasi Halal dan Digital Marketing bagi UMKM Olahan Pangan Lokal',
-              scheme: 'Pemberdayaan Desa Binaan (PDB)',
-              focusArea: 'Ekonomi Kreatif & Kewirausahaan',
-              leader: 'Dr. Hj. Ratna Juwita, S.E., M.M.',
-              nidn: '0420098202',
-              faculty: 'Fakultas Teknik',
-              studyProgram: 'Teknik Industri',
-              membersCount: 4,
-              year: 2026,
-              fundingAmount: 28000000,
-              fundingSource: 'BIMA Kemendikbud',
-              status: 'Menunggu Verifikasi',
-              targetOutput: '15 Sertifikat Halal BPJPH, Akun Marketplace, & Jurnal Pengabdian SINTA 4',
-              mitraSasaran: 'Asosiasi UMKM Pesisir Maju Bersama',
-              reviewerNote: '',
-              documentUrl: 'https://siakad.itn.ac.id/dokumen/p3m/pkm-umkm-halal.pdf',
-              submittedAt: '20 Jan 2026',
-            },
-            {
-              code: 'P3M-PKM-2026-003',
-              type: 'Pengabdian',
-              title: 'Instalasi Filter Air Bersih Mandiri Bertenaga Surya untuk Dusun Terpencil',
-              scheme: 'Teknologi Tepat Guna (TTG)',
-              focusArea: 'Sanitasi Lingkungan & Energi Surya',
-              leader: 'Ahmad Fauzan, S.T., M.T.',
-              nidn: '0408078604',
-              faculty: 'Fakultas Teknik',
-              studyProgram: 'Teknik Elektro',
-              membersCount: 3,
-              year: 2026,
-              fundingAmount: 25000000,
-              fundingSource: 'DIPA Internal',
-              status: 'Selesai',
-              targetOutput: 'Alat TTG Terpasang, Manual Book Penggunaan, & Berita Media Massa',
-              mitraSasaran: 'Warga Dusun Wonosari RT 04 / RW 02',
-              reviewerNote: 'Kegiatan tuntas 100%, laporan pertanggungjawaban telah disahkan.',
-              documentUrl: 'https://siakad.itn.ac.id/dokumen/p3m/pkm-filter-surya.pdf',
-              submittedAt: '10 Jan 2026',
-            },
-          ],
-        });
+      const map: [string[], ReportStatus][] = [
+        [['Selesai'], 'Terverifikasi'],
+        [['Sedang Berjalan', 'Disetujui'], 'Menunggu Verifikasi'],
+        [['Perlu Revisi', 'Revisi Usulan', 'Ditolak'], 'Perlu Perbaikan'],
+      ];
+      for (const [legacy, next] of map) {
+        await this.prisma.lp3mResearch.updateMany({ where: { status: { in: legacy } }, data: { status: next } });
       }
-
-      // 2. Seed Intellectual Properties (HAKI)
-      const ipCount = await this.prisma.lp3mIntellectualProperty.count();
-      if (ipCount === 0) {
-        await this.prisma.lp3mIntellectualProperty.createMany({
-          data: [
-            {
-              regNumber: 'EC00202618901',
-              title: 'Program Komputer: Sistem Monitoring Kualitas Udara Berbasis Mikrokontroler ESP32',
-              type: 'Hak Cipta',
-              inventor: 'Dr. Bayu Wicaksono, M.Kom. & Tim',
-              nidn: '0412088501',
-              faculty: 'Fakultas Ilmu Komputer',
-              status: 'Tersertifikasi',
-              grantYear: 2026,
-              applicationDate: '10 Jan 2026',
-              description: 'Perangkat lunak akuisisi data sensor PM2.5, suhu, dan kelembapan real-time.',
-              certificateUrl: 'https://siakad.itn.ac.id/dokumen/haki/sertifikat-ec00202618901.pdf',
-            },
-            {
-              regNumber: 'S00202600412',
-              title: 'Paten Sederhana: Modul Inverter Surya Efisiensi Tinggi dengan Pendingin Pasif',
-              type: 'Paten Sederhana',
-              inventor: 'Ir. Hendra Kusuma, M.T., Ph.D.',
-              nidn: '0423047802',
-              faculty: 'Fakultas Teknik',
-              status: 'Pemeriksaan Substantif',
-              grantYear: 2026,
-              applicationDate: '15 Jan 2026',
-              description: 'Invensi alat inverter tenaga surya dengan sirip pendingin aluminium terintegrasi.',
-              certificateUrl: 'https://siakad.itn.ac.id/dokumen/haki/permohonan-s00202600412.pdf',
-            },
-            {
-              regNumber: 'EC00202619420',
-              title: 'Karya Rekaman Video Animasi: Edukasi Mitigasi Gempa Bumi untuk Sekolah Dasar',
-              type: 'Hak Cipta',
-              inventor: 'Dian Permatasari, M.Ds. & Mahasiswa',
-              nidn: '0419089201',
-              faculty: 'Fakultas Teknik Sipil & Perencanaan',
-              status: 'Tersertifikasi',
-              grantYear: 2026,
-              applicationDate: '22 Jan 2026',
-              description: 'Video animasi 2D interaktif simulasi evakuasi mandiri di lingkungan sekolah.',
-              certificateUrl: 'https://siakad.itn.ac.id/dokumen/haki/sertifikat-ec00202619420.pdf',
-            },
-          ],
-        });
-      }
-
-      // 3. Seed LP3M Documents
-      const docCount = await this.prisma.lp3mDocument.count();
-      if (docCount === 0) {
-        await this.prisma.lp3mDocument.createMany({
-          data: [
-            {
-              code: 'RENSTRA-LP3M-2026',
-              title: 'Rencana Strategis (RENSTRA) Penelitian & Pengabdian kepada Masyarakat 2024-2028',
-              category: 'Panduan & Renstra',
-              fileType: 'PDF',
-              fileSize: '6.4 MB',
-              version: 'Edisi Revisi 2.1',
-              academicYear: '2024 - 2028',
-              accessLevel: 'Publik',
-              author: 'Dewan Riset LP3M',
-              description: 'Peta jalan (roadmap) riset institusi, fokus riset unggulan kecerdasan buatan, energi terbarukan, dan UMKM.',
-              downloadsCount: 582,
-            },
-            {
-              code: 'PANDUAN-HIBAH-2026',
-              title: 'Buku Panduan Pelaksanaan Hibah Penelitian & Pengabdian Internal Tahun Anggaran 2026',
-              category: 'Panduan & Renstra',
-              fileType: 'PDF',
-              fileSize: '4.8 MB',
-              version: 'Rev. 3.2',
-              academicYear: '2026/2027',
-              accessLevel: 'Publik',
-              author: 'Tim Kurasi LP3M',
-              description: 'Pedoman lengkap tata cara pengajuan usulan, kriteria penilaian reviewer, jadwal tahapan monev, dan luaran.',
-              downloadsCount: 1240,
-            },
-            {
-              code: 'SK-REK-014-2026',
-              title: 'SK Rektor No. 014/REK/2026: Standar Biaya Masukan (SBM) & Honorarium Peneliti',
-              category: 'Regulasi & SK Rektor',
-              fileType: 'PDF',
-              fileSize: '1.2 MB',
-              version: 'SK Resmi',
-              academicYear: '2026',
-              accessLevel: 'Dosen & Reviewer',
-              author: 'Biro Hukum & Rektorat',
-              description: 'Ketetapan plafon biaya operasional penelitian, belanja bahan laboratorium, biaya publikasi, dan insentif HAKI.',
-              downloadsCount: 730,
-            },
-            {
-              code: 'TMP-PROP-LIT-2026',
-              title: 'Template Dokumen Usulan Proposal Penelitian Fundamental & Terapan (Word .docx)',
-              category: 'Template Proposal',
-              fileType: 'DOCX',
-              fileSize: '850 KB',
-              version: 'v2026.1',
-              academicYear: '2026',
-              accessLevel: 'Publik',
-              author: 'Subbag Publikasi',
-              description: 'Format baku halaman judul, lembar pengesahan dekan, sistematika proposal, metode penelitian, dan jadwal Gantt Chart.',
-              downloadsCount: 2150,
-            },
-            {
-              code: 'TMP-RAB-EXCEL-2026',
-              title: 'Template Rencana Anggaran Biaya (RAB) Otomatis Sesuai SBM Terkini (Excel .xlsx)',
-              category: 'Template Proposal',
-              fileType: 'XLSX',
-              fileSize: '420 KB',
-              version: 'v2026.2',
-              academicYear: '2026',
-              accessLevel: 'Publik',
-              author: 'Tim Keuangan Riset',
-              description: 'Formula spreadsheet terstandarisasi untuk perhitungan biaya bahan habis pakai, perjalanan dinas, dan pelaporan pajak.',
-              downloadsCount: 1840,
-            },
-            {
-              code: 'BOR-BANPT-9STD',
-              title: 'Matriks Borang Akreditasi LKPS & LED Kriteria C.6 & C.7 (Standar 9 BAN-PT)',
-              category: 'Instrumen Borang',
-              fileType: 'XLSX',
-              fileSize: '2.4 MB',
-              version: 'Instrumen 2026',
-              academicYear: '2026',
-              accessLevel: 'Dosen & Reviewer',
-              author: 'Tim Penjaminan Mutu & LP3M',
-              description: 'Tabel perhitungan data kuantitatif penelitian/PkM dosen tetap program studi (DTPS) untuk borang akreditasi BAN-PT & LAM.',
-              downloadsCount: 460,
-            },
-          ],
-        });
-      }
-
     } catch (err) {
-      console.warn('⚠️ Gagal mengeksekusi seed LP3M (kemungkinan tabel belum siap):', (err as Error).message);
+      console.warn('Gagal menormalkan status laporan LP3M:', (err as Error).message);
     }
+  }
+
+  private assertReportStatus(status: unknown): ReportStatus {
+    if (!REPORT_STATUSES.includes(status as ReportStatus)) {
+      throw new BadRequestException(`Status laporan harus salah satu dari: ${REPORT_STATUSES.join(', ')}.`);
+    }
+    return status as ReportStatus;
   }
 
   // ================= 1. OVERVIEW & STATS =================
@@ -290,22 +43,16 @@ export class Lp3mService implements OnModuleInit {
       where: { type: 'Penelitian' },
     });
 
-    const penelitianDisetujui = await this.prisma.lp3mResearch.count({
-      where: {
-        type: 'Penelitian',
-        status: { in: ['Sedang Berjalan', 'Selesai'] },
-      },
+    const penelitianTerverifikasi = await this.prisma.lp3mResearch.count({
+      where: { type: 'Penelitian', status: 'Terverifikasi' },
     });
 
     const totalPengabdian = await this.prisma.lp3mResearch.count({
       where: { type: 'Pengabdian' },
     });
 
-    const pengabdianDisetujui = await this.prisma.lp3mResearch.count({
-      where: {
-        type: 'Pengabdian',
-        status: { in: ['Sedang Berjalan', 'Selesai'] },
-      },
+    const pengabdianTerverifikasi = await this.prisma.lp3mResearch.count({
+      where: { type: 'Pengabdian', status: 'Terverifikasi' },
     });
 
     const totalHaki = await this.prisma.lp3mIntellectualProperty.count();
@@ -335,9 +82,9 @@ export class Lp3mService implements OnModuleInit {
       success: true,
       data: {
         totalPenelitian,
-        penelitianDisetujui,
+        penelitianTerverifikasi,
         totalPengabdian,
-        pengabdianDisetujui,
+        pengabdianTerverifikasi,
         totalHaki,
         hakiCertified,
         totalDocuments,
@@ -414,37 +161,44 @@ export class Lp3mService implements OnModuleInit {
   }
 
   async createResearch(dto: any) {
-    const count = await this.prisma.lp3mResearch.count();
-    const typePrefix = dto.type === 'Pengabdian' ? 'PKM' : 'LIT';
-    const code = dto.code || `P3M-${typePrefix}-2026-${String(count + 1).padStart(3, '0')}`;
+    const type = dto.type === 'Pengabdian' ? 'Pengabdian' : 'Penelitian';
+    const title = String(dto.title ?? '').trim();
+    const leader = String(dto.leader ?? '').trim();
+    if (!title) throw new BadRequestException('Judul kegiatan wajib diisi.');
+    if (!leader) throw new BadRequestException('Nama ketua pelaksana wajib diisi.');
+
+    const year = Number(dto.year) || new Date().getFullYear();
+    const typePrefix = type === 'Pengabdian' ? 'PKM' : 'LIT';
+    const count = await this.prisma.lp3mResearch.count({ where: { type, year } });
+    const code = dto.code || `P3M-${typePrefix}-${year}-${String(count + 1).padStart(3, '0')}`;
 
     const item = await this.prisma.lp3mResearch.create({
       data: {
         code,
-        type: dto.type || 'Penelitian',
-        title: dto.title,
-        scheme: dto.scheme || 'Penelitian Fundamental Internal',
-        focusArea: dto.focusArea || 'Kecerdasan Buatan & Digital',
-        leader: dto.leader || 'Dosen Peneliti ITN',
-        nidn: dto.nidn || '0401018501',
-        faculty: dto.faculty || 'Fakultas Ilmu Komputer',
-        studyProgram: dto.studyProgram || 'Teknik Informatika',
-        membersCount: Number(dto.membersCount) || 2,
-        year: Number(dto.year) || 2026,
+        type,
+        title,
+        scheme: String(dto.scheme ?? '').trim(),
+        focusArea: String(dto.focusArea ?? '').trim(),
+        leader,
+        nidn: dto.nidn || null,
+        faculty: String(dto.faculty ?? '').trim(),
+        studyProgram: dto.studyProgram || null,
+        membersCount: Number(dto.membersCount) || 1,
+        year,
         fundingAmount: Number(dto.fundingAmount) || 0,
-        fundingSource: dto.fundingSource || 'DIPA Internal',
-        status: dto.status || 'Menunggu Verifikasi',
-        targetOutput: dto.targetOutput || 'Jurnal Terakreditasi & Laporan Akhir',
+        fundingSource: String(dto.fundingSource ?? '').trim() || 'Mandiri',
+        status: dto.status ? this.assertReportStatus(dto.status) : 'Menunggu Verifikasi',
+        targetOutput: dto.targetOutput || null,
         mitraSasaran: dto.mitraSasaran || null,
         reviewerNote: dto.reviewerNote || null,
         documentUrl: dto.documentUrl || null,
-        submittedAt: dto.submittedAt || 'Hari ini',
+        submittedAt: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
       },
     });
 
     return {
       success: true,
-      message: `Usulan ${item.type} "${item.title}" berhasil didaftarkan ke basis data LP3M.`,
+      message: `Laporan ${item.type.toLowerCase()} "${item.title}" berhasil dicatat di basis data LP3M.`,
       data: item,
     };
   }
@@ -470,11 +224,13 @@ export class Lp3mService implements OnModuleInit {
         studyProgram: dto.studyProgram !== undefined ? dto.studyProgram : exists.studyProgram,
         fundingAmount: dto.fundingAmount !== undefined ? Number(dto.fundingAmount) : exists.fundingAmount,
         fundingSource: dto.fundingSource !== undefined ? dto.fundingSource : exists.fundingSource,
-        status: dto.status !== undefined ? dto.status : exists.status,
+        status: dto.status !== undefined ? this.assertReportStatus(dto.status) : exists.status,
         reviewerNote: dto.reviewerNote !== undefined ? dto.reviewerNote : exists.reviewerNote,
         targetOutput: dto.targetOutput !== undefined ? dto.targetOutput : exists.targetOutput,
         mitraSasaran: dto.mitraSasaran !== undefined ? dto.mitraSasaran : exists.mitraSasaran,
         documentUrl: dto.documentUrl !== undefined ? dto.documentUrl : exists.documentUrl,
+        year: dto.year !== undefined ? Number(dto.year) : exists.year,
+        membersCount: dto.membersCount !== undefined ? Number(dto.membersCount) : exists.membersCount,
       },
     });
 
@@ -498,7 +254,7 @@ export class Lp3mService implements OnModuleInit {
 
     return {
       success: true,
-      message: `Usulan "${exists.title}" berhasil dihapus dari basis data LP3M.`,
+      message: `Laporan "${exists.title}" berhasil dihapus dari basis data LP3M.`,
     };
   }
 
@@ -655,7 +411,7 @@ export class Lp3mService implements OnModuleInit {
       orderBy: { code: 'asc' },
     });
 
-    const researches = await this.prisma.lp3mResearch.findMany();
+    const researches = await this.prisma.lp3mResearch.findMany({ where: { status: 'Terverifikasi' } });
     const totalHakiReal = await this.prisma.lp3mIntellectualProperty.count();
 
     let rows = studyPrograms.map((sp) => {

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { Modal } from '@/components/ui/Modal';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import {
   DoorOpen,
   Building2,
@@ -67,6 +68,21 @@ function RuangContent() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  const [buildings, setBuildings] = useState<{ id: string; code: string; name: string }[]>([]);
+
+  const loadBuildings = async () => {
+    try {
+      const res = await fetch(`${apiBase}/buildings`);
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data || json;
+        if (Array.isArray(data)) setBuildings(data);
+      }
+    } catch (err) {
+      console.error('Gagal memuat data gedung:', err);
+    }
+  };
+
   const loadRooms = async () => {
     setIsLoading(true);
     try {
@@ -89,6 +105,7 @@ function RuangContent() {
 
   useEffect(() => {
     loadRooms();
+    loadBuildings();
   }, []);
 
   useEffect(() => {
@@ -112,12 +129,12 @@ function RuangContent() {
   }>({
     code: '',
     name: '',
-    buildingCode: 'TWR-A',
-    buildingName: 'Gedung BJ Habibie (Tower A)',
-    floor: 2,
+    buildingCode: '',
+    buildingName: '',
+    floor: 1,
     type: 'Kelas Teori',
     capacity: 40,
-    facilitiesInput: 'Smart TV, AC, Proyektor, Wi-Fi 6',
+    facilitiesInput: '',
     status: 'Tersedia',
     notes: '',
   });
@@ -188,36 +205,17 @@ function RuangContent() {
     return { totalRuang, kelasTeori, labStudio, auditorium };
   }, [rooms]);
 
-  const getBuildingNameByCode = (code: string) => {
-    switch (code) {
-      case 'TWR-A':
-        return 'Gedung BJ Habibie (Tower A)';
-      case 'TWR-B':
-        return 'Gedung Mohammad Hatta (Tower B)';
-      case 'TWR-C':
-        return 'Gedung Soekarno (Tower C)';
-      case 'TWR-D':
-        return 'Gedung Ki Hajar Dewantara (Tower D)';
-      case 'GRH-NUT':
-        return 'Graha Nusantara (Rektorat)';
-      case 'HUB-INOV':
-        return 'Pusat Riset & Hub Inovasi Digital';
-      default:
-        return 'Gedung Kampus ITN';
-    }
-  };
-
   const handleOpenAddModal = () => {
     setEditingRoom(null);
     setFormData({
       code: '',
       name: '',
-      buildingCode: 'TWR-A',
-      buildingName: 'Gedung BJ Habibie (Tower A)',
-      floor: 2,
+      buildingCode: buildings[0]?.code ?? '',
+      buildingName: buildings[0]?.name ?? '',
+      floor: 1,
       type: 'Kelas Teori',
       capacity: 40,
-      facilitiesInput: 'Smart TV, AC, Proyektor, Wi-Fi 6',
+      facilitiesInput: '',
       status: 'Tersedia',
       notes: '',
     });
@@ -243,6 +241,10 @@ function RuangContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.buildingCode) {
+      showToast('Pilih gedung terlebih dahulu. Tambahkan gedung di menu Gedung bila belum ada.');
+      return;
+    }
     setIsSubmitting(true);
     const facilitiesArray = formData.facilitiesInput
       .split(',')
@@ -438,19 +440,15 @@ function RuangContent() {
 
           <div className="flex flex-wrap items-center gap-2.5">
             {/* Filter Gedung */}
-            <select
-              value={buildingFilter}
-              onChange={(e) => setBuildingFilter(e.target.value)}
-              className="px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 cursor-pointer"
-            >
-              <option value="Semua">Semua Gedung</option>
-              <option value="TWR-A">Tower A (BJ Habibie)</option>
-              <option value="TWR-B">Tower B (M. Hatta)</option>
-              <option value="TWR-C">Tower C (Soekarno)</option>
-              <option value="TWR-D">Tower D (Ki Hajar Dewantara)</option>
-              <option value="GRH-NUT">Graha Nusantara</option>
-              <option value="HUB-INOV">Hub Inovasi Digital</option>
-            </select>
+            <SearchableSelect
+              className="min-w-[13rem]"
+              value={buildingFilter === 'Semua' ? '' : buildingFilter}
+              onChange={(v) => setBuildingFilter(v || 'Semua')}
+              emptyLabel="Semua Gedung"
+              placeholder="Semua Gedung"
+              searchPlaceholder="Cari gedung..."
+              options={buildings.map((b) => ({ value: b.code, label: b.name }))}
+            />
 
             {/* Filter Tipe Ruangan */}
             <select
@@ -853,24 +851,20 @@ function RuangContent() {
                     <label className="block text-xs font-bold text-slate-700 mb-1">
                       Lokasi Gedung <span className="text-rose-500">*</span>
                     </label>
-                    <select
+                    <SearchableSelect
+                      required
                       value={formData.buildingCode}
-                      onChange={(e) =>
+                      onChange={(code) =>
                         setFormData({
                           ...formData,
-                          buildingCode: e.target.value as RoomItem['buildingCode'],
-                          buildingName: getBuildingNameByCode(e.target.value),
+                          buildingCode: code,
+                          buildingName: buildings.find((b) => b.code === code)?.name ?? '',
                         })
                       }
-                      className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white font-medium"
-                    >
-                      <option value="TWR-A">Gedung BJ Habibie (Tower A)</option>
-                      <option value="TWR-B">Gedung Mohammad Hatta (Tower B)</option>
-                      <option value="TWR-C">Gedung Soekarno (Tower C)</option>
-                      <option value="TWR-D">Gedung Ki Hajar Dewantara (Tower D)</option>
-                      <option value="GRH-NUT">Graha Nusantara (Rektorat)</option>
-                      <option value="HUB-INOV">Pusat Riset & Hub Inovasi Digital</option>
-                    </select>
+                      placeholder={buildings.length === 0 ? 'Belum ada gedung' : 'Pilih gedung'}
+                      searchPlaceholder="Cari gedung..."
+                      options={buildings.map((b) => ({ value: b.code, label: b.name }))}
+                    />
                   </div>
 
                   <div>

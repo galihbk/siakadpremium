@@ -33,8 +33,9 @@ export class AcademicController {
   async getCourses(
     @Query('semester') semester?: number,
     @Query('type') type?: string,
+    @Query('studyProgramId') studyProgramId?: string,
   ) {
-    return this.academicService.getCourses({ semester, type });
+    return this.academicService.getCourses({ semester, type, studyProgramId });
   }
 
   @Get('courses/:id')
@@ -166,8 +167,9 @@ export class AcademicController {
     @Query('day') day?: string,
     @Query('lecturerId') lecturerId?: string,
     @Query('semester') semester?: number,
+    @Query('academicYearId') academicYearId?: string,
   ) {
-    return this.academicService.getSchedules({ prodiId, day, lecturerId, semester });
+    return this.academicService.getSchedules({ prodiId, day, lecturerId, semester, academicYearId });
   }
 
   @Post('schedules')
@@ -207,8 +209,8 @@ export class AcademicController {
 
   @Get('grades/classes')
   @ApiOperation({ summary: 'Mendapatkan daftar kelas yang memiliki entri nilai' })
-  async getGradeClasses(@Query('lecturerId') lecturerId?: string) {
-    return this.academicService.getGradeClasses(lecturerId);
+  async getGradeClasses(@Query('lecturerId') lecturerId?: string, @Query('academicYearId') academicYearId?: string) {
+    return this.academicService.getGradeClasses(lecturerId, academicYearId);
   }
 
   @Get('grades/classes/:classId')
@@ -232,17 +234,69 @@ export class AcademicController {
     return this.academicService.toggleGradeLock(body?.academicYearId);
   }
 
-  // ================= BUKA/TUTUP PERIODE KRS =================
+  // ================= STATUS PERIODE KRS (berdasarkan jendela tanggal) =================
   @Get('krs-status')
-  @ApiOperation({ summary: 'Mendapatkan status buka/tutup periode KRS tahun akademik aktif' })
+  @ApiOperation({ summary: 'Mendapatkan status buka/tutup periode KRS tahun akademik aktif (dihitung dari jendela tanggal)' })
   async getKrsStatus() {
     return this.academicService.getKrsStatus();
   }
 
-  @Post('krs-status/toggle')
-  @ApiOperation({ summary: 'Membuka atau menutup periode pengisian KRS' })
-  async toggleKrsOpen(@Body() body?: { academicYearId?: string }) {
-    return this.academicService.toggleKrsOpen(body?.academicYearId);
+  // ================= MONITORING KRS LINTAS PRODI (BAAK) =================
+  @Get('krs-overview')
+  @ApiOperation({ summary: 'Monitoring KRS seluruh mahasiswa lintas program studi (BAAK)' })
+  async getKrsOverview(
+    @Query('academicYearId') academicYearId?: string,
+    @Query('studyProgramId') studyProgramId?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.academicService.getKrsOverview({ academicYearId, studyProgramId, status, search });
+  }
+
+  @Post('krs-overview/:studentId/approve')
+  @ApiOperation({ summary: 'BAAK menyetujui seluruh KRS mahasiswa untuk tahun akademik aktif' })
+  async baakApproveKrs(@Param('studentId') studentId: string) {
+    return this.academicService.baakSetKrsStatus(studentId, 'APPROVED');
+  }
+
+  @Post('krs-overview/:studentId/reject')
+  @ApiOperation({ summary: 'BAAK menolak seluruh KRS mahasiswa untuk tahun akademik aktif' })
+  async baakRejectKrs(@Param('studentId') studentId: string) {
+    return this.academicService.baakSetKrsStatus(studentId, 'REJECTED');
+  }
+
+  // ================= BIMBINGAN SKRIPSI/TA, KKN, KERJA PRAKTIK (BAAK) =================
+  @Get('thesis-supervisions')
+  @ApiOperation({ summary: 'Daftar mahasiswa yang perlu/ sudah ditetapkan pembimbing skripsi/TA, KKN, KP, dst.' })
+  async getThesisSupervisionCandidates(
+    @Query('academicYearId') academicYearId?: string,
+    @Query('courseId') courseId?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.academicService.getThesisSupervisionCandidates({ academicYearId, courseId, search });
+  }
+
+  @Post('thesis-supervisions')
+  @ApiOperation({ summary: 'Menetapkan atau memperbarui pembimbing 1 & 2 skripsi/TA seorang mahasiswa' })
+  async assignThesisSupervision(
+    @Body()
+    body: {
+      studentId: string;
+      courseId: string;
+      academicYearId?: string;
+      title?: string;
+      supervisor1Id?: string | null;
+      supervisor2Id?: string | null;
+      notes?: string;
+    },
+  ) {
+    return this.academicService.assignThesisSupervision(body);
+  }
+
+  @Get('feeder-entities')
+  @ApiOperation({ summary: 'Jumlah baris data lokal per entitas Feeder PDDIKTI (data nyata, bukan status sinkronisasi)' })
+  async getFeederEntityCounts() {
+    return this.academicService.getFeederEntityCounts();
   }
 
   // ================= SKALA NILAI (GRADE SCALE) =================

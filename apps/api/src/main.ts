@@ -5,11 +5,14 @@ import { json, urlencoded, static as expressStatic } from 'express';
 import helmet from 'helmet';
 import * as path from 'path';
 import * as fs from 'fs';
+import { printServerCopyright } from '@siakad/utils';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 
 async function bootstrap() {
+  printServerCopyright();
+
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
 

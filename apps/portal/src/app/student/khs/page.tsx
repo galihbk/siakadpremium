@@ -202,6 +202,7 @@ const SEMESTER_ARCHIVE: SemesterData[] = [
 export default function HasilStudiKHSPage() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [studentProfile, setStudentProfile] = useState<{
+    id?: string;
     nim?: string;
     studyProgram?: string;
     faculty?: string;
@@ -211,6 +212,14 @@ export default function HasilStudiKHSPage() {
     enrollments?: any[];
     isLoaded?: boolean;
   }>({});
+
+  interface ResolvedSigner {
+    roleLabel: string;
+    name: string | null;
+    nip: string | null;
+    available: boolean;
+  }
+  const [signers, setSigners] = useState<{ signer1: ResolvedSigner; signer2: ResolvedSigner | null } | null>(null);
 
   useEffect(() => {
     const { token, user } = getAuthSession();
@@ -233,6 +242,7 @@ export default function HasilStudiKHSPage() {
           }
           if (data.student) {
             setStudentProfile({
+              id: data.student.id,
               nim: data.student.nim,
               studyProgram: data.student.studyProgram?.name,
               faculty: data.student.studyProgram?.faculty?.name,
@@ -242,6 +252,13 @@ export default function HasilStudiKHSPage() {
               enrollments: data.student.enrollments || [],
               isLoaded: true,
             });
+
+            if (data.student.id) {
+              fetch(`${apiBase}/document-signatures/resolve?documentCode=KHS&studentId=${data.student.id}`)
+                .then((r) => (r.ok ? r.json() : null))
+                .then((j) => j?.data && setSigners(j.data))
+                .catch((err) => console.warn('Gagal memuat aturan tanda tangan KHS:', err));
+            }
           }
         }
       } catch (err) {
@@ -772,29 +789,43 @@ export default function HasilStudiKHSPage() {
               </div>
             </div>
 
-            {/* Signature Dosen PA */}
+            {/* Signature Penandatangan 1 (default: Dosen PA — diatur di Aturan Tanda Tangan Dokumen) */}
             <div className="text-center p-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
-              <p className="text-[11px] text-slate-500">Dosen Pembimbing Akademik,</p>
-              <div className="h-14 flex items-center justify-center">
-                <span className="text-sm font-serif italic text-blue-950 font-bold tracking-wider">
-                  Dr. Bayu Wicaksono
-                </span>
-              </div>
-              <p className="text-xs font-bold text-slate-900">Dr. Bayu Wicaksono, M.Kom.</p>
-              <p className="text-[10px] font-mono text-slate-500">NIP: 198503122010121003</p>
+              <p className="text-[11px] text-slate-500">{signers?.signer1.roleLabel ?? 'Dosen Pembimbing Akademik'},</p>
+              {signers?.signer1.available ? (
+                <>
+                  <div className="h-14 flex items-center justify-center">
+                    <span className="text-sm font-serif italic text-blue-950 font-bold tracking-wider">{signers.signer1.name}</span>
+                  </div>
+                  <p className="text-xs font-bold text-slate-900">{signers.signer1.name}</p>
+                  {signers.signer1.nip && <p className="text-[10px] font-mono text-slate-500">NIP/NIDN: {signers.signer1.nip}</p>}
+                </>
+              ) : (
+                <div className="h-14 flex items-center justify-center">
+                  <span className="text-xs text-slate-400 italic">Belum ditetapkan</span>
+                </div>
+              )}
             </div>
 
-            {/* Signature Dekan / Kaprodi */}
-            <div className="text-center p-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
-              <p className="text-[11px] text-slate-500">Ketua Program Studi Teknik Informatika,</p>
-              <div className="h-14 flex items-center justify-center">
-                <span className="text-sm font-serif italic text-blue-950 font-bold tracking-wider">
-                  Prof. Dr. Satria Pratama
-                </span>
+            {/* Signature Penandatangan 2 (default: Kaprodi — diatur di Aturan Tanda Tangan Dokumen) */}
+            {signers?.signer2 && (
+              <div className="text-center p-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
+                <p className="text-[11px] text-slate-500">{signers.signer2.roleLabel},</p>
+                {signers.signer2.available ? (
+                  <>
+                    <div className="h-14 flex items-center justify-center">
+                      <span className="text-sm font-serif italic text-blue-950 font-bold tracking-wider">{signers.signer2.name}</span>
+                    </div>
+                    <p className="text-xs font-bold text-slate-900">{signers.signer2.name}</p>
+                    {signers.signer2.nip && <p className="text-[10px] font-mono text-slate-500">NIP/NIDN: {signers.signer2.nip}</p>}
+                  </>
+                ) : (
+                  <div className="h-14 flex items-center justify-center">
+                    <span className="text-xs text-slate-400 italic">Belum ditetapkan</span>
+                  </div>
+                )}
               </div>
-              <p className="text-xs font-bold text-slate-900">Prof. Dr. Eng. Satria Pratama</p>
-              <p className="text-[10px] font-mono text-slate-500">NIP: 197801052003121001</p>
-            </div>
+            )}
           </div>
 
           {/* Academic Regulations Notice */}

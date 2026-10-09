@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { getApiBaseUrl } from '@/lib/api';
+import { copyToClipboard } from '@/lib/clipboard';
 import {
   ArrowLeft,
   User,
@@ -199,9 +200,9 @@ export default function PendaftarDetailPage() {
     fetchApplicant();
   }, [id]);
 
-  const handleCopyRegNumber = () => {
+  const handleCopyRegNumber = async () => {
     if (!applicant?.registrationNumber) return;
-    navigator.clipboard.writeText(applicant.registrationNumber);
+    await copyToClipboard(applicant.registrationNumber);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
   };

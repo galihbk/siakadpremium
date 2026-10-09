@@ -9,6 +9,9 @@ export const UserRole = {
   ADMIN_KEUANGAN: 'ADMIN_KEUANGAN',
   ADMIN_LP3M: 'ADMIN_LP3M',
   LP3M: 'LP3M',
+  ADMIN_P2M: 'ADMIN_P2M',
+  P2M: 'P2M',
+  ADMIN_PRODI: 'ADMIN_PRODI',
   LECTURER: 'LECTURER',
   STUDENT: 'STUDENT',
   STAFF: 'STAFF',
@@ -121,6 +124,7 @@ export interface AuthUser {
   lecturerId?: string | null;
   nim?: string | null;
   student?: { id: string; nim: string } | null;
+  studyProgramId?: string | null;
 }
 
 export interface JwtTokenPayload {
@@ -130,6 +134,7 @@ export interface JwtTokenPayload {
   fullName: string;
   studentId?: string | null;
   lecturerId?: string | null;
+  studyProgramId?: string | null;
   iat?: number;
   exp?: number;
 }
@@ -145,6 +150,7 @@ export interface LoginResponse {
 // ==============================================================================
 
 export interface StudentDashboardSummary {
+  studentId?: string;
   nim: string;
   nama: string;
   programStudi: string;
@@ -184,6 +190,10 @@ export interface AdminDashboardSummary {
     lecturersCount: number;
     accreditation: string;
   }[];
+  studentsByProdi: { name: string; count: number }[];
+  studentStatusBreakdown: { status: string; count: number }[];
+  studentGenderBreakdown: { label: string; count: number }[];
+  studentsByEntryYear: { year: number; count: number }[];
 }
 
 // ==============================================================================

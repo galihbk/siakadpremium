@@ -70,10 +70,10 @@ export default async function HomePage() {
 
         {/* 3. Sambutan Rektor */}
         <SambutanRektor
-          rectorName={data?.rectorName}
-          rectorTitle={data?.rectorTitle}
-          rectorSpeech={data?.rectorSpeech}
-          rectorImageUrl={data?.rectorImageUrl}
+          rectorName={data?.rectorName || undefined}
+          rectorTitle={data?.rectorTitle || undefined}
+          rectorSpeech={data?.rectorSpeech || undefined}
+          rectorImageUrl={data?.rectorImageUrl || undefined}
         />
 
         {/* 4. Keunggulan Kampus */}

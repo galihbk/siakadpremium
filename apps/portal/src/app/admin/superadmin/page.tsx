@@ -47,117 +47,61 @@ export default function SuperAdminDashboardPage() {
   const [summaryData, setSummaryData] = useState([
     {
       title: 'Total Fakultas',
-      value: '4',
-      subtitle: 'Fakultas Pendidikan Terpadu',
+      value: '-',
+      subtitle: 'Memuat data...',
       icon: Landmark,
       color: 'text-[#1E3A8A]',
       bg: 'bg-blue-50',
     },
     {
       title: 'Total Program Studi',
-      value: '12',
-      subtitle: '12 Prodi S1, D4 & D3',
+      value: '-',
+      subtitle: 'Memuat data...',
       icon: GraduationCap,
       color: 'text-indigo-700',
       bg: 'bg-indigo-50',
     },
     {
       title: 'Total Mahasiswa Aktif',
-      value: '9.270',
-      subtitle: 'Terdaftar Semester Ini',
+      value: '-',
+      subtitle: 'Memuat data...',
       icon: Users,
       color: 'text-emerald-700',
       bg: 'bg-emerald-50',
     },
     {
       title: 'Total Dosen Aktif',
-      value: '296',
-      subtitle: 'Dosen Tetap & Luar Biasa',
+      value: '-',
+      subtitle: 'Memuat data...',
       icon: UserCheck,
       color: 'text-purple-700',
       bg: 'bg-purple-50',
     },
     {
       title: 'Total Pegawai',
-      value: '142',
-      subtitle: 'Staf & Tenaga Kependidikan',
+      value: '-',
+      subtitle: 'Memuat data...',
       icon: Briefcase,
       color: 'text-amber-700',
       bg: 'bg-amber-50',
     },
     {
       title: 'Semester Aktif',
-      value: '2026/2027 Gasal',
-      subtitle: 'Minggu Perkuliahan ke-4',
+      value: '-',
+      subtitle: 'Memuat data...',
       icon: Clock,
       color: 'text-rose-700',
       bg: 'bg-rose-50',
       isBadge: true,
-      badgeText: 'Aktif',
+      badgeText: undefined as string | undefined,
     },
   ]);
 
   // 2. Data Fakultas Kampus dari Basis Data
-  const [facultiesData, setFacultiesData] = useState<any[]>([
-    {
-      id: 'f-1',
-      name: 'Fakultas Ilmu Komputer',
-      code: 'FIK',
-      dean: 'Dr. Eng. Satria Pratama, S.Kom., M.T.',
-      studyProgramsCount: 4,
-      studentsCount: 3150,
-      lecturersCount: 102,
-      accreditation: 'Unggul',
-    },
-    {
-      id: 'f-2',
-      name: 'Fakultas Teknik',
-      code: 'FT',
-      dean: 'Prof. Dr. Ir. Hendra Gunawan, M.Eng.',
-      studyProgramsCount: 4,
-      studentsCount: 2920,
-      lecturersCount: 94,
-      accreditation: 'Unggul',
-    },
-    {
-      id: 'f-3',
-      name: 'Fakultas Ekonomi & Bisnis',
-      code: 'FEB',
-      dean: 'Dr. Nurul Hidayati, S.E., M.M., Ak.',
-      studyProgramsCount: 2,
-      studentsCount: 1930,
-      lecturersCount: 60,
-      accreditation: 'Unggul',
-    },
-    {
-      id: 'f-4',
-      name: 'Fakultas Desain Komunikasi Visual & Seni Digital',
-      code: 'FDKV',
-      dean: 'Dr. Raden Mas Wibowo, M.Sn.',
-      studyProgramsCount: 2,
-      studentsCount: 1270,
-      lecturersCount: 40,
-      accreditation: 'Unggul',
-    },
-  ]);
+  const [facultiesData, setFacultiesData] = useState<any[]>([]);
 
   // 4. Log Aktivitas Akademik Kampus
-  const [activitiesData, setActivitiesData] = useState<any[]>([
-    {
-      title: 'Sinkronisasi Server Utama',
-      detail: 'Layanan basis data dan sistem akademik aktif beroperasi normal.',
-      time: 'Baru saja',
-      badge: 'Sistem',
-      color: 'bg-[#1E3A8A]',
-    },
-    {
-      title: 'Web Service Neo Feeder PDDIKTI',
-      detail: 'Koneksi ke Neo Feeder Kemdikbudristek belum dikonfigurasi. Memerlukan URL dan token institusi.',
-      time: 'Baru saja',
-      badge: 'PDDIKTI',
-      color: 'bg-amber-600',
-    },
-  ]);
+  const [activitiesData, setActivitiesData] = useState<any[]>([]);
 
   // 5. KRS Stats dari Database
   const [krsData, setKrsData] = useState<any>({
@@ -165,10 +109,11 @@ export default function SuperAdminDashboardPage() {
     approvedCount: 0,
     validationPercentage: 0,
     pendingValidation: 0,
-    notFilled: 9270,
-    notFilledPercentage: 100,
-    activeCourses: 10,
-    activeRooms: 10,
+    notFilled: 0,
+    notFilledPercentage: 0,
+    activeCourses: 0,
+    activeRooms: 0,
+    avgGpa: 0,
   });
 
   // Quick Actions Akademik Kampus (12 Tombol ke rute riil)
@@ -223,10 +168,11 @@ export default function SuperAdminDashboardPage() {
                 approvedCount: d.krsStats.approvedCount ?? 0,
                 validationPercentage: d.krsStats.validationPercentage ?? 0,
                 pendingValidation: d.krsStats.pendingValidation ?? 0,
-                notFilled: d.krsStats.notFilled ?? 9270,
-                notFilledPercentage: d.krsStats.notFilledPercentage ?? 100,
-                activeCourses: d.krsStats.activeCourses ?? 10,
-                activeRooms: d.krsStats.activeRooms ?? 10,
+                notFilled: d.krsStats.notFilled ?? 0,
+                notFilledPercentage: d.krsStats.notFilledPercentage ?? 0,
+                activeCourses: d.krsStats.activeCourses ?? 0,
+                activeRooms: d.krsStats.activeRooms ?? 0,
+                avgGpa: d.krsStats.avgGpa ?? 0,
               });
             }
           }
@@ -711,7 +657,7 @@ export default function SuperAdminDashboardPage() {
                 <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 mt-4 space-y-2">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-500">Rata-rata IPK Kampus:</span>
-                    <strong className="text-[#1E3A8A] text-sm">3.42 / 4.00</strong>
+                    <strong className="text-[#1E3A8A] text-sm">{krsData.avgGpa.toFixed(2)} / 4.00</strong>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-500">Mata Kuliah Aktif:</span>

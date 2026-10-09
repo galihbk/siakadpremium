@@ -15,6 +15,9 @@ enum Role {
   ADMIN_KEUANGAN
   ADMIN_LP3M
   LP3M
+  ADMIN_P2M
+  P2M
+  ADMIN_PRODI
   LECTURER
   STUDENT
   STAFF
@@ -23,6 +26,11 @@ enum Role {
 enum Gender {
   MALE
   FEMALE
+}
+
+enum StructuralPosition {
+  DEKAN
+  KAPRODI
 }
 
 enum StudentStatus {
@@ -64,128 +72,185 @@ enum AdmissionStatus {
 }
 
 model User {
-  id           String    @id @default(uuid())
-  email        String    @unique
+  id           String   @id @default(uuid())
+  email        String   @unique
   passwordHash String
   fullName     String
-  role         Role      @default(STUDENT)
+  role         Role     @default(STUDENT)
   avatarUrl    String?
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  isActive     Boolean  @default(true)
+  // Dipakai khusus role ADMIN_PRODI -- menandai program studi yang dikelola akun ini.
+  studyProgramId String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  student                     Student?
-  lecturer                    Lecturer?
-  updatedLandingPageSettings  LandingPageSetting[]
-  landingPageArticles         LandingPageArticle[]
-  updatedBankGatewaySettings  BankGatewaySetting[]
-  updatedPddiktiSettings      PddiktiSetting[]
+  student                    Student?
+  lecturer                   Lecturer?
+  studyProgram               StudyProgram?         @relation(fields: [studyProgramId], references: [id], onDelete: SetNull)
+  updatedLandingPageSettings LandingPageSetting[]
+  landingPageArticles        LandingPageArticle[]
+  updatedBankGatewaySettings BankGatewaySetting[]
+  updatedPddiktiSettings     PddiktiSetting[]
 
   @@map("users")
 }
 
 model Faculty {
-  id            String         @id @default(uuid())
-  code          String         @unique
-  name          String
-  deanName      String?
-  description   String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id              String   @id @default(uuid())
+  code            String   @unique
+  name            String
+  description     String?
+  building        String?
+  establishedYear Int?
+  accreditation   String?
+  skAkreditasi    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   studyPrograms StudyProgram[]
+  // Dekan TIDAK disimpan sebagai teks manual -- diturunkan dari Lecturer yang
+  // structuralPosition-nya DEKAN & structuralFacultyId mengarah ke fakultas ini.
+  // Kalau jabatan struktural dosen diganti, nama dekan di sini otomatis ikut berubah.
+  deanLecturers Lecturer[]     @relation("FacultyDekan")
 
   @@map("faculties")
 }
 
 model StudyProgram {
-  id                  String       @id @default(uuid())
+  id                  String      @id @default(uuid())
   facultyId           String
-  code                String       @unique
+  code                String      @unique
   diktiCode           String?
   name                String
-  degreeLevel         DegreeLevel  @default(S1)
+  degreeLevel         DegreeLevel @default(S1)
   degreeTitle         String?
-  accreditation       String       @default("Unggul")
-  accreditationAgency String?      @default("BAN-PT / LAM")
+  accreditation       String      @default("Unggul")
+  accreditationAgency String?     @default("BAN-PT / LAM")
   skAkreditasi        String?
-  headOfProgram       String?
-  headNip             String?
-  status              String       @default("Aktif")
-  studentsCount       Int          @default(0)
-  lecturersCount      Int          @default(0)
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  status              String      @default("Aktif")
+  studentsCount       Int         @default(0)
+  lecturersCount      Int         @default(0)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
 
-  faculty       Faculty      @relation(fields: [facultyId], references: [id], onDelete: Cascade)
-  students      Student[]
-  lecturers     Lecturer[]
-  courses       Course[]
+  faculty               Faculty                @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  students              Student[]
+  lecturers             Lecturer[]
+  courses               Course[]
   admissionApplications AdmissionApplication[]
   feeRules              FeeRule[]
+  // Akun role ADMIN_PRODI yang mengelola program studi ini.
+  prodiAdminUsers       User[]
+  // Kaprodi TIDAK disimpan sebagai teks manual -- diturunkan dari Lecturer yang
+  // structuralPosition-nya KAPRODI & structuralStudyProgramId mengarah ke prodi ini.
+  kaprodiLecturers      Lecturer[]             @relation("ProdiKaprodi")
 
   @@map("study_programs")
 }
 
 model Lecturer {
-  id                String       @id @default(uuid())
-  userId            String       @unique
+  id                String  @id @default(uuid())
+  userId            String  @unique
   studyProgramId    String
-  nidn              String       @unique
-  nip               String?      @unique
+  // Dosen bisa punya NIDN, NUPTK, atau dua-duanya (terkonfirmasi dari tampilan Neo
+  // Feeder sungguhan) -- makanya nidn TIDAK boleh wajib/unik tunggal lagi. Minimal
+  // salah satu dari nidn/nuptk harus terisi, divalidasi di level aplikasi, bukan skema.
+  nidn              String? @unique
+  nuptk             String? @unique
+  nip               String? @unique
   nidk              String?
+  // id_dosen dari Neo Feeder -- kunci paling stabil untuk mencocokkan ulang data saat
+  // re-sync, karena NIDN/NUPTK dosen baru kadang belum terbit saat pertama ditarik.
+  feederId          String? @unique
+  nik               String? @unique
+  npwp              String?
   titlePrefix       String?
   titleSuffix       String?
   phone             String?
-  isAcademicAdvisor Boolean      @default(true)
+  officePhone       String?
+  isAcademicAdvisor Boolean @default(true)
 
   // Identitas Diri
-  gender            Gender?
-  birthDate         DateTime?
-  birthPlace        String?
-  religion          String?
+  gender         Gender?
+  birthDate      DateTime?
+  birthPlace     String?
+  religion       String?
+  motherName     String?
+  maritalStatus  String?
+  spouseName     String?
+  spouseNip      String?
+  spouseOccupation String?
 
   // Alamat
-  address           String?      @db.Text
-  rtRw              String?
-  kelurahan         String?
-  kecamatan         String?
-  city              String?
-  province          String?
-  postalCode        String?
+  address    String? @db.Text
+  dusun      String?
+  rtRw       String?
+  kelurahan  String?
+  kecamatan  String?
+  city       String?
+  province   String?
+  postalCode String?
 
   // Kepegawaian & Akademik
-  employmentStatus  String?
-  functionalPosition String?
-  lastEducation     String?
-  expertise         String?
+  employmentStatus      String?
+  functionalPosition    String?
+  lastEducation         String?
+  expertise             String?
+  sdmType               String?
+  rankGroup              String?
+  salarySource           String?
+  skNumber               String?
+  skDate                 DateTime?
+  appointingInstitution  String?
 
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  // Data Tambahan
+  bpjsKesehatan         String?
+  bpjsKetenagakerjaan   String?
 
-  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  studyProgram      StudyProgram @relation(fields: [studyProgramId], references: [id], onDelete: Restrict)
-  advisedStudents   Student[]    @relation("AcademicAdvisor")
-  courseClasses     CourseClass[]
+  // Jabatan struktural (Dekan/Kaprodi) -- sumber kebenaran untuk Faculty.deanLecturers
+  // & StudyProgram.kaprodiLecturers. structuralFacultyId dipakai kalau DEKAN,
+  // structuralStudyProgramId dipakai kalau KAPRODI; yang lain dibiarkan null.
+  structuralPosition       StructuralPosition?
+  structuralFacultyId      String?
+  structuralStudyProgramId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user                   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studyProgram           StudyProgram        @relation(fields: [studyProgramId], references: [id], onDelete: Restrict)
+  advisedStudents        Student[]           @relation("AcademicAdvisor")
+  courseClasses          CourseClass[]
+  thesisAsSupervisor1    ThesisSupervision[] @relation("ThesisSupervisor1")
+  thesisAsSupervisor2    ThesisSupervision[] @relation("ThesisSupervisor2")
+  structuralFaculty      Faculty?            @relation("FacultyDekan", fields: [structuralFacultyId], references: [id], onDelete: SetNull)
+  structuralStudyProgram StudyProgram?       @relation("ProdiKaprodi", fields: [structuralStudyProgramId], references: [id], onDelete: SetNull)
 
   @@map("lecturers")
 }
 
 model Student {
-  id                String             @id @default(uuid())
-  userId            String             @unique
+  id                String        @id @default(uuid())
+  userId            String        @unique
   studyProgramId    String
   advisorLecturerId String?
-  nim               String             @unique
-  gender            Gender             @default(MALE)
+  // id_mahasiswa dari Neo Feeder (biodata) -- kunci paling stabil untuk mencocokkan ulang
+  // data saat re-sync, sama seperti feederId di Lecturer.
+  feederId          String?       @unique
+  // id_registrasi_mahasiswa dari Neo Feeder -- BEDA dari feederId (biodata). Diisi hanya
+  // setelah mahasiswa benar-benar terdaftar (riwayat pendidikan) di Feeder, dipakai Push
+  // Mahasiswa Baru untuk tahu siapa yang masih perlu didaftarkan vs yang sudah selesai.
+  feederRegistrationId String?    @unique
+  nim               String        @unique
+  gender            Gender        @default(MALE)
   birthDate         DateTime?
   birthPlace        String?
   phone             String?
   nik               String?
   nisn              String?
   noKk              String?
-  address           String?            @db.Text
-  streetAddress     String?            @db.Text
+  address           String?       @db.Text
+  streetAddress     String?       @db.Text
   rtRw              String?
   dusun             String?
   kelurahan         String?
@@ -195,35 +260,35 @@ model Student {
   postalCode        String?
   religion          String?
   entryYear         Int
-  currentSemester   Int                @default(1)
-  status            StudentStatus      @default(ACTIVE)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  currentSemester   Int           @default(1)
+  status            StudentStatus @default(ACTIVE)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
   // Data Sekolah Asal
-  schoolName        String?
-  npsn              String?
-  graduationYear    String?
-  major             String?
+  schoolName     String?
+  npsn           String?
+  graduationYear String?
+  major          String?
 
   // Data Orang Tua / Wali
-  fatherName        String?
-  fatherPhone       String?
-  fatherJob         String?
-  fatherIncome      String?
-  motherName        String?
-  motherPhone       String?
-  motherJob         String?
-  motherIncome      String?
-  guardianName      String?
-  guardianPhone     String?
-  guardianJob       String?
+  fatherName    String?
+  fatherPhone   String?
+  fatherJob     String?
+  fatherIncome  String?
+  motherName    String?
+  motherPhone   String?
+  motherJob     String?
+  motherIncome  String?
+  guardianName  String?
+  guardianPhone String?
+  guardianJob   String?
 
-  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  studyProgram      StudyProgram       @relation(fields: [studyProgramId], references: [id], onDelete: Restrict)
-  advisorLecturer   Lecturer?          @relation("AcademicAdvisor", fields: [advisorLecturerId], references: [id], onDelete: SetNull)
-  enrollments       CourseEnrollment[]
-  attendanceRecords AttendanceRecord[]
+  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studyProgram          StudyProgram           @relation(fields: [studyProgramId], references: [id], onDelete: Restrict)
+  advisorLecturer       Lecturer?              @relation("AcademicAdvisor", fields: [advisorLecturerId], references: [id], onDelete: SetNull)
+  enrollments           CourseEnrollment[]
+  attendanceRecords     AttendanceRecord[]
   admissionApplications AdmissionApplication[]
 
   // Relasi Master PMB (Ditetapkan saat konversi PMB)
@@ -237,89 +302,115 @@ model Student {
   admissionClass     AdmissionClass?            @relation(fields: [classId], references: [id], onDelete: SetNull)
   wave               AdmissionBatch?            @relation(fields: [waveId], references: [id], onDelete: SetNull)
   feeAssignments     StudentFeeAssignment[]
+  letterRequests     LetterRequest[]
+  thesisSupervisions ThesisSupervision[]
 
   @@map("students")
 }
 
-
 model AcademicYear {
-  id           String             @id @default(uuid())
-  code         String             @unique // e.g. "20261" for 2026/2027 Gasal
-  name         String             // e.g. "2026/2027"
-  semesterType SemesterType       @default(ODD)
-  isActive     Boolean            @default(false)
-  startDate    DateTime
-  endDate      DateTime
-  krsStartDate DateTime?
-  krsEndDate   DateTime?
-  isKrsOpen    Boolean            @default(true)
-  pmbStartDate DateTime?
-  pmbEndDate   DateTime?
-  skRektor     String?
+  id            String       @id @default(uuid())
+  code          String       @unique // e.g. "20261" for 2026/2027 Gasal
+  name          String // e.g. "2026/2027"
+  semesterType  SemesterType @default(ODD)
+  isActive      Boolean      @default(false)
+  startDate     DateTime
+  endDate       DateTime
+  krsStartDate  DateTime?
+  krsEndDate    DateTime?
+  isKrsOpen     Boolean      @default(true)
+  pmbStartDate  DateTime?
+  pmbEndDate    DateTime?
+  skRektor      String?
   gradeDeadline String?
-  isGradeLocked Boolean           @default(true)
-  status       String             @default("Aktif") // Aktif, Arsip, Mendatang
-  notes        String?            @db.Text
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
+  // Jendela waktu dosen boleh mengisi/mengubah nilai -- dipakai menggantikan toggle manual
+  // isGradeLocked: kalau keduanya terisi, akses dihitung otomatis dari tanggal hari ini
+  // dibanding rentang ini (bukan diklik manual lagi). isGradeLocked tetap disimpan sebagai
+  // fallback untuk tahun akademik lama yang belum mengisi tanggal ini.
+  gradeInputStartDate DateTime?
+  gradeInputEndDate   DateTime?
+  isGradeLocked Boolean      @default(true)
+  status        String       @default("Aktif") // Aktif, Arsip, Mendatang
+  notes         String?      @db.Text
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
-  enrollments  CourseEnrollment[]
-  courseClasses CourseClass[]
+  enrollments        CourseEnrollment[]
+  courseClasses      CourseClass[]
   gradeScaleVersions GradeScaleVersion[]
+  thesisSupervisions ThesisSupervision[]
 
   @@map("academic_years")
 }
 
 model Course {
-  id               String             @id @default(uuid())
-  studyProgramId   String?
-  studyProgramName String?
-  facultyCode      String?
-  curriculumId     String?
-  code             String             @unique // e.g. "TIF-201"
-  name             String
-  sksTeori         Int                @default(2)
-  sksPraktik       Int                @default(0)
-  totalSks         Int                @default(2)
-  sks              Int                @default(3)
-  semester         Int                @default(1)
-  type             String             @default("Wajib Prodi")
-  coordinator      String?
-  status           String             @default("Aktif")
-  description      String?            @db.Text
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  id                        String   @id @default(uuid())
+  // id_matkul dari Neo Feeder -- kunci paling stabil untuk mencocokkan ulang data saat
+  // re-sync, sama seperti feederId di Lecturer/Student.
+  feederId                  String?  @unique
+  studyProgramId            String?
+  studyProgramName          String?
+  facultyCode               String?
+  curriculumId              String?
+  code                      String   @unique // e.g. "TIF-201"
+  name                      String
+  sksTeori                  Int      @default(2)
+  sksPraktik                Int      @default(0)
+  totalSks                  Int      @default(2)
+  sks                       Int      @default(3)
+  semester                  Int      @default(1)
+  type                      String   @default("Wajib Prodi")
+  // true untuk kategori mata kuliah lapangan/tugas akhir (Skripsi/TA, KKN, PLP, Kerja Praktik, dst.):
+  // SEMUA kelas dari mata kuliah ini otomatis dianggap tanpa jadwal & ruang tetap, dan mahasiswa
+  // yang mengambilnya otomatis masuk daftar Bimbingan Tugas Akhir untuk ditetapkan pembimbingnya —
+  // BAAK tidak perlu mencentang "Tanpa jadwal tetap" satu-satu tiap kali membuat kelasnya.
+  requiresThesisSupervision Boolean  @default(false)
+  // Label kategori spesifik saat requiresThesisSupervision true, mis. "Skripsi/TA", "KKN", "PLP",
+  // "Kerja Praktik", "Magang" -- murni untuk tampilan/pelaporan, logika jadwal tetap pakai field di atas.
+  finalProjectLabel         String?
+  coordinator               String?
+  status                    String   @default("Aktif")
+  description               String?  @db.Text
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 
-  studyProgram     StudyProgram?      @relation(fields: [studyProgramId], references: [id], onDelete: Cascade)
-  curriculum       Curriculum?        @relation(fields: [curriculumId], references: [id], onDelete: SetNull)
-  enrollments      CourseEnrollment[]
-  classes          CourseClass[]
+  studyProgram       StudyProgram?       @relation(fields: [studyProgramId], references: [id], onDelete: Cascade)
+  curriculum         Curriculum?         @relation(fields: [curriculumId], references: [id], onDelete: SetNull)
+  enrollments        CourseEnrollment[]
+  classes            CourseClass[]
+  thesisSupervisions ThesisSupervision[]
 
   @@map("courses")
 }
 
 model CourseClass {
-  id             String   @id @default(uuid())
-  courseId       String
-  academicYearId String
-  className      String   // e.g. "TIF-5A"
-  day            String   @default("Senin")
-  startTime      String   @default("08:00")
-  endTime        String   @default("10:30")
-  roomId         String?
-  lecturerId     String?
-  quota          Int      @default(40)
-  status         String   @default("Berjalan")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                 String   @id @default(uuid())
+  // id_kelas_kuliah dari Neo Feeder -- kunci paling stabil untuk mencocokkan ulang data
+  // saat re-sync, sama seperti feederId di Lecturer/Student/Course/Curriculum.
+  feederId           String?  @unique
+  courseId           String
+  academicYearId     String
+  className          String // e.g. "TIF-5A"
+  // true untuk mata kuliah tanpa jadwal & ruang tetap (Skripsi/TA, KKN, Kerja Praktik, dst.) —
+  // day/startTime/endTime diabaikan dan tidak diikutkan pada cek bentrok jadwal.
+  isFlexibleSchedule Boolean  @default(false)
+  day                String   @default("Senin")
+  startTime          String   @default("08:00")
+  endTime            String   @default("10:30")
+  roomId             String?
+  lecturerId         String?
+  quota              Int      @default(40)
+  status             String   @default("Berjalan")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  course         Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  academicYear   AcademicYear       @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
-  room           Room?              @relation(fields: [roomId], references: [id], onDelete: SetNull)
-  lecturer       Lecturer?          @relation(fields: [lecturerId], references: [id], onDelete: SetNull)
-  enrollments    CourseEnrollment[]
+  course             Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  academicYear       AcademicYear        @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  room               Room?               @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  lecturer           Lecturer?           @relation(fields: [lecturerId], references: [id], onDelete: SetNull)
+  enrollments        CourseEnrollment[]
   attendanceSessions AttendanceSession[]
-  contract       CourseContract?
+  contract           CourseContract?
 
   @@unique([courseId, academicYearId, className])
   @@map("course_classes")
@@ -341,8 +432,8 @@ model AttendanceSession {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  courseClass   CourseClass        @relation(fields: [courseClassId], references: [id], onDelete: Cascade)
-  records       AttendanceRecord[]
+  courseClass CourseClass        @relation(fields: [courseClassId], references: [id], onDelete: Cascade)
+  records     AttendanceRecord[]
 
   @@unique([courseClassId, meetingNumber])
   @@map("attendance_sessions")
@@ -365,18 +456,42 @@ model AttendanceRecord {
 }
 
 model CourseContract {
-  id                String   @id @default(uuid())
-  courseClassId     String   @unique
-  description       String?  @db.Text
-  learningOutcomes  String?  @db.Text
-  references        String?  @db.Text
-  assessmentWeights Json?
-  isPublished       Boolean  @default(false)
+  id                String    @id @default(uuid())
+  courseClassId     String    @unique
+  // Identitas dokumen RPS (format SN-Dikti)
+  rpsCode           String? // Kode/Nomor Dokumen RPS
+  description       String?   @db.Text // Deskripsi singkat mata kuliah
+  // CPL & CPMK
+  graduateLearningOutcomes String? @db.Text // CPL-Prodi yang dibebankan pada MK
+  learningOutcomes  String?   @db.Text // CPMK (Capaian Pembelajaran Mata Kuliah)
+  subCpmk           String?   @db.Text // Sub-CPMK (kemampuan akhir tiap tahapan belajar)
+  // Materi, metode, penilaian
+  studyMaterials     String?  @db.Text // Bahan kajian / pokok bahasan
+  teachingMethods     String? @db.Text // Bentuk & metode pembelajaran
+  studentExperience   String? @db.Text // Pengalaman belajar mahasiswa
+  assessmentCriteria  String? @db.Text // Kriteria & bentuk penilaian (naratif)
+  assessmentWeights Json? // Bobot penilaian numerik (tugas/uts/uas/kehadiran) -- dipakai perhitungan nilai
+  // Pustaka & media
+  references          String?  @db.Text // Pustaka utama
+  supportingReferences String? @db.Text // Pustaka pendukung
+  learningMedia        String? @db.Text // Media & perangkat pembelajaran
+  // Otorisasi / pengesahan
+  coordinatorName   String? // Koordinator bidang/rumpun MK
+  headOfProdiName   String? // Ketua Program Studi (Kaprodi)
+  preparedDate      DateTime?
+  isPublished       Boolean   @default(false)
+  // Validasi Penjaminan Mutu (P2M) -- RPS yang dosen "Simpan & Publikasikan" masuk status
+  // DIAJUKAN menunggu disahkan P2M; P2M bisa mengesahkan (DISAHKAN) atau minta revisi
+  // (PERLU_REVISI) dengan catatan. Terpisah dari isPublished (visibilitas ke mahasiswa).
+  p2mStatus         String?   @default("BELUM_DIAJUKAN") // 'BELUM_DIAJUKAN' | 'DIAJUKAN' | 'DISAHKAN' | 'PERLU_REVISI'
+  p2mNote           String?   @db.Text
+  p2mValidatedAt    DateTime?
+  p2mValidatedBy    String?
   rpsFileUrl        String?
   rpsFileName       String?
   rpsUploadedAt     DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   courseClass CourseClass          @relation(fields: [courseClassId], references: [id], onDelete: Cascade)
   weeks       CourseContractWeek[]
@@ -388,9 +503,12 @@ model CourseContractWeek {
   id         String  @id @default(uuid())
   contractId String
   weekNumber Int
-  topic      String
-  method     String?
-  indicator  String?
+  topic      String // Bahan kajian / materi pertemuan
+  method     String? // Bentuk & metode pembelajaran
+  indicator  String? // Sub-CPMK / kemampuan akhir tahap belajar
+  duration          String? // Alokasi waktu (e.g. "2 x 50 menit")
+  studentExperience String? @db.Text // Pengalaman belajar mahasiswa
+  assessmentWeight  String? // Kriteria & bobot penilaian pertemuan ini
 
   contract CourseContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
@@ -399,26 +517,26 @@ model CourseContractWeek {
 }
 
 model CourseEnrollment {
-  id             String           @id @default(uuid())
-  studentId      String
-  courseId       String
-  courseClassId  String?
-  academicYearId String
-  status         EnrollmentStatus @default(SUBMITTED)
-  assignmentScore Float?          // Nilai Tugas
-  midtermScore   Float?           // Nilai UTS
-  finalScore     Float?           // Nilai UAS
-  totalScore     Float?           // Nilai Akhir Angka
-  gradeLetter    String?          // e.g. "A", "B+", "B"
-  gradePoint     Float?           // e.g. 4.0, 3.5, 3.0
-  gradeStatus    String           @default("DRAFT") // "DRAFT" | "FINAL"
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id              String           @id @default(uuid())
+  studentId       String
+  courseId        String
+  courseClassId   String?
+  academicYearId  String
+  status          EnrollmentStatus @default(SUBMITTED)
+  assignmentScore Float? // Nilai Tugas
+  midtermScore    Float? // Nilai UTS
+  finalScore      Float? // Nilai UAS
+  totalScore      Float? // Nilai Akhir Angka
+  gradeLetter     String? // e.g. "A", "B+", "B"
+  gradePoint      Float? // e.g. 4.0, 3.5, 3.0
+  gradeStatus     String           @default("DRAFT") // "DRAFT" | "FINAL"
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
-  student        Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  course         Course           @relation(fields: [courseId], references: [id], onDelete: Restrict)
-  courseClass    CourseClass?     @relation(fields: [courseClassId], references: [id], onDelete: SetNull)
-  academicYear   AcademicYear     @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course       Course       @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  courseClass  CourseClass? @relation(fields: [courseClassId], references: [id], onDelete: SetNull)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
 
   @@unique([studentId, courseId, academicYearId])
   @@unique([studentId, courseClassId])
@@ -426,35 +544,35 @@ model CourseEnrollment {
 }
 
 model PmbAccount {
-  id              String                 @id @default(uuid())
+  id              String   @id @default(uuid())
   fullName        String
-  email           String                 @unique
+  email           String   @unique
   whatsapp        String
   passwordHash    String
-  isEmailVerified Boolean                @default(false)
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
+  isEmailVerified Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  applications    AdmissionApplication[]
+  applications AdmissionApplication[]
 
   @@map("pmb_accounts")
 }
 
 model AdmissionBatch {
-  id           String                 @id @default(uuid())
-  name         String                 // e.g. "Gelombang 1"
-  academicYear String                 @default("2027/2028")
-  jenjang      String                 @default("S1")
-  startDate    String                 // e.g. "2026-08-01"
-  endDate      String                 // e.g. "2026-11-30"
-  status            String                 @default("OPEN") // "OPEN", "UPCOMING", "CLOSED"
-  quota             Int?                   @default(100)
-  registrationFee   Float?                 @default(250000)
-  reRegistrationFee Float?                 @default(7300000)
-  description       String?                @db.Text
-  isDefault         Boolean                @default(false)
-  createdAt    DateTime               @default(now())
-  updatedAt    DateTime               @updatedAt
+  id                String   @id @default(uuid())
+  name              String // e.g. "Gelombang 1"
+  academicYear      String   @default("2027/2028")
+  jenjang           String   @default("S1")
+  startDate         String // e.g. "2026-08-01"
+  endDate           String // e.g. "2026-11-30"
+  status            String   @default("OPEN") // "OPEN", "UPCOMING", "CLOSED"
+  quota             Int?     @default(100)
+  registrationFee   Float?   @default(250000)
+  reRegistrationFee Float?   @default(7300000)
+  description       String?  @db.Text
+  isDefault         Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   applications AdmissionApplication[]
   students     Student[]
@@ -476,15 +594,15 @@ model PmbFeeConfig {
 }
 
 model AdmissionRegistrationType {
-  id          String                 @id @default(uuid())
-  code        String                 @unique // e.g. "NON_KIP", "KIPK", "MITRA"
-  name        String                 // e.g. "NON-KIP (Reguler Mandiri)", "KIP-Kuliah (Beasiswa)"
-  description String?                @db.Text
-  badge       String?                // e.g. "Beasiswa Penuh", "Umum Mandiri"
-  isKip       Boolean                @default(false)
-  isActive    Boolean                @default(true)
-  createdAt   DateTime               @default(now())
-  updatedAt   DateTime               @updatedAt
+  id          String   @id @default(uuid())
+  code        String   @unique // e.g. "NON_KIP", "KIPK", "MITRA"
+  name        String // e.g. "NON-KIP (Reguler Mandiri)", "KIP-Kuliah (Beasiswa)"
+  description String?  @db.Text
+  badge       String? // e.g. "Beasiswa Penuh", "Umum Mandiri"
+  isKip       Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   applications AdmissionApplication[]
   students     Student[]
@@ -494,13 +612,13 @@ model AdmissionRegistrationType {
 }
 
 model AdmissionTrack {
-  id          String                 @id @default(uuid())
-  code        String                 @unique // e.g. "REGULER", "TRANSFER", "PRESTASI", "KIPK"
-  name        String                 // e.g. "Jalur Reguler", "Jalur Prestasi", "Jalur KIP-Kuliah"
-  description String?                @db.Text
-  isActive    Boolean                @default(true)
-  createdAt   DateTime               @default(now())
-  updatedAt   DateTime               @updatedAt
+  id          String   @id @default(uuid())
+  code        String   @unique // e.g. "REGULER", "TRANSFER", "PRESTASI", "KIPK"
+  name        String // e.g. "Jalur Reguler", "Jalur Prestasi", "Jalur KIP-Kuliah"
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   applications AdmissionApplication[]
   students     Student[]
@@ -510,13 +628,13 @@ model AdmissionTrack {
 }
 
 model AdmissionClass {
-  id          String                 @id @default(uuid())
-  code        String                 @unique // e.g. "REGULER", "KARYAWAN"
-  name        String                 // e.g. "Kelas Reguler (Pagi)", "Kelas Karyawan (Sore/Malam)"
-  description String?                @db.Text
-  isActive    Boolean                @default(true)
-  createdAt   DateTime               @default(now())
-  updatedAt   DateTime               @updatedAt
+  id          String   @id @default(uuid())
+  code        String   @unique // e.g. "REGULER", "KARYAWAN"
+  name        String // e.g. "Kelas Reguler (Pagi)", "Kelas Karyawan (Sore/Malam)"
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   applications AdmissionApplication[]
   students     Student[]
@@ -526,138 +644,138 @@ model AdmissionClass {
 }
 
 model AdmissionApplication {
-  id                 String             @id @default(uuid())
+  id                 String  @id @default(uuid())
   accountId          String
   waveId             String?
   registrationTypeId String?
   trackId            String?
   classId            String?
   studyProgramId     String?
-  isKip              Boolean            @default(false)
+  isKip              Boolean @default(false)
 
   // Nomor Pendaftaran dibuat HANYA saat status = SUBMITTED
-  registrationNumber String?            @unique // e.g. "PMB-2027-000123"
+  registrationNumber String? @unique // e.g. "PMB-2027-000123"
 
   // Status Alur PMB
-  formStatus         String             @default("DRAFT") // "DRAFT", "SUBMITTED"
-  verificationStatus String             @default("UNVERIFIED") // "UNVERIFIED", "VERIFIED", "REJECTED"
-  verificationNote   String?            @db.Text
+  formStatus         String    @default("DRAFT") // "DRAFT", "SUBMITTED"
+  verificationStatus String    @default("UNVERIFIED") // "UNVERIFIED", "VERIFIED", "REJECTED"
+  verificationNote   String?   @db.Text
   verifiedAt         DateTime?
   verifiedBy         String?
 
-  selectionStatus    String             @default("PENDING_SELECTION") // "PENDING_SELECTION", "PASSED", "FAILED", "RESERVE"
-  testScore          Float?
-  selectionNotes     String?            @db.Text
-  selectionDate      DateTime?
+  selectionStatus String    @default("PENDING_SELECTION") // "PENDING_SELECTION", "PASSED", "FAILED", "RESERVE"
+  testScore       Float?
+  selectionNotes  String?   @db.Text
+  selectionDate   DateTime?
 
   // Data Pribadi
-  nik                String?
-  fullName           String
-  birthPlace         String?
-  birthDate          String?
-  gender             String?
-  religion           String?
-  phone              String
-  email              String
-  address            String?            @db.Text
-  streetAddress      String?            @db.Text
-  rtRw               String?
-  dusun              String?
-  kelurahan          String?
-  kecamatan          String?
-  city               String?
-  province           String?
-  postalCode         String?
+  nik           String?
+  fullName      String
+  birthPlace    String?
+  birthDate     String?
+  gender        String?
+  religion      String?
+  phone         String
+  email         String
+  address       String? @db.Text
+  streetAddress String? @db.Text
+  rtRw          String?
+  dusun         String?
+  kelurahan     String?
+  kecamatan     String?
+  city          String?
+  province      String?
+  postalCode    String?
 
   // Data Sekolah / Riwayat Pendidikan
-  schoolName         String?
-  npsn               String?
-  nisn               String?
-  graduationYear     String?
-  major              String?
+  schoolName     String?
+  npsn           String?
+  nisn           String?
+  graduationYear String?
+  major          String?
 
   // Orang Tua / Wali
-  parentName         String?
-  parentPhone        String?
-  parentJob          String?
-  parentIncome       String?
-  fatherName         String?
-  fatherPhone        String?
-  fatherJob          String?
-  fatherIncome       String?
-  motherName         String?
-  motherPhone        String?
-  motherJob          String?
-  motherIncome       String?
+  parentName   String?
+  parentPhone  String?
+  parentJob    String?
+  parentIncome String?
+  fatherName   String?
+  fatherPhone  String?
+  fatherJob    String?
+  fatherIncome String?
+  motherName   String?
+  motherPhone  String?
+  motherJob    String?
+  motherIncome String?
 
   // Berkas Dokumen
-  fileKtp            String?
-  fileKk             String?
-  fileIjazah         String?
-  fileFoto           String?
-  fileKip            String?
-  fileTambahan       String?
+  fileKtp      String?
+  fileKk       String?
+  fileIjazah   String?
+  fileFoto     String?
+  fileKip      String?
+  fileTambahan String?
 
   // Hubungan dengan Mahasiswa Resmi (jika sudah daftar ulang lunas & dikonversi)
-  studentId          String?
-  nim                String?
+  studentId String?
+  nim       String?
 
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  account            PmbAccount                  @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  wave               AdmissionBatch?             @relation(fields: [waveId], references: [id], onDelete: SetNull)
-  registrationType   AdmissionRegistrationType?  @relation(fields: [registrationTypeId], references: [id], onDelete: SetNull)
-  track              AdmissionTrack?             @relation(fields: [trackId], references: [id], onDelete: SetNull)
-  admissionClass     AdmissionClass?             @relation(fields: [classId], references: [id], onDelete: SetNull)
-  studyProgram       StudyProgram?      @relation(fields: [studyProgramId], references: [id], onDelete: SetNull)
-  student            Student?           @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  account          PmbAccount                 @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  wave             AdmissionBatch?            @relation(fields: [waveId], references: [id], onDelete: SetNull)
+  registrationType AdmissionRegistrationType? @relation(fields: [registrationTypeId], references: [id], onDelete: SetNull)
+  track            AdmissionTrack?            @relation(fields: [trackId], references: [id], onDelete: SetNull)
+  admissionClass   AdmissionClass?            @relation(fields: [classId], references: [id], onDelete: SetNull)
+  studyProgram     StudyProgram?              @relation(fields: [studyProgramId], references: [id], onDelete: SetNull)
+  student          Student?                   @relation(fields: [studentId], references: [id], onDelete: SetNull)
 
-  payments           AdmissionPayment[]
+  payments AdmissionPayment[]
 
   @@map("admission_applications")
 }
 
 model AdmissionPayment {
-  id            String               @id @default(uuid())
+  id            String    @id @default(uuid())
   applicationId String
-  type          String               // "REGISTRATION", "RE_REGISTRATION"
+  type          String // "REGISTRATION", "RE_REGISTRATION"
   amount        Float
-  status        String               @default("PENDING") // "PENDING", "VERIFYING", "PAID"
-  paymentMethod String?              @default("Transfer Bank")
+  status        String    @default("PENDING") // "PENDING", "VERIFYING", "PAID"
+  paymentMethod String?   @default("Transfer Bank")
   proofUrl      String?
   notes         String?
   paidAt        DateTime?
   verifiedAt    DateTime?
   verifiedBy    String?
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  application   AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  application AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 
   @@map("admission_payments")
 }
 
 model AdmissionApplicant {
-  id                  String          @id @default(uuid())
-  registrationNumber  String          @unique // e.g. "PMB20270001"
-  fullName            String
-  email               String
-  phone               String
-  highSchool          String
-  chosenStudyProgram  String
-  jenjang             String?         @default("S1")
-  jalurPendaftaran    String          @default("Reguler / Mandiri")
-  status              AdmissionStatus @default(PENDING)
-  testScore           Float?
-  birthDate           String?
-  gender              String?
-  address             String?
-  notes               String?
-  verifiedAt          DateTime?
-  verifiedBy          String?
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
+  id                 String          @id @default(uuid())
+  registrationNumber String          @unique // e.g. "PMB20270001"
+  fullName           String
+  email              String
+  phone              String
+  highSchool         String
+  chosenStudyProgram String
+  jenjang            String?         @default("S1")
+  jalurPendaftaran   String          @default("Reguler / Mandiri")
+  status             AdmissionStatus @default(PENDING)
+  testScore          Float?
+  birthDate          String?
+  gender             String?
+  address            String?
+  notes              String?
+  verifiedAt         DateTime?
+  verifiedBy         String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
   @@map("admission_applicants")
 }
@@ -682,92 +800,92 @@ model AdmissionBrochure {
 }
 
 model LandingPageSetting {
-  id                    String    @id @default("default-setting")
-  campusName            String    @default("Institut Teknologi Nusantara")
-  campusShortName       String    @default("ITN")
-  tagline               String    @default("Kampus Inovasi Teknologi Masa Depan")
-  heroBadge             String    @default("Penerimaan Mahasiswa Baru TA 2026/2027 Telah Dibuka!")
-  heroTitle             String    @default("Membentuk Generasi Unggul di Era Transformasi Digital")
-  heroSubtitle          String    @default("Institut Teknologi Nusantara (ITN) memadukan keunggulan akademik, riset terapan mutakhir, dan ekosistem industri digital terdepan untuk mencetak profesional dan entrepreneur masa depan.")
-  heroCtaText           String    @default("Daftar Sekarang (PMB)")
-  heroCtaLink           String    @default("/pmb")
-  heroSecondaryCtaText  String    @default("Jelajahi Program Studi")
-  heroSecondaryCtaLink  String    @default("/#program-studi")
-  
+  id                   String @id @default("default-setting")
+  campusName           String @default("Institut Teknologi Nusantara")
+  campusShortName      String @default("ITN")
+  tagline              String @default("Kampus Inovasi Teknologi Masa Depan")
+  heroBadge            String @default("Penerimaan Mahasiswa Baru TA 2026/2027 Telah Dibuka!")
+  heroTitle            String @default("Membentuk Generasi Unggul di Era Transformasi Digital")
+  heroSubtitle         String @default("Institut Teknologi Nusantara (ITN) memadukan keunggulan akademik, riset terapan mutakhir, dan ekosistem industri digital terdepan untuk mencetak profesional dan entrepreneur masa depan.")
+  heroCtaText          String @default("Daftar Sekarang (PMB)")
+  heroCtaLink          String @default("/pmb")
+  heroSecondaryCtaText String @default("Jelajahi Program Studi")
+  heroSecondaryCtaLink String @default("/#program-studi")
+
   // Sambutan Rektor
-  rectorName            String    @default("Prof. Dr. Ir. Hendra Gunawan, M.Eng.")
-  rectorTitle           String    @default("Rektor Institut Teknologi Nusantara")
-  rectorQuote           String    @default("Pendidikan di ITN tidak hanya berfokus pada penguasaan teori, tetapi melahirkan solusi nyata bagi bangsa.")
-  rectorSpeech          String    @default("Selamat datang di Institut Teknologi Nusantara.") @db.Text
-  rectorImageUrl        String?
-  
+  rectorName     String  @default("Prof. Dr. Ir. Hendra Gunawan, M.Eng.")
+  rectorTitle    String  @default("Rektor Institut Teknologi Nusantara")
+  rectorQuote    String  @default("Pendidikan di ITN tidak hanya berfokus pada penguasaan teori, tetapi melahirkan solusi nyata bagi bangsa.")
+  rectorSpeech   String  @default("Selamat datang di Institut Teknologi Nusantara.") @db.Text
+  rectorImageUrl String?
+
   // Pengumuman Banner
-  announcementActive    Boolean   @default(true)
-  announcementBadge     String    @default("INFO AKADEMIK")
-  announcementText      String    @default("Pengisian KRS Semester Ganjil 2026/2027 berlangsung hingga 31 Agustus 2026. Pastikan konsultasi Dosen PA selesai tepat waktu.")
-  announcementLink      String?   @default("/portal")
+  announcementActive Boolean @default(true)
+  announcementBadge  String  @default("INFO AKADEMIK")
+  announcementText   String  @default("Pengisian KRS Semester Ganjil 2026/2027 berlangsung hingga 31 Agustus 2026. Pastikan konsultasi Dosen PA selesai tepat waktu.")
+  announcementLink   String? @default("/portal")
 
   // Kontak & Lokasi Kampus
-  contactAddress        String    @default("Jl. Raya Pendidikan No. 45, Kampus Terpadu, Jakarta Selatan 12430")
-  contactPhone          String    @default("(021) 7890-1234")
-  contactEmail          String    @default("info@itn.ac.id")
-  contactWhatsapp       String    @default("+62 812-3456-7890")
-  
+  contactAddress  String @default("Jl. Raya Pendidikan No. 45, Kampus Terpadu, Jakarta Selatan 12430")
+  contactPhone    String @default("(021) 7890-1234")
+  contactEmail    String @default("info@itn.ac.id")
+  contactWhatsapp String @default("+62 812-3456-7890")
+
   // Media Sosial
-  socialInstagram       String?   @default("https://instagram.com/itn_official")
-  socialYoutube         String?   @default("https://youtube.com/@itnofficial")
-  socialLinkedin        String?   @default("https://linkedin.com/school/itn-official")
+  socialInstagram String? @default("https://instagram.com/itn_official")
+  socialYoutube   String? @default("https://youtube.com/@itnofficial")
+  socialLinkedin  String? @default("https://linkedin.com/school/itn-official")
 
   // Identitas & Legalitas Institusi
-  foundationName        String    @default("Yayasan Pendidikan Teknologi Nusantara Mandiri")
-  website               String    @default("https://itn.ac.id")
-  academicEmail         String    @default("baak@itn.ac.id")
-  accreditation         String    @default("Unggul")
-  accreditationSk       String    @default("No. 1042/SK/BAN-PT/Ak/PT/VIII/2024")
-  accreditationValidUntil String  @default("28 Agustus 2029")
-  ptStatus              String    @default("Perguruan Tinggi Swasta (Aktif)")
-  npsn                  String    @default("061024")
-  ptCode                String    @default("071032")
-  establishmentYear     Int       @default(1993)
-  establishmentSk       String    @default("Kepmendikbud No. 048/D/O/1993")
-  activeSemester        String    @default("Semester Gasal")
-  activeAcademicYear    String    @default("2026/2027")
+  foundationName          String @default("Yayasan Pendidikan Teknologi Nusantara Mandiri")
+  website                 String @default("https://itn.ac.id")
+  academicEmail           String @default("baak@itn.ac.id")
+  accreditation           String @default("Unggul")
+  accreditationSk         String @default("No. 1042/SK/BAN-PT/Ak/PT/VIII/2024")
+  accreditationValidUntil String @default("28 Agustus 2029")
+  ptStatus                String @default("Perguruan Tinggi Swasta (Aktif)")
+  npsn                    String @default("061024")
+  ptCode                  String @default("071032")
+  establishmentYear       Int    @default(1993)
+  establishmentSk         String @default("Kepmendikbud No. 048/D/O/1993")
+  activeSemester          String @default("Semester Gasal")
+  activeAcademicYear      String @default("2026/2027")
 
   // Pimpinan Perguruan Tinggi
-  viceRector1           String    @default("Dr. Ir. Hendra Gunawan, M.T. (Bid. Akademik & Riset)")
-  viceRector2           String    @default("Dra. Hj. Sri Wahyuni, M.M., Ak. (Bid. Keuangan & SDM)")
-  viceRector3           String    @default("Dr. Rian Hidayat, S.Kom., M.Kom. (Bid. Kemahasiswaan & Kerjasama)")
-  logoInitials          String    @default("ITN")
-  logoUrl               String?
+  viceRector1  String  @default("Dr. Ir. Hendra Gunawan, M.T. (Bid. Akademik & Riset)")
+  viceRector2  String  @default("Dra. Hj. Sri Wahyuni, M.M., Ak. (Bid. Keuangan & SDM)")
+  viceRector3  String  @default("Dr. Rian Hidayat, S.Kom., M.Kom. (Bid. Kemahasiswaan & Kerjasama)")
+  logoInitials String  @default("ITN")
+  logoUrl      String?
 
   // Identitas Visual, Kop Dokumen & Format Penomoran
-  primaryColor          String    @default("#1E3A8A")
-  accentColor           String    @default("#D4A017")
-  themeName             String    @default("Nusantara Navy & Gold")
-  kopLine1              String    @default("Yayasan Pendidikan Teknologi Nusantara Mandiri")
-  kopLine2              String    @default("INSTITUT TEKNOLOGI NUSANTARA")
-  kopContact            String    @default("Jl. DI Panjaitan No. 128, Jakarta Selatan 12340 | Telp: (021) 7888-9900 | Email: baak@itn.ac.id")
-  pinFormat             String    @default("{KODE_PT}-{TAHUN}-{PRODI}-{NO_URUT}")
-  nomorSuratFormat      String    @default("{NO}/ITN-BAAK/{BULAN_ROMAWI}/{TAHUN}")
-  nimFormat             String    @default("{ANGKATAN_2DIGIT}{KODE_PRODI_3DIGIT}{NO_URUT_4DIGIT}")
-  doubleBorderKop       Boolean   @default(true)
+  primaryColor     String  @default("#1E3A8A")
+  accentColor      String  @default("#D4A017")
+  themeName        String  @default("Nusantara Navy & Gold")
+  kopLine1         String  @default("Yayasan Pendidikan Teknologi Nusantara Mandiri")
+  kopLine2         String  @default("INSTITUT TEKNOLOGI NUSANTARA")
+  kopContact       String  @default("Jl. DI Panjaitan No. 128, Jakarta Selatan 12340 | Telp: (021) 7888-9900 | Email: baak@itn.ac.id")
+  pinFormat        String  @default("{KODE_PT}-{TAHUN}-{PRODI}-{NO_URUT}")
+  nomorSuratFormat String  @default("{NO}/ITN-BAAK/{BULAN_ROMAWI}/{TAHUN}")
+  nimFormat        String  @default("{ANGKATAN_2DIGIT}{KODE_PRODI_3DIGIT}{NO_URUT_4DIGIT}")
+  doubleBorderKop  Boolean @default(true)
 
-  updatedByUserId       String?
-  updatedByUser         User?     @relation(fields: [updatedByUserId], references: [id], onDelete: SetNull)
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  updatedByUserId String?
+  updatedByUser   User?    @relation(fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@map("landing_page_settings")
 }
 
 model BankGatewaySetting {
-  id            String   @id @default("default-bank-setting")
-  provider      String   @default("MANUAL") // MANUAL, MIDTRANS, XENDIT, dst.
-  environment   String   @default("SANDBOX") // SANDBOX, PRODUCTION
-  isActive      Boolean  @default(false)
-  merchantId    String?
-  apiKey        String?
-  apiSecret     String?
+  id          String  @id @default("default-bank-setting")
+  provider    String  @default("MANUAL") // MANUAL, MIDTRANS, XENDIT, dst.
+  environment String  @default("SANDBOX") // SANDBOX, PRODUCTION
+  isActive    Boolean @default(false)
+  merchantId  String?
+  apiKey      String?
+  apiSecret   String?
 
   updatedByUserId String?
   updatedByUser   User?    @relation(fields: [updatedByUserId], references: [id], onDelete: SetNull)
@@ -778,14 +896,14 @@ model BankGatewaySetting {
 }
 
 model PddiktiSetting {
-  id          String   @id @default("default-pddikti-setting")
-  baseUrl     String?
-  username    String?
-  password    String?
-  secretKey   String?
-  semesterId  String?
-  isActive    Boolean  @default(false)
-  lastSyncAt  DateTime?
+  id         String    @id @default("default-pddikti-setting")
+  baseUrl    String?
+  username   String?
+  password   String?
+  secretKey  String?
+  semesterId String?
+  isActive   Boolean   @default(false)
+  lastSyncAt DateTime?
 
   updatedByUserId String?
   updatedByUser   User?    @relation(fields: [updatedByUserId], references: [id], onDelete: SetNull)
@@ -796,23 +914,23 @@ model PddiktiSetting {
 }
 
 model LandingPageArticle {
-  id          String    @id @default(uuid())
+  id          String   @id @default(uuid())
   title       String
-  slug        String    @unique
-  category    String    @default("Akademik")
-  excerpt     String    @db.Text
-  content     String    @db.Text
+  slug        String   @unique
+  category    String   @default("Akademik")
+  excerpt     String   @db.Text
+  content     String   @db.Text
   imageUrl    String?
   authorId    String?
-  authorName  String    @default("Humas ITN")
-  readTime    String    @default("4 min read")
-  isFeatured  Boolean   @default(false)
-  isPublished Boolean   @default(true)
-  publishedAt DateTime  @default(now())
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  authorName  String   @default("Humas ITN")
+  readTime    String   @default("4 min read")
+  isFeatured  Boolean  @default(false)
+  isPublished Boolean  @default(true)
+  publishedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  author      User?     @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
 
   @@map("landing_page_articles")
 }
@@ -836,7 +954,7 @@ model VisitorLog {
   ip        String?
   userAgent String?
   device    String   @default("Desktop") // "Mobile", "Desktop", "Tablet"
-  referer   String?  @default("Direct")  // "Google", "Instagram", "Direct", "Referral", etc.
+  referer   String?  @default("Direct") // "Google", "Instagram", "Direct", "Referral", etc.
   createdAt DateTime @default(now())
 
   @@index([createdAt])
@@ -873,29 +991,29 @@ model Building {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  rooms           Room[]
+  rooms Room[]
 
   @@map("buildings")
 }
 
 model Room {
-  id              String   @id @default(uuid())
-  code            String   @unique
-  name            String
-  buildingId      String
-  buildingCode    String
-  buildingName    String
-  floor           Int      @default(1)
-  type            String   @default("Kelas Teori")
-  capacity        Int      @default(40)
-  facilities      String[] @default([])
-  status          String   @default("Tersedia")
-  notes           String?  @db.Text
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id           String   @id @default(uuid())
+  code         String   @unique
+  name         String
+  buildingId   String
+  buildingCode String
+  buildingName String
+  floor        Int      @default(1)
+  type         String   @default("Kelas Teori")
+  capacity     Int      @default(40)
+  facilities   String[] @default([])
+  status       String   @default("Tersedia")
+  notes        String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  building        Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
-  courseClasses   CourseClass[]
+  building      Building      @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  courseClasses CourseClass[]
 
   @@map("rooms")
 }
@@ -918,13 +1036,13 @@ model CalendarEvent {
 }
 
 model GradeScaleVersion {
-  id             String       @id @default(uuid())
-  academicYearId String?      // Grup skala ini berlaku untuk tahun akademik/semester yang mana
-  label          String?      // Label tampilan opsional, default dari nama tahun akademik
-  createdAt      DateTime     @default(now())
+  id             String   @id @default(uuid())
+  academicYearId String? // Grup skala ini berlaku untuk tahun akademik/semester yang mana
+  label          String? // Label tampilan opsional, default dari nama tahun akademik
+  createdAt      DateTime @default(now())
 
-  academicYear   AcademicYear? @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
-  scales         GradeScale[]
+  academicYear AcademicYear? @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
+  scales       GradeScale[]
 
   @@map("grade_scale_versions")
 }
@@ -932,15 +1050,15 @@ model GradeScaleVersion {
 model GradeScale {
   id         String   @id @default(uuid())
   versionId  String
-  letter     String   // e.g. "A", "A-", "B+"
-  minScore   Float    // Batas bawah nilai angka (inklusif)
-  maxScore   Float    // Batas atas nilai angka (inklusif)
-  gradePoint Float    // Bobot untuk perhitungan IPK, e.g. 4.0, 3.7
+  letter     String // e.g. "A", "A-", "B+"
+  minScore   Float // Batas bawah nilai angka (inklusif)
+  maxScore   Float // Batas atas nilai angka (inklusif)
+  gradePoint Float // Bobot untuk perhitungan IPK, e.g. 4.0, 3.7
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  version    GradeScaleVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  version GradeScaleVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
 
   @@unique([versionId, letter])
   @@map("grade_scales")
@@ -948,6 +1066,9 @@ model GradeScale {
 
 model Curriculum {
   id             String   @id @default(uuid())
+  // id_kurikulum dari Neo Feeder -- kunci paling stabil untuk mencocokkan ulang data saat
+  // re-sync, sama seperti feederId di Lecturer/Student/Course.
+  feederId       String?  @unique
   code           String   @unique
   name           String
   studyProgram   String
@@ -964,7 +1085,7 @@ model Curriculum {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  courses        Course[]
+  courses Course[]
 
   @@map("curriculums")
 }
@@ -974,28 +1095,28 @@ model Curriculum {
 // ==============================================================================
 
 model Lp3mResearch {
-  id              String   @id @default(uuid())
-  code            String?  @unique
-  type            String   // 'Penelitian' | 'Pengabdian'
-  title           String
-  scheme          String   // e.g. 'Penelitian Fundamental Internal'
-  focusArea       String   // e.g. 'Kecerdasan Buatan & Kesehatan Digital'
-  leader          String
-  nidn            String?
-  faculty         String
-  studyProgram    String?
-  membersCount    Int      @default(1)
-  year            Int      @default(2026)
-  fundingAmount   Float    @default(0)
-  fundingSource   String   @default("DIPA Internal")
-  status          String   @default("Menunggu Verifikasi") // 'Sedang Berjalan' | 'Selesai' | 'Menunggu Verifikasi' | 'Revisi Usulan' | 'Ditolak'
-  targetOutput    String?
-  mitraSasaran    String?
-  reviewerNote    String?  @db.Text
-  documentUrl     String?
-  submittedAt     String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id            String   @id @default(uuid())
+  code          String?  @unique
+  type          String // 'Penelitian' | 'Pengabdian'
+  title         String
+  scheme        String // e.g. 'Penelitian Fundamental Internal'
+  focusArea     String // e.g. 'Kecerdasan Buatan & Kesehatan Digital'
+  leader        String
+  nidn          String?
+  faculty       String
+  studyProgram  String?
+  membersCount  Int      @default(1)
+  year          Int      @default(2026)
+  fundingAmount Float    @default(0)
+  fundingSource String   @default("DIPA Internal")
+  status        String   @default("Menunggu Verifikasi") // Laporan kegiatan selesai: 'Menunggu Verifikasi' | 'Terverifikasi' | 'Perlu Perbaikan'
+  targetOutput  String?
+  mitraSasaran  String?
+  reviewerNote  String?  @db.Text
+  documentUrl   String?
+  submittedAt   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@map("lp3m_researches")
 }
@@ -1004,7 +1125,7 @@ model Lp3mIntellectualProperty {
   id              String   @id @default(uuid())
   regNumber       String   @unique
   title           String
-  type            String   // 'Hak Cipta' | 'Paten Sederhana' | 'Paten Biasa' | 'Desain Industri'
+  type            String // 'Hak Cipta' | 'Paten Sederhana' | 'Paten Biasa' | 'Desain Industri'
   inventor        String
   nidn            String?
   faculty         String
@@ -1023,7 +1144,7 @@ model Lp3mDocument {
   id             String   @id @default(uuid())
   code           String   @unique
   title          String
-  category       String   // 'Panduan & Renstra' | 'Regulasi & SK Rektor' | 'Template Proposal' | 'Instrumen Borang'
+  category       String // 'Panduan & Renstra' | 'Regulasi & SK Rektor' | 'Template Proposal' | 'Instrumen Borang'
   fileType       String   @default("PDF") // 'PDF' | 'DOCX' | 'XLSX' | 'ZIP'
   fileSize       String   @default("1.0 MB")
   version        String   @default("v2026.1")
@@ -1037,6 +1158,62 @@ model Lp3mDocument {
   updatedAt      DateTime @updatedAt
 
   @@map("lp3m_documents")
+}
+
+model QualityStandard {
+  id           String   @id @default(uuid())
+  code         String   @unique // e.g. "STD-01"
+  name         String
+  category     String   @default("Akademik") // 'Akademik' | 'Non-Akademik' | 'Tata Kelola' | 'Penelitian & PkM'
+  description  String?  @db.Text
+  indicator    String?  @db.Text // cara/ukuran mengecek capaian
+  targetValue  String? // e.g. "IPK rata-rata >= 3.25"
+  status       String   @default("Aktif") // 'Aktif' | 'Nonaktif'
+  academicYear String   @default("2026/2027")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("quality_standards")
+}
+
+model QualityAudit {
+  id               String    @id @default(uuid())
+  code             String?   @unique // e.g. "AMI-2026-001"
+  studyProgram     String
+  faculty          String?
+  auditDate        DateTime
+  auditorName      String
+  scope            String?   @db.Text
+  findingsSummary  String?   @db.Text
+  result           String    @default("Sesuai") // 'Sesuai' | 'Temuan Minor' | 'Temuan Mayor'
+  status           String    @default("Terjadwal") // 'Terjadwal' | 'Berlangsung' | 'Selesai'
+  followUpDeadline DateTime?
+  followUpStatus   String    @default("Belum Ditindaklanjuti") // 'Belum Ditindaklanjuti' | 'Dalam Proses' | 'Selesai'
+  notes            String?   @db.Text
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@map("quality_audits")
+}
+
+model QualityDocument {
+  id             String   @id @default(uuid())
+  code           String   @unique
+  title          String
+  category       String // 'Panduan & Renstra' | 'Regulasi & SK Rektor' | 'Template Borang' | 'Instrumen AMI'
+  fileType       String   @default("PDF")
+  fileSize       String   @default("1.0 MB")
+  version        String   @default("v2026.1")
+  academicYear   String   @default("2026/2027")
+  accessLevel    String   @default("Publik") // 'Publik' | 'Dosen & Reviewer' | 'Khusus Tim P2M'
+  description    String?  @db.Text
+  author         String   @default("P2M")
+  fileUrl        String?
+  downloadsCount Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("quality_documents")
 }
 
 enum PaymentStatus {
@@ -1068,9 +1245,136 @@ model PaymentInvoice {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  items          PaymentInvoiceItem[]
+  items PaymentInvoiceItem[]
 
   @@map("payment_invoices")
+}
+
+// ==============================================================================
+// ATURAN TANDA TANGAN DOKUMEN (DYNAMIC DOCUMENT SIGNATORY RULES)
+// Siapa yang menandatangani tiap jenis dokumen resmi (KRS, KHS, surat, dst.) --
+// dikelola dinamis oleh Super Admin, bukan ditulis tetap per halaman dokumen.
+// ==============================================================================
+
+enum SignerRole {
+  DOSEN_PA // Dosen Pembimbing Akademik mahasiswa ybs
+  KAPRODI // Ketua Program Studi mahasiswa ybs (StudyProgram.headOfProgram)
+  DEKAN // Dekan fakultas mahasiswa ybs (Faculty.deanName)
+  WAKIL_REKTOR_AKADEMIK // Wakil Rektor Bidang Akademik (profil institusi)
+  REKTOR // Rektor (profil institusi)
+}
+
+model DocumentSignatureRule {
+  id            String      @id @default(uuid())
+  documentCode  String      @unique // kode bebas: 'KRS', 'KHS', 'SURAT_SKAK', dst.
+  documentLabel String
+  signer1Role   SignerRole  @default(DOSEN_PA)
+  signer1Label  String? // label jabatan kustom; kosong = label baku per peran
+  signer2Role   SignerRole?
+  signer2Label  String?
+  notes         String?     @db.Text
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("document_signature_rules")
+}
+
+// ==============================================================================
+// LAYANAN SURAT MAHASISWA (STUDENT LETTER REQUESTS)
+// ==============================================================================
+
+enum LetterRequestStatus {
+  MENUNGGU_PA // menunggu verifikasi Dosen Pembimbing Akademik
+  DIPROSES_BAAK // disetujui PA (atau tidak perlu PA), sedang diproses BAAK
+  SELESAI // surat sudah terbit, siap diunduh
+  DITOLAK // ditolak PA atau BAAK
+}
+
+model LetterRequest {
+  id                      String              @id @default(uuid())
+  requestNo               String              @unique // nomor tiket pengajuan (dibuat saat submit)
+  letterNo                String? // nomor surat resmi, diisi saat status SELESAI
+  typeCode                String // kode katalog: SKAK, SKP, SIP, SRB, SKBB, SKBP
+  typeName                String // nama lengkap jenis surat (snapshot katalog saat pengajuan)
+  purpose                 String              @db.Text
+  targetInstitution       String
+  targetPerson            String?
+  studentNote             String?             @db.Text
+  requiresAdvisorApproval Boolean             @default(true)
+  status                  LetterRequestStatus @default(MENUNGGU_PA)
+
+  advisorApprovedAt DateTime?
+  advisorNote       String?   @db.Text
+
+  processedAt      DateTime?
+  processedByEmail String?
+  letterBody       String?   @db.Text
+
+  rejectionReason String? @db.Text
+  rejectedBy      String? // 'ADVISOR' | 'BAAK'
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("letter_requests")
+}
+
+// ==============================================================================
+// BIMBINGAN SKRIPSI / TUGAS AKHIR (KKN, KERJA PRAKTIK, DST.)
+// Penetapan pembimbing per mahasiswa oleh Admin Akademik (BAAK) — berbeda dari
+// Dosen Pembimbing Akademik (PA) di Student.advisorLecturerId, dan berbeda dari
+// "Dosen Pengampu" di CourseClass yang mewakili satu kelas untuk banyak mahasiswa.
+// ==============================================================================
+model ThesisSupervision {
+  id             String    @id @default(uuid())
+  studentId      String
+  courseId       String
+  academicYearId String
+  title          String?   @db.Text // judul skripsi/kegiatan, opsional & bisa menyusul
+  supervisor1Id  String?
+  supervisor2Id  String?
+  notes          String?   @db.Text
+  assignedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course       Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  supervisor1  Lecturer?    @relation("ThesisSupervisor1", fields: [supervisor1Id], references: [id], onDelete: SetNull)
+  supervisor2  Lecturer?    @relation("ThesisSupervisor2", fields: [supervisor2Id], references: [id], onDelete: SetNull)
+
+  @@unique([studentId, courseId, academicYearId])
+  @@map("thesis_supervisions")
+}
+
+model FinanceBankAccount {
+  id            String   @id @default(uuid())
+  bankName      String
+  description   String?
+  accountNumber String
+  accountName   String
+  balance       Float    @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("finance_bank_accounts")
+}
+
+model FinanceBudgetItem {
+  id           String   @id @default(uuid())
+  category     String
+  academicYear String   @default("2026/2027")
+  allocated    Float    @default(0)
+  spent        Float    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("finance_budget_items")
 }
 
 // ==============================================================================
@@ -1078,18 +1382,18 @@ model PaymentInvoice {
 // ==============================================================================
 
 model FeeComponent {
-  id            String               @id @default(uuid())
-  code          String               @unique // e.g. "SPP", "SKS", "PRAKTIKUM", "UJIAN", "REGISTRASI", "WISUDA"
-  name          String               // e.g. "SPP / Uang Kuliah Tunggal", "Biaya SKS Perkuliahan"
-  defaultAmount Float                // Tarif dasar standar (Rp)
-  category      String               @default("SEMESTER") // "SEMESTER", "PER_SKS", "SEKALI_BAYAR"
-  description   String?              @db.Text
-  isActive      Boolean              @default(true)
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
+  id            String   @id @default(uuid())
+  code          String   @unique // e.g. "SPP", "SKS", "PRAKTIKUM", "UJIAN", "REGISTRASI", "WISUDA"
+  name          String // e.g. "SPP / Uang Kuliah Tunggal", "Biaya SKS Perkuliahan"
+  defaultAmount Float // Tarif dasar standar (Rp)
+  category      String   @default("SEMESTER") // "SEMESTER", "PER_SKS", "SEKALI_BAYAR"
+  description   String?  @db.Text
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  ruleItems     FeeRuleItem[]
-  invoiceItems  PaymentInvoiceItem[]
+  ruleItems    FeeRuleItem[]
+  invoiceItems PaymentInvoiceItem[]
 
   @@map("fee_components")
 }
@@ -1100,14 +1404,14 @@ enum FeeRuleBillingMode {
 }
 
 model FeeRule {
-  id                 String                     @id @default(uuid())
-  name               String                     // e.g. "Aturan Beasiswa KIP-Kuliah"
-  code               String                     @unique // e.g. "RULE_KIP"
-  description        String?                    @db.Text
-  priority           Int                        @default(10) // Prioritas: angka makin besar makin prioritas
-  academicYear       String?                    // null = berlaku untuk semua tahun akademik
-  billingMode        FeeRuleBillingMode         @default(UKT) // UKT = flat per semester, PER_SKS = tarif x SKS diambil
-  isActive           Boolean                    @default(true)
+  id           String             @id @default(uuid())
+  name         String // e.g. "Aturan Beasiswa KIP-Kuliah"
+  code         String             @unique // e.g. "RULE_KIP"
+  description  String?            @db.Text
+  priority     Int                @default(10) // Prioritas: angka makin besar makin prioritas
+  academicYear String? // null = berlaku untuk semua tahun akademik
+  billingMode  FeeRuleBillingMode @default(UKT) // UKT = flat per semester, PER_SKS = tarif x SKS diambil
+  isActive     Boolean            @default(true)
 
   // Kondisi opsional pencocokan rule
   registrationTypeId String?
@@ -1116,74 +1420,72 @@ model FeeRule {
   studyProgramId     String?
   waveId             String?
 
-  registrationType   AdmissionRegistrationType? @relation(fields: [registrationTypeId], references: [id], onDelete: SetNull)
-  track              AdmissionTrack?            @relation(fields: [trackId], references: [id], onDelete: SetNull)
-  admissionClass     AdmissionClass?            @relation(fields: [classId], references: [id], onDelete: SetNull)
-  studyProgram       StudyProgram?              @relation(fields: [studyProgramId], references: [id], onDelete: SetNull)
-  wave               AdmissionBatch?            @relation(fields: [waveId], references: [id], onDelete: SetNull)
+  registrationType AdmissionRegistrationType? @relation(fields: [registrationTypeId], references: [id], onDelete: SetNull)
+  track            AdmissionTrack?            @relation(fields: [trackId], references: [id], onDelete: SetNull)
+  admissionClass   AdmissionClass?            @relation(fields: [classId], references: [id], onDelete: SetNull)
+  studyProgram     StudyProgram?              @relation(fields: [studyProgramId], references: [id], onDelete: SetNull)
+  wave             AdmissionBatch?            @relation(fields: [waveId], references: [id], onDelete: SetNull)
 
-  ruleItems          FeeRuleItem[]
-  assignments        StudentFeeAssignment[]
-  createdAt          DateTime                   @default(now())
-  updatedAt          DateTime                   @updatedAt
+  ruleItems   FeeRuleItem[]
+  assignments StudentFeeAssignment[]
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
 
   @@map("fee_rules")
 }
 
 model FeeRuleItem {
-  id             String       @id @default(uuid())
+  id             String   @id @default(uuid())
   feeRuleId      String
   feeComponentId String
-  actionType     String       @default("NORMAL") // "NORMAL", "BEBAS", "DISKON_PERSENTASE", "DISKON_NOMINAL", "TARIF_KHUSUS"
-  amountValue    Float?       // Nilai diskon persen / diskon nominal / tarif khusus
-  notes          String?      @db.Text
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  actionType     String   @default("NORMAL") // "NORMAL", "BEBAS", "DISKON_PERSENTASE", "DISKON_NOMINAL", "TARIF_KHUSUS"
+  amountValue    Float? // Nilai diskon persen / diskon nominal / tarif khusus
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  feeRule        FeeRule      @relation(fields: [feeRuleId], references: [id], onDelete: Cascade)
-  feeComponent   FeeComponent @relation(fields: [feeComponentId], references: [id], onDelete: Restrict)
+  feeRule      FeeRule      @relation(fields: [feeRuleId], references: [id], onDelete: Cascade)
+  feeComponent FeeComponent @relation(fields: [feeComponentId], references: [id], onDelete: Restrict)
 
   @@unique([feeRuleId, feeComponentId])
   @@map("fee_rule_items")
 }
 
 model StudentFeeAssignment {
-  id           String    @id @default(uuid())
+  id           String   @id @default(uuid())
   studentId    String
   feeRuleId    String?
-  academicYear String    // e.g. "2026/2027"
-  schemeName   String    // e.g. "Skema Beasiswa KIP-Kuliah", "Skema Reguler Mandiri"
-  snapshotData Json      // Snapshot rincian aturan & komponen saat penetapan dilakukan
-  notes        String?   @db.Text
-  assignedAt   DateTime  @default(now())
-  assignedBy   String?   @default("SISTEM_PMB")
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  academicYear String // e.g. "2026/2027"
+  schemeName   String // e.g. "Skema Beasiswa KIP-Kuliah", "Skema Reguler Mandiri"
+  snapshotData Json // Snapshot rincian aturan & komponen saat penetapan dilakukan
+  notes        String?  @db.Text
+  assignedAt   DateTime @default(now())
+  assignedBy   String?  @default("SISTEM_PMB")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  student      Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  feeRule      FeeRule?  @relation(fields: [feeRuleId], references: [id], onDelete: SetNull)
+  student Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  feeRule FeeRule? @relation(fields: [feeRuleId], references: [id], onDelete: SetNull)
 
   @@index([studentId, academicYear])
   @@map("student_fee_assignments")
 }
 
 model PaymentInvoiceItem {
-  id             String         @id @default(uuid())
+  id             String   @id @default(uuid())
   invoiceId      String
   feeComponentId String?
   componentName  String
   baseAmount     Float
-  actionType     String         @default("NORMAL") // "NORMAL", "BEBAS", "DISKON_PERSENTASE", "DISKON_NOMINAL", "TARIF_KHUSUS"
+  actionType     String   @default("NORMAL") // "NORMAL", "BEBAS", "DISKON_PERSENTASE", "DISKON_NOMINAL", "TARIF_KHUSUS"
   actionValue    Float?
-  discountAmount Float          @default(0)
+  discountAmount Float    @default(0)
   finalAmount    Float
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  invoice        PaymentInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  feeComponent   FeeComponent?  @relation(fields: [feeComponentId], references: [id], onDelete: SetNull)
+  invoice      PaymentInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  feeComponent FeeComponent?  @relation(fields: [feeComponentId], references: [id], onDelete: SetNull)
 
   @@map("payment_invoice_items")
 }
-
-

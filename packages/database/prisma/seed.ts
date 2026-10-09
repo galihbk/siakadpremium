@@ -12,7 +12,6 @@ async function main() {
     create: {
       code: 'FT',
       name: 'Fakultas Teknik',
-      deanName: 'Prof. Dr. Ir. Hendra Gunawan, M.Eng.',
       description:
         'Fakultas yang berfokus pada inovasi keinsinyuran dan rekayasa teknologi infrastruktur.',
     },
@@ -24,7 +23,6 @@ async function main() {
     create: {
       code: 'FIK',
       name: 'Fakultas Ilmu Komputer',
-      deanName: 'Dr. Eng. Satria Pratama, S.Kom., M.T.',
       description: 'Pusat keunggulan sains komputer, kecerdasan buatan, dan keamanan siber.',
     },
   });
@@ -35,12 +33,13 @@ async function main() {
     create: {
       code: 'FEB',
       name: 'Fakultas Ekonomi & Bisnis',
-      deanName: 'Dr. Nurul Hidayati, S.E., M.M., Ak.',
       description: 'Mencetak pemimpin bisnis, akuntan profesional, dan entrepreneur digital.',
     },
   });
 
   // 2. Seed Program Studi
+  // CATATAN: Dekan/Kaprodi tidak lagi diisi di sini -- keduanya diturunkan dari
+  // Lecturer.structuralPosition (lihat seed_app_data.ts untuk assignment-nya).
   const prodiTif = await prisma.studyProgram.upsert({
     where: { code: 'TIF-S1' },
     update: {},
@@ -50,7 +49,6 @@ async function main() {
       name: 'Teknik Informatika',
       degreeLevel: DegreeLevel.S1,
       accreditation: 'Unggul',
-      headOfProgram: 'Dr. Bayu Wicaksono, M.Kom.',
     },
   });
 
@@ -63,7 +61,6 @@ async function main() {
       name: 'Sistem Informasi',
       degreeLevel: DegreeLevel.S1,
       accreditation: 'Unggul',
-      headOfProgram: 'Ir. Anita Rahmawati, M.T.',
     },
   });
 
@@ -76,7 +73,6 @@ async function main() {
       name: 'Teknik Mesin',
       degreeLevel: DegreeLevel.S1,
       accreditation: 'Unggul',
-      headOfProgram: 'Dr. Ir. Budi Hartono, M.T.',
     },
   });
 

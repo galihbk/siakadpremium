@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { Modal } from '@/components/ui/Modal';
 import { CompressedFileUpload } from '@/components/common/CompressedFileUpload';
+import { copyToClipboard } from '@/lib/clipboard';
 import {
   Building2,
   Landmark,
@@ -178,8 +179,8 @@ export default function SuperAdminProfilInstitusiPage() {
     loadFromDatabase();
   }, []);
 
-  const handleCopy = (text: string, fieldName: string) => {
-    navigator.clipboard.writeText(text);
+  const handleCopy = async (text: string, fieldName: string) => {
+    await copyToClipboard(text);
     setCopiedField(fieldName);
     showToast(`${fieldName} disalin ke clipboard!`);
     setTimeout(() => setCopiedField(null), 2000);

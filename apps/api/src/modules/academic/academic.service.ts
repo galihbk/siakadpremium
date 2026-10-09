@@ -10,12 +10,37 @@ function semesterTypeFromLabel(label: string): 'ODD' | 'EVEN' | 'SHORT' {
   return label === 'Genap' ? 'EVEN' : label === 'Pendek' ? 'SHORT' : 'ODD';
 }
 
+/**
+ * Status buka/tutup KRS: tahun akademik yang BUKAN aktif SELALU tertutup, berapapun
+ * jendela tanggalnya -- KRS semester lama tidak boleh diajukan/diubah lagi lewat jalur
+ * normal. Untuk tahun aktif, dihitung dari jendela tanggal (`krsStartDate`/`krsEndDate`);
+ * kalau salah satu/keduanya belum diisi, dianggap selalu terbuka (fitur ini opt-in,
+ * sama seperti jendela tanggal input nilai).
+ */
+export function computeIsKrsOpen(year: { isActive: boolean; krsStartDate: Date | null; krsEndDate: Date | null }): boolean {
+  if (!year.isActive) return false;
+  if (!year.krsStartDate || !year.krsEndDate) return true;
+  const now = new Date();
+  return now >= year.krsStartDate && now <= year.krsEndDate;
+}
+
 @Injectable()
 export class AcademicService {
   constructor(private prisma: PrismaService) {}
 
   async getAdminDashboardSummary(): Promise<AdminDashboardSummary> {
-    const [totalProdi, totalDosenDb, totalMhsDb, faculties, activeYear, mahasiswaBaruTerdaftar] = await Promise.all([
+    const [
+      totalProdi,
+      totalDosenDb,
+      totalMhsDb,
+      faculties,
+      activeYear,
+      mahasiswaBaruTerdaftar,
+      studentsByProdiRaw,
+      statusGroups,
+      genderGroups,
+      entryYearGroups,
+    ] = await Promise.all([
       this.prisma.studyProgram.count(),
       this.prisma.lecturer.count(),
       this.prisma.student.count(),
@@ -29,6 +54,13 @@ export class AcademicService {
       }),
       this.prisma.academicYear.findFirst({ where: { isActive: true } }),
       this.prisma.admissionApplication.count({ where: { formStatus: 'SUBMITTED' } }),
+      this.prisma.studyProgram.findMany({
+        select: { name: true, _count: { select: { students: true } } },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.student.groupBy({ by: ['status'], _count: { _all: true } }),
+      this.prisma.student.groupBy({ by: ['gender'], _count: { _all: true } }),
+      this.prisma.student.groupBy({ by: ['entryYear'], _count: { _all: true }, orderBy: { entryYear: 'desc' }, take: 6 }),
     ]);
 
     let persentaseRegistrasiKRS = 0;
@@ -59,6 +91,15 @@ export class AcademicService {
       };
     });
 
+    const statusLabels: Record<string, string> = {
+      ACTIVE: 'Aktif',
+      LEAVE: 'Cuti',
+      GRADUATED: 'Lulus',
+      DROPOUT: 'DO',
+      TRANSFERRED: 'Pindah',
+    };
+    const genderLabels: Record<string, string> = { MALE: 'Laki-laki', FEMALE: 'Perempuan' };
+
     return {
       totalMahasiswaAktif: totalMhsDb,
       totalDosen: totalDosenDb,
@@ -67,6 +108,17 @@ export class AcademicService {
       persentaseRegistrasiKRS,
       mahasiswaBaruTerdaftar,
       facultyList,
+      studentsByProdi: studentsByProdiRaw
+        .map((p) => ({ name: p.name, count: p._count.students }))
+        .filter((p) => p.count > 0)
+        .sort((a, b) => b.count - a.count),
+      studentStatusBreakdown: statusGroups
+        .map((g) => ({ status: statusLabels[g.status] || g.status, count: g._count._all }))
+        .sort((a, b) => b.count - a.count),
+      studentGenderBreakdown: genderGroups.map((g) => ({ label: genderLabels[g.gender] || g.gender, count: g._count._all })),
+      studentsByEntryYear: entryYearGroups
+        .map((g) => ({ year: g.entryYear, count: g._count._all }))
+        .sort((a, b) => a.year - b.year),
     };
   }
 
@@ -97,7 +149,10 @@ export class AcademicService {
       }),
       this.prisma.academicYear.findFirst({ where: { isActive: true } }),
       this.prisma.faculty.findMany({
-        include: { studyPrograms: true },
+        include: {
+          studyPrograms: true,
+          deanLecturers: { include: { user: { select: { fullName: true } } } },
+        },
         orderBy: { code: 'asc' },
       }),
       this.prisma.systemAuditLog.findMany({
@@ -107,13 +162,19 @@ export class AcademicService {
       this.prisma.courseEnrollment.count(),
     ]);
 
-    const prodis = await this.prisma.studyProgram.findMany();
-    const aggregateStudents = prodis.reduce((acc, p) => acc + (p.studentsCount || 0), 0);
-    const aggregateLecturers = prodis.reduce((acc, p) => acc + (p.lecturersCount || 0), 0);
+    // Jumlah mahasiswa/dosen per prodi dihitung LANGSUNG dari tabel Student/Lecturer
+    // (bukan dari kolom cache StudyProgram.studentsCount/lecturersCount yang berisi
+    // angka seed lama dan tidak otomatis mengikuti data sungguhan).
+    const [studentGroups, lecturerGroups] = await Promise.all([
+      this.prisma.student.groupBy({ by: ['studyProgramId'], _count: { _all: true } }),
+      this.prisma.lecturer.groupBy({ by: ['studyProgramId'], _count: { _all: true } }),
+    ]);
+    const studentCountByProdi = new Map(studentGroups.map((g) => [g.studyProgramId, g._count._all]));
+    const lecturerCountByProdi = new Map(lecturerGroups.map((g) => [g.studyProgramId, g._count._all]));
 
-    const totalMahasiswa = aggregateStudents > 0 ? aggregateStudents : (totalMhsDb || 8540);
-    const totalDosen = aggregateLecturers > 0 ? aggregateLecturers : (totalDosenDb || 324);
-    const totalPegawai = totalPegawaiDb > 0 ? totalPegawaiDb : 142;
+    const totalMahasiswa = totalMhsDb;
+    const totalDosen = totalDosenDb;
+    const totalPegawai = totalPegawaiDb;
 
     const semesterName = activeSem ? `${activeSem.name} ${semesterTypeLabel(activeSem.semesterType)}` : '2026/2027 Gasal';
 
@@ -151,7 +212,7 @@ export class AcademicService {
       },
       {
         title: 'Total Pegawai',
-        value: '142',
+        value: String(totalPegawai),
         subtitle: 'Staf & Tenaga Kependidikan',
         rawCount: totalPegawai,
       },
@@ -167,15 +228,19 @@ export class AcademicService {
     // Real faculties list from database
     const facultyList = cleanFaculties.map((f) => {
       const prodisCount = f.studyPrograms.length;
-      const studentsSum = f.studyPrograms.reduce((acc, p) => acc + (p.studentsCount || 0), 0);
-      const lecturersSum = f.studyPrograms.reduce((acc, p) => acc + (p.lecturersCount || 0), 0);
+      const studentsSum = f.studyPrograms.reduce((acc, p) => acc + (studentCountByProdi.get(p.id) || 0), 0);
+      const lecturersSum = f.studyPrograms.reduce((acc, p) => acc + (lecturerCountByProdi.get(p.id) || 0), 0);
       const isUnggul = f.studyPrograms.some((p) => p.accreditation?.toLowerCase().includes('unggul'));
+      const dean = f.deanLecturers[0];
+      const deanName = dean
+        ? `${dean.titlePrefix ? dean.titlePrefix + ' ' : ''}${dean.user.fullName}${dean.titleSuffix ? ', ' + dean.titleSuffix : ''}`
+        : null;
 
       return {
         id: f.id,
         name: f.name,
         code: f.code,
-        dean: f.deanName || 'Dekan Fakultas',
+        dean: deanName || 'Belum ada Dekan',
         studyProgramsCount: prodisCount,
         studentsCount: studentsSum,
         lecturersCount: lecturersSum,
@@ -328,6 +393,15 @@ export class AcademicService {
       ? Number(((notFilledCount / totalMahasiswa) * 100).toFixed(1))
       : 100;
 
+    // Rata-rata IPK kampus dihitung nyata dari nilai (gradePoint) yang sudah diinput, bukan angka tetap.
+    const gradedEnrollments = await this.prisma.courseEnrollment.findMany({
+      where: { gradePoint: { not: null } },
+      select: { gradePoint: true },
+    });
+    const avgGpa = gradedEnrollments.length > 0
+      ? Number((gradedEnrollments.reduce((acc, e) => acc + (e.gradePoint || 0), 0) / gradedEnrollments.length).toFixed(2))
+      : 0;
+
     return {
       summaryCards,
       faculties: facultyList,
@@ -343,6 +417,7 @@ export class AcademicService {
         notFilledPercentage,
         activeCourses: activeCoursesCount,
         activeRooms: totalRoomsCount,
+        avgGpa,
       },
     };
   }
@@ -373,13 +448,16 @@ export class AcademicService {
   }
 
   // ================= COURSES (MATA KULIAH) =================
-  async getCourses(filters?: { semester?: number; type?: string }) {
+  async getCourses(filters?: { semester?: number; type?: string; studyProgramId?: string }) {
     const where: any = {};
     if (filters?.semester) {
       where.semester = Number(filters.semester);
     }
     if (filters?.type && filters.type !== 'Semua') {
       where.type = filters.type;
+    }
+    if (filters?.studyProgramId) {
+      where.studyProgramId = filters.studyProgramId;
     }
 
     const list = await this.prisma.course.findMany({
@@ -393,6 +471,7 @@ export class AcademicService {
       code: c.code,
       name: c.name,
       studyProgram: c.studyProgramName || 'Seluruh Program Studi',
+      studyProgramId: c.studyProgramId,
       facultyCode: c.facultyCode || 'UNIVERSITAS',
       sksTeori: c.sksTeori,
       sksPraktik: c.sksPraktik,
@@ -400,6 +479,8 @@ export class AcademicService {
       sks: c.sks,
       semester: c.semester,
       type: c.type as any,
+      requiresThesisSupervision: c.requiresThesisSupervision,
+      finalProjectLabel: c.finalProjectLabel || '',
       coordinator: c.coordinator || '',
       status: (c.status as any) || 'Aktif',
       description: c.description || '',
@@ -421,12 +502,14 @@ export class AcademicService {
     const sksTeori = Number(data.sksTeori) || 0;
     const sksPraktik = Number(data.sksPraktik) || 0;
     const totalSks = Number(data.totalSks) || sksTeori + sksPraktik || 2;
+    const finalProjectLabel = data.finalProjectLabel?.trim() || null;
 
     return this.prisma.course.create({
       data: {
         code: data.code.trim().toUpperCase(),
         name: data.name.trim(),
         studyProgramName: data.studyProgram?.trim() || null,
+        studyProgramId: data.studyProgramId || null,
         facultyCode: data.facultyCode?.trim() || 'UNIVERSITAS',
         curriculumId: data.curriculumId || null,
         sksTeori,
@@ -435,6 +518,10 @@ export class AcademicService {
         sks: totalSks,
         semester: Number(data.semester) || 1,
         type: data.type || 'Wajib Prodi',
+        // Label kategori (Skripsi/TA, KKN, dst.) adalah sumber kebenaran -- kalau diisi,
+        // mata kuliahnya otomatis masuk kategori tugas akhir/lapangan.
+        requiresThesisSupervision: finalProjectLabel ? true : Boolean(data.requiresThesisSupervision),
+        finalProjectLabel,
         coordinator: data.coordinator?.trim() || null,
         status: data.status || 'Aktif',
         description: data.description?.trim() || null,
@@ -446,6 +533,7 @@ export class AcademicService {
     const sksTeori = data.sksTeori !== undefined ? Number(data.sksTeori) : undefined;
     const sksPraktik = data.sksPraktik !== undefined ? Number(data.sksPraktik) : undefined;
     const totalSks = data.totalSks !== undefined ? Number(data.totalSks) : undefined;
+    const finalProjectLabel = data.finalProjectLabel !== undefined ? (data.finalProjectLabel?.trim() || null) : undefined;
 
     return this.prisma.course.update({
       where: { id },
@@ -453,6 +541,7 @@ export class AcademicService {
         code: data.code !== undefined ? data.code.trim().toUpperCase() : undefined,
         name: data.name !== undefined ? data.name.trim() : undefined,
         studyProgramName: data.studyProgram !== undefined ? data.studyProgram.trim() : undefined,
+        studyProgramId: data.studyProgramId !== undefined ? (data.studyProgramId || null) : undefined,
         facultyCode: data.facultyCode !== undefined ? data.facultyCode.trim() : undefined,
         curriculumId: data.curriculumId !== undefined ? (data.curriculumId || null) : undefined,
         sksTeori,
@@ -461,6 +550,13 @@ export class AcademicService {
         sks: totalSks,
         semester: data.semester !== undefined ? Number(data.semester) : undefined,
         type: data.type !== undefined ? data.type : undefined,
+        requiresThesisSupervision:
+          finalProjectLabel !== undefined
+            ? Boolean(finalProjectLabel)
+            : data.requiresThesisSupervision !== undefined
+              ? Boolean(data.requiresThesisSupervision)
+              : undefined,
+        finalProjectLabel,
         coordinator: data.coordinator !== undefined ? data.coordinator.trim() : undefined,
         status: data.status !== undefined ? data.status : undefined,
         description: data.description !== undefined ? data.description.trim() : undefined,
@@ -469,7 +565,16 @@ export class AcademicService {
   }
 
   async deleteCourse(id: string) {
-    await this.prisma.course.delete({ where: { id } });
+    try {
+      await this.prisma.course.delete({ where: { id } });
+    } catch (err: any) {
+      if (err?.code === 'P2003' || err?.code === 'P2014') {
+        throw new BadRequestException(
+          'Mata kuliah ini tidak dapat dihapus karena masih memiliki data KRS mahasiswa yang terkait. Hapus/pindahkan data terkait terlebih dahulu, atau ubah statusnya menjadi Nonaktif.',
+        );
+      }
+      throw err;
+    }
     return { success: true, message: 'Mata kuliah berhasil dihapus' };
   }
 
@@ -579,12 +684,14 @@ export class AcademicService {
       endDate: y.endDate,
       krsStartDate: y.krsStartDate,
       krsEndDate: y.krsEndDate,
-      isKrsOpen: y.isKrsOpen,
+      isKrsOpen: computeIsKrsOpen(y),
       pmbStartDate: y.pmbStartDate,
       pmbEndDate: y.pmbEndDate,
       skRektor: y.skRektor || '',
       gradeDeadline: y.gradeDeadline || '',
-      isGradeLocked: y.isGradeLocked,
+      gradeInputStartDate: y.gradeInputStartDate,
+      gradeInputEndDate: y.gradeInputEndDate,
+      isGradeLocked: this.computeIsGradeLocked(y),
       totalCoursesOffered,
       totalCreditsOffered,
       studentsCount: studentsEnrolled.length,
@@ -631,6 +738,8 @@ export class AcademicService {
         pmbEndDate: data.pmbEndDate ? new Date(data.pmbEndDate) : null,
         skRektor: data.skRektor?.trim() || null,
         gradeDeadline: data.gradeDeadline?.trim() || null,
+        gradeInputStartDate: data.gradeInputStartDate ? new Date(data.gradeInputStartDate) : null,
+        gradeInputEndDate: data.gradeInputEndDate ? new Date(data.gradeInputEndDate) : null,
         isGradeLocked: data.isGradeLocked !== undefined ? Boolean(data.isGradeLocked) : true,
         isActive: Boolean(data.isActive),
         status: data.status || 'Aktif',
@@ -650,6 +759,7 @@ export class AcademicService {
     return this.prisma.academicYear.update({
       where: { id },
       data: {
+        isActive: data.isActive !== undefined ? Boolean(data.isActive) : undefined,
         code: data.code !== undefined ? data.code.trim() : undefined,
         name: data.name !== undefined ? data.name.trim() : undefined,
         semesterType: data.semesterType !== undefined ? semesterTypeFromLabel(data.semesterType) : undefined,
@@ -662,6 +772,10 @@ export class AcademicService {
         pmbEndDate: data.pmbEndDate !== undefined ? (data.pmbEndDate ? new Date(data.pmbEndDate) : null) : undefined,
         skRektor: data.skRektor !== undefined ? data.skRektor.trim() : undefined,
         gradeDeadline: data.gradeDeadline !== undefined ? data.gradeDeadline.trim() : undefined,
+        gradeInputStartDate:
+          data.gradeInputStartDate !== undefined ? (data.gradeInputStartDate ? new Date(data.gradeInputStartDate) : null) : undefined,
+        gradeInputEndDate:
+          data.gradeInputEndDate !== undefined ? (data.gradeInputEndDate ? new Date(data.gradeInputEndDate) : null) : undefined,
         isGradeLocked: data.isGradeLocked !== undefined ? Boolean(data.isGradeLocked) : undefined,
         status: data.status !== undefined ? data.status : undefined,
         notes: data.notes !== undefined ? data.notes.trim() : undefined,
@@ -765,10 +879,11 @@ export class AcademicService {
       courseName: cc.course?.name || '',
       sks: cc.course?.sks || cc.course?.totalSks || 3,
       className: cc.className,
-      day: cc.day,
-      startTime: cc.startTime,
-      endTime: cc.endTime,
-      timeSlot: `${cc.startTime} - ${cc.endTime} WIB`,
+      isFlexibleSchedule: cc.isFlexibleSchedule,
+      day: cc.isFlexibleSchedule ? null : cc.day,
+      startTime: cc.isFlexibleSchedule ? null : cc.startTime,
+      endTime: cc.isFlexibleSchedule ? null : cc.endTime,
+      timeSlot: cc.isFlexibleSchedule ? 'Tanpa Jadwal Tetap (Bimbingan Mandiri)' : `${cc.startTime} - ${cc.endTime} WIB`,
       roomId: cc.roomId,
       roomCode: cc.room?.code || '-',
       roomName: cc.room?.name || '-',
@@ -780,6 +895,7 @@ export class AcademicService {
       studyProgramName: cc.course?.studyProgramName || null,
       facultyCode: cc.course?.facultyCode || 'UNIVERSITAS',
       semester: cc.course?.semester || 1,
+      academicYearId: cc.academicYearId || null,
       academicYear: cc.academicYear?.name || '',
       quota: cc.quota,
       enrolledCount: cc._count?.enrollments || 0,
@@ -787,7 +903,7 @@ export class AcademicService {
     };
   }
 
-  async getSchedules(query?: { prodiId?: string; day?: string; lecturerId?: string; semester?: number }) {
+  async getSchedules(query?: { prodiId?: string; day?: string; lecturerId?: string; semester?: number; academicYearId?: string }) {
     const where: any = {};
     if (query?.day && query.day !== 'Semua') {
       where.day = { equals: query.day, mode: 'insensitive' };
@@ -800,6 +916,9 @@ export class AcademicService {
     }
     if (query?.semester) {
       where.course = { ...(where.course || {}), semester: Number(query.semester) };
+    }
+    if (query?.academicYearId && query.academicYearId !== 'Semua') {
+      where.academicYearId = query.academicYearId;
     }
 
     const rows = await this.prisma.courseClass.findMany({
@@ -818,21 +937,105 @@ export class AcademicService {
     return course;
   }
 
+  // Neo Feeder hanya menerima nama kelas kuliah maksimal 5 karakter.
+  private static readonly CLASS_NAME_MAX_LENGTH = 5;
+
+  private normalizeClassName(raw: unknown): string {
+    const name = String(raw ?? '').trim();
+    if (!name) throw new BadRequestException('Nama kelas wajib diisi.');
+    if (name.length > AcademicService.CLASS_NAME_MAX_LENGTH) {
+      throw new BadRequestException(
+        `Nama kelas maksimal ${AcademicService.CLASS_NAME_MAX_LENGTH} karakter (batas Neo Feeder). Contoh: "A", "5A", "REG-A".`,
+      );
+    }
+    return name;
+  }
+
+  private toMinutes(hhmm: string): number {
+    const [h, m] = hhmm.split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  }
+
+  /** Cek jadwal kelas bentrok ruang atau dosen pada hari & jam yang beririsan. */
+  private async assertNoScheduleConflict(params: {
+    academicYearId: string;
+    day: string;
+    startTime: string;
+    endTime: string;
+    roomId?: string | null;
+    lecturerId?: string | null;
+    excludeClassId?: string;
+  }) {
+    const { academicYearId, day, startTime, endTime, roomId, lecturerId, excludeClassId } = params;
+    const newStart = this.toMinutes(startTime);
+    const newEnd = this.toMinutes(endTime);
+    if (newEnd <= newStart) {
+      throw new BadRequestException('Jam selesai harus setelah jam mulai.');
+    }
+
+    const orFilters: any[] = [];
+    if (roomId) orFilters.push({ roomId });
+    if (lecturerId) orFilters.push({ lecturerId });
+    if (orFilters.length === 0) return;
+
+    const candidates = await this.prisma.courseClass.findMany({
+      where: {
+        academicYearId,
+        day: { equals: day, mode: 'insensitive' },
+        id: excludeClassId ? { not: excludeClassId } : undefined,
+        OR: orFilters,
+      },
+      include: { course: true, lecturer: { include: { user: true } } },
+    });
+
+    for (const c of candidates) {
+      const overlaps = this.toMinutes(c.startTime) < newEnd && newStart < this.toMinutes(c.endTime);
+      if (!overlaps) continue;
+
+      if (roomId && c.roomId === roomId) {
+        throw new BadRequestException(
+          `Ruang bentrok: sudah dipakai kelas ${c.className} (${c.course.code}) pada ${c.day} ${c.startTime}-${c.endTime}.`,
+        );
+      }
+      if (lecturerId && c.lecturerId === lecturerId) {
+        throw new BadRequestException(
+          `Dosen bentrok: ${c.lecturer?.user?.fullName || 'dosen ini'} sudah mengajar kelas ${c.className} (${c.course.code}) pada ${c.day} ${c.startTime}-${c.endTime}.`,
+        );
+      }
+    }
+  }
+
   async createSchedule(data: any) {
     const course = await this.resolveCourseByCodeOrId(data.courseCode || data.courseId);
     const activeYear = await this.prisma.academicYear.findFirst({ where: { isActive: true } });
     if (!activeYear) throw new NotFoundException('Tidak ada tahun akademik aktif saat ini.');
 
+    // Mata kuliah tanpa jadwal & ruang tetap (Skripsi/TA, KKN, Kerja Praktik, dst.):
+    // tidak ada hari/jam/ruang yang bisa bentrok, jadi dilewati dari validasi jadwal.
+    // Kalau mata kuliahnya sudah ditandai "requiresThesisSupervision" di Master Mata Kuliah,
+    // kelasnya otomatis fleksibel — BAAK tidak perlu mencentang manual tiap kali.
+    const isFlexibleSchedule = Boolean(data.isFlexibleSchedule) || course.requiresThesisSupervision;
+    const day = isFlexibleSchedule ? 'Fleksibel' : data.day || 'Senin';
+    const startTime = isFlexibleSchedule ? '-' : data.startTime || '08:00';
+    const endTime = isFlexibleSchedule ? '-' : data.endTime || '10:30';
+    const roomId = isFlexibleSchedule ? null : data.roomId || null;
+    const lecturerId = data.lecturerId || null;
+
+    if (!isFlexibleSchedule) {
+      await this.assertNoScheduleConflict({ academicYearId: activeYear.id, day, startTime, endTime, roomId, lecturerId });
+    }
+
     const created = await this.prisma.courseClass.create({
       data: {
         courseId: course.id,
         academicYearId: activeYear.id,
-        className: data.className || 'Kelas A',
-        day: data.day || 'Senin',
-        startTime: data.startTime || '08:00',
-        endTime: data.endTime || '10:30',
-        roomId: data.roomId || null,
-        lecturerId: data.lecturerId || null,
+        className: this.normalizeClassName(data.className || 'A'),
+        isFlexibleSchedule,
+        day,
+        startTime,
+        endTime,
+        roomId,
+        lecturerId,
         quota: Number(data.quota) || 40,
         status: 'Berjalan',
       },
@@ -847,21 +1050,44 @@ export class AcademicService {
     if (!existing) throw new NotFoundException(`Jadwal kuliah dengan ID "${id}" tidak ditemukan.`);
 
     let courseId: string | undefined;
+    let course = await this.prisma.course.findUnique({ where: { id: existing.courseId } });
     if (data.courseCode || data.courseId) {
-      const course = await this.resolveCourseByCodeOrId(data.courseCode || data.courseId);
+      course = await this.resolveCourseByCodeOrId(data.courseCode || data.courseId);
       courseId = course.id;
+    }
+
+    const isFlexibleSchedule =
+      (data.isFlexibleSchedule !== undefined ? Boolean(data.isFlexibleSchedule) : existing.isFlexibleSchedule) ||
+      Boolean(course?.requiresThesisSupervision);
+    const day = isFlexibleSchedule ? 'Fleksibel' : data.day !== undefined ? data.day : existing.day;
+    const startTime = isFlexibleSchedule ? '-' : data.startTime !== undefined ? data.startTime : existing.startTime;
+    const endTime = isFlexibleSchedule ? '-' : data.endTime !== undefined ? data.endTime : existing.endTime;
+    const roomId = isFlexibleSchedule ? null : data.roomId !== undefined ? data.roomId || null : existing.roomId;
+    const lecturerId = data.lecturerId !== undefined ? data.lecturerId || null : existing.lecturerId;
+
+    if (!isFlexibleSchedule) {
+      await this.assertNoScheduleConflict({
+        academicYearId: existing.academicYearId,
+        day,
+        startTime,
+        endTime,
+        roomId,
+        lecturerId,
+        excludeClassId: id,
+      });
     }
 
     const updated = await this.prisma.courseClass.update({
       where: { id },
       data: {
         courseId,
-        className: data.className !== undefined ? data.className : undefined,
-        day: data.day !== undefined ? data.day : undefined,
-        startTime: data.startTime !== undefined ? data.startTime : undefined,
-        endTime: data.endTime !== undefined ? data.endTime : undefined,
-        roomId: data.roomId !== undefined ? data.roomId || null : undefined,
-        lecturerId: data.lecturerId !== undefined ? data.lecturerId || null : undefined,
+        className: data.className !== undefined ? this.normalizeClassName(data.className) : undefined,
+        isFlexibleSchedule,
+        day,
+        startTime,
+        endTime,
+        roomId,
+        lecturerId,
         quota: data.quota !== undefined ? Number(data.quota) : undefined,
         status: data.status !== undefined ? data.status : undefined,
       },
@@ -934,17 +1160,16 @@ export class AcademicService {
   // di CourseEnrollment saat itu, bukan dihitung ulang secara live dari skala saat ini.
   private async getActiveGradeScaleGroup() {
     const activeYear = await this.prisma.academicYear.findFirst({ where: { isActive: true } });
-    if (activeYear) {
-      const linked = await this.prisma.gradeScaleVersion.findFirst({
-        where: { academicYearId: activeYear.id },
-        orderBy: { createdAt: 'desc' },
-        include: { scales: { orderBy: { minScore: 'desc' } } },
-      });
-      if (linked) return linked;
-    }
-    // Belum ada grup yang terhubung ke tahun akademik aktif -- pakai grup manapun yang paling
-    // baru dibuat (mis. skala lama sebelum konsep grup-per-tahun-akademik ada).
+    if (!activeYear) return null;
+
+    // SENGAJA tidak jatuh ke "grup manapun yang paling baru dibuat" kalau tidak ada yang
+    // terhubung ke tahun aktif -- grup yang tidak terhubung ke tahun akademik manapun
+    // (mis. tersisa dari percobaan/import) bisa diam-diam jadi dipakai menghitung nilai
+    // padahal tidak pernah diaktifkan lewat UI. Kalau memang belum ada grup untuk tahun
+    // aktif, `getGradeScales` yang memanggil fungsi ini akan seed grup baru dari
+    // `FALLBACK_GRADE_SCALE` -- bukan menebak pakai grup lama yang tidak terhubung.
     return this.prisma.gradeScaleVersion.findFirst({
+      where: { academicYearId: activeYear.id },
       orderBy: { createdAt: 'desc' },
       include: { scales: { orderBy: { minScore: 'desc' } } },
     });
@@ -1038,8 +1263,11 @@ export class AcademicService {
 
     const active = await this.getActiveGradeScaleGroup();
     if (!active || active.scales.length === 0) {
-      // Belum pernah ada grup tersimpan -- seed grup pertama dari default bawaan sistem.
-      const seeded = await this.createGradeScaleGroup({});
+      // Belum ada grup yang terhubung ke tahun akademik aktif -- seed grup baru dari default
+      // bawaan sistem, LANGSUNG dihubungkan ke tahun aktif (kalau ada) supaya tidak jadi
+      // grup orphan lagi yang tidak terhubung ke tahun akademik manapun.
+      const activeYear = await this.prisma.academicYear.findFirst({ where: { isActive: true } });
+      const seeded = await this.createGradeScaleGroup({ academicYearId: activeYear?.id });
       return seeded.scales;
     }
     return active.scales;
@@ -1133,9 +1361,28 @@ export class AcademicService {
     };
   }
 
-  async getGradeClasses(lecturerId?: string) {
-    const activeYear = await this.prisma.academicYear.findFirst({ where: { isActive: true } });
-    const isLocked = activeYear ? activeYear.isGradeLocked : false;
+  /**
+   * Akses pengisian nilai: semester yang BUKAN tahun akademik aktif SELALU terkunci,
+   * berapapun jendela tanggalnya -- nilai semester lama tidak boleh diubah lagi lewat
+   * jalur normal ini (histori harus tetap final). Untuk semester aktif, dihitung dari
+   * jendela tanggal (`gradeInputStartDate`/`gradeInputEndDate`) -- di luar rentang itu
+   * berarti terkunci. Kalau salah satu/keduanya belum diisi, dianggap TIDAK terkunci --
+   * fitur jendela tanggal ini opt-in: BAAK yang mau membatasi waktu baru mengisi
+   * tanggalnya, bukan terkunci diam-diam begitu saja tanpa ada cara membukanya dari UI.
+   */
+  private computeIsGradeLocked(year: { isActive: boolean; gradeInputStartDate: Date | null; gradeInputEndDate: Date | null }): boolean {
+    if (!year.isActive) return true;
+    if (!year.gradeInputStartDate || !year.gradeInputEndDate) return false;
+    const now = new Date();
+    return now < year.gradeInputStartDate || now > year.gradeInputEndDate;
+  }
+
+  async getGradeClasses(lecturerId?: string, academicYearId?: string) {
+    const selectedYear = academicYearId
+      ? await this.prisma.academicYear.findUnique({ where: { id: academicYearId } })
+      : await this.prisma.academicYear.findFirst({ where: { isActive: true } });
+    const activeYear = selectedYear;
+    const isLocked = activeYear ? this.computeIsGradeLocked(activeYear) : false;
 
     const classes = await this.prisma.courseClass.findMany({
       where: {
@@ -1181,7 +1428,9 @@ export class AcademicService {
         gradedCount,
         gradeStatus,
         isLocked,
-        gradeDeadline: activeYear?.gradeDeadline || '28 Februari 2027',
+        gradeDeadline: activeYear?.gradeInputEndDate
+          ? activeYear.gradeInputEndDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
+          : activeYear?.gradeDeadline || '-',
       };
     });
   }
@@ -1233,8 +1482,9 @@ export class AcademicService {
         roomName: cc.room?.name || '-',
         lecturerName: cc.lecturer?.user?.fullName || '-',
         lecturerNidn: cc.lecturer?.nidn || '-',
-        isLocked: cc.academicYear?.isGradeLocked ?? false,
-        gradeDeadline: cc.academicYear?.gradeDeadline || '28 Februari 2027',
+        isLocked: cc.academicYear ? this.computeIsGradeLocked(cc.academicYear) : false,
+        gradeInputStartDate: cc.academicYear?.gradeInputStartDate || null,
+        gradeInputEndDate: cc.academicYear?.gradeInputEndDate || null,
         weights,
       },
       students,
@@ -1247,8 +1497,8 @@ export class AcademicService {
       throw new NotFoundException(`Kelas dengan ID "${classId}" tidak ditemukan.`);
     }
 
-    if (cc.academicYear?.isGradeLocked) {
-      throw new BadRequestException('Pengisian nilai semester ini sedang dikunci oleh BAAK. Hubungi admin untuk membuka kembali.');
+    if (cc.academicYear && this.computeIsGradeLocked(cc.academicYear)) {
+      throw new BadRequestException('Pengisian nilai semester ini sedang di luar jendela waktu yang diizinkan BAAK (lihat tanggal mulai/akhir input nilai di Tahun Akademik).');
     }
 
     const weights = await this.getAssessmentWeights(classId);
@@ -1340,7 +1590,7 @@ export class AcademicService {
     };
   }
 
-  // ================= BUKA/TUTUP PERIODE KRS =================
+  // ================= STATUS PERIODE KRS (berdasarkan jendela tanggal) =================
   async getKrsStatus() {
     const activeYear = await this.prisma.academicYear.findFirst({ where: { isActive: true } });
     if (!activeYear) {
@@ -1349,36 +1599,286 @@ export class AcademicService {
     return {
       academicYearId: activeYear.id,
       academicYearName: activeYear.name,
-      isKrsOpen: activeYear.isKrsOpen,
+      isKrsOpen: computeIsKrsOpen(activeYear),
       krsStartDate: activeYear.krsStartDate,
       krsEndDate: activeYear.krsEndDate,
     };
   }
 
-  async toggleKrsOpen(academicYearId?: string) {
-    let activeYear;
-    if (academicYearId) {
-      activeYear = await this.prisma.academicYear.findUnique({ where: { id: academicYearId } });
-    } else {
-      activeYear = await this.prisma.academicYear.findFirst({ where: { isActive: true } });
+  // ================= MONITORING KRS LINTAS PRODI (BAAK) =================
+  async getKrsOverview(query?: { academicYearId?: string; studyProgramId?: string; status?: string; search?: string }) {
+    const activeYear = query?.academicYearId
+      ? await this.prisma.academicYear.findUnique({ where: { id: query.academicYearId } })
+      : await this.prisma.academicYear.findFirst({ where: { isActive: true } });
+    if (!activeYear) return { academicYearId: null, academicYearName: null, items: [] };
+
+    const enrollments = await this.prisma.courseEnrollment.findMany({
+      where: {
+        academicYearId: activeYear.id,
+        student: query?.studyProgramId ? { studyProgramId: query.studyProgramId } : undefined,
+      },
+      include: {
+        student: { include: { user: true, studyProgram: true, advisorLecturer: { include: { user: true } } } },
+        course: true,
+        courseClass: { include: { room: true, lecturer: { include: { user: true } } } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const byStudent = new Map<string, any>();
+    for (const e of enrollments) {
+      if (!e.student) continue;
+      let row = byStudent.get(e.studentId);
+      if (!row) {
+        row = {
+          id: e.studentId,
+          nim: e.student.nim,
+          studentName: e.student.user.fullName,
+          studyProgram: e.student.studyProgram?.name || '-',
+          // `Student.currentSemester` TIDAK dipakai di sini -- field itu status standing
+          // mahasiswa SAAT INI (dan belum dihitung ulang sama sekali dari Feeder, masih
+          // nilai default skema untuk semua mahasiswa), jadi salah kalau dipakai untuk
+          // KRS periode manapun, apalagi periode historis. Semester KRS ini diturunkan dari
+          // Course.semester mata kuliah yang diambil di baris ini (modus/paling sering
+          // muncul), yang memang sudah benar per-matkul.
+          semesterCounts: new Map<number, number>(),
+          academicYear: activeYear.name,
+          dosenPA: e.student.advisorLecturer?.user?.fullName || 'Belum ditentukan',
+          submittedAt: e.createdAt,
+          courses: [] as any[],
+          statuses: new Set<string>(),
+        };
+        byStudent.set(e.studentId, row);
+      }
+      row.courses.push({
+        code: e.course.code,
+        name: e.course.name,
+        sks: e.course.sks || e.course.totalSks || 3,
+        classRoom: e.courseClass?.room?.name || '-',
+        schedule: e.courseClass ? `${e.courseClass.day}, ${e.courseClass.startTime} - ${e.courseClass.endTime}` : '-',
+        lecturer: e.courseClass?.lecturer?.user?.fullName || '-',
+      });
+      if (e.course.semester) {
+        row.semesterCounts.set(e.course.semester, (row.semesterCounts.get(e.course.semester) || 0) + 1);
+      }
+      row.statuses.add(e.status);
+      if (e.createdAt < row.submittedAt) row.submittedAt = e.createdAt;
     }
 
-    if (!activeYear) {
-      throw new NotFoundException('Tahun akademik aktif tidak ditemukan.');
+    let items = [...byStudent.values()].map((row) => {
+      const statuses: Set<string> = row.statuses;
+      const status = statuses.size === 1 && statuses.has('APPROVED')
+        ? 'APPROVED'
+        : statuses.has('REJECTED')
+          ? 'REJECTED'
+          : statuses.has('SUBMITTED')
+            ? 'SUBMITTED'
+            : 'DRAFT';
+      const totalSks = row.courses.reduce((a: number, c: any) => a + c.sks, 0);
+      const semesterCounts: Map<number, number> = row.semesterCounts;
+      let semester = 0;
+      let maxCount = 0;
+      for (const [sem, count] of semesterCounts) {
+        if (count > maxCount) {
+          semester = sem;
+          maxCount = count;
+        }
+      }
+      return {
+        id: row.id,
+        nim: row.nim,
+        studentName: row.studentName,
+        studyProgram: row.studyProgram,
+        semester,
+        academicYear: row.academicYear,
+        dosenPA: row.dosenPA,
+        submittedAt: row.submittedAt,
+        totalSks,
+        status,
+        courses: row.courses,
+      };
+    });
+
+    if (query?.status && query.status !== 'ALL') {
+      items = items.filter((i) => i.status === query.status);
+    }
+    if (query?.search?.trim()) {
+      const q = query.search.trim().toLowerCase();
+      items = items.filter(
+        (i) =>
+          i.studentName.toLowerCase().includes(q) ||
+          i.nim.includes(q) ||
+          i.dosenPA.toLowerCase().includes(q),
+      );
     }
 
-    const newState = !activeYear.isKrsOpen;
-    const updated = await this.prisma.academicYear.update({
-      where: { id: activeYear.id },
-      data: { isKrsOpen: newState },
+    return { academicYearId: activeYear.id, academicYearName: activeYear.name, items };
+  }
+
+  /** Override BAAK: menyetujui/menolak seluruh KRS seorang mahasiswa untuk tahun akademik aktif. */
+  async baakSetKrsStatus(studentId: string, status: 'APPROVED' | 'REJECTED') {
+    const activeYear = await this.prisma.academicYear.findFirst({ where: { isActive: true } });
+    if (!activeYear) throw new NotFoundException('Tidak ada tahun akademik aktif saat ini.');
+
+    const student = await this.prisma.student.findFirst({ where: { OR: [{ id: studentId }, { nim: studentId }] } });
+    if (!student) throw new NotFoundException(`Mahasiswa dengan ID/NIM "${studentId}" tidak ditemukan.`);
+
+    const result = await this.prisma.courseEnrollment.updateMany({
+      where: { studentId: student.id, academicYearId: activeYear.id },
+      data: { status },
+    });
+    if (result.count === 0) {
+      throw new NotFoundException('Mahasiswa ini belum memiliki pengajuan KRS pada tahun akademik aktif.');
+    }
+
+    return {
+      success: true,
+      message:
+        status === 'APPROVED'
+          ? `KRS ${student.nim} berhasil disetujui oleh BAAK.`
+          : `KRS ${student.nim} ditolak dan perlu direvisi mahasiswa.`,
+    };
+  }
+
+  // ================= BIMBINGAN SKRIPSI/TA, KKN, KERJA PRAKTIK (BAAK) =================
+  // Mahasiswa yang KRS-nya berisi kelas "tanpa jadwal tetap" (Skripsi/TA, KKN, KP, dst.)
+  // perlu ditetapkan pembimbingnya satu per satu oleh Admin Akademik — berbeda dari Dosen
+  // Pengampu di CourseClass (satu dosen untuk satu kelas) dan Dosen PA (pembimbing umum).
+  async getThesisSupervisionCandidates(query?: { academicYearId?: string; courseId?: string; search?: string }) {
+    const activeYear = query?.academicYearId
+      ? await this.prisma.academicYear.findUnique({ where: { id: query.academicYearId } })
+      : await this.prisma.academicYear.findFirst({ where: { isActive: true } });
+    if (!activeYear) return { academicYearId: null, academicYearName: null, courses: [], items: [] };
+
+    const enrollments = await this.prisma.courseEnrollment.findMany({
+      where: {
+        academicYearId: activeYear.id,
+        status: { not: 'REJECTED' },
+        courseId: query?.courseId || undefined,
+        OR: [{ courseClass: { isFlexibleSchedule: true } }, { course: { requiresThesisSupervision: true } }],
+      },
+      include: {
+        student: { include: { user: true, studyProgram: true } },
+        course: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const studentCourseIds = enrollments.map((e) => ({ studentId: e.studentId, courseId: e.courseId }));
+    const supervisions = studentCourseIds.length
+      ? await this.prisma.thesisSupervision.findMany({
+          where: {
+            academicYearId: activeYear.id,
+            OR: studentCourseIds.map((s) => ({ studentId: s.studentId, courseId: s.courseId })),
+          },
+          include: { supervisor1: { include: { user: true } }, supervisor2: { include: { user: true } } },
+        })
+      : [];
+    const supervisionMap = new Map(supervisions.map((s) => [`${s.studentId}:${s.courseId}`, s]));
+
+    let items = enrollments.map((e) => {
+      const sup = supervisionMap.get(`${e.studentId}:${e.courseId}`);
+      return {
+        studentId: e.studentId,
+        nim: e.student.nim,
+        studentName: e.student.user.fullName,
+        studyProgram: e.student.studyProgram?.name || '-',
+        courseId: e.courseId,
+        courseCode: e.course.code,
+        courseName: e.course.name,
+        title: sup?.title || null,
+        supervisor1Id: sup?.supervisor1Id || null,
+        supervisor1Name: sup?.supervisor1?.user?.fullName || null,
+        supervisor2Id: sup?.supervisor2Id || null,
+        supervisor2Name: sup?.supervisor2?.user?.fullName || null,
+        notes: sup?.notes || null,
+        assignedAt: sup?.assignedAt || null,
+      };
+    });
+
+    if (query?.search?.trim()) {
+      const q = query.search.trim().toLowerCase();
+      items = items.filter((i) => i.studentName.toLowerCase().includes(q) || i.nim.includes(q));
+    }
+
+    const courses = [...new Map(enrollments.map((e) => [e.course.id, { id: e.course.id, code: e.course.code, name: e.course.name }])).values()];
+
+    return { academicYearId: activeYear.id, academicYearName: activeYear.name, courses, items };
+  }
+
+  async assignThesisSupervision(dto: {
+    studentId: string;
+    courseId: string;
+    academicYearId?: string;
+    title?: string;
+    supervisor1Id?: string | null;
+    supervisor2Id?: string | null;
+    notes?: string;
+  }) {
+    const academicYearId = dto.academicYearId
+      ? dto.academicYearId
+      : (await this.prisma.academicYear.findFirst({ where: { isActive: true } }))?.id;
+    if (!academicYearId) throw new NotFoundException('Tidak ada tahun akademik aktif saat ini.');
+
+    const student = await this.prisma.student.findFirst({ where: { OR: [{ id: dto.studentId }, { nim: dto.studentId }] } });
+    if (!student) throw new NotFoundException(`Mahasiswa dengan ID/NIM "${dto.studentId}" tidak ditemukan.`);
+
+    const enrolled = await this.prisma.courseEnrollment.findFirst({
+      where: { studentId: student.id, courseId: dto.courseId, academicYearId, status: { not: 'REJECTED' } },
+    });
+    if (!enrolled) {
+      throw new BadRequestException('Mahasiswa ini belum mengambil mata kuliah tersebut pada tahun akademik ini.');
+    }
+
+    const data = {
+      title: dto.title?.trim() || null,
+      supervisor1Id: dto.supervisor1Id || null,
+      supervisor2Id: dto.supervisor2Id || null,
+      notes: dto.notes?.trim() || null,
+      assignedAt: new Date(),
+    };
+
+    const saved = await this.prisma.thesisSupervision.upsert({
+      where: { studentId_courseId_academicYearId: { studentId: student.id, courseId: dto.courseId, academicYearId } },
+      create: { studentId: student.id, courseId: dto.courseId, academicYearId, ...data },
+      update: data,
+      include: { supervisor1: { include: { user: true } }, supervisor2: { include: { user: true } } },
     });
 
     return {
       success: true,
-      isKrsOpen: updated.isKrsOpen,
-      message: updated.isKrsOpen
-        ? `Periode KRS tahun akademik ${updated.name} telah dibuka. Mahasiswa dapat mengajukan/mengubah KRS.`
-        : `Periode KRS tahun akademik ${updated.name} telah ditutup. Mahasiswa tidak dapat mengajukan/mengubah KRS.`,
+      message: `Pembimbing untuk ${student.nim} berhasil ditetapkan.`,
+      data: saved,
+    };
+  }
+
+  // ================= JUMLAH ENTITAS PELAPORAN PDDIKTI (DATA NYATA) =================
+  // Sekadar hitungan baris lokal per entitas Feeder Dikti — BUKAN status pengiriman/sinkronisasi,
+  // karena sistem ini belum punya integrasi push/pull sungguhan ke Web Service Neo Feeder.
+  async getFeederEntityCounts() {
+    const activeYear = await this.prisma.academicYear.findFirst({ where: { isActive: true } });
+
+    const [totalMahasiswaAktif, totalMataKuliah, totalKelasKuliah, totalKrs, totalNilai, totalAktivitasKuliah, totalLulusan] =
+      await Promise.all([
+        this.prisma.student.count({ where: { status: 'ACTIVE' } }),
+        this.prisma.course.count(),
+        activeYear ? this.prisma.courseClass.count({ where: { academicYearId: activeYear.id } }) : Promise.resolve(0),
+        activeYear
+          ? this.prisma.courseEnrollment.count({ where: { academicYearId: activeYear.id, status: { in: ['SUBMITTED', 'APPROVED'] } } })
+          : Promise.resolve(0),
+        this.prisma.courseEnrollment.count({ where: { gradePoint: { not: null } } }),
+        activeYear ? this.prisma.courseEnrollment.count({ where: { academicYearId: activeYear.id, status: 'APPROVED' } }) : Promise.resolve(0),
+        this.prisma.student.count({ where: { status: 'GRADUATED' } }),
+      ]);
+
+    return {
+      mahasiswa_pt: totalMahasiswaAktif,
+      mata_kuliah: totalMataKuliah,
+      kelas_kuliah: totalKelasKuliah,
+      krs_mahasiswa: totalKrs,
+      nilai_perkuliahan: totalNilai,
+      perkuliahan_mahasiswa: totalAktivitasKuliah,
+      lulusan: totalLulusan,
     };
   }
 
@@ -1402,9 +1902,10 @@ export class AcademicService {
       percentage: totalClasses ? Math.round((finishedClasses / totalClasses) * 100) : 0,
       totalStudents,
       gradedStudents,
-      isGradeLocked: activeYear ? activeYear.isGradeLocked : false,
+      isGradeLocked: activeYear ? this.computeIsGradeLocked(activeYear) : false,
       activeSemesterName: activeYear ? `${activeYear.name} ${semesterTypeLabel(activeYear.semesterType)}` : 'Semester Gasal 2026/2027',
-      gradeDeadline: activeYear?.gradeDeadline || '28 Februari 2027',
+      gradeInputStartDate: activeYear?.gradeInputStartDate || null,
+      gradeInputEndDate: activeYear?.gradeInputEndDate || null,
     };
   }
 

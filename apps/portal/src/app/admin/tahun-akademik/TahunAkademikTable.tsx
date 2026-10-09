@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { Modal } from '@/components/ui/Modal';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { getApiBaseUrl } from '@/lib/api';
 import { useSortedPagination } from '@/lib/useSortedPagination';
 import { SortableTh } from '@/components/common/SortableTh';
@@ -40,6 +41,8 @@ export interface AcademicYearItem {
   pmbEndDate: string | null;
   skRektor: string;
   gradeDeadline: string;
+  gradeInputStartDate: string | null;
+  gradeInputEndDate: string | null;
   isGradeLocked: boolean;
   totalCoursesOffered: number;
   totalCreditsOffered: number;
@@ -83,6 +86,12 @@ export function TahunAkademikTable({ initialYears }: { initialYears: AcademicYea
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [formData, setFormData] = useState(emptyForm);
 
+  const [setActiveTarget, setSetActiveTarget] = useState<{ id: string; name: string } | null>(null);
+  const [isSettingActive, setIsSettingActive] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [isDeletingYear, setIsDeletingYear] = useState(false);
+  const [blockedDeleteName, setBlockedDeleteName] = useState<string | null>(null);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
@@ -114,7 +123,7 @@ export function TahunAkademikTable({ initialYears }: { initialYears: AcademicYea
   });
 
   const { paginated, sortKey, sortDir, handleSort, page, setPage, totalPages, pageSize } =
-    useSortedPagination<AcademicYearItem>(filteredYears, 'code');
+    useSortedPagination<AcademicYearItem>(filteredYears, 'code', 10, 'desc');
 
   const activeYear = years.find((y) => y.isActive);
   const metrics = {
@@ -123,8 +132,14 @@ export function TahunAkademikTable({ initialYears }: { initialYears: AcademicYea
     archiveCount: years.filter((y) => y.status === 'Arsip').length,
   };
 
-  const handleSetActive = async (id: string, name: string) => {
-    if (!confirm(`Jadikan "${name}" sebagai tahun akademik AKTIF? Seluruh sistem KRS/nilai akan mengacu pada periode ini.`)) return;
+  const handleSetActive = (id: string, name: string) => {
+    setSetActiveTarget({ id, name });
+  };
+
+  const confirmSetActive = async () => {
+    if (!setActiveTarget) return;
+    const { id, name } = setActiveTarget;
+    setIsSettingActive(true);
     try {
       const res = await fetch(`${apiBase}/academic/years/${id}`, {
         method: 'PUT',
@@ -139,6 +154,9 @@ export function TahunAkademikTable({ initialYears }: { initialYears: AcademicYea
       }
     } catch {
       showToast('Terjadi gangguan koneksi.');
+    } finally {
+      setIsSettingActive(false);
+      setSetActiveTarget(null);
     }
   };
 
@@ -154,24 +172,6 @@ export function TahunAkademikTable({ initialYears }: { initialYears: AcademicYea
         await loadYears();
       } else {
         showToast('Gagal mengubah status KRS.');
-      }
-    } catch {
-      showToast('Terjadi gangguan koneksi.');
-    }
-  };
-
-  const handleToggleGradeLock = async (y: AcademicYearItem) => {
-    try {
-      const res = await fetch(`${apiBase}/academic/years/${y.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isGradeLocked: !y.isGradeLocked }),
-      });
-      if (res.ok) {
-        showToast(!y.isGradeLocked ? 'Input nilai dikunci.' : 'Input nilai dibuka kembali.');
-        await loadYears();
-      } else {
-        showToast('Gagal mengubah status kunci nilai.');
       }
     } catch {
       showToast('Terjadi gangguan koneksi.');
@@ -232,13 +232,19 @@ export function TahunAkademikTable({ initialYears }: { initialYears: AcademicYea
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
+  const handleDelete = (id: string, name: string) => {
     const target = years.find((y) => y.id === id);
     if (target?.isActive) {
-      alert('Tidak dapat menghapus periode yang sedang AKTIF!');
+      setBlockedDeleteName(name);
       return;
     }
-    if (!confirm(`Hapus data "${name}"?`)) return;
+    setDeleteTarget({ id, name });
+  };
+
+  const confirmDeleteYear = async () => {
+    if (!deleteTarget) return;
+    const { id, name } = deleteTarget;
+    setIsDeletingYear(true);
     try {
       const res = await fetch(`${apiBase}/academic/years/${id}`, { method: 'DELETE' });
       if (res.ok) {
@@ -249,6 +255,9 @@ export function TahunAkademikTable({ initialYears }: { initialYears: AcademicYea
       }
     } catch {
       showToast('Terjadi gangguan koneksi.');
+    } finally {
+      setIsDeletingYear(false);
+      setDeleteTarget(null);
     }
   };
 
@@ -348,7 +357,7 @@ export function TahunAkademikTable({ initialYears }: { initialYears: AcademicYea
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari periode (contoh: 2026/2027) atau nomor SK Rektor..."
+            placeholder="Cari periode (contoh: 2026/2027)..."
             className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-slate-50/50"
           />
           {searchQuery && (
@@ -379,7 +388,6 @@ export function TahunAkademikTable({ initialYears }: { initialYears: AcademicYea
                 <SortableTh<AcademicYearItem> label="Tanggal Pelaksanaan" column="startDate" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="py-3.5" />
                 <th className="py-3.5 px-4">Periode KRS</th>
                 <SortableTh<AcademicYearItem> label="Mahasiswa Ber-KRS" column="studentsCount" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="center" className="py-3.5" />
-                <SortableTh<AcademicYearItem> label="Dasar Hukum (SK Rektor)" column="skRektor" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="py-3.5" />
                 <SortableTh<AcademicYearItem> label="Status Sistem" column="isActive" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="center" className="py-3.5" />
                 <th className="py-3.5 px-5 text-right">Aksi</th>
               </tr>
@@ -387,7 +395,7 @@ export function TahunAkademikTable({ initialYears }: { initialYears: AcademicYea
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-16 text-slate-500">
+                  <td colSpan={6} className="text-center py-16 text-slate-500">
                     <div className="flex flex-col items-center justify-center gap-3">
                       <Loader2 className="w-8 h-8 text-[#1E3A8A] animate-spin" />
                       <p className="font-semibold text-sm text-slate-700">Memuat data tahun akademik...</p>
@@ -396,7 +404,7 @@ export function TahunAkademikTable({ initialYears }: { initialYears: AcademicYea
                 </tr>
               ) : paginated.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-slate-500">
+                  <td colSpan={6} className="text-center py-12 text-slate-500">
                     <Calendar className="w-10 h-10 text-slate-300 mx-auto mb-2" />
                     <p className="font-semibold text-sm">Tidak ada periode ditemukan</p>
                   </td>
@@ -429,17 +437,9 @@ export function TahunAkademikTable({ initialYears }: { initialYears: AcademicYea
                       <div className="font-mono text-xs font-bold text-slate-800">
                         {toDateInput(y.startDate)} <span className="text-slate-400 font-normal">s/d</span> {toDateInput(y.endDate)}
                       </div>
-                      {(y.pmbStartDate || y.pmbEndDate) && (
-                        <span className="text-[10px] text-slate-400 font-medium">
-                          PMB: {toDateInput(y.pmbStartDate) || '-'} s/d {toDateInput(y.pmbEndDate) || '-'}
-                        </span>
-                      )}
                     </td>
 
                     <td className="py-4 px-4">
-                      <div className="font-mono text-[11px] text-slate-600">
-                        {toDateInput(y.krsStartDate) || '-'} s/d {toDateInput(y.krsEndDate) || '-'}
-                      </div>
                       <button
                         onClick={() => handleToggleKrs(y)}
                         className={`mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors ${
@@ -449,24 +449,24 @@ export function TahunAkademikTable({ initialYears }: { initialYears: AcademicYea
                         {y.isKrsOpen ? <Unlock className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
                         {y.isKrsOpen ? 'KRS Dibuka' : 'KRS Ditutup'}
                       </button>
-                      <button
-                        onClick={() => handleToggleGradeLock(y)}
-                        className={`mt-1 ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors ${
-                          !y.isGradeLocked ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                      <span
+                        title={
+                          y.gradeInputStartDate && y.gradeInputEndDate
+                            ? `Jendela: ${toDateInput(y.gradeInputStartDate)} s/d ${toDateInput(y.gradeInputEndDate)}`
+                            : 'Belum ada jendela tanggal input nilai diatur'
+                        }
+                        className={`mt-1 ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          !y.isGradeLocked ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
                         }`}
                       >
                         {!y.isGradeLocked ? <Unlock className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
                         {!y.isGradeLocked ? 'Nilai Dibuka' : 'Nilai Dikunci'}
-                      </button>
+                      </span>
                     </td>
 
                     <td className="py-4 px-4 text-center">
                       <span className="font-black text-slate-900 text-sm">{y.studentsCount > 0 ? y.studentsCount.toLocaleString('id-ID') : '-'}</span>
                       {y.studentsCount > 0 && <span className="text-[10px] text-slate-400 block">Mahasiswa</span>}
-                    </td>
-
-                    <td className="py-4 px-4">
-                      <p className="text-xs font-mono font-medium text-slate-700 line-clamp-1">{y.skRektor || '-'}</p>
                     </td>
 
                     <td className="py-4 px-4 text-center">
@@ -596,70 +596,6 @@ export function TahunAkademikTable({ initialYears }: { initialYears: AcademicYea
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Mulai Periode KRS</label>
-              <input
-                type="date"
-                value={formData.krsStartDate}
-                onChange={(e) => setFormData({ ...formData, krsStartDate: e.target.value })}
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Selesai Periode KRS</label>
-              <input
-                type="date"
-                value={formData.krsEndDate}
-                onChange={(e) => setFormData({ ...formData, krsEndDate: e.target.value })}
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Mulai Periode PMB</label>
-              <input
-                type="date"
-                value={formData.pmbStartDate}
-                onChange={(e) => setFormData({ ...formData, pmbStartDate: e.target.value })}
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Selesai Periode PMB</label>
-              <input
-                type="date"
-                value={formData.pmbEndDate}
-                onChange={(e) => setFormData({ ...formData, pmbEndDate: e.target.value })}
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Nomor SK Rektor</label>
-              <input
-                type="text"
-                placeholder="e.g. SK Rektor No. 042/ITN/R/2026"
-                value={formData.skRektor}
-                onChange={(e) => setFormData({ ...formData, skRektor: e.target.value })}
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Batas Akhir Input Nilai</label>
-              <input
-                type="date"
-                value={formData.gradeDeadline}
-                onChange={(e) => setFormData({ ...formData, gradeDeadline: e.target.value })}
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-              />
-            </div>
-          </div>
-
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">Status Arsip</label>
             <select
@@ -673,18 +609,7 @@ export function TahunAkademikTable({ initialYears }: { initialYears: AcademicYea
             </select>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Keterangan / Catatan</label>
-            <textarea
-              rows={2}
-              placeholder="Catatan kebijakan akademik periode ini..."
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-            ></textarea>
-          </div>
-
-          <div className="pt-1 space-y-2.5">
+          <div className="pt-1">
             <label className="flex items-center gap-3 p-3 rounded-2xl bg-blue-50/70 border border-blue-200 cursor-pointer">
               <input
                 type="checkbox"
@@ -695,19 +620,6 @@ export function TahunAkademikTable({ initialYears }: { initialYears: AcademicYea
               <div>
                 <p className="text-xs font-bold text-slate-900">Jadikan Periode Aktif Sistem</p>
                 <p className="text-[11px] text-slate-500 mt-0.5">Periode lain otomatis dialihkan menjadi status non-aktif.</p>
-              </div>
-            </label>
-
-            <label className="flex items-center gap-3 p-3 rounded-2xl bg-amber-50/70 border border-amber-200 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={formData.isGradeLocked}
-                onChange={(e) => setFormData({ ...formData, isGradeLocked: e.target.checked })}
-                className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500"
-              />
-              <div>
-                <p className="text-xs font-bold text-slate-900">Kunci Input Nilai</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">Kalau dicentang, dosen tidak bisa menyimpan nilai untuk periode ini.</p>
               </div>
             </label>
           </div>
@@ -727,6 +639,36 @@ export function TahunAkademikTable({ initialYears }: { initialYears: AcademicYea
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!setActiveTarget}
+        onClose={() => setSetActiveTarget(null)}
+        onConfirm={confirmSetActive}
+        isLoading={isSettingActive}
+        type="info"
+        title="Jadikan Periode Aktif?"
+        message={`Jadikan "${setActiveTarget?.name}" sebagai tahun akademik AKTIF? Seluruh sistem KRS/nilai akan mengacu pada periode ini.`}
+        confirmText="Ya, Jadikan Aktif"
+      />
+
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDeleteYear}
+        isLoading={isDeletingYear}
+        type="danger"
+        title="Hapus Periode?"
+        message={`Hapus data "${deleteTarget?.name}"? Tindakan ini tidak bisa dibatalkan.`}
+      />
+
+      <ConfirmModal
+        isOpen={!!blockedDeleteName}
+        onClose={() => setBlockedDeleteName(null)}
+        isAlert
+        type="warning"
+        title="Tidak Bisa Dihapus"
+        message={`"${blockedDeleteName}" sedang menjadi periode AKTIF dan tidak dapat dihapus. Jadikan periode lain aktif dulu sebelum menghapus ini.`}
+      />
     </div>
   );
 }

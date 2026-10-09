@@ -53,6 +53,7 @@ export class UsersService {
               studyProgram: { select: { name: true, code: true } },
             },
           },
+          studyProgram: { select: { id: true, name: true, code: true } },
         },
       }),
       this.prisma.user.findMany({
@@ -87,6 +88,8 @@ export class UsersService {
         avatarUrl: u.avatarUrl,
         createdAt: u.createdAt,
         updatedAt: u.updatedAt,
+        studyProgramId: u.studyProgramId,
+        prodiInfo: u.studyProgram ? { id: u.studyProgram.id, name: u.studyProgram.name, code: u.studyProgram.code } : null,
         studentInfo: u.student
           ? {
               nim: u.student.nim,
@@ -131,6 +134,7 @@ export class UsersService {
     password?: string;
     isActive?: boolean;
     avatarUrl?: string;
+    studyProgramId?: string;
   }) {
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email },
@@ -138,6 +142,10 @@ export class UsersService {
 
     if (existing) {
       throw new BadRequestException(`Email "${dto.email}" sudah terdaftar dalam sistem.`);
+    }
+
+    if (dto.role === Role.ADMIN_PRODI && !dto.studyProgramId) {
+      throw new BadRequestException('Program studi wajib dipilih untuk peran Admin Prodi.');
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -151,6 +159,7 @@ export class UsersService {
         passwordHash,
         isActive: dto.isActive !== undefined ? dto.isActive : true,
         avatarUrl: dto.avatarUrl || null,
+        studyProgramId: dto.role === Role.ADMIN_PRODI ? dto.studyProgramId : null,
       },
     });
 
@@ -177,6 +186,7 @@ export class UsersService {
       role?: Role;
       isActive?: boolean;
       avatarUrl?: string;
+      studyProgramId?: string;
     },
   ) {
     const user = await this.prisma.user.findUnique({ where: { id } });
@@ -193,14 +203,20 @@ export class UsersService {
       }
     }
 
+    const nextRole = dto.role !== undefined ? dto.role : user.role;
+    if (nextRole === Role.ADMIN_PRODI && !(dto.studyProgramId || user.studyProgramId)) {
+      throw new BadRequestException('Program studi wajib dipilih untuk peran Admin Prodi.');
+    }
+
     const updated = await this.prisma.user.update({
       where: { id },
       data: {
         fullName: dto.fullName !== undefined ? dto.fullName : user.fullName,
         email: dto.email !== undefined ? dto.email : user.email,
-        role: dto.role !== undefined ? dto.role : user.role,
+        role: nextRole,
         isActive: dto.isActive !== undefined ? dto.isActive : user.isActive,
         avatarUrl: dto.avatarUrl !== undefined ? dto.avatarUrl : user.avatarUrl,
+        studyProgramId: nextRole === Role.ADMIN_PRODI ? dto.studyProgramId ?? user.studyProgramId : null,
       },
     });
 

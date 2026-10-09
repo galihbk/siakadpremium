@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { Modal } from '@/components/ui/Modal';
+import { copyToClipboard } from '@/lib/clipboard';
 import {
   Users,
   UserCheck,
@@ -51,6 +52,9 @@ export interface UserItem {
     | 'ADMIN_KEUANGAN'
     | 'ADMIN_LP3M'
     | 'LP3M'
+    | 'ADMIN_P2M'
+    | 'P2M'
+    | 'ADMIN_PRODI'
     | 'LECTURER'
     | 'STUDENT'
     | 'STAFF';
@@ -58,6 +62,8 @@ export interface UserItem {
   avatarUrl?: string | null;
   createdAt: string;
   updatedAt: string;
+  studyProgramId?: string | null;
+  prodiInfo?: { id: string; name: string; code: string } | null;
   studentInfo?: {
     nim: string;
     prodi?: string;
@@ -143,6 +149,30 @@ const ROLE_CONFIG: Record<
     icon: Shield,
     desc: 'Verifikator dan penilai usulan proposal riset & PkM LP3M.',
   },
+  ADMIN_P2M: {
+    label: 'Admin P2M',
+    color: 'text-teal-700',
+    bgColor: 'bg-teal-50',
+    borderColor: 'border-teal-200',
+    icon: Shield,
+    desc: 'Pengelolaan standar mutu, audit mutu internal, dan validasi RPS.',
+  },
+  P2M: {
+    label: 'Reviewer / Staf P2M',
+    color: 'text-teal-700',
+    bgColor: 'bg-teal-50',
+    borderColor: 'border-teal-200',
+    icon: Shield,
+    desc: 'Pelaksana audit mutu internal dan reviewer dokumen mutu.',
+  },
+  ADMIN_PRODI: {
+    label: 'Admin Prodi',
+    color: 'text-indigo-700',
+    bgColor: 'bg-indigo-50',
+    borderColor: 'border-indigo-200',
+    icon: Layers,
+    desc: 'Pengelolaan data dan layanan khusus satu program studi.',
+  },
   LECTURER: {
     label: 'Dosen Pengajar',
     color: 'text-amber-700',
@@ -190,6 +220,11 @@ export default function UserManagementPage() {
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Tab: akun akademik (dosen & mahasiswa, jumlahnya ribuan) dipisah dari akun khusus
+  // (admin/staf/reviewer, jumlahnya segelintir) supaya daftar tidak kebanjiran data akademik.
+  const [activeTab, setActiveTab] = useState<'akademik' | 'khusus'>('akademik');
+  const ACADEMIC_ROLES: UserItem['role'][] = ['LECTURER', 'STUDENT'];
+
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('Semua');
@@ -215,9 +250,11 @@ export default function UserManagementPage() {
     role: 'LECTURER' as UserItem['role'],
     password: 'Password123!',
     isActive: true,
+    studyProgramId: '',
   });
 
   const [resetPasswordValue, setResetPasswordValue] = useState('Password123!');
+  const [studyPrograms, setStudyPrograms] = useState<{ id: string; name: string }[]>([]);
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -226,10 +263,14 @@ export default function UserManagementPage() {
     setTimeout(() => setToastMessage(null), 4500);
   };
 
-  const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+  const handleCopyToClipboard = async (text: string, id: string) => {
+    const ok = await copyToClipboard(text);
+    if (ok) {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } else {
+      showToast('Gagal menyalin ke clipboard.', 'error');
+    }
   };
 
   // Fetch users from API
@@ -256,11 +297,22 @@ export default function UserManagementPage() {
 
   useEffect(() => {
     fetchUsers();
+    fetch(`${apiBase}/study-programs`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        const list = json?.data ?? json;
+        if (Array.isArray(list)) setStudyPrograms(list.map((p: any) => ({ id: p.id, name: p.name })));
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Filtered & Sorted Users
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
+      const matchTab =
+        activeTab === 'akademik' ? ACADEMIC_ROLES.includes(u.role) : !ACADEMIC_ROLES.includes(u.role);
+
       const matchSearch =
         u.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -274,9 +326,9 @@ export default function UserManagementPage() {
         (statusFilter === 'Aktif' && u.isActive) ||
         (statusFilter === 'Nonaktif' && !u.isActive);
 
-      return matchSearch && matchRole && matchStatus;
+      return matchTab && matchSearch && matchRole && matchStatus;
     });
-  }, [users, searchQuery, roleFilter, statusFilter]);
+  }, [users, activeTab, searchQuery, roleFilter, statusFilter]);
 
   const sortedUsers = useMemo(() => {
     return [...filteredUsers].sort((a, b) => {
@@ -295,6 +347,12 @@ export default function UserManagementPage() {
     return sortedUsers.slice(start, start + itemsPerPage);
   }, [sortedUsers, currentPage, itemsPerPage]);
 
+  const handleTabChange = (tab: 'akademik' | 'khusus') => {
+    setActiveTab(tab);
+    setRoleFilter('Semua');
+    setCurrentPage(1);
+  };
+
   const handleSort = (field: keyof UserItem) => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -311,6 +369,10 @@ export default function UserManagementPage() {
       showToast('Nama Lengkap dan Email wajib diisi.', 'error');
       return;
     }
+    if (formData.role === 'ADMIN_PRODI' && !formData.studyProgramId) {
+      showToast('Program Studi wajib dipilih untuk peran Admin Prodi.', 'error');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -323,6 +385,7 @@ export default function UserManagementPage() {
           role: formData.role,
           password: formData.password || 'Password123!',
           isActive: formData.isActive,
+          studyProgramId: formData.role === 'ADMIN_PRODI' ? formData.studyProgramId : undefined,
         }),
       });
 
@@ -339,6 +402,7 @@ export default function UserManagementPage() {
         role: 'LECTURER',
         password: 'Password123!',
         isActive: true,
+        studyProgramId: '',
       });
       fetchUsers();
     } catch (err: any) {
@@ -352,6 +416,10 @@ export default function UserManagementPage() {
   const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
+    if (formData.role === 'ADMIN_PRODI' && !formData.studyProgramId) {
+      showToast('Program Studi wajib dipilih untuk peran Admin Prodi.', 'error');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -363,6 +431,7 @@ export default function UserManagementPage() {
           email: formData.email.trim().toLowerCase(),
           role: formData.role,
           isActive: formData.isActive,
+          studyProgramId: formData.role === 'ADMIN_PRODI' ? formData.studyProgramId : undefined,
         }),
       });
 
@@ -547,6 +616,7 @@ export default function UserManagementPage() {
                     role: 'LECTURER',
                     password: 'Password123!',
                     isActive: true,
+                    studyProgramId: '',
                   });
                   setIsAddModalOpen(true);
                 }}
@@ -639,6 +709,34 @@ export default function UserManagementPage() {
           </div>
         </div>
 
+        {/* Tabs: Dosen & Mahasiswa vs User Khusus */}
+        <div className="flex gap-2 border-b border-slate-200">
+          <button
+            onClick={() => handleTabChange('akademik')}
+            className={`px-4 py-2.5 text-sm font-bold rounded-t-xl border-b-2 transition-colors ${
+              activeTab === 'akademik'
+                ? 'border-[#1E3A8A] text-[#1E3A8A] bg-blue-50/60'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            Dosen &amp; Mahasiswa
+            <span className="ml-2 text-[11px] font-semibold text-slate-400">({stats.lecturers + stats.students})</span>
+          </button>
+          <button
+            onClick={() => handleTabChange('khusus')}
+            className={`px-4 py-2.5 text-sm font-bold rounded-t-xl border-b-2 transition-colors ${
+              activeTab === 'khusus'
+                ? 'border-[#1E3A8A] text-[#1E3A8A] bg-blue-50/60'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            User Khusus
+            <span className="ml-2 text-[11px] font-semibold text-slate-400">
+              ({stats.total - stats.lecturers - stats.students})
+            </span>
+          </button>
+        </div>
+
         {/* Filter and Search Bar */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm space-y-4">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -678,15 +776,27 @@ export default function UserManagementPage() {
                   }}
                   className="px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="Semua">Semua Peran ({stats.total})</option>
-                  <option value="SUPER_ADMIN">Super Admin ({stats.superadmin})</option>
-                  <option value="ADMIN_BAAK">Admin BAAK ({stats.adminBaak})</option>
-                  <option value="ADMIN_KEUANGAN">Admin Keuangan ({stats.adminKeuangan})</option>
-                  <option value="ADMIN_LP3M">Admin LP3M ({stats.adminLp3m})</option>
-                  <option value="LP3M">Reviewer LP3M</option>
-                  <option value="LECTURER">Dosen ({stats.lecturers})</option>
-                  <option value="STUDENT">Mahasiswa ({stats.students})</option>
-                  <option value="STAFF">Staf ({stats.staff})</option>
+                  {activeTab === 'akademik' ? (
+                    <>
+                      <option value="Semua">Semua Peran ({stats.lecturers + stats.students})</option>
+                      <option value="LECTURER">Dosen ({stats.lecturers})</option>
+                      <option value="STUDENT">Mahasiswa ({stats.students})</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="Semua">Semua Peran ({stats.total - stats.lecturers - stats.students})</option>
+                      <option value="SUPER_ADMIN">Super Admin ({stats.superadmin})</option>
+                      <option value="ADMIN_BAAK">Admin BAAK ({stats.adminBaak})</option>
+                      <option value="ADMIN_PMB">Admin PMB</option>
+                      <option value="ADMIN_KEUANGAN">Admin Keuangan ({stats.adminKeuangan})</option>
+                      <option value="ADMIN_LP3M">Admin LP3M ({stats.adminLp3m})</option>
+                      <option value="LP3M">Reviewer LP3M</option>
+                      <option value="ADMIN_P2M">Admin P2M</option>
+                      <option value="P2M">Reviewer P2M</option>
+                      <option value="ADMIN_PRODI">Admin Prodi</option>
+                      <option value="STAFF">Staf ({stats.staff})</option>
+                    </>
+                  )}
                 </select>
               </div>
 
@@ -895,7 +1005,7 @@ export default function UserManagementPage() {
                               <div className="text-[11px] text-slate-400 font-mono flex items-center gap-1 mt-0.5">
                                 <span>ID: {user.id.slice(0, 8)}...</span>
                                 <button
-                                  onClick={() => copyToClipboard(user.id, user.id)}
+                                  onClick={() => handleCopyToClipboard(user.id, user.id)}
                                   className="text-slate-400 hover:text-slate-600"
                                   title="Salin ID Pengguna"
                                 >
@@ -916,7 +1026,7 @@ export default function UserManagementPage() {
                             <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                             <span className="font-medium">{user.email}</span>
                             <button
-                              onClick={() => copyToClipboard(user.email, user.email)}
+                              onClick={() => handleCopyToClipboard(user.email, user.email)}
                               className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-slate-600 ml-1"
                               title="Salin Email"
                             >
@@ -958,6 +1068,11 @@ export default function UserManagementPage() {
                               <div className="text-slate-500 text-[11px] truncate max-w-[180px]">
                                 {user.lecturerInfo.prodi || 'Dosen Tetap ITN'}
                               </div>
+                            </div>
+                          ) : user.prodiInfo ? (
+                            <div className="text-xs">
+                              <div className="font-bold text-slate-800">Admin Prodi</div>
+                              <div className="text-slate-500 text-[11px] truncate max-w-[180px]">{user.prodiInfo.name}</div>
                             </div>
                           ) : (
                             <span className="text-xs text-slate-400 italic">Akun Sistem / Staf</span>
@@ -1015,6 +1130,7 @@ export default function UserManagementPage() {
                                   role: user.role,
                                   password: '',
                                   isActive: user.isActive,
+                                  studyProgramId: user.studyProgramId || '',
                                 });
                               }}
                               className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors"
@@ -1183,6 +1299,9 @@ export default function UserManagementPage() {
                             NIDN: {user.lecturerInfo.nidn} • {user.lecturerInfo.prodi}
                           </p>
                         )}
+                        {user.prodiInfo && (
+                          <p className="text-[11px] text-indigo-700 font-semibold mt-1">Admin Prodi: {user.prodiInfo.name}</p>
+                        )}
                       </div>
                     </div>
 
@@ -1212,6 +1331,7 @@ export default function UserManagementPage() {
                           role: user.role,
                           password: '',
                           isActive: user.isActive,
+                          studyProgramId: user.studyProgramId || '',
                         });
                       }}
                       className="py-1.5 px-2 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-amber-50 hover:text-amber-600 transition-all flex items-center justify-center gap-1"
@@ -1299,6 +1419,9 @@ export default function UserManagementPage() {
                 <option value="ADMIN_KEUANGAN">ADMIN KEUANGAN (Biro Keuangan & Tagihan SPP)</option>
                 <option value="ADMIN_LP3M">ADMIN LP3M (Lembaga Penelitian & Pengabdian Masyarakat)</option>
                 <option value="LP3M">REVIEWER LP3M (Penilai Usulan Proposal Riset/PkM)</option>
+                <option value="ADMIN_P2M">ADMIN P2M (Penjaminan Mutu)</option>
+                <option value="P2M">REVIEWER P2M (Pelaksana Audit Mutu Internal)</option>
+                <option value="ADMIN_PRODI">ADMIN PRODI (Pengelola Satu Program Studi)</option>
                 <option value="LECTURER">DOSEN (Dosen Pengajar & Dosen Pembimbing Akademik)</option>
                 <option value="STUDENT">MAHASISWA (Portal Akademik Mahasiswa)</option>
                 <option value="STAFF">STAFF (Tenaga Kependidikan & Tata Usaha)</option>
@@ -1308,6 +1431,26 @@ export default function UserManagementPage() {
                 <span>{ROLE_CONFIG[formData.role]?.desc}</span>
               </div>
             </div>
+
+            {formData.role === 'ADMIN_PRODI' && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Program Studi <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={formData.studyProgramId}
+                  onChange={(e) => setFormData({ ...formData, studyProgramId: e.target.value })}
+                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all bg-white font-medium"
+                >
+                  <option value="">-- Pilih program studi --</option>
+                  {studyPrograms.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
@@ -1417,11 +1560,34 @@ export default function UserManagementPage() {
                 <option value="ADMIN_KEUANGAN">ADMIN KEUANGAN (Keuangan & SPP)</option>
                 <option value="ADMIN_LP3M">ADMIN LP3M (Penelitian & PkM)</option>
                 <option value="LP3M">REVIEWER LP3M (Reviewer Usulan)</option>
+                <option value="ADMIN_P2M">ADMIN P2M (Penjaminan Mutu)</option>
+                <option value="P2M">REVIEWER P2M (Audit Mutu Internal)</option>
+                <option value="ADMIN_PRODI">ADMIN PRODI (Satu Program Studi)</option>
                 <option value="LECTURER">DOSEN (Pengajar & Dosen PA)</option>
                 <option value="STUDENT">MAHASISWA (Portal Mahasiswa)</option>
                 <option value="STAFF">STAFF (Tenaga Kependidikan)</option>
               </select>
             </div>
+
+            {formData.role === 'ADMIN_PRODI' && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Program Studi <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={formData.studyProgramId}
+                  onChange={(e) => setFormData({ ...formData, studyProgramId: e.target.value })}
+                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all bg-white font-medium"
+                >
+                  <option value="">-- Pilih program studi --</option>
+                  {studyPrograms.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="flex items-center gap-3 pt-2">
               <input
@@ -1497,7 +1663,7 @@ export default function UserManagementPage() {
                 />
                 <button
                   type="button"
-                  onClick={() => copyToClipboard(resetPasswordValue, 'modal-pwd')}
+                  onClick={() => handleCopyToClipboard(resetPasswordValue, 'modal-pwd')}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                   title="Salin Sandi"
                 >
@@ -1582,7 +1748,7 @@ export default function UserManagementPage() {
                   <div className="font-mono text-slate-800 font-bold mt-1 break-all select-all flex items-center justify-between">
                     <span>{viewingUser.id}</span>
                     <button
-                      onClick={() => copyToClipboard(viewingUser.id, 'detail-id')}
+                      onClick={() => handleCopyToClipboard(viewingUser.id, 'detail-id')}
                       className="text-slate-400 hover:text-slate-600 ml-2"
                       title="Salin ID"
                     >
@@ -1680,6 +1846,16 @@ export default function UserManagementPage() {
                       <span className="font-bold text-slate-900">{viewingUser.lecturerInfo.prodi || '-'}</span>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {viewingUser.prodiInfo && (
+                <div className="p-4 rounded-xl bg-indigo-50 border border-indigo-100 text-xs">
+                  <div className="flex items-center gap-2 font-bold text-indigo-700 mb-2">
+                    <Layers className="w-4 h-4 text-indigo-600" />
+                    <span>Mengelola Program Studi</span>
+                  </div>
+                  <span className="font-bold text-slate-900">{viewingUser.prodiInfo.name}</span>
                 </div>
               )}
 

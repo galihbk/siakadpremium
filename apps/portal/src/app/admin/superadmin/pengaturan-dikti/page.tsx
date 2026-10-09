@@ -23,7 +23,6 @@ interface PddiktiSetting {
   secretKey: string | null;
   hasPassword: boolean;
   hasSecretKey: boolean;
-  semesterId: string;
   isActive: boolean;
   isConnected: boolean;
   lastSyncAt: string | null;
@@ -36,7 +35,6 @@ const EMPTY_SETTING: PddiktiSetting = {
   secretKey: null,
   hasPassword: false,
   hasSecretKey: false,
-  semesterId: '',
   isActive: false,
   isConnected: false,
   lastSyncAt: null,
@@ -81,30 +79,35 @@ export default function PengaturanDiktiPage() {
     setTimeout(() => setToast(null), 4500);
   };
 
+
+  const saveSetting = async (): Promise<boolean> => {
+    const body: any = {
+      baseUrl: setting.baseUrl,
+      username: setting.username,
+      isActive: setting.isActive,
+    };
+    if (passwordInput.trim()) body.password = passwordInput.trim();
+    if (secretKeyInput.trim()) body.secretKey = secretKeyInput.trim();
+
+    const res = await fetch(`${apiBase}/integration-settings/pddikti`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) throw new Error('Gagal menyimpan');
+
+    const json = await res.json();
+    setSetting({ ...EMPTY_SETTING, ...(json?.data || json) });
+    setPasswordInput('');
+    setSecretKeyInput('');
+    return true;
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const body: any = {
-        baseUrl: setting.baseUrl,
-        username: setting.username,
-        semesterId: setting.semesterId,
-        isActive: setting.isActive,
-      };
-      if (passwordInput.trim()) body.password = passwordInput.trim();
-      if (secretKeyInput.trim()) body.secretKey = secretKeyInput.trim();
-
-      const res = await fetch(`${apiBase}/integration-settings/pddikti`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) throw new Error('Gagal menyimpan');
-
-      const json = await res.json();
-      setSetting({ ...EMPTY_SETTING, ...(json?.data || json) });
-      setPasswordInput('');
-      setSecretKeyInput('');
+      await saveSetting();
       showToast('success', 'Konfigurasi koneksi PDDIKTI berhasil disimpan ke database.');
     } catch {
       showToast('error', 'Gagal menyimpan konfigurasi. Periksa koneksi ke server API.');
@@ -113,9 +116,26 @@ export default function PengaturanDiktiPage() {
     }
   };
 
+  // Test Koneksi menguji kredensial yang TERSIMPAN di database. Kalau form belum
+  // pernah disimpan (atau ada perubahan belum disimpan di baseUrl/username/password),
+  // simpan dulu secara otomatis supaya pengguna tidak perlu mengingat urutan klik
+  // "Simpan" baru "Test Koneksi".
   const handleTestConnection = async () => {
     setIsTesting(true);
     try {
+      const hasUnsavedChanges =
+        !setting.hasPassword ||
+        passwordInput.trim().length > 0 ||
+        secretKeyInput.trim().length > 0;
+
+      if (hasUnsavedChanges) {
+        if (!setting.baseUrl?.trim() || !setting.username?.trim() || (!setting.hasPassword && !passwordInput.trim())) {
+          showToast('error', 'Isi dulu Base URL, Username/Kode PT, dan Password sebelum menguji koneksi.');
+          return;
+        }
+        await saveSetting();
+      }
+
       const res = await fetch(`${apiBase}/integration-settings/pddikti/test-connection`, { method: 'POST', headers: authHeaders() });
       const json = await res.json();
       const result = json?.data || json;
@@ -167,99 +187,72 @@ export default function PengaturanDiktiPage() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Endpoint */}
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="flex items-center gap-3 p-5 border-b border-slate-100 bg-slate-50">
-                  <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center">
-                    <Globe className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h2 className="font-bold text-slate-800">Endpoint Web Service</h2>
-                    <p className="text-xs text-slate-500">Alamat Web Service Neo Feeder institusi</p>
-                  </div>
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="flex items-center gap-3 p-5 border-b border-slate-100 bg-slate-50">
+                <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center">
+                  <Globe className="w-5 h-5 text-white" />
                 </div>
-                <div className="p-5 space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Base URL</label>
-                    <input
-                      value={setting.baseUrl || ''}
-                      onChange={(e) => setSetting((s) => ({ ...s, baseUrl: e.target.value }))}
-                      placeholder="https://feeder.kemdikbud.go.id/ws/live"
-                      className="w-full text-sm font-mono border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Semester ID Aktif</label>
-                    <input
-                      value={setting.semesterId || ''}
-                      onChange={(e) => setSetting((s) => ({ ...s, semesterId: e.target.value }))}
-                      placeholder="Contoh: 20261"
-                      className="w-full text-sm font-mono border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">Aktifkan Sinkronisasi</p>
-                      <p className="text-xs text-slate-500 mt-0.5">Gunakan koneksi ini untuk fitur Pull/Push data PDDIKTI</p>
-                    </div>
-                    <button
-                      onClick={() => setSetting((s) => ({ ...s, isActive: !s.isActive }))}
-                      className={`relative inline-flex w-11 h-6 rounded-full transition-colors ${setting.isActive ? 'bg-blue-600' : 'bg-slate-200'}`}
-                    >
-                      <span
-                        className={`inline-block w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform mt-1 ${setting.isActive ? 'translate-x-6' : 'translate-x-1'}`}
-                      />
-                    </button>
-                  </div>
+                <div>
+                  <h2 className="font-bold text-slate-800">Koneksi Web Service Neo Feeder</h2>
+                  <p className="text-xs text-slate-500">Endpoint dan kredensial operator Web Service institusi</p>
                 </div>
               </div>
-
-              {/* Kredensial */}
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="flex items-center gap-3 p-5 border-b border-slate-100 bg-slate-50">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center">
-                    <KeyRound className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h2 className="font-bold text-slate-800">Kredensial Login</h2>
-                    <p className="text-xs text-slate-500">Akun operator Web Service Neo Feeder</p>
-                  </div>
+              <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Base URL</label>
+                  <input
+                    value={setting.baseUrl || ''}
+                    onChange={(e) => setSetting((s) => ({ ...s, baseUrl: e.target.value }))}
+                    placeholder="https://feeder.kemdikbud.go.id/ws/live"
+                    className="w-full text-sm font-mono border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
+                  />
                 </div>
-                <div className="p-5 space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Username / Kode PT</label>
+                  <input
+                    value={setting.username || ''}
+                    onChange={(e) => setSetting((s) => ({ ...s, username: e.target.value }))}
+                    placeholder="Contoh: 071032"
+                    className="w-full text-sm font-mono border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    Password {setting.hasPassword && <span className="text-emerald-600 font-normal">(tersimpan: {setting.password})</span>}
+                  </label>
+                  <input
+                    type="password"
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    placeholder={setting.hasPassword ? 'Kosongkan jika tidak ingin mengganti' : 'Masukkan password'}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    Secret Key (opsional) {setting.hasSecretKey && <span className="text-emerald-600 font-normal">(tersimpan: {setting.secretKey})</span>}
+                  </label>
+                  <input
+                    type="password"
+                    value={secretKeyInput}
+                    onChange={(e) => setSecretKeyInput(e.target.value)}
+                    placeholder={setting.hasSecretKey ? 'Kosongkan jika tidak ingin mengganti' : 'Masukkan secret key jika ada'}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
+                  />
+                </div>
+                <div className="md:col-span-2 flex items-center justify-between pt-4 border-t border-slate-100">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Username / Kode PT</label>
-                    <input
-                      value={setting.username || ''}
-                      onChange={(e) => setSetting((s) => ({ ...s, username: e.target.value }))}
-                      placeholder="Contoh: 071032"
-                      className="w-full text-sm font-mono border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
-                    />
+                    <p className="text-sm font-semibold text-slate-800">Aktifkan Sinkronisasi</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Gunakan koneksi ini untuk fitur Pull/Push data PDDIKTI</p>
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                      Password {setting.hasPassword && <span className="text-emerald-600 font-normal">(tersimpan: {setting.password})</span>}
-                    </label>
-                    <input
-                      type="password"
-                      value={passwordInput}
-                      onChange={(e) => setPasswordInput(e.target.value)}
-                      placeholder={setting.hasPassword ? 'Kosongkan jika tidak ingin mengganti' : 'Masukkan password'}
-                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
+                  <button
+                    onClick={() => setSetting((s) => ({ ...s, isActive: !s.isActive }))}
+                    className={`relative inline-flex w-11 h-6 rounded-full transition-colors ${setting.isActive ? 'bg-blue-600' : 'bg-slate-200'}`}
+                  >
+                    <span
+                      className={`inline-block w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform mt-1 ${setting.isActive ? 'translate-x-6' : 'translate-x-1'}`}
                     />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                      Secret Key (opsional) {setting.hasSecretKey && <span className="text-emerald-600 font-normal">(tersimpan: {setting.secretKey})</span>}
-                    </label>
-                    <input
-                      type="password"
-                      value={secretKeyInput}
-                      onChange={(e) => setSecretKeyInput(e.target.value)}
-                      placeholder={setting.hasSecretKey ? 'Kosongkan jika tidak ingin mengganti' : 'Masukkan secret key jika ada'}
-                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
-                    />
-                  </div>
+                  </button>
                 </div>
               </div>
             </div>
