@@ -20,6 +20,8 @@ export interface PegawaiResponse {
   joinDate: string;
   status: 'Aktif' | 'Cuti' | 'Pensiun' | 'Tugas Belajar';
   avatarUrl?: string;
+  shiftId?: string | null;
+  shiftName?: string | null;
 }
 
 @Injectable()
@@ -49,6 +51,7 @@ export class EmployeesService {
             },
           },
         },
+        shift: { select: { id: true, name: true } },
       },
       orderBy: {
         createdAt: 'asc',
@@ -166,6 +169,8 @@ export class EmployeesService {
         joinDate: u.createdAt.toISOString().split('T')[0],
         status: u.isActive ? 'Aktif' : 'Cuti',
         avatarUrl: u.avatarUrl || undefined,
+        shiftId: u.shiftId || null,
+        shiftName: u.shift?.name || null,
       };
     });
   }
@@ -186,6 +191,7 @@ export class EmployeesService {
         role,
         passwordHash: defaultHash,
         isActive: data.status === 'Aktif',
+        shiftId: data.shiftId || null,
       },
     });
 
@@ -212,14 +218,26 @@ export class EmployeesService {
   }
 
   async update(id: string, data: any): Promise<PegawaiResponse> {
-    const fullCombinedName = `${data.titlePrefix ? data.titlePrefix + ' ' : ''}${data.fullName}${data.titleSuffix ? ', ' + data.titleSuffix : ''}`;
+    // Partial update (mis. toggle status aktif saja): yang tidak dikirim dipertahankan dari data existing,
+    // supaya nama/email tidak ikut kosong saat caller cuma mengirim satu field.
+    const current = (await this.findAll()).find((item) => item.id === id);
+
+    const fullName = data.fullName !== undefined ? data.fullName : current?.fullName;
+    const titlePrefix = data.titlePrefix !== undefined ? data.titlePrefix : current?.titlePrefix;
+    const titleSuffix = data.titleSuffix !== undefined ? data.titleSuffix : current?.titleSuffix;
+    const email = data.email !== undefined ? data.email : current?.email;
+    const status = data.status !== undefined ? data.status : current?.status;
+    const shiftId = data.shiftId !== undefined ? data.shiftId || null : undefined;
+
+    const fullCombinedName = `${titlePrefix ? titlePrefix + ' ' : ''}${fullName}${titleSuffix ? ', ' + titleSuffix : ''}`;
 
     await this.prisma.user.update({
       where: { id },
       data: {
         fullName: fullCombinedName,
-        email: data.email,
-        isActive: data.status === 'Aktif',
+        email,
+        isActive: status === 'Aktif',
+        ...(shiftId !== undefined ? { shiftId } : {}),
       },
     });
 
@@ -228,11 +246,11 @@ export class EmployeesService {
       await this.prisma.lecturer.update({
         where: { userId: id },
         data: {
-          nip: data.nip,
+          nip: data.nip !== undefined ? data.nip : lec.nip,
           nidn: data.nidn || lec.nidn,
-          titlePrefix: data.titlePrefix,
-          titleSuffix: data.titleSuffix,
-          phone: data.phone,
+          titlePrefix,
+          titleSuffix,
+          phone: data.phone !== undefined ? data.phone : lec.phone,
         },
       });
     }

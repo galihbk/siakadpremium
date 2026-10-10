@@ -12,6 +12,7 @@ export interface AuthUser {
     | 'ADMIN_P2M'
     | 'P2M'
     | 'ADMIN_PRODI'
+    | 'SDM'
     | 'LECTURER'
     | 'STUDENT'
     | 'STAFF';
@@ -94,6 +95,8 @@ export function getRoleRedirectPath(role: string): string {
       return '/admin/p2m';
     case 'ADMIN_PRODI':
       return '/admin/prodi';
+    case 'SDM':
+      return '/admin/sdm';
     case 'ADMIN_KEUANGAN':
     case 'FINANCE':
       return '/finance';
@@ -109,7 +112,7 @@ export function getRoleRedirectPath(role: string): string {
   }
 }
 
-export function getPortalRoleFromBackend(backendRole: string, email?: string): 'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' | 'lp3m' | 'p2m' | 'prodi' | 'pmb' {
+export function getPortalRoleFromBackend(backendRole: string, email?: string): 'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' | 'lp3m' | 'p2m' | 'prodi' | 'sdm' | 'pmb' {
   if (email === 'admin.pmb@itn.ac.id' || email === 'pmb@itn.ac.id' || backendRole === 'ADMIN_PMB' || backendRole === 'PMB') {
     return 'pmb';
   }
@@ -121,6 +124,9 @@ export function getPortalRoleFromBackend(backendRole: string, email?: string): '
   }
   if (email === 'prodi@itn.ac.id' || backendRole === 'ADMIN_PRODI') {
     return 'prodi';
+  }
+  if (email === 'sdm@itn.ac.id' || backendRole === 'SDM') {
+    return 'sdm';
   }
   switch (backendRole) {
     case 'SUPER_ADMIN':
@@ -180,6 +186,16 @@ export function isRouteAllowedForRole(pathname: string, role: string): boolean {
   // Role ADMIN_PRODI HANYA boleh mengakses area Prodi (/admin/prodi)
   if (role === 'ADMIN_PRODI') {
     return pathname.startsWith('/admin/prodi');
+  }
+
+  // Dashboard SDM HANYA boleh diakses oleh role SDM dan Super Admin
+  if (pathname.startsWith('/admin/sdm')) {
+    return role === 'SDM' || role === 'SUPER_ADMIN';
+  }
+
+  // Role SDM HANYA boleh mengakses area SDM (/admin/sdm)
+  if (role === 'SDM') {
+    return pathname.startsWith('/admin/sdm');
   }
 
   // 3. Dashboard Keuangan diakses oleh role Keuangan (ADMIN_KEUANGAN / FINANCE) dan Super Admin

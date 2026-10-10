@@ -55,6 +55,7 @@ export interface UserItem {
     | 'ADMIN_P2M'
     | 'P2M'
     | 'ADMIN_PRODI'
+    | 'SDM'
     | 'LECTURER'
     | 'STUDENT'
     | 'STAFF';
@@ -172,6 +173,14 @@ const ROLE_CONFIG: Record<
     borderColor: 'border-indigo-200',
     icon: Layers,
     desc: 'Pengelolaan data dan layanan khusus satu program studi.',
+  },
+  SDM: {
+    label: 'Biro SDM',
+    color: 'text-teal-700',
+    bgColor: 'bg-teal-50',
+    borderColor: 'border-teal-200',
+    icon: Shield,
+    desc: 'Pengelolaan data pegawai dan rekap kehadiran dosen & karyawan.',
   },
   LECTURER: {
     label: 'Dosen Pengajar',
@@ -794,6 +803,7 @@ export default function UserManagementPage() {
                       <option value="ADMIN_P2M">Admin P2M</option>
                       <option value="P2M">Reviewer P2M</option>
                       <option value="ADMIN_PRODI">Admin Prodi</option>
+                      <option value="SDM">Biro SDM</option>
                       <option value="STAFF">Staf ({stats.staff})</option>
                     </>
                   )}
@@ -1422,6 +1432,7 @@ export default function UserManagementPage() {
                 <option value="ADMIN_P2M">ADMIN P2M (Penjaminan Mutu)</option>
                 <option value="P2M">REVIEWER P2M (Pelaksana Audit Mutu Internal)</option>
                 <option value="ADMIN_PRODI">ADMIN PRODI (Pengelola Satu Program Studi)</option>
+                <option value="SDM">BIRO SDM (Kepegawaian & Rekap Kehadiran)</option>
                 <option value="LECTURER">DOSEN (Dosen Pengajar & Dosen Pembimbing Akademik)</option>
                 <option value="STUDENT">MAHASISWA (Portal Akademik Mahasiswa)</option>
                 <option value="STAFF">STAFF (Tenaga Kependidikan & Tata Usaha)</option>
@@ -1563,6 +1574,7 @@ export default function UserManagementPage() {
                 <option value="ADMIN_P2M">ADMIN P2M (Penjaminan Mutu)</option>
                 <option value="P2M">REVIEWER P2M (Audit Mutu Internal)</option>
                 <option value="ADMIN_PRODI">ADMIN PRODI (Satu Program Studi)</option>
+                <option value="SDM">BIRO SDM (Kepegawaian & Rekap Kehadiran)</option>
                 <option value="LECTURER">DOSEN (Pengajar & Dosen PA)</option>
                 <option value="STUDENT">MAHASISWA (Portal Mahasiswa)</option>
                 <option value="STAFF">STAFF (Tenaga Kependidikan)</option>

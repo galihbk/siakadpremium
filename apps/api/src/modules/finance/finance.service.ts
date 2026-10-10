@@ -1,9 +1,13 @@
 ﻿import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
+import { AttendanceService } from '../attendance/attendance.service';
 
 @Injectable()
 export class FinanceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly attendanceService: AttendanceService,
+  ) {}
 
   async getSummary() {
     const [invoiceGroups, unpaidInvoices, bankAccounts, budgetItems] = await Promise.all([
@@ -126,6 +130,196 @@ export class FinanceService {
       lecturers,
       totals,
     };
+  }
+
+  // --- Pengaturan gaji dosen & karyawan ---
+  async getPayrollSettings(search?: string) {
+    const users = await this.prisma.user.findMany({
+      where: {
+        role: { in: ['SUPER_ADMIN', 'ADMIN_BAAK', 'ADMIN_KEUANGAN', 'LECTURER', 'STAFF'] as any },
+        ...(search
+          ? { fullName: { contains: search, mode: 'insensitive' as const } }
+          : {}),
+      },
+      include: {
+        lecturer: { include: { studyProgram: { select: { name: true } } } },
+        salarySetting: true,
+        salaryComponents: true,
+      },
+      orderBy: { fullName: 'asc' },
+    });
+
+    return users.map((u) => {
+      const tunjangan = u.salaryComponents.filter((c) => c.type === 'TUNJANGAN');
+      const potongan = u.salaryComponents.filter((c) => c.type === 'POTONGAN');
+      const totalTunjangan = tunjangan.reduce((a, c) => a + c.amount, 0);
+      const totalPotongan = potongan.reduce((a, c) => a + c.amount, 0);
+      const baseSalary = u.salarySetting?.baseSalary ?? 0;
+
+      return {
+        userId: u.id,
+        fullName: u.fullName,
+        email: u.email,
+        role: u.role,
+        category: u.role === 'LECTURER' ? 'Dosen' : 'Karyawan',
+        studyProgram: u.lecturer?.studyProgram?.name ?? null,
+        nidn: u.lecturer?.nidn ?? null,
+        isActive: u.isActive,
+        baseSalary,
+        honorPerSks: u.salarySetting?.honorPerSks ?? 0,
+        tunjangan: tunjangan.map((c) => ({ id: c.id, name: c.name, amount: c.amount })),
+        potongan: potongan.map((c) => ({ id: c.id, name: c.name, amount: c.amount })),
+        totalTunjangan,
+        totalPotongan,
+        gajiBersih: baseSalary + totalTunjangan - totalPotongan,
+        notes: u.salarySetting?.notes ?? null,
+        updatedAt: u.salarySetting?.updatedAt ?? null,
+      };
+    });
+  }
+
+  async upsertPayrollSetting(
+    userId: string,
+    data: {
+      baseSalary?: number;
+      honorPerSks?: number;
+      notes?: string;
+      updatedBy?: string;
+      tunjangan?: { name: string; amount: number }[];
+      potongan?: { name: string; amount: number }[];
+    },
+  ) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Pengguna tidak ditemukan');
+
+    const components = [
+      ...(data.tunjangan ?? [])
+        .filter((c) => c.name?.trim())
+        .map((c) => ({ userId, type: 'TUNJANGAN', name: c.name.trim(), amount: c.amount || 0 })),
+      ...(data.potongan ?? [])
+        .filter((c) => c.name?.trim())
+        .map((c) => ({ userId, type: 'POTONGAN', name: c.name.trim(), amount: c.amount || 0 })),
+    ];
+
+    const [setting] = await this.prisma.$transaction([
+      this.prisma.salarySetting.upsert({
+        where: { userId },
+        create: {
+          userId,
+          baseSalary: data.baseSalary ?? 0,
+          honorPerSks: data.honorPerSks ?? 0,
+          notes: data.notes,
+          updatedBy: data.updatedBy,
+        },
+        update: {
+          baseSalary: data.baseSalary ?? 0,
+          honorPerSks: data.honorPerSks ?? 0,
+          notes: data.notes,
+          updatedBy: data.updatedBy,
+        },
+      }),
+      this.prisma.salaryComponent.deleteMany({ where: { userId } }),
+      ...(components.length ? [this.prisma.salaryComponent.createMany({ data: components })] : []),
+    ]);
+
+    return { success: true, message: 'Pengaturan gaji berhasil disimpan', data: setting };
+  }
+
+  // Honor mengajar dihitung per 1 semester (14 pertemuan), dicairkan dalam 6 kali pembayaran,
+  // sehingga nominal yang tampil di sini adalah honor mengajar PER BULAN (bukan per semester).
+  private static readonly MEETINGS_PER_SEMESTER = 14;
+  private static readonly PAYMENTS_PER_SEMESTER = 6;
+
+  // --- Rekap honor (gabungan rekap mengajar + pengaturan gaji + transport kehadiran) ---
+  async getHonorRecap(academicYearId?: string) {
+    const [teaching, users] = await Promise.all([
+      this.getTeachingRecap(academicYearId),
+      this.prisma.user.findMany({
+        where: { role: { in: ['SUPER_ADMIN', 'ADMIN_BAAK', 'ADMIN_KEUANGAN', 'LECTURER', 'STAFF'] as any } },
+        include: {
+          lecturer: { include: { studyProgram: { select: { name: true } } } },
+          salarySetting: true,
+          salaryComponents: true,
+        },
+        orderBy: { fullName: 'asc' },
+      }),
+    ]);
+
+    const selectedYear = teaching.selectedAcademicYearId
+      ? await this.prisma.academicYear.findUnique({ where: { id: teaching.selectedAcademicYearId } })
+      : null;
+    const transport = selectedYear
+      ? await this.attendanceService.getAttendanceTransportTotals(selectedYear.startDate, selectedYear.endDate)
+      : null;
+
+    const sksByLecturerId = new Map(teaching.lecturers.map((l: any) => [l.lecturerId, l]));
+
+    const rows = users.map((u) => {
+      const isLecturer = u.role === 'LECTURER';
+      const teach = isLecturer && u.lecturer ? sksByLecturerId.get(u.lecturer.id) : undefined;
+      const baseSalary = u.salarySetting?.baseSalary ?? 0;
+      const totalTunjangan = u.salaryComponents.filter((c) => c.type === 'TUNJANGAN').reduce((a, c) => a + c.amount, 0);
+      const totalPotongan = u.salaryComponents.filter((c) => c.type === 'POTONGAN').reduce((a, c) => a + c.amount, 0);
+      const honorPerSks = u.salarySetting?.honorPerSks ?? 0;
+      const totalSks = teach?.totalSks ?? 0;
+      const honorMengajarPerBulan = isLecturer
+        ? Math.round(
+            (totalSks * honorPerSks * FinanceService.MEETINGS_PER_SEMESTER) / FinanceService.PAYMENTS_PER_SEMESTER,
+          )
+        : 0;
+      const attendance = transport?.byUser.get(u.id);
+      const hadirPagi = attendance?.hadirPagi ?? 0;
+      const hadirSore = attendance?.hadirSore ?? 0;
+      const transportTotal = attendance?.transportTotal ?? 0;
+      const totalHonor = baseSalary + totalTunjangan - totalPotongan + honorMengajarPerBulan + transportTotal;
+
+      return {
+        userId: u.id,
+        fullName: u.fullName,
+        email: u.email,
+        category: isLecturer ? 'Dosen' : 'Karyawan',
+        studyProgram: u.lecturer?.studyProgram?.name ?? null,
+        nidn: u.lecturer?.nidn ?? null,
+        totalClasses: teach?.totalClasses ?? 0,
+        totalSks,
+        baseSalary,
+        totalTunjangan,
+        totalPotongan,
+        honorPerSks,
+        honorMengajar: honorMengajarPerBulan,
+        hadirPagi,
+        hadirSore,
+        transportTotal,
+        totalHonor,
+      };
+    });
+
+    const totals = {
+      count: rows.length,
+      totalBaseSalary: rows.reduce((a, r) => a + r.baseSalary, 0),
+      totalHonorMengajar: rows.reduce((a, r) => a + r.honorMengajar, 0),
+      totalTunjangan: rows.reduce((a, r) => a + r.totalTunjangan, 0),
+      totalPotongan: rows.reduce((a, r) => a + r.totalPotongan, 0),
+      totalTransport: rows.reduce((a, r) => a + r.transportTotal, 0),
+      grandTotal: rows.reduce((a, r) => a + r.totalHonor, 0),
+    };
+
+    return {
+      academicYears: teaching.academicYears,
+      selectedAcademicYearId: teaching.selectedAcademicYearId,
+      transportRate: transport?.rate ?? { ratePagi: 0, rateSore: 0 },
+      rows,
+      totals,
+    };
+  }
+
+  // --- Tarif uang transport (pagi/sore) ---
+  async getTransportRate() {
+    return this.attendanceService.getRateSettings();
+  }
+
+  async updateTransportRate(data: { ratePagi?: number; rateSore?: number; updatedBy?: string }) {
+    return this.attendanceService.updateRateSettings(data);
   }
 
   // --- Rekening bank ---

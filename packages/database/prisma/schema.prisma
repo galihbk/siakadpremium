@@ -18,6 +18,7 @@ enum Role {
   ADMIN_P2M
   P2M
   ADMIN_PRODI
+  SDM
   LECTURER
   STUDENT
   STAFF
@@ -81,18 +82,104 @@ model User {
   isActive     Boolean  @default(true)
   // Dipakai khusus role ADMIN_PRODI -- menandai program studi yang dikelola akun ini.
   studyProgramId String?
+  // Shift kerja (jam absen) yang berlaku untuk dosen/karyawan ini.
+  shiftId        String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   student                    Student?
   lecturer                   Lecturer?
   studyProgram               StudyProgram?         @relation(fields: [studyProgramId], references: [id], onDelete: SetNull)
+  shift                      Shift?                @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   updatedLandingPageSettings LandingPageSetting[]
   landingPageArticles        LandingPageArticle[]
   updatedBankGatewaySettings BankGatewaySetting[]
   updatedPddiktiSettings     PddiktiSetting[]
+  salarySetting              SalarySetting?
+  salaryComponents           SalaryComponent[]
+  dailyAttendances           DailyAttendance[]
+  updatedTransportRateSettings TransportRateSetting[]
 
   @@map("users")
+}
+
+model SalarySetting {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  baseSalary   Int      @default(0)
+  honorPerSks  Int      @default(0)
+  notes        String?
+  updatedBy    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("salary_settings")
+}
+
+// Rincian tunjangan & potongan gaji per pegawai (mis. Tunjangan Jabatan, BPJS Kesehatan, PPh 21, dst).
+model SalaryComponent {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String // 'TUNJANGAN' | 'POTONGAN'
+  name      String
+  amount    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("salary_components")
+}
+
+// Absen mandiri harian dosen/karyawan (pagi & sore), dasar perhitungan uang transport otomatis.
+model DailyAttendance {
+  id          String    @id @default(uuid())
+  userId      String
+  date        DateTime  @db.Date
+  checkInPagi DateTime?
+  checkInSore DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("daily_attendances")
+}
+
+// Tarif uang transport per sesi (pagi/sore), berlaku global untuk semua dosen & karyawan.
+model TransportRateSetting {
+  id        String   @id @default("default-transport-rate")
+  ratePagi  Int      @default(0)
+  rateSore  Int      @default(0)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  updatedByUserId String?
+  updatedByUser   User?   @relation(fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@map("transport_rate_settings")
+}
+
+// Template jam kerja (shift) -- dosen/karyawan diassign ke salah satu, dipakai untuk
+// menentukan apakah absen pagi/sore mereka tepat waktu atau terlambat.
+model Shift {
+  id            String   @id @default(uuid())
+  name          String
+  startPagi     String? // "HH:mm", kosong kalau shift ini tidak punya sesi pagi
+  toleransiPagi Int      @default(15) // menit
+  startSore     String? // "HH:mm", kosong kalau shift ini tidak punya sesi sore
+  toleransiSore Int      @default(15) // menit
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  users User[]
+
+  @@map("shifts")
 }
 
 model Faculty {

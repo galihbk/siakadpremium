@@ -73,11 +73,13 @@ import {
   ClipboardCheck,
   FileSignature,
   UploadCloud,
+  ReceiptText,
+  Sunrise,
 } from 'lucide-react';
 
 interface PortalLayoutProps {
   children: React.ReactNode;
-  role: 'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' | 'lp3m' | 'p2m' | 'prodi' | 'pmb';
+  role: 'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' | 'lp3m' | 'p2m' | 'prodi' | 'sdm' | 'pmb';
   userName?: string;
   userIdText?: string;
   activeMenuHref?: string;
@@ -90,7 +92,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
   const [institutionProfile, setInstitutionProfile] = useState<InstitutionProfile>(FALLBACK_INSTITUTION_PROFILE);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [effectiveRole, setEffectiveRole] = useState<
-    'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' | 'lp3m' | 'p2m' | 'prodi' | 'pmb'
+    'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' | 'lp3m' | 'p2m' | 'prodi' | 'sdm' | 'pmb'
   >(role);
   const [isVerifying, setIsVerifying] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -197,6 +199,9 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
     if (role === 'prodi' || user.email === 'prodi@itn.ac.id' || pathname.startsWith('/admin/prodi')) {
       computedRole = 'prodi';
     }
+    if (role === 'sdm' || user.email === 'sdm@itn.ac.id' || pathname.startsWith('/admin/sdm')) {
+      computedRole = 'sdm';
+    }
     setEffectiveRole(computedRole);
 
     // 2. Kalo sudah login: Pastikan rute yang diakses sesuai dengan rolenya
@@ -300,6 +305,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       title: 'MENU UTAMA',
       items: [
         { name: 'Dashboard Dosen', href: '/lecturer', icon: LayoutDashboard },
+        { name: 'Absensi Harian', href: '/lecturer/absensi-harian', icon: CheckCircle2 },
         { name: 'Profil', href: '/lecturer/profil', icon: User },
       ],
     },
@@ -331,7 +337,10 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
   const adminNavGroups = [
     {
       title: 'DASHBOARD',
-      items: [{ name: 'Dashboard BAAK', href: '/admin', icon: LayoutDashboard }],
+      items: [
+        { name: 'Dashboard BAAK', href: '/admin', icon: LayoutDashboard },
+        { name: 'Absensi Harian', href: '/admin/absensi-harian', icon: CheckCircle2 },
+      ],
     },
     {
       title: 'DATA INDUK',
@@ -389,6 +398,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         { name: 'Dashboard', href: '/admin/superadmin', icon: LayoutDashboard },
         { name: 'Monitoring Server', href: '/admin/superadmin/monitoring', icon: Activity },
         { name: 'Analitik Kunjungan Web', href: '/admin/superadmin/analitik', icon: BarChart3 },
+        { name: 'Absensi Harian', href: '/admin/absensi-harian', icon: CheckCircle2 },
       ],
     },
     {
@@ -427,6 +437,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       title: 'MENU UTAMA',
       items: [
         { name: 'Dashboard Keuangan', href: '/finance', icon: LayoutDashboard },
+        { name: 'Absensi Harian', href: '/finance/absensi-harian', icon: CheckCircle2 },
       ],
     },
     {
@@ -442,6 +453,9 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       title: 'HONOR & PENGAJARAN',
       items: [
         { name: 'Rekapitulasi Mengajar', href: '/finance/rekap-mengajar', icon: Clock },
+        { name: 'Pengaturan Gaji', href: '/finance/gaji', icon: Wallet },
+        { name: 'Tarif Uang Transport', href: '/finance/tarif-transport', icon: Sunrise },
+        { name: 'Rekap Honor', href: '/finance/rekap-honor', icon: ReceiptText },
       ],
     },
     {
@@ -532,6 +546,30 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
     },
   ];
 
+  const sdmNavGroups = [
+    {
+      title: 'MENU UTAMA SDM',
+      items: [
+        { name: 'Dashboard SDM', href: '/admin/sdm', icon: LayoutDashboard },
+        { name: 'Absensi Harian', href: '/admin/sdm/absensi-harian', icon: CheckCircle2 },
+      ],
+    },
+    {
+      title: 'KEPEGAWAIAN',
+      items: [
+        { name: 'Data Pegawai', href: '/admin/sdm/pegawai', icon: Briefcase },
+        { name: 'Pengaturan Shift', href: '/admin/sdm/shift', icon: Clock },
+        { name: 'Rekap Absensi', href: '/admin/sdm/rekap-absensi', icon: ClipboardCheck },
+      ],
+    },
+    {
+      title: 'AKUN & SISTEM',
+      items: [
+        { name: 'Logout', href: '#logout', icon: LogOut, isLogout: true },
+      ],
+    },
+  ];
+
   const pmbNavGroups = [
     {
       title: 'MENU UTAMA PMB',
@@ -580,9 +618,11 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                 ? p2mNavGroups
                 : effectiveRole === 'prodi'
                   ? prodiNavGroups
-                  : effectiveRole === 'pmb'
-                    ? pmbNavGroups
-                    : adminNavGroups;
+                  : effectiveRole === 'sdm'
+                    ? sdmNavGroups
+                    : effectiveRole === 'pmb'
+                      ? pmbNavGroups
+                      : adminNavGroups;
 
   const roleLabel =
     effectiveRole === 'student'
@@ -599,9 +639,11 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                 ? 'Penjaminan Mutu (P2M)'
                 : effectiveRole === 'prodi'
                   ? 'Admin Program Studi'
-                  : effectiveRole === 'pmb'
-                    ? 'Panitia PMB (Admissions)'
-                    : 'Administrator BAAK';
+                  : effectiveRole === 'sdm'
+                    ? 'Biro SDM & Kepegawaian'
+                    : effectiveRole === 'pmb'
+                      ? 'Panitia PMB (Admissions)'
+                      : 'Administrator BAAK';
 
   const defaultNameByRole =
     effectiveRole === 'student'
@@ -618,9 +660,11 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                 ? 'Pengelola Penjaminan Mutu'
                 : effectiveRole === 'prodi'
                   ? 'Admin Program Studi'
-                  : effectiveRole === 'pmb'
-                    ? 'Panitia PMB ITN'
-                    : 'Administrator BAAK';
+                  : effectiveRole === 'sdm'
+                    ? 'Biro SDM & Kepegawaian'
+                    : effectiveRole === 'pmb'
+                      ? 'Panitia PMB ITN'
+                      : 'Administrator BAAK';
 
   const displayName = currentUser?.fullName || userName || defaultNameByRole;
   const displayAvatar = currentUser?.avatarUrl;
@@ -635,6 +679,8 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
           ? 'Pengelola Penjaminan Mutu'
           : effectiveRole === 'prodi'
             ? 'Admin Program Studi'
+            : effectiveRole === 'sdm'
+              ? 'Biro SDM & Kepegawaian'
             : effectiveRole === 'pmb'
               ? 'Panitia Penerimaan Mahasiswa Baru'
             : effectiveRole === 'finance'
@@ -725,6 +771,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                     '/admin/p3m',
                     '/admin/p2m',
                     '/admin/prodi',
+                    '/admin/sdm',
                     '/admin/pmb',
                   ].includes(item.href);
 
@@ -913,7 +960,9 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                             ? 'Ketua Penjaminan Mutu'
                             : effectiveRole === 'prodi'
                               ? 'Admin Program Studi'
-                              : effectiveRole === 'superadmin'
+                              : effectiveRole === 'sdm'
+                                ? 'Biro SDM'
+                                : effectiveRole === 'superadmin'
                               ? 'Super Admin'
                               : effectiveRole === 'finance'
                                 ? 'Biro Keuangan'
@@ -960,6 +1009,8 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                                     ? 'P2M'
                                     : effectiveRole === 'prodi'
                                       ? 'Admin Prodi'
+                                      : effectiveRole === 'sdm'
+                                        ? 'Biro SDM'
                                       : effectiveRole === 'superadmin'
                                         ? 'Super Admin'
                                       : 'Admin BAAK'}

@@ -12,6 +12,7 @@ export const UserRole = {
   ADMIN_P2M: 'ADMIN_P2M',
   P2M: 'P2M',
   ADMIN_PRODI: 'ADMIN_PRODI',
+  SDM: 'SDM',
   LECTURER: 'LECTURER',
   STUDENT: 'STUDENT',
   STAFF: 'STAFF',

@@ -13,6 +13,7 @@ export const ROLE_HIERARCHY: Record<UserRole, number> = {
   [UserRole.ADMIN_P2M]: 80,
   [UserRole.P2M]: 60,
   [UserRole.ADMIN_PRODI]: 70,
+  [UserRole.SDM]: 80,
   [UserRole.LECTURER]: 50,
   [UserRole.STAFF]: 40,
   [UserRole.STUDENT]: 10,

@@ -111,6 +111,16 @@ export class AuthService {
           lecturer: null,
           studyProgramId: realProdi?.id || null,
         };
+      } else if (identifier === 'sdm@itn.ac.id') {
+        user = {
+          id: 'demo-sdm-id',
+          email: 'sdm@itn.ac.id',
+          fullName: 'Dewi Lestari, S.Psi., M.M. (Kepala Biro SDM)',
+          role: UserRole.SDM,
+          avatarUrl: null,
+          student: null,
+          lecturer: null,
+        };
       } else if (identifier === 'keuangan@itn.ac.id' || identifier === 'finance@itn.ac.id') {
         user = {
           id: 'demo-finance-id',

@@ -57,6 +57,47 @@ export class FinanceController {
     return await this.financeService.getTeachingRecap(academicYearId);
   }
 
+  @Get('transport-rate')
+  @ApiOperation({ summary: 'Tarif uang transport pagi & sore yang berlaku untuk semua dosen/karyawan' })
+  async getTransportRate() {
+    return await this.financeService.getTransportRate();
+  }
+
+  @Put('transport-rate')
+  @ApiOperation({ summary: 'Ubah tarif uang transport pagi & sore' })
+  async updateTransportRate(@Body() body: { ratePagi?: number; rateSore?: number; updatedBy?: string }) {
+    return await this.financeService.updateTransportRate(body);
+  }
+
+  @Get('honor-recap')
+  @ApiOperation({ summary: 'Rekap honor dosen & karyawan per semester (gaji pokok, honor mengajar, tunjangan)' })
+  async getHonorRecap(@Query('academicYearId') academicYearId?: string) {
+    return await this.financeService.getHonorRecap(academicYearId);
+  }
+
+  @Get('payroll')
+  @ApiOperation({ summary: 'Daftar pengaturan gaji & honor dosen dan karyawan' })
+  async getPayrollSettings(@Query('search') search?: string) {
+    return await this.financeService.getPayrollSettings(search);
+  }
+
+  @Put('payroll/:userId')
+  @ApiOperation({ summary: 'Simpan gaji pokok, honor per SKS, rincian tunjangan, dan potongan untuk seorang dosen/karyawan' })
+  async upsertPayrollSetting(
+    @Param('userId') userId: string,
+    @Body()
+    body: {
+      baseSalary?: number;
+      honorPerSks?: number;
+      notes?: string;
+      updatedBy?: string;
+      tunjangan?: { name: string; amount: number }[];
+      potongan?: { name: string; amount: number }[];
+    },
+  ) {
+    return await this.financeService.upsertPayrollSetting(userId, body);
+  }
+
   @Get('bank-accounts')
   async getBankAccounts() {
     return await this.financeService.getBankAccounts();

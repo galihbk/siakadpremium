@@ -17,6 +17,8 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { BuildingsModule } from './modules/buildings/buildings.module';
 import { FinanceModule } from './modules/finance/finance.module';
+import { AttendanceModule } from './modules/attendance/attendance.module';
+import { ShiftsModule } from './modules/shifts/shifts.module';
 import { Lp3mModule } from './modules/lp3m/lp3m.module';
 import { P2mModule } from './modules/p2m/p2m.module';
 import { UsersModule } from './modules/users/users.module';
@@ -58,6 +60,8 @@ import { AppService } from './app.service';
     EmployeesModule,
     BuildingsModule,
     FinanceModule,
+    AttendanceModule,
+    ShiftsModule,
     Lp3mModule,
     P2mModule,
     UsersModule,
