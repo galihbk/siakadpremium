@@ -99,6 +99,7 @@ model User {
   salaryComponents           SalaryComponent[]
   dailyAttendances           DailyAttendance[]
   updatedTransportRateSettings TransportRateSetting[]
+  honorPayments              HonorPayment[]
 
   @@map("users")
 }
@@ -107,7 +108,6 @@ model SalarySetting {
   id           String   @id @default(uuid())
   userId       String   @unique
   baseSalary   Int      @default(0)
-  honorPerSks  Int      @default(0)
   notes        String?
   updatedBy    String?
   createdAt    DateTime @default(now())
@@ -132,6 +132,33 @@ model SalaryComponent {
 
   @@index([userId])
   @@map("salary_components")
+}
+
+// Snapshot honor yang sudah dibayarkan untuk satu pegawai di satu periode bulan pembayaran --
+// disimpan terpisah dari perhitungan live supaya kalau data SKS/honor dikoreksi belakangan,
+// angka yang SUDAH dibayarkan tidak ikut berubah (tetap sesuai yang benar-benar dikirim bulan itu).
+model HonorPayment {
+  id             String   @id @default(uuid())
+  userId         String
+  periodMonth    Int // 1-12
+  periodYear     Int
+  academicYearId String?
+  baseSalary     Int      @default(0)
+  totalTunjangan Int      @default(0)
+  totalPotongan  Int      @default(0)
+  honorMengajar  Int      @default(0)
+  transportTotal Int      @default(0)
+  totalHonor     Int      @default(0)
+  paidAt         DateTime @default(now())
+  paidBy         String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, periodMonth, periodYear])
+  @@map("honor_payments")
 }
 
 // Absen mandiri harian dosen/karyawan (pagi & sore), dasar perhitungan uang transport otomatis.
@@ -162,6 +189,18 @@ model TransportRateSetting {
   updatedByUser   User?   @relation(fields: [updatedByUserId], references: [id], onDelete: SetNull)
 
   @@map("transport_rate_settings")
+}
+
+// Tarif honor mengajar per SKS, berbeda untuk tiap jenjang prodi yang diajar (D3/D4/S1/S2/S3/Profesi) --
+// dosen yang mengajar di prodi S2 misalnya dapat tarif per-SKS yang berbeda dari yang mengajar di D3.
+model HonorRateJenjang {
+  id          String      @id @default(uuid())
+  degreeLevel DegreeLevel @unique
+  ratePerSks  Int         @default(0)
+  updatedAt   DateTime    @updatedAt
+  createdAt   DateTime    @default(now())
+
+  @@map("honor_rate_jenjang")
 }
 
 // Template jam kerja (shift) -- dosen/karyawan diassign ke salah satu, dipakai untuk

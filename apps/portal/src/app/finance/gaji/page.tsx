@@ -23,7 +23,6 @@ interface PayrollRow {
   nidn: string | null;
   isActive: boolean;
   baseSalary: number;
-  honorPerSks: number;
   tunjangan: SalaryComponentItem[];
   potongan: SalaryComponentItem[];
   totalTunjangan: number;
@@ -59,7 +58,7 @@ export default function PengaturanGajiPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [editing, setEditing] = useState<PayrollRow | null>(null);
-  const [form, setForm] = useState({ baseSalary: '0', honorPerSks: '0', notes: '' });
+  const [form, setForm] = useState({ baseSalary: '0', notes: '' });
   const [tunjanganItems, setTunjanganItems] = useState<ComponentFormItem[]>([]);
   const [potonganItems, setPotonganItems] = useState<ComponentFormItem[]>([]);
   const [saving, setSaving] = useState(false);
@@ -112,7 +111,6 @@ export default function PengaturanGajiPage() {
     setEditing(row);
     setForm({
       baseSalary: String(row.baseSalary || 0),
-      honorPerSks: String(row.honorPerSks || 0),
       notes: row.notes || '',
     });
     setTunjanganItems(toFormItems(row.tunjangan));
@@ -143,7 +141,6 @@ export default function PengaturanGajiPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           baseSalary: Number(form.baseSalary) || 0,
-          honorPerSks: Number(form.honorPerSks) || 0,
           notes: form.notes || undefined,
           tunjangan: tunjanganItems
             .filter((it) => it.name.trim())
@@ -244,17 +241,15 @@ export default function PengaturanGajiPage() {
                   <SortableTh<PayrollRow> label="Nama" column="fullName" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                   <SortableTh<PayrollRow> label="Kategori" column="category" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                   <SortableTh<PayrollRow> label="Gaji Pokok" column="baseSalary" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="center" />
-                  <SortableTh<PayrollRow> label="Honor/SKS" column="honorPerSks" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="center" />
                   <SortableTh<PayrollRow> label="Tunjangan" column="totalTunjangan" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="center" />
                   <SortableTh<PayrollRow> label="Potongan" column="totalPotongan" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="center" />
-                  <SortableTh<PayrollRow> label="Gaji Bersih" column="gajiBersih" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="center" />
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {!loading && paginated.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
+                    <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
                       Tidak ada data yang cocok.
                     </td>
                   </tr>
@@ -278,16 +273,12 @@ export default function PengaturanGajiPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right font-semibold">{formatRupiah(r.baseSalary)}</td>
-                    <td className="px-4 py-3 text-right text-[#1E3A8A] font-semibold">
-                      {r.category === 'Dosen' ? formatRupiah(r.honorPerSks) : '-'}
-                    </td>
                     <td className="px-4 py-3 text-right text-emerald-600">
                       {r.totalTunjangan > 0 ? `+${formatRupiah(r.totalTunjangan)}` : formatRupiah(0)}
                     </td>
                     <td className="px-4 py-3 text-right text-rose-600">
                       {r.totalPotongan > 0 ? `-${formatRupiah(r.totalPotongan)}` : formatRupiah(0)}
                     </td>
-                    <td className="px-4 py-3 text-right font-black text-slate-800">{formatRupiah(r.gajiBersih)}</td>
                     <td className="px-4 py-3 text-right">
                       <button
                         onClick={() => openEdit(r)}
@@ -314,7 +305,7 @@ export default function PengaturanGajiPage() {
           )}
 
           <div className="p-4 bg-slate-50 border-t border-slate-200 text-[11px] text-slate-500">
-            Gaji Bersih = Gaji Pokok + Tunjangan &minus; Potongan. Honor per SKS (dosen) dihitung terpisah di menu Rekap Honor.
+            Total gaji aktual (termasuk honor mengajar &amp; uang transport) dihitung di menu Rekap Honor.
           </div>
         </div>
       </div>
@@ -332,34 +323,22 @@ export default function PengaturanGajiPage() {
               </button>
             </div>
             <div className="p-5 space-y-5 overflow-y-auto">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">Gaji Pokok / Bulan (Rp)</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">Rp</span>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={formatThousands(form.baseSalary)}
-                      onChange={(e) => setForm((f) => ({ ...f, baseSalary: onlyDigits(e.target.value) }))}
-                      className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm outline-hidden focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-                    />
-                  </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Gaji Pokok / Bulan (Rp)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">Rp</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={formatThousands(form.baseSalary)}
+                    onChange={(e) => setForm((f) => ({ ...f, baseSalary: onlyDigits(e.target.value) }))}
+                    className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm outline-hidden focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                  />
                 </div>
                 {editing.category === 'Dosen' && (
-                  <div>
-                    <label className="text-xs font-semibold text-slate-600 block mb-1">Honor per SKS (Rp)</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">Rp</span>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={formatThousands(form.honorPerSks)}
-                        onChange={(e) => setForm((f) => ({ ...f, honorPerSks: onlyDigits(e.target.value) }))}
-                        className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm outline-hidden focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-                      />
-                    </div>
-                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1.5">
+                    Honor mengajar per SKS dihitung otomatis berdasarkan jenjang prodi yang diajar — atur di menu Tarif Honor per Jenjang.
+                  </p>
                 )}
               </div>
 

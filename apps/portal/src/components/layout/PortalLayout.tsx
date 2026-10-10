@@ -454,6 +454,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       items: [
         { name: 'Rekapitulasi Mengajar', href: '/finance/rekap-mengajar', icon: Clock },
         { name: 'Pengaturan Gaji', href: '/finance/gaji', icon: Wallet },
+        { name: 'Tarif Honor per Jenjang', href: '/finance/tarif-honor-jenjang', icon: GraduationCap },
         { name: 'Tarif Uang Transport', href: '/finance/tarif-transport', icon: Sunrise },
         { name: 'Rekap Honor', href: '/finance/rekap-honor', icon: ReceiptText },
       ],

@@ -69,10 +69,49 @@ export class FinanceController {
     return await this.financeService.updateTransportRate(body);
   }
 
+  @Get('honor-rate-jenjang')
+  @ApiOperation({ summary: 'Tarif honor per SKS untuk tiap jenjang prodi (D3/D4/S1/S2/S3/Profesi)' })
+  async getHonorRateJenjang() {
+    return await this.financeService.getHonorRateJenjang();
+  }
+
+  @Put('honor-rate-jenjang/:degreeLevel')
+  @ApiOperation({ summary: 'Ubah tarif honor per SKS untuk satu jenjang' })
+  async updateHonorRateJenjang(@Param('degreeLevel') degreeLevel: string, @Body() body: { ratePerSks: number }) {
+    return await this.financeService.upsertHonorRateJenjang(degreeLevel, body.ratePerSks);
+  }
+
   @Get('honor-recap')
   @ApiOperation({ summary: 'Rekap honor dosen & karyawan per semester (gaji pokok, honor mengajar, tunjangan)' })
-  async getHonorRecap(@Query('academicYearId') academicYearId?: string) {
-    return await this.financeService.getHonorRecap(academicYearId);
+  async getHonorRecap(
+    @Query('academicYearId') academicYearId?: string,
+    @Query('month') month?: string,
+    @Query('year') year?: string,
+  ) {
+    return await this.financeService.getHonorRecap(
+      academicYearId,
+      month ? Number(month) : undefined,
+      year ? Number(year) : undefined,
+    );
+  }
+
+  @Post('honor-recap/:userId/mark-paid')
+  @ApiOperation({ summary: 'Tandai honor seorang pegawai sudah dibayarkan untuk satu periode bulan (snapshot beku)' })
+  async markHonorPaid(
+    @Param('userId') userId: string,
+    @Body() body: { academicYearId?: string; month: number; year: number; paidBy?: string; notes?: string },
+  ) {
+    return await this.financeService.markHonorPaid(userId, body);
+  }
+
+  @Delete('honor-recap/:userId/mark-paid')
+  @ApiOperation({ summary: 'Batalkan status sudah dibayar honor seorang pegawai untuk satu periode bulan' })
+  async unmarkHonorPaid(
+    @Param('userId') userId: string,
+    @Query('month') month: string,
+    @Query('year') year: string,
+  ) {
+    return await this.financeService.unmarkHonorPaid(userId, Number(month), Number(year));
   }
 
   @Get('payroll')
@@ -88,7 +127,6 @@ export class FinanceController {
     @Body()
     body: {
       baseSalary?: number;
-      honorPerSks?: number;
       notes?: string;
       updatedBy?: string;
       tunjangan?: { name: string; amount: number }[];
