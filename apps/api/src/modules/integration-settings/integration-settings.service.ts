@@ -302,6 +302,105 @@ export class IntegrationSettingsService {
     }
   }
 
+  // Rekap sinkronisasi NYATA (bukan placeholder) -- dihitung langsung dari kolom feederId per entitas,
+  // dipakai halaman Status Sinkronisasi Feeder supaya BAAK tahu persis mana yang belum ter-push/pull.
+  async getFeederSyncStatus() {
+    const [
+      lecturerTotal,
+      lecturerSynced,
+      studentTotal,
+      studentBiodataSynced,
+      studentRegistered,
+      courseTotal,
+      courseSynced,
+      courseClassTotal,
+      courseClassSynced,
+      curriculumTotal,
+      curriculumSynced,
+    ] = await Promise.all([
+      this.prisma.lecturer.count(),
+      this.prisma.lecturer.count({ where: { feederId: { not: null } } }),
+      this.prisma.student.count(),
+      this.prisma.student.count({ where: { feederId: { not: null } } }),
+      this.prisma.student.count({ where: { feederRegistrationId: { not: null } } }),
+      this.prisma.course.count(),
+      this.prisma.course.count({ where: { feederId: { not: null } } }),
+      this.prisma.courseClass.count(),
+      this.prisma.courseClass.count({ where: { feederId: { not: null } } }),
+      this.prisma.curriculum.count(),
+      this.prisma.curriculum.count({ where: { feederId: { not: null } } }),
+    ]);
+
+    const entity = (key: string, label: string, totalLocal: number, totalSynced: number, extra?: Record<string, number>) => ({
+      key,
+      label,
+      totalLocal,
+      totalSynced,
+      totalBelum: Math.max(0, totalLocal - totalSynced),
+      percentage: totalLocal > 0 ? Math.round((totalSynced / totalLocal) * 1000) / 10 : 0,
+      ...extra,
+    });
+
+    return [
+      entity('dosen', 'Dosen', lecturerTotal, lecturerSynced),
+      entity('mahasiswa', 'Mahasiswa (Biodata)', studentTotal, studentBiodataSynced, { totalTerdaftarFeeder: studentRegistered }),
+      entity('mata-kuliah', 'Mata Kuliah', courseTotal, courseSynced),
+      entity('kurikulum', 'Kurikulum', curriculumTotal, curriculumSynced),
+      entity('kelas-kuliah', 'Kelas Kuliah', courseClassTotal, courseClassSynced),
+    ];
+  }
+
+  // Daftar mahasiswa aktif yang BELUM terdaftar (registrasi) di Feeder, lengkap pesan error
+  // Push terakhir kalau ada -- dipakai tab "Push" di halaman Sinkronisasi Feeder.
+  async getPendingMahasiswaPush() {
+    const students = await this.prisma.student.findMany({
+      where: { status: 'ACTIVE', feederRegistrationId: null },
+      include: { user: { select: { fullName: true } }, studyProgram: { select: { name: true } } },
+      orderBy: [{ feederSyncErrorAt: 'desc' }, { createdAt: 'asc' }],
+    });
+    return students.map((s) => ({
+      id: s.id,
+      nim: s.nim,
+      fullName: s.user.fullName,
+      studyProgram: s.studyProgram?.name ?? null,
+      hasFeederId: Boolean(s.feederId),
+      lastError: s.feederSyncError,
+      lastErrorAt: s.feederSyncErrorAt,
+    }));
+  }
+
+  // Daftar mata kuliah yang BELUM punya feederId, lengkap pesan error Push terakhir kalau ada.
+  async getPendingMataKuliahPush() {
+    const courses = await this.prisma.course.findMany({
+      where: { feederId: null, studyProgramId: { not: null } },
+      orderBy: [{ feederSyncErrorAt: 'desc' }, { createdAt: 'asc' }],
+    });
+    return courses.map((c) => ({
+      id: c.id,
+      code: c.code,
+      name: c.name,
+      studyProgram: c.studyProgramName,
+      lastError: c.feederSyncError,
+      lastErrorAt: c.feederSyncErrorAt,
+    }));
+  }
+
+  // Daftar kurikulum yang BELUM punya feederId, lengkap pesan error Push terakhir kalau ada.
+  async getPendingKurikulumPush() {
+    const curricula = await this.prisma.curriculum.findMany({
+      where: { feederId: null },
+      orderBy: [{ feederSyncErrorAt: 'desc' }, { createdAt: 'asc' }],
+    });
+    return curricula.map((c) => ({
+      id: c.id,
+      code: c.code,
+      name: c.name,
+      studyProgram: c.studyProgram,
+      lastError: c.feederSyncError,
+      lastErrorAt: c.feederSyncErrorAt,
+    }));
+  }
+
   async updatePddiktiSetting(dto: UpdatePddiktiSettingDto, userId?: string) {
     const data: any = { ...dto };
     if (!data.password) delete data.password;
@@ -1048,9 +1147,14 @@ export class IntegrationSettingsService {
       let failed = 0;
       let skipped = 0;
       const failReasons: Record<string, number> = {};
-      const markFailed = (reason: string) => {
+      // Catat alasan gagal pada BARIS mata kuliah itu sendiri (feederSyncError), bukan cuma
+      // agregat -- supaya tab Push di halaman Sinkronisasi Feeder bisa menampilkan errornya per baris.
+      const markFailed = async (courseId: string, reason: string) => {
         failed += 1;
         failReasons[reason] = (failReasons[reason] || 0) + 1;
+        await this.prisma.course
+          .update({ where: { id: courseId }, data: { feederSyncError: reason, feederSyncErrorAt: new Date() } })
+          .catch(() => null);
       };
 
       for (const course of eligible) {
@@ -1073,12 +1177,15 @@ export class IntegrationSettingsService {
           if (existingErr !== '0') throw new Error(existingErrDesc || 'Respon Feeder tidak valid');
           const found = Array.isArray(existingData) ? existingData[0] : null;
           if (found?.id_matkul) {
-            await this.prisma.course.update({ where: { id: course.id }, data: { feederId: found.id_matkul } });
+            await this.prisma.course.update({
+              where: { id: course.id },
+              data: { feederId: found.id_matkul, feederSyncError: null, feederSyncErrorAt: null },
+            });
             linked += 1;
             continue;
           }
         } catch (err: any) {
-          markFailed(`Gagal cek data di Feeder: ${err?.message || 'Unknown error'}`);
+          await markFailed(course.id, `Gagal cek data di Feeder: ${err?.message || 'Unknown error'}`);
           continue;
         }
 
@@ -1094,10 +1201,13 @@ export class IntegrationSettingsService {
           },
         });
         if (insertErr !== '0' || !insertData?.id_matkul) {
-          markFailed(`Insert mata kuliah ditolak Feeder: ${insertErrDesc || 'tanpa keterangan'}`);
+          await markFailed(course.id, `Insert mata kuliah ditolak Feeder: ${insertErrDesc || 'tanpa keterangan'}`);
           continue;
         }
-        await this.prisma.course.update({ where: { id: course.id }, data: { feederId: insertData.id_matkul } });
+        await this.prisma.course.update({
+          where: { id: course.id },
+          data: { feederId: insertData.id_matkul, feederSyncError: null, feederSyncErrorAt: null },
+        });
         created += 1;
       }
 
@@ -1185,9 +1295,12 @@ export class IntegrationSettingsService {
       let failed = 0;
       let skipped = 0;
       const failReasons: Record<string, number> = {};
-      const markFailed = (reason: string) => {
+      const markFailed = async (curriculumId: string, reason: string) => {
         failed += 1;
         failReasons[reason] = (failReasons[reason] || 0) + 1;
+        await this.prisma.curriculum
+          .update({ where: { id: curriculumId }, data: { feederSyncError: reason, feederSyncErrorAt: new Date() } })
+          .catch(() => null);
       };
 
       for (const curriculum of eligible) {
@@ -1202,7 +1315,7 @@ export class IntegrationSettingsService {
         }
 
         if (!/^\d{4}$/.test(String(curriculum.startYear))) {
-          markFailed('Tahun mulai kurikulum tidak valid');
+          await markFailed(curriculum.id, 'Tahun mulai kurikulum tidak valid');
           continue;
         }
         const idSemester = `${curriculum.startYear}1`;
@@ -1219,7 +1332,10 @@ export class IntegrationSettingsService {
           if (existingErr !== '0') throw new Error(existingErrDesc || 'Respon Feeder tidak valid');
           const found = Array.isArray(existingData) ? existingData[0] : null;
           if (found?.id_kurikulum) {
-            await this.prisma.curriculum.update({ where: { id: curriculum.id }, data: { feederId: found.id_kurikulum } });
+            await this.prisma.curriculum.update({
+              where: { id: curriculum.id },
+              data: { feederId: found.id_kurikulum, feederSyncError: null, feederSyncErrorAt: null },
+            });
             linked += 1;
             continue;
           }
@@ -1233,16 +1349,16 @@ export class IntegrationSettingsService {
           });
           if (semErr !== '0') throw new Error(semErrDesc || 'Respon Feeder tidak valid');
           if (!Array.isArray(semData) || semData.length === 0) {
-            markFailed(`Semester ${idSemester} tidak ada di Feeder`);
+            await markFailed(curriculum.id, `Semester ${idSemester} tidak ada di Feeder`);
             continue;
           }
         } catch (err: any) {
-          markFailed(`Gagal cek data di Feeder: ${err?.message || 'Unknown error'}`);
+          await markFailed(curriculum.id, `Gagal cek data di Feeder: ${err?.message || 'Unknown error'}`);
           continue;
         }
 
         if (curriculum.totalSks <= 0 || curriculum.sksWajib <= 0) {
-          markFailed(`Jumlah SKS kurikulum tidak valid (total ${curriculum.totalSks}, wajib ${curriculum.sksWajib})`);
+          await markFailed(curriculum.id, `Jumlah SKS kurikulum tidak valid (total ${curriculum.totalSks}, wajib ${curriculum.sksWajib})`);
           continue;
         }
 
@@ -1259,10 +1375,13 @@ export class IntegrationSettingsService {
           },
         });
         if (insertErr !== '0' || !insertData?.id_kurikulum) {
-          markFailed(`Insert kurikulum ditolak Feeder: ${insertErrDesc || 'tanpa keterangan'}`);
+          await markFailed(curriculum.id, `Insert kurikulum ditolak Feeder: ${insertErrDesc || 'tanpa keterangan'}`);
           continue;
         }
-        await this.prisma.curriculum.update({ where: { id: curriculum.id }, data: { feederId: insertData.id_kurikulum } });
+        await this.prisma.curriculum.update({
+          where: { id: curriculum.id },
+          data: { feederId: insertData.id_kurikulum, feederSyncError: null, feederSyncErrorAt: null },
+        });
         created += 1;
       }
 
@@ -2267,9 +2386,12 @@ export class IntegrationSettingsService {
       let failed = 0;
       let skipped = 0;
       const failReasons: Record<string, number> = {};
-      const markFailed = (reason: string) => {
+      const markFailed = async (studentId: string, reason: string) => {
         failed += 1;
         failReasons[reason] = (failReasons[reason] || 0) + 1;
+        await this.prisma.student
+          .update({ where: { id: studentId }, data: { feederSyncError: reason, feederSyncErrorAt: new Date() } })
+          .catch(() => null);
       };
 
       for (const student of eligible) {
@@ -2299,7 +2421,12 @@ export class IntegrationSettingsService {
           if (found?.id_registrasi_mahasiswa) {
             await this.prisma.student.update({
               where: { id: student.id },
-              data: { feederId: found.id_mahasiswa || idMahasiswaFeeder || null, feederRegistrationId: found.id_registrasi_mahasiswa },
+              data: {
+                feederId: found.id_mahasiswa || idMahasiswaFeeder || null,
+                feederRegistrationId: found.id_registrasi_mahasiswa,
+                feederSyncError: null,
+                feederSyncErrorAt: null,
+              },
             });
             linked += 1;
             continue;
@@ -2323,7 +2450,7 @@ export class IntegrationSettingsService {
             }
           }
         } catch (err: any) {
-          markFailed(`Gagal cek data di Feeder: ${err?.message || 'Unknown error'}`);
+          await markFailed(student.id, `Gagal cek data di Feeder: ${err?.message || 'Unknown error'}`);
           continue;
         }
 
@@ -2336,7 +2463,7 @@ export class IntegrationSettingsService {
             student.city
           );
           if (!idWilayah) {
-            markFailed(wilayahReason || 'Kecamatan/kabupaten tidak bisa dicocokkan ke data wilayah Feeder');
+            await markFailed(student.id, wilayahReason || 'Kecamatan/kabupaten tidak bisa dicocokkan ke data wilayah Feeder');
             continue;
           }
 
@@ -2370,15 +2497,18 @@ export class IntegrationSettingsService {
             record,
           });
           if (insertBioErr !== '0') {
-            markFailed(`Insert biodata ditolak Feeder: ${insertBioErrDesc || 'tanpa keterangan'}`);
+            await markFailed(student.id, `Insert biodata ditolak Feeder: ${insertBioErrDesc || 'tanpa keterangan'}`);
             continue;
           }
           idMahasiswaFeeder = insertBioData?.id_mahasiswa;
           if (!idMahasiswaFeeder) {
-            markFailed('Insert biodata berhasil tapi Feeder tidak mengembalikan id_mahasiswa');
+            await markFailed(student.id, 'Insert biodata berhasil tapi Feeder tidak mengembalikan id_mahasiswa');
             continue;
           }
-          await this.prisma.student.update({ where: { id: student.id }, data: { feederId: idMahasiswaFeeder } });
+          await this.prisma.student.update({
+            where: { id: student.id },
+            data: { feederId: idMahasiswaFeeder, feederSyncError: null, feederSyncErrorAt: null },
+          });
         }
 
         // 3. Tahap 2: InsertRiwayatPendidikanMahasiswa (pendaftaran/registrasi).
@@ -2402,13 +2532,13 @@ export class IntegrationSettingsService {
           record: recordReg,
         });
         if (insertRegErr !== '0' || !insertRegData?.id_registrasi_mahasiswa) {
-          markFailed(`Insert registrasi ditolak Feeder: ${insertRegErrDesc || 'tanpa keterangan'}`);
+          await markFailed(student.id, `Insert registrasi ditolak Feeder: ${insertRegErrDesc || 'tanpa keterangan'}`);
           continue;
         }
 
         await this.prisma.student.update({
           where: { id: student.id },
-          data: { feederRegistrationId: insertRegData.id_registrasi_mahasiswa },
+          data: { feederRegistrationId: insertRegData.id_registrasi_mahasiswa, feederSyncError: null, feederSyncErrorAt: null },
         });
         created += 1;
       }

@@ -16,6 +16,8 @@ interface HonorRow {
   nidn: string | null;
   totalClasses: number;
   totalSks: number;
+  bebanMengajarSks: number;
+  sksBersih: number;
   baseSalary: number;
   totalTunjangan: number;
   totalPotongan: number;
@@ -154,13 +156,15 @@ export default function RekapHonorPage() {
   const t = recap?.totals;
 
   const exportCsv = () => {
-    const header = ['Nama', 'Kategori', 'Program Studi', 'Total SKS', 'Gaji Pokok', 'Honor Mengajar/Bulan', 'Tunjangan', 'Potongan', 'Hadir Pagi', 'Hadir Sore', 'Uang Transport', 'Total Honor/Bulan', 'Status'];
+    const header = ['Nama', 'Kategori', 'Program Studi', 'Total SKS', 'Beban Mengajar (SKS)', 'SKS Bersih', 'Gaji Pokok', 'Honor Mengajar/Bulan', 'Tunjangan', 'Potongan', 'Hadir Pagi', 'Hadir Sore', 'Uang Transport', 'Total Honor/Bulan', 'Status'];
     const lines = filtered.map((r) =>
       [
         `"${r.fullName}"`,
         r.category,
         `"${r.studyProgram ?? '-'}"`,
         r.totalSks,
+        r.bebanMengajarSks,
+        r.sksBersih,
         r.baseSalary,
         r.honorMengajar,
         r.totalTunjangan,
@@ -344,7 +348,19 @@ export default function RekapHonorPage() {
                         {r.category}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right text-slate-600">{r.category === 'Dosen' ? `${r.totalSks} SKS` : '-'}</td>
+                    <td className="px-4 py-3 text-right text-slate-600">
+                      {r.category === 'Dosen' ? (
+                        r.bebanMengajarSks > 0 ? (
+                          <span title={`Total ${r.totalSks} SKS − Beban ${r.bebanMengajarSks} SKS`}>
+                            {r.sksBersih} <span className="text-slate-400">/ {r.totalSks} SKS</span>
+                          </span>
+                        ) : (
+                          `${r.totalSks} SKS`
+                        )
+                      ) : (
+                        '-'
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right font-semibold">{formatRupiah(r.baseSalary)}</td>
                     <td className="px-4 py-3 text-right text-slate-600">
                       {r.category === 'Dosen' ? formatRupiah(r.honorMengajar) : '-'}
@@ -404,7 +420,7 @@ export default function RekapHonorPage() {
 
           <div className="p-4 bg-slate-50 border-t border-slate-200 text-[11px] text-slate-500 space-y-1">
             <p>
-              Honor Mengajar/Bulan = jumlah dari tiap kelas (SKS &times; Tarif Jenjang Prodi Kelas &times; 14 pertemuan &divide; 6 kali pembayaran). Atur tarif di menu Tarif Honor per Jenjang.
+              Honor Mengajar/Bulan dihitung dari SKS Bersih (Total SKS &minus; Beban Mengajar wajib, diatur per dosen di Pengaturan Gaji), lalu tiap kelas dikali Tarif Jenjang Prodi &times; 14 pertemuan &divide; 6 kali pembayaran. Atur tarif jenjang di menu Tarif Honor per Jenjang.
             </p>
             <p>
               Transport = (Jumlah Hadir Pagi &times; Tarif Pagi) + (Jumlah Hadir Sore &times; Tarif Sore), dihitung dari Absensi Harian sepanjang semester ini.

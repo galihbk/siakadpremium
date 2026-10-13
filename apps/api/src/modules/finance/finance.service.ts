@@ -166,6 +166,7 @@ export class FinanceService {
         nidn: u.lecturer?.nidn ?? null,
         isActive: u.isActive,
         baseSalary,
+        bebanMengajarSks: u.salarySetting?.bebanMengajarSks ?? 0,
         tunjangan: tunjangan.map((c) => ({ id: c.id, name: c.name, amount: c.amount })),
         potongan: potongan.map((c) => ({ id: c.id, name: c.name, amount: c.amount })),
         totalTunjangan,
@@ -181,6 +182,7 @@ export class FinanceService {
     userId: string,
     data: {
       baseSalary?: number;
+      bebanMengajarSks?: number;
       notes?: string;
       updatedBy?: string;
       tunjangan?: { name: string; amount: number }[];
@@ -205,11 +207,13 @@ export class FinanceService {
         create: {
           userId,
           baseSalary: data.baseSalary ?? 0,
+          bebanMengajarSks: data.bebanMengajarSks ?? 0,
           notes: data.notes,
           updatedBy: data.updatedBy,
         },
         update: {
           baseSalary: data.baseSalary ?? 0,
+          bebanMengajarSks: data.bebanMengajarSks ?? 0,
           notes: data.notes,
           updatedBy: data.updatedBy,
         },
@@ -333,6 +337,8 @@ export class FinanceService {
           nidn: u.lecturer?.nidn ?? null,
           totalClasses: teach?.totalClasses ?? 0,
           totalSks,
+          bebanMengajarSks: u.salarySetting?.bebanMengajarSks ?? 0,
+          sksBersih: Math.max(0, totalSks - (u.salarySetting?.bebanMengajarSks ?? 0)),
           baseSalary: payment.baseSalary,
           totalTunjangan: payment.totalTunjangan,
           totalPotongan: payment.totalPotongan,
@@ -349,7 +355,12 @@ export class FinanceService {
       const baseSalary = u.salarySetting?.baseSalary ?? 0;
       const totalTunjangan = u.salaryComponents.filter((c) => c.type === 'TUNJANGAN').reduce((a, c) => a + c.amount, 0);
       const totalPotongan = u.salaryComponents.filter((c) => c.type === 'POTONGAN').reduce((a, c) => a + c.amount, 0);
-      const honorMengajarPerBulan = isLecturer && u.lecturer ? (honorByLecturerId.get(u.lecturer.id) ?? 0) : 0;
+      const bebanMengajarSks = u.salarySetting?.bebanMengajarSks ?? 0;
+      const sksBersih = Math.max(0, totalSks - bebanMengajarSks);
+      const honorMengajarKotor = isLecturer && u.lecturer ? (honorByLecturerId.get(u.lecturer.id) ?? 0) : 0;
+      // Honor mengajar hanya dibayar untuk SKS bersih (Total SKS - Beban Mengajar wajib), dikurangi
+      // proporsional dari honor kotor hasil hitung per-kelas supaya tetap konsisten lintas jenjang/tarif.
+      const honorMengajarPerBulan = totalSks > 0 ? Math.round(honorMengajarKotor * (sksBersih / totalSks)) : 0;
       const attendance = transport?.byUser.get(u.id);
       const hadirPagi = attendance?.hadirPagi ?? 0;
       const hadirSore = attendance?.hadirSore ?? 0;
@@ -365,6 +376,8 @@ export class FinanceService {
         nidn: u.lecturer?.nidn ?? null,
         totalClasses: teach?.totalClasses ?? 0,
         totalSks,
+        bebanMengajarSks,
+        sksBersih,
         baseSalary,
         totalTunjangan,
         totalPotongan,

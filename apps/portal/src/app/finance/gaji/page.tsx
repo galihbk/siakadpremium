@@ -23,6 +23,7 @@ interface PayrollRow {
   nidn: string | null;
   isActive: boolean;
   baseSalary: number;
+  bebanMengajarSks: number;
   tunjangan: SalaryComponentItem[];
   potongan: SalaryComponentItem[];
   totalTunjangan: number;
@@ -58,7 +59,7 @@ export default function PengaturanGajiPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [editing, setEditing] = useState<PayrollRow | null>(null);
-  const [form, setForm] = useState({ baseSalary: '0', notes: '' });
+  const [form, setForm] = useState({ baseSalary: '0', bebanMengajarSks: '0', notes: '' });
   const [tunjanganItems, setTunjanganItems] = useState<ComponentFormItem[]>([]);
   const [potonganItems, setPotonganItems] = useState<ComponentFormItem[]>([]);
   const [saving, setSaving] = useState(false);
@@ -111,6 +112,7 @@ export default function PengaturanGajiPage() {
     setEditing(row);
     setForm({
       baseSalary: String(row.baseSalary || 0),
+      bebanMengajarSks: String(row.bebanMengajarSks || 0),
       notes: row.notes || '',
     });
     setTunjanganItems(toFormItems(row.tunjangan));
@@ -141,6 +143,7 @@ export default function PengaturanGajiPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           baseSalary: Number(form.baseSalary) || 0,
+          bebanMengajarSks: Number(form.bebanMengajarSks) || 0,
           notes: form.notes || undefined,
           tunjangan: tunjanganItems
             .filter((it) => it.name.trim())
@@ -341,6 +344,23 @@ export default function PengaturanGajiPage() {
                   </p>
                 )}
               </div>
+
+              {editing.category === 'Dosen' && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">Beban Mengajar Wajib (SKS)</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={form.bebanMengajarSks}
+                    onChange={(e) => setForm((f) => ({ ...f, bebanMengajarSks: onlyDigits(e.target.value) }))}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm outline-hidden focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                    placeholder="0"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1.5">
+                    SKS wajib yang tidak dihonor. Honor mengajar dihitung dari SKS bersih = Total SKS diampu &minus; Beban Mengajar. Contoh: mengajar 10 SKS, beban 4 SKS, maka yang dihonor 6 SKS.
+                  </p>
+                </div>
+              )}
 
               {/* Tunjangan */}
               <div>

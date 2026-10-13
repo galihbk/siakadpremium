@@ -108,6 +108,9 @@ model SalarySetting {
   id           String   @id @default(uuid())
   userId       String   @unique
   baseSalary   Int      @default(0)
+  // Beban mengajar wajib (SKS) yang tidak dibayar honor -- honor mengajar dihitung dari
+  // SKS bersih (Total SKS diampu - Beban Mengajar), bukan total SKS mentah.
+  bebanMengajarSks Int  @default(0)
   notes        String?
   updatedBy    String?
   createdAt    DateTime @default(now())
@@ -367,6 +370,10 @@ model Student {
   // setelah mahasiswa benar-benar terdaftar (riwayat pendidikan) di Feeder, dipakai Push
   // Mahasiswa Baru untuk tahu siapa yang masih perlu didaftarkan vs yang sudah selesai.
   feederRegistrationId String?    @unique
+  // Pesan error terakhir kalau Push mahasiswa ini ke Feeder gagal -- dikosongkan lagi begitu
+  // Push berikutnya untuk mahasiswa ini berhasil. Dipakai halaman Sinkronisasi Feeder (tab Push).
+  feederSyncError   String?       @db.Text
+  feederSyncErrorAt DateTime?
   nim               String        @unique
   gender            Gender        @default(MALE)
   birthDate         DateTime?
@@ -474,6 +481,10 @@ model Course {
   // id_matkul dari Neo Feeder -- kunci paling stabil untuk mencocokkan ulang data saat
   // re-sync, sama seperti feederId di Lecturer/Student.
   feederId                  String?  @unique
+  // Pesan error terakhir kalau Push mata kuliah ini ke Feeder gagal -- dikosongkan lagi begitu
+  // Push berikutnya untuk mata kuliah ini berhasil.
+  feederSyncError           String?  @db.Text
+  feederSyncErrorAt         DateTime?
   studyProgramId            String?
   studyProgramName          String?
   facultyCode               String?
@@ -1195,6 +1206,10 @@ model Curriculum {
   // id_kurikulum dari Neo Feeder -- kunci paling stabil untuk mencocokkan ulang data saat
   // re-sync, sama seperti feederId di Lecturer/Student/Course.
   feederId       String?  @unique
+  // Pesan error terakhir kalau Push kurikulum ini ke Feeder gagal -- dikosongkan lagi begitu
+  // Push berikutnya untuk kurikulum ini berhasil.
+  feederSyncError   String?  @db.Text
+  feederSyncErrorAt DateTime?
   code           String   @unique
   name           String
   studyProgram   String

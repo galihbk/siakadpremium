@@ -38,7 +38,8 @@ export function AbsensiRiwayatCard() {
     try {
       const res = await fetch(`${getApiBaseUrl()}/attendance/history?month=${m}&year=${y}`, { headers: authHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setRecords(await res.json());
+      const json = await res.json();
+      setRecords(json.data ?? json ?? []);
     } catch (err) {
       console.error('Gagal memuat riwayat absensi', err);
     } finally {

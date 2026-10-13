@@ -127,6 +127,7 @@ export class FinanceController {
     @Body()
     body: {
       baseSalary?: number;
+      bebanMengajarSks?: number;
       notes?: string;
       updatedBy?: string;
       tunjangan?: { name: string; amount: number }[];

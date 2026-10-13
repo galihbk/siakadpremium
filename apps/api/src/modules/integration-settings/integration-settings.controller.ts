@@ -54,6 +54,34 @@ export class IntegrationSettingsController {
     return this.integrationSettingsService.getPddiktiConnectionStatus();
   }
 
+  @Get('pddikti/sync-status')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Rekap nyata jumlah data lokal yang sudah/belum tersinkron ke Feeder per entitas' })
+  async getFeederSyncStatus() {
+    return this.integrationSettingsService.getFeederSyncStatus();
+  }
+
+  @Get('pddikti/mahasiswa/pending')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Daftar mahasiswa aktif yang belum terdaftar di Feeder, lengkap error Push terakhir' })
+  async getPendingMahasiswaPush() {
+    return this.integrationSettingsService.getPendingMahasiswaPush();
+  }
+
+  @Get('pddikti/mata-kuliah/pending')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Daftar mata kuliah yang belum punya feederId, lengkap error Push terakhir' })
+  async getPendingMataKuliahPush() {
+    return this.integrationSettingsService.getPendingMataKuliahPush();
+  }
+
+  @Get('pddikti/kurikulum/pending')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Daftar kurikulum yang belum punya feederId, lengkap error Push terakhir' })
+  async getPendingKurikulumPush() {
+    return this.integrationSettingsService.getPendingKurikulumPush();
+  }
+
   @Put('pddikti')
   @ApiOperation({ summary: 'Memperbarui konfigurasi koneksi PDDIKTI (Khusus Super Admin)' })
   async updatePddiktiSetting(@Body() dto: UpdatePddiktiSettingDto, @Req() req: any) {

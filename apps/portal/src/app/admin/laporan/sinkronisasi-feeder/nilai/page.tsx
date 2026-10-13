@@ -1,0 +1,215 @@
+'use client';
+
+import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import { PortalLayout } from '@/components/layout/PortalLayout';
+import { getAuthSession } from '@/lib/auth';
+import {
+  ShieldCheck,
+  CheckCircle2,
+  AlertTriangle,
+  RefreshCw,
+  Award,
+  ArrowLeft,
+  ArrowDownToLine,
+  X,
+} from 'lucide-react';
+
+// ==========================================
+// DATA TYPES & INTERFACES
+// ==========================================
+
+export interface NilaiSyncJobStatus {
+  status: 'idle' | 'running' | 'done' | 'error';
+  totalClasses: number;
+  processedClasses: number;
+  updatedGrades: number;
+  skippedGrades: number;
+  startedAt?: string;
+  finishedAt?: string;
+  message?: string;
+}
+
+export default function SinkronisasiNilaiPage() {
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage((prev) => (prev === msg ? null : prev));
+    }, 4000);
+  };
+
+  // Jumlah baris lokal (data nyata) untuk Nilai Perkuliahan -- entitas ini tidak tercakup
+  // oleh endpoint pddikti/sync-status, jadi dipakai rekap lokal dari /academic/feeder-entities.
+  const [feederLocalCounts, setFeederLocalCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const { token } = getAuthSession();
+    fetch(`${apiBase}/academic/feeder-entities`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => setFeederLocalCounts(json?.data || json || {}))
+      .catch((err) => console.warn('Gagal memuat jumlah data lokal per entitas Feeder:', err));
+  }, []);
+
+  // Sinkronisasi Nilai Perkuliahan Semester (job background -- dipoll statusnya)
+  const [isStartingNilaiJob, setIsStartingNilaiJob] = useState(false);
+  const [nilaiJobStatus, setNilaiJobStatus] = useState<NilaiSyncJobStatus | null>(null);
+
+  // Poll status job background Pull+Sync Nilai Perkuliahan -- dicek sekali saat halaman
+  // dibuka (mungkin ada job yang masih berjalan dari sesi sebelumnya), lalu tiap 4 detik
+  // selama statusnya "running".
+  const fetchNilaiJobStatus = useCallback(async () => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const { token } = getAuthSession();
+    try {
+      const res = await fetch(`${apiBase}/integration-settings/pddikti/nilai-perkuliahan/pull-sync/status`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return;
+      const json = await res.json().catch(() => null);
+      const result = json?.data ?? json;
+      if (result?.status) setNilaiJobStatus(result);
+    } catch {
+      // non-blocking -- biarkan polling berikutnya mencoba lagi
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNilaiJobStatus();
+  }, [fetchNilaiJobStatus]);
+
+  useEffect(() => {
+    if (nilaiJobStatus?.status !== 'running') return;
+    const interval = setInterval(fetchNilaiJobStatus, 4000);
+    return () => clearInterval(interval);
+  }, [nilaiJobStatus?.status, fetchNilaiJobStatus]);
+
+  // Handler: Mulai job background Pull+Sync Nilai Perkuliahan Semester
+  const handleStartNilaiJob = async () => {
+    setIsStartingNilaiJob(true);
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    try {
+      const { token } = getAuthSession();
+      const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+      const res = await fetch(`${apiBase}/integration-settings/pddikti/nilai-perkuliahan/pull-sync/start`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({}),
+      });
+      const json = await res.json().catch(() => null);
+      const result = json?.data ?? json;
+      showToast(result?.message || (res.ok ? 'Sinkronisasi nilai dimulai.' : 'Gagal memulai sinkronisasi nilai.'));
+      await fetchNilaiJobStatus();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Gagal menghubungi server.');
+    } finally {
+      setIsStartingNilaiJob(false);
+    }
+  };
+
+  return (
+    <PortalLayout
+      role="superadmin"
+      userName="Bambang Pratama, S.Kom., M.Cs."
+      userIdText="Super Administrator & Kepala Biro BAAK"
+      activeMenuHref="/admin/laporan/sinkronisasi-feeder"
+    >
+      <div className="w-full space-y-6 pb-12">
+        {/* Toast Alert */}
+        {toastMessage && (
+          <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 border border-slate-700 animate-in fade-in slide-in-from-bottom-5">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+            <span className="text-xs font-medium">{toastMessage}</span>
+            <button onClick={() => setToastMessage(null)} className="text-slate-400 hover:text-white ml-2 cursor-pointer">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        <Link
+          href="/admin/laporan/sinkronisasi-feeder"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-[#1E3A8A] transition-colors cursor-pointer"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Kembali ke Sinkronisasi Feeder
+        </Link>
+
+        {/* Header Banner */}
+        <div className="bg-gradient-to-r from-[#0F172A] via-[#1E3A8A] to-[#1E293B] text-white p-6 sm:p-8 rounded-3xl shadow-xl border border-slate-700/50 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-[#D4A017]/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+            <div className="flex items-start gap-4 max-w-2xl">
+              <div className="w-11 h-11 rounded-2xl bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
+                <Award className="w-5 h-5" />
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 text-[11px] font-bold text-[#D4A017] uppercase tracking-wider">
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>nilai_perkuliahan</span>
+                </div>
+                <h1 className="text-xl sm:text-2xl font-black tracking-tight">Nilai Perkuliahan Semester</h1>
+                <p className="text-xs text-blue-100 leading-relaxed">
+                  Mengisi nilai (angka, indeks, huruf) ke KRS yang sudah tersinkron. Feeder cuma kasih nilai per-kelas, jadi
+                  ini berjalan sebagai job BACKGROUND (bisa ditinggal, ceknya di sini lagi nanti) -- KRS wajib sudah
+                  tersinkron lebih dulu.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/15 min-w-[200px] shrink-0">
+              <p className="text-[10px] font-extrabold uppercase text-slate-300">Total Lokal</p>
+              <p className="text-2xl font-black text-white mt-1">{(feederLocalCounts['nilai_perkuliahan'] ?? 0).toLocaleString('id-ID')}</p>
+              <p className="text-[10px] text-slate-300 mt-1">Status job: {nilaiJobStatus?.status ?? 'Belum pernah dijalankan'}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Card */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
+          {nilaiJobStatus && nilaiJobStatus.status !== 'idle' ? (
+            <div
+              className={`flex items-start gap-2 text-xs p-3 rounded-xl border ${
+                nilaiJobStatus.status === 'error'
+                  ? 'bg-amber-50 border-amber-200 text-amber-800'
+                  : nilaiJobStatus.status === 'done'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                  : 'bg-blue-50 border-blue-200 text-blue-800'
+              }`}
+            >
+              {nilaiJobStatus.status === 'running' ? (
+                <RefreshCw className="w-4 h-4 shrink-0 mt-0.5 animate-spin" />
+              ) : nilaiJobStatus.status === 'error' ? (
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+              )}
+              <div className="min-w-0 flex-1">
+                {nilaiJobStatus.status === 'running' ? (
+                  <span>
+                    Memproses kelas {nilaiJobStatus.processedClasses}/{nilaiJobStatus.totalClasses} -- {nilaiJobStatus.updatedGrades} nilai
+                    diperbarui sejauh ini.
+                  </span>
+                ) : (
+                  <span>{nilaiJobStatus.message}</span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-400">Belum pernah dijalankan pada sesi ini.</p>
+          )}
+
+          <button
+            onClick={handleStartNilaiJob}
+            disabled={isStartingNilaiJob || nilaiJobStatus?.status === 'running'}
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-900 rounded-xl shadow-xs transition-all disabled:opacity-60 cursor-pointer"
+          >
+            {nilaiJobStatus?.status === 'running' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowDownToLine className="w-4 h-4" />}
+            <span>{nilaiJobStatus?.status === 'running' ? 'Sedang Berjalan...' : 'Mulai Sinkronisasi (Background)'}</span>
+          </button>
+        </div>
+      </div>
+    </PortalLayout>
+  );
+}

@@ -75,6 +75,7 @@ import {
   UploadCloud,
   ReceiptText,
   Sunrise,
+  RefreshCw,
 } from 'lucide-react';
 
 interface PortalLayoutProps {
@@ -387,6 +388,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       title: 'PELAPORAN & INTEGRASI',
       items: [
         { name: 'Pelaporan PDDIKTI', href: '/admin/laporan', icon: ShieldCheck },
+        { name: 'Sinkronisasi Feeder', href: '/admin/laporan/sinkronisasi-feeder', icon: RefreshCw },
       ],
     },
   ];

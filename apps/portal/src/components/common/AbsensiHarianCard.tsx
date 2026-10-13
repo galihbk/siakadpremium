@@ -39,7 +39,8 @@ export function AbsensiHarianCard() {
     try {
       const res = await fetch(`${getApiBaseUrl()}/attendance/today`, { headers: authHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setStatus(await res.json());
+      const json = await res.json();
+      setStatus(json.data ?? json);
       setError(null);
     } catch (err) {
       console.error('Gagal memuat status absensi', err);
