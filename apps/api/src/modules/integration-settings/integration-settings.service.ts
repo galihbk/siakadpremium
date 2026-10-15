@@ -186,6 +186,8 @@ export interface NilaiSyncJobStatus {
   startedAt?: string;
   finishedAt?: string;
   message?: string;
+  /** Tahap yang sedang berjalan (mis. "Mengambil daftar kelas dari Feeder 3/20") -- untuk ditampilkan di UI. */
+  phase?: string;
 }
 
 function maskSecret(value?: string | null): string | null {
@@ -366,6 +368,1006 @@ export class IntegrationSettingsService {
       hasFeederId: Boolean(s.feederId),
       lastError: s.feederSyncError,
       lastErrorAt: s.feederSyncErrorAt,
+    }));
+  }
+
+  /** Normalisasi parameter tabel server-side: halaman >= 1, ukuran halaman dibatasi 10..200. */
+  private normalizeTableQuery(q: { page?: string | number; pageSize?: string | number; search?: string; sortDir?: string }) {
+    const page = Math.max(1, parseInt(String(q.page ?? '1'), 10) || 1);
+    const pageSize = Math.min(200, Math.max(10, parseInt(String(q.pageSize ?? '50'), 10) || 50));
+    const search = (q.search ?? '').toString().trim();
+    const sortDir: 'asc' | 'desc' = q.sortDir === 'desc' ? 'desc' : 'asc';
+    return { page, pageSize, skip: (page - 1) * pageSize, search, sortDir };
+  }
+
+  /**
+   * Tabel perbandingan Mahasiswa (server-side): pencarian, urutan, dan halaman dihitung di
+   * database, jadi browser cuma menerima satu halaman -- bukan seluruh ribuan mahasiswa.
+   * Kolom "Feeder" = punya feederId (hasil Pull/Push, tersimpan permanen).
+   */
+  async getMahasiswaTable(q: { page?: string; pageSize?: string; search?: string; sortKey?: string; sortDir?: string }) {
+    const { page, pageSize, skip, search, sortDir } = this.normalizeTableQuery(q);
+    const where: any = search
+      ? {
+          OR: [
+            { nim: { contains: search, mode: 'insensitive' } },
+            { user: { fullName: { contains: search, mode: 'insensitive' } } },
+            { studyProgram: { name: { contains: search, mode: 'insensitive' } } },
+          ],
+        }
+      : {};
+    const orderByMap: Record<string, any> = {
+      nim: { nim: sortDir },
+      name: { user: { fullName: sortDir } },
+      studyProgram: { studyProgram: { name: sortDir } },
+      entryYear: { entryYear: sortDir },
+      status: { status: sortDir },
+      inFeeder: { feederId: { sort: sortDir, nulls: 'last' } },
+    };
+    const orderBy = [orderByMap[q.sortKey || ''] || orderByMap.nim, { nim: 'asc' }];
+
+    const [total, linked, rows] = await Promise.all([
+      this.prisma.student.count({ where }),
+      this.prisma.student.count({ where: { ...where, feederId: { not: null } } }),
+      this.prisma.student.findMany({
+        where,
+        orderBy,
+        skip,
+        take: pageSize,
+        select: {
+          id: true,
+          nim: true,
+          entryYear: true,
+          status: true,
+          feederId: true,
+          user: { select: { fullName: true } },
+          studyProgram: { select: { name: true } },
+        },
+      }),
+    ]);
+
+    return {
+      total,
+      linked,
+      page,
+      pageSize,
+      items: rows.map((s) => ({
+        id: s.id,
+        nim: s.nim,
+        name: s.user?.fullName ?? '',
+        studyProgram: s.studyProgram?.name ?? '-',
+        entryYear: s.entryYear,
+        status: s.status,
+        hasFeederId: Boolean(s.feederId),
+      })),
+    };
+  }
+
+  /** Tabel perbandingan Kelas Perkuliahan (server-side). Kolom "Feeder" = punya feederId. */
+  async getKelasKuliahTable(q: { page?: string; pageSize?: string; search?: string; sortKey?: string; sortDir?: string }) {
+    const { page, pageSize, skip, search, sortDir } = this.normalizeTableQuery(q);
+    const where: any = search
+      ? {
+          OR: [
+            { className: { contains: search, mode: 'insensitive' } },
+            { course: { code: { contains: search, mode: 'insensitive' } } },
+            { course: { name: { contains: search, mode: 'insensitive' } } },
+            { academicYear: { name: { contains: search, mode: 'insensitive' } } },
+            { academicYear: { code: { contains: search, mode: 'insensitive' } } },
+            { lecturer: { user: { fullName: { contains: search, mode: 'insensitive' } } } },
+          ],
+        }
+      : {};
+    const orderByMap: Record<string, any> = {
+      className: { className: sortDir },
+      courseLabel: { course: { code: sortDir } },
+      academicYear: { academicYear: { code: sortDir } },
+      lecturerName: { lecturer: { user: { fullName: sortDir } } },
+      inFeeder: { feederId: { sort: sortDir, nulls: 'last' } },
+    };
+    const orderBy = [orderByMap[q.sortKey || ''] || orderByMap.className, { className: 'asc' }, { id: 'asc' }];
+
+    const [total, linked, totalAll, rows] = await Promise.all([
+      this.prisma.courseClass.count({ where }),
+      this.prisma.courseClass.count({ where: { ...where, feederId: { not: null } } }),
+      this.prisma.courseClass.count(),
+      this.prisma.courseClass.findMany({
+        where,
+        orderBy,
+        skip,
+        take: pageSize,
+        select: {
+          id: true,
+          className: true,
+          feederId: true,
+          course: { select: { code: true, name: true } },
+          academicYear: { select: { code: true, name: true } },
+          lecturer: { select: { nidn: true, nuptk: true, user: { select: { fullName: true } } } },
+        },
+      }),
+    ]);
+
+    return {
+      total,
+      linked,
+      totalAll,
+      page,
+      pageSize,
+      items: rows.map((c) => ({
+        id: c.id,
+        className: c.className,
+        courseLabel: c.course ? `${c.course.code} -- ${c.course.name}` : '-',
+        academicYear: c.academicYear?.name || c.academicYear?.code || '-',
+        lecturerName: c.lecturer?.user?.fullName
+          ? `${c.lecturer.user.fullName}${c.lecturer.nidn || c.lecturer.nuptk ? ` (${c.lecturer.nidn || c.lecturer.nuptk})` : ''}`
+          : '-',
+        hasFeederId: Boolean(c.feederId),
+      })),
+    };
+  }
+
+  /**
+   * Tabel riwayat pendidikan (registrasi) mahasiswa lokal yang sudah punya
+   * `feederRegistrationId` -- kandidat `UpdateRiwayatPendidikanMahasiswa` (server-side).
+   */
+  async getRiwayatPendidikanTable(q: { page?: string; pageSize?: string; search?: string; sortKey?: string; sortDir?: string }) {
+    const { page, pageSize, skip, search, sortDir } = this.normalizeTableQuery(q);
+    const base: any = { feederRegistrationId: { not: null } };
+    const where: any = search
+      ? {
+          AND: [
+            base,
+            {
+              OR: [
+                { nim: { contains: search, mode: 'insensitive' } },
+                { user: { fullName: { contains: search, mode: 'insensitive' } } },
+                { studyProgram: { name: { contains: search, mode: 'insensitive' } } },
+              ],
+            },
+          ],
+        }
+      : base;
+    const orderByMap: Record<string, any> = {
+      nim: { nim: sortDir },
+      name: { user: { fullName: sortDir } },
+      studyProgram: { studyProgram: { name: sortDir } },
+      entryYear: { entryYear: sortDir },
+      lastError: { feederSyncErrorAt: { sort: sortDir, nulls: 'last' } },
+    };
+    const orderBy = [orderByMap[q.sortKey || ''] || orderByMap.nim, { nim: 'asc' }];
+
+    const [total, totalAll, rows] = await Promise.all([
+      this.prisma.student.count({ where }),
+      this.prisma.student.count({ where: base }),
+      this.prisma.student.findMany({
+        where,
+        orderBy,
+        skip,
+        take: pageSize,
+        select: {
+          id: true,
+          nim: true,
+          entryYear: true,
+          feederSyncError: true,
+          user: { select: { fullName: true } },
+          studyProgram: { select: { name: true, diktiCode: true } },
+        },
+      }),
+    ]);
+
+    return {
+      total,
+      totalAll,
+      page,
+      pageSize,
+      items: rows.map((s) => ({
+        id: s.id,
+        nim: s.nim,
+        name: s.user?.fullName ?? '',
+        studyProgram: s.studyProgram?.name ?? '-',
+        prodiCode: s.studyProgram?.diktiCode ?? '',
+        entryYear: s.entryYear,
+        lastError: s.feederSyncError,
+      })),
+    };
+  }
+
+  /** Semua id mahasiswa terdaftar di Feeder yang cocok dengan pencarian -- untuk "Bandingkan semua". */
+  async getRiwayatPendidikanIds(search?: string) {
+    const q = (search ?? '').trim();
+    const base: any = { feederRegistrationId: { not: null } };
+    const where: any = q
+      ? {
+          AND: [
+            base,
+            {
+              OR: [
+                { nim: { contains: q, mode: 'insensitive' } },
+                { user: { fullName: { contains: q, mode: 'insensitive' } } },
+                { studyProgram: { name: { contains: q, mode: 'insensitive' } } },
+              ],
+            },
+          ],
+        }
+      : base;
+    const rows = await this.prisma.student.findMany({ where, select: { id: true }, orderBy: { nim: 'asc' } });
+    return { total: rows.length, ids: rows.map((r) => r.id) };
+  }
+
+  /** Peta kode_program_studi <-> id_prodi Feeder (dipakai perbandingan & update riwayat pendidikan). */
+  private async getProdiMaps(baseUrl: string, token: string) {
+    const codeToId = new Map<string, string>();
+    const idToCode = new Map<string, string>();
+    const { data, errorCode } = await this.callFeeder(baseUrl, { act: 'GetProdi', token });
+    if (errorCode === '0' && Array.isArray(data)) {
+      for (const p of data) {
+        if (p?.id_prodi && p?.kode_program_studi) {
+          const code = String(p.kode_program_studi).trim();
+          codeToId.set(code, String(p.id_prodi));
+          idToCode.set(String(p.id_prodi), code);
+        }
+      }
+    }
+    return { codeToId, idToCode };
+  }
+
+  /** Ambil baris riwayat pendidikan Feeder per mahasiswa (key id_registrasi_mahasiswa, fallback NIM). */
+  private async fetchRiwayatRows(
+    baseUrl: string,
+    token: string,
+    students: { id: string; nim: string; feederRegistrationId: string | null }[]
+  ) {
+    const byStudent = new Map<string, any>();
+
+    // Tahap cepat: satu panggilan filter IN untuk seluruh batch (id registrasi). Yang tidak
+    // ikut terkembalikan dicari ulang satu per satu di bawah (IN tidak selalu andal).
+    const regIds = students.map((s) => s.feederRegistrationId).filter((v): v is string => Boolean(v));
+    if (regIds.length > 0) {
+      try {
+        const idsFilter = regIds.map((i) => this.escapeFeederFilter(i)).join("', '");
+        const { data, errorCode } = await this.callFeeder(
+          baseUrl,
+          {
+            act: 'GetListRiwayatPendidikanMahasiswa',
+            token,
+            filter: `id_registrasi_mahasiswa IN ('${idsFilter}')`,
+            limit: regIds.length + 20,
+            offset: 0,
+          },
+          45000
+        );
+        if (errorCode === '0' && Array.isArray(data)) {
+          const byReg = new Map<string, any>();
+          for (const r of data) if (r?.id_registrasi_mahasiswa) byReg.set(String(r.id_registrasi_mahasiswa), r);
+          for (const s of students) {
+            const row = s.feederRegistrationId ? byReg.get(s.feederRegistrationId) : undefined;
+            if (row) byStudent.set(s.id, row);
+          }
+        }
+      } catch {
+        // non-blocking -- semua dicari satu per satu di bawah
+      }
+    }
+
+    const remaining = students.filter((s) => !byStudent.has(s.id));
+    await this.runWithConcurrency(remaining, 5, async (s) => {
+      try {
+        if (s.feederRegistrationId) {
+          const { data, errorCode } = await this.callFeeder(
+            baseUrl,
+            {
+              act: 'GetListRiwayatPendidikanMahasiswa',
+              token,
+              filter: `id_registrasi_mahasiswa = '${this.escapeFeederFilter(s.feederRegistrationId)}'`,
+              limit: 1,
+              offset: 0,
+            },
+            30000
+          );
+          const row = errorCode === '0' && Array.isArray(data) ? data[0] : null;
+          if (row) {
+            byStudent.set(s.id, row);
+            return;
+          }
+        }
+        const { data, errorCode } = await this.callFeeder(
+          baseUrl,
+          {
+            act: 'GetListRiwayatPendidikanMahasiswa',
+            token,
+            filter: `nim = '${this.escapeFeederFilter(s.nim)}'`,
+            limit: 1,
+            offset: 0,
+          },
+          30000
+        );
+        const row = errorCode === '0' && Array.isArray(data) ? data[0] : null;
+        if (row) byStudent.set(s.id, row);
+      } catch {
+        // non-blocking -- mahasiswa ini dilaporkan "tidak ditemukan"
+      }
+    });
+    return byStudent;
+  }
+
+  /**
+   * Bandingkan riwayat pendidikan lokal vs Feeder (hanya membaca, maks 100 per panggilan):
+   * NIM, program studi (lewat kode prodi), dan tahun masuk (4 digit pertama id_periode_masuk).
+   */
+  async compareRiwayatPendidikan(studentIds: string[]) {
+    const BATCH = 100;
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+      return { success: true, message: 'Tidak ada mahasiswa untuk dibandingkan.', items: [] as any[] };
+    }
+    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    if (!setting?.baseUrl || !setting?.username || !setting?.password) {
+      return { success: false, message: 'Konfigurasi Web Service Neo Feeder belum lengkap.', items: [] as any[] };
+    }
+    try {
+      const token = await this.getFeederToken(setting.baseUrl, setting.username, setting.password);
+      const { idToCode } = await this.getProdiMaps(setting.baseUrl, token);
+      const students = await this.prisma.student.findMany({
+        where: { id: { in: studentIds.slice(0, BATCH) }, feederRegistrationId: { not: null } },
+        select: { id: true, nim: true, entryYear: true, feederRegistrationId: true, studyProgram: { select: { diktiCode: true, name: true } } },
+      });
+      const rows = await this.fetchRiwayatRows(setting.baseUrl, token, students);
+
+      const items = students.map((s) => {
+        const row = rows.get(s.id);
+        if (!row) return { id: s.id, foundInFeeder: false, diffs: [] as any[] };
+
+        const diffs: { field: string; label: string; local: string; feeder: string }[] = [];
+        const feederNim = this.cleanFeederValue(row.nim) || '';
+        if (s.nim && s.nim.trim() !== feederNim.trim()) {
+          diffs.push({ field: 'nim', label: 'NIM', local: s.nim, feeder: feederNim });
+        }
+        const feederProdiCode = idToCode.get(String(row.id_prodi)) || '';
+        const localProdiCode = (s.studyProgram?.diktiCode || '').trim();
+        if (localProdiCode && localProdiCode !== feederProdiCode) {
+          diffs.push({
+            field: 'prodi',
+            label: 'Program Studi',
+            local: `${s.studyProgram?.name || ''} (${localProdiCode})`,
+            feeder: `${this.cleanFeederValue(row.nama_program_studi) || '-'} (${feederProdiCode || '-'})`,
+          });
+        }
+        const feederPeriode = this.cleanFeederValue(row.id_periode_masuk) || '';
+        const feederYear = parseInt(feederPeriode.slice(0, 4), 10);
+        if (s.entryYear && !Number.isNaN(feederYear) && s.entryYear !== feederYear) {
+          diffs.push({ field: 'angkatan', label: 'Tahun Masuk', local: String(s.entryYear), feeder: String(feederYear) });
+        }
+        return { id: s.id, foundInFeeder: true, diffs };
+      });
+      return { success: true, message: `${items.length} mahasiswa dibandingkan.`, items };
+    } catch (err: any) {
+      return { success: false, message: `Gagal membandingkan riwayat pendidikan: ${err?.message || 'Unknown error'}`, items: [] as any[] };
+    }
+  }
+
+  /**
+   * `UpdateRiwayatPendidikanMahasiswa` (key `id_registrasi_mahasiswa`) untuk mahasiswa
+   * terpilih. Menulis ke basis data resmi Dikti, jadi `studentIds` wajib diisi dan dibatasi.
+   *
+   * Record dibangun dari baris riwayat yang SAAT INI ada di Feeder, lalu hanya NIM, prodi,
+   * dan tahun masuk yang ditimpa dari data lokal (semester masuk -- digit terakhir
+   * id_periode_masuk -- dipertahankan dari Feeder). Field lain yang lokal tidak punya
+   * (jenis/jalur daftar, tanggal daftar, pembiayaan, dst.) dipakai apa adanya dari Feeder,
+   * bukan nilai default karangan.
+   */
+  async updateRiwayatPendidikanToFeeder(studentIds: string[]) {
+    const empty = { processed: 0, updated: 0, failed: 0, skipped: 0 };
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+      return { success: false, message: 'Pilih minimal satu mahasiswa yang akan diupdate.', ...empty };
+    }
+    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    if (!setting?.baseUrl || !setting?.username || !setting?.password) {
+      return { success: false, message: 'Konfigurasi Web Service Neo Feeder belum lengkap.', ...empty };
+    }
+
+    const LIMIT_PER_RUN = 50;
+    try {
+      const token = await this.getFeederToken(setting.baseUrl, setting.username, setting.password);
+      const { codeToId } = await this.getProdiMaps(setting.baseUrl, token);
+      const students = await this.prisma.student.findMany({
+        where: { id: { in: studentIds.slice(0, LIMIT_PER_RUN) }, feederRegistrationId: { not: null } },
+        select: {
+          id: true,
+          nim: true,
+          entryYear: true,
+          feederRegistrationId: true,
+          studyProgram: { select: { diktiCode: true } },
+        },
+      });
+      const rows = await this.fetchRiwayatRows(setting.baseUrl, token, students);
+
+      let processed = 0;
+      let updated = 0;
+      let failed = 0;
+      let skipped = 0;
+      const failReasons: Record<string, number> = {};
+      const markFailed = async (studentId: string, reason: string) => {
+        failed += 1;
+        failReasons[reason] = (failReasons[reason] || 0) + 1;
+        await this.prisma.student
+          .update({ where: { id: studentId }, data: { feederSyncError: reason, feederSyncErrorAt: new Date() } })
+          .catch(() => null);
+      };
+
+      for (const s of students) {
+        processed += 1;
+        const row = rows.get(s.id);
+        if (!row) {
+          await markFailed(s.id, 'Riwayat pendidikan tidak ditemukan di Feeder (ID registrasi maupun NIM)');
+          continue;
+        }
+
+        const feederPeriode = this.cleanFeederValue(row.id_periode_masuk) || '';
+        const semesterDigit = feederPeriode.length >= 5 ? feederPeriode.slice(4) : '1';
+        const idPeriodeMasuk = s.entryYear ? `${s.entryYear}${semesterDigit}` : feederPeriode;
+        const localProdiCode = (s.studyProgram?.diktiCode || '').trim();
+        const idProdi = (localProdiCode && codeToId.get(localProdiCode)) || this.cleanFeederValue(row.id_prodi);
+
+        const record: Record<string, any> = {
+          id_mahasiswa: row.id_mahasiswa,
+          nim: s.nim,
+          id_jenis_daftar: row.id_jenis_daftar,
+          id_jalur_daftar: row.id_jalur_daftar,
+          id_periode_masuk: idPeriodeMasuk,
+          tanggal_daftar: this.parseFeederDate(this.cleanFeederValue(row.tanggal_daftar)) || this.cleanFeederValue(row.tanggal_daftar),
+          id_perguruan_tinggi: row.id_perguruan_tinggi,
+          id_prodi: idProdi,
+        };
+        for (const optional of ['sks_diakui', 'id_pembiayaan', 'biaya_masuk', 'id_bidang_minat', 'id_perguruan_tinggi_asal', 'id_prodi_asal']) {
+          const v = row[optional];
+          if (v !== null && v !== undefined && v !== '') record[optional] = v;
+        }
+
+        const unchanged =
+          record.nim === this.cleanFeederValue(row.nim) &&
+          record.id_prodi === this.cleanFeederValue(row.id_prodi) &&
+          record.id_periode_masuk === feederPeriode;
+        if (unchanged) {
+          skipped += 1;
+          continue;
+        }
+
+        try {
+          const { errorCode, errorDesc } = await this.callFeeder(setting.baseUrl, {
+            act: 'UpdateRiwayatPendidikanMahasiswa',
+            token,
+            key: { id_registrasi_mahasiswa: row.id_registrasi_mahasiswa },
+            record,
+          });
+          if (errorCode !== '0') {
+            await markFailed(s.id, `Update riwayat pendidikan ditolak Feeder: ${errorDesc || 'tanpa keterangan'}`);
+            continue;
+          }
+          await this.prisma.student.update({
+            where: { id: s.id },
+            data: { feederSyncError: null, feederSyncErrorAt: null },
+          });
+          updated += 1;
+        } catch (err: any) {
+          await markFailed(s.id, `Gagal menghubungi Feeder: ${err?.message || 'Unknown error'}`);
+        }
+      }
+
+      try {
+        await this.prisma.systemAuditLog.create({
+          data: {
+            action: 'RIWAYAT_PENDIDIKAN_UPDATE_TO_FEEDER',
+            detail: `Update riwayat pendidikan ke Feeder: ${processed} diproses, ${updated} berhasil, ${failed} gagal, ${skipped} tidak ada perubahan.`,
+          },
+        });
+      } catch {
+        // non-blocking
+      }
+
+      const failReasonText = Object.keys(failReasons).length
+        ? ` Alasan gagal: ${Object.entries(failReasons).map(([r, n]) => `${r} (${n})`).join('; ')}.`
+        : '';
+      const overLimit = studentIds.length > LIMIT_PER_RUN ? ` Dibatasi ${LIMIT_PER_RUN} per proses -- jalankan lagi untuk sisanya.` : '';
+      return {
+        success: true,
+        message: `Update selesai: ${processed} diproses, ${updated} berhasil diupdate di Feeder, ${failed} gagal, ${skipped} tidak ada perubahan.${overLimit}${failReasonText}`,
+        processed,
+        updated,
+        failed,
+        skipped,
+      };
+    } catch (err: any) {
+      return { success: false, message: `Gagal update riwayat pendidikan: ${err?.message || 'Unknown error'}`, ...empty };
+    }
+  }
+
+  // ================= AKTIVITAS KULIAH MAHASISWA (AKM) =================
+
+  /**
+   * Nilai AKM lokal per mahasiswa untuk satu semester, dihitung dari KRS yang APPROVED:
+   * SKS semester = jumlah SKS mata kuliah semester itu, IPS = rata-rata tertimbang nilai
+   * semester itu, SKS total & IPK = akumulasi semua semester sampai (dan termasuk) semester
+   * itu. Hanya mahasiswa yang sudah punya `feederRegistrationId` yang ikut (AKM menunjuk
+   * registrasi mahasiswa di Feeder).
+   */
+  private async computeAkmLocal(
+    semesterCode: string,
+    opts: { studentIds?: string[]; search?: string; sortKey?: string; sortDir?: 'asc' | 'desc'; limit?: number; offset?: number }
+  ) {
+    const dir = opts.sortDir === 'desc' ? 'DESC' : 'ASC';
+    const sortMap: Record<string, string> = {
+      nim: 's.nim',
+      name: 'u."fullName"',
+      studyProgram: 'sp.name',
+      sksSemester: 'cur.sks_semester',
+      ips: 'ips',
+      ipk: 'ipk',
+      sksTotal: 'cum.sks_total',
+    };
+    const orderCol = sortMap[opts.sortKey || ''] || 's.nim';
+    const search = opts.search ? `%${opts.search.replace(/[%_]/g, (m) => '\\' + m)}%` : null;
+    const ids = opts.studentIds && opts.studentIds.length > 0 ? opts.studentIds : null;
+
+    // Semua nilai dari pengguna dilewatkan sebagai parameter ($n), bukan disisipkan ke SQL.
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
+      WITH sem AS (SELECT id, code FROM academic_years WHERE code = $1),
+      cur AS (
+        SELECT e."studentId",
+               SUM(c.sks)::int AS sks_semester,
+               SUM(c.sks * e."gradePoint") FILTER (WHERE e."gradePoint" IS NOT NULL) AS pts,
+               SUM(c.sks) FILTER (WHERE e."gradePoint" IS NOT NULL) AS graded_sks
+        FROM course_enrollments e
+        JOIN courses c ON c.id = e."courseId"
+        JOIN sem ON sem.id = e."academicYearId"
+        WHERE e.status = 'APPROVED'
+        GROUP BY e."studentId"
+      ),
+      cum AS (
+        SELECT e."studentId",
+               SUM(c.sks)::int AS sks_total,
+               SUM(c.sks * e."gradePoint") FILTER (WHERE e."gradePoint" IS NOT NULL) AS pts,
+               SUM(c.sks) FILTER (WHERE e."gradePoint" IS NOT NULL) AS graded_sks
+        FROM course_enrollments e
+        JOIN courses c ON c.id = e."courseId"
+        JOIN academic_years ay ON ay.id = e."academicYearId"
+        WHERE e.status = 'APPROVED' AND ay.code <= $1
+        GROUP BY e."studentId"
+      )
+      SELECT s.id, s.nim, u."fullName" AS name, sp.name AS "studyProgram",
+             s."feederRegistrationId" AS "feederRegistrationId",
+             cur.sks_semester AS "sksSemester",
+             CASE WHEN cur.graded_sks > 0 THEN ROUND((cur.pts / cur.graded_sks)::numeric, 2) ELSE NULL END AS ips,
+             COALESCE(cum.sks_total, 0) AS "sksTotal",
+             CASE WHEN cum.graded_sks > 0 THEN ROUND((cum.pts / cum.graded_sks)::numeric, 2) ELSE NULL END AS ipk,
+             COUNT(*) OVER()::int AS total
+      FROM cur
+      JOIN students s ON s.id = cur."studentId"
+      JOIN users u ON u.id = s."userId"
+      JOIN study_programs sp ON sp.id = s."studyProgramId"
+      LEFT JOIN cum ON cum."studentId" = s.id
+      WHERE s."feederRegistrationId" IS NOT NULL
+        AND ($2::text IS NULL OR s.nim ILIKE $2 OR u."fullName" ILIKE $2 OR sp.name ILIKE $2)
+        AND ($3::text[] IS NULL OR s.id = ANY($3::text[]))
+      ORDER BY ${orderCol} ${dir} NULLS LAST, s.nim ASC
+      LIMIT $4 OFFSET $5
+      `,
+      semesterCode,
+      search,
+      ids,
+      opts.limit ?? 50,
+      opts.offset ?? 0
+    );
+    return rows.map((r) => ({
+      id: r.id as string,
+      nim: r.nim as string,
+      name: r.name as string,
+      studyProgram: r.studyProgram as string,
+      feederRegistrationId: r.feederRegistrationId as string,
+      sksSemester: Number(r.sksSemester ?? 0),
+      ips: r.ips !== null && r.ips !== undefined ? Number(r.ips) : null,
+      sksTotal: Number(r.sksTotal ?? 0),
+      ipk: r.ipk !== null && r.ipk !== undefined ? Number(r.ipk) : null,
+      total: Number(r.total ?? 0),
+    }));
+  }
+
+  /** Tabel AKM lokal per semester (server-side): SKS, IPS, SKS total, IPK hasil hitung dari KRS. */
+  async getAkmTable(q: { semester?: string; page?: string; pageSize?: string; search?: string; sortKey?: string; sortDir?: string }) {
+    const { page, pageSize, skip, search, sortDir } = this.normalizeTableQuery(q);
+    const semester = (q.semester || '').trim();
+    if (!semester) return { total: 0, page, pageSize, items: [] as any[] };
+    const rows = await this.computeAkmLocal(semester, {
+      search,
+      sortKey: q.sortKey,
+      sortDir,
+      limit: pageSize,
+      offset: skip,
+    });
+    return {
+      total: rows[0]?.total ?? 0,
+      page,
+      pageSize,
+      items: rows.map(({ total: _t, feederRegistrationId: _f, ...rest }) => rest),
+    };
+  }
+
+  /** Semua id mahasiswa yang punya AKM lokal di semester ini (sesuai pencarian) -- untuk "Bandingkan semua". */
+  async getAkmIds(semester: string, search?: string) {
+    const rows = await this.computeAkmLocal((semester || '').trim(), { search: (search ?? '').trim() || undefined, limit: 100000 });
+    return { total: rows.length, ids: rows.map((r) => r.id) };
+  }
+
+  /** Ambil baris AKM Feeder untuk satu semester dan satu batch id registrasi (satu panggilan). */
+  private async fetchAkmFeederRows(baseUrl: string, token: string, semester: string, regIds: string[]) {
+    const map = new Map<string, any>();
+    if (regIds.length === 0) return map;
+    const idsFilter = regIds.map((i) => this.escapeFeederFilter(i)).join("', '");
+    const rows = await this.fetchAllFeederPages(baseUrl, token, 'GetAktivitasKuliahMahasiswa', 500, 45000, {
+      filter: `id_semester = '${this.escapeFeederFilter(semester)}' AND id_registrasi_mahasiswa IN ('${idsFilter}')`,
+    });
+    for (const r of rows) if (r?.id_registrasi_mahasiswa) map.set(String(r.id_registrasi_mahasiswa), r);
+    return map;
+  }
+
+  /**
+   * Bandingkan AKM lokal vs Feeder untuk mahasiswa terpilih pada satu semester (hanya
+   * membaca, maks 100 per panggilan): SKS semester, IPS, SKS total, IPK.
+   */
+  async compareAkm(semester: string, studentIds: string[]) {
+    const BATCH = 100;
+    if (!semester || !Array.isArray(studentIds) || studentIds.length === 0) {
+      return { success: true, message: 'Tidak ada mahasiswa untuk dibandingkan.', items: [] as any[] };
+    }
+    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    if (!setting?.baseUrl || !setting?.username || !setting?.password) {
+      return { success: false, message: 'Konfigurasi Web Service Neo Feeder belum lengkap.', items: [] as any[] };
+    }
+    try {
+      const token = await this.getFeederToken(setting.baseUrl, setting.username, setting.password);
+      const locals = await this.computeAkmLocal(semester, { studentIds: studentIds.slice(0, BATCH), limit: BATCH });
+      const feeder = await this.fetchAkmFeederRows(
+        setting.baseUrl,
+        token,
+        semester,
+        locals.map((l) => l.feederRegistrationId)
+      );
+
+      const num = (v: any) => {
+        const n = parseFloat(String(v ?? ''));
+        return Number.isNaN(n) ? null : n;
+      };
+      const items = locals.map((l) => {
+        const f = feeder.get(l.feederRegistrationId);
+        if (!f) return { id: l.id, foundInFeeder: false, diffs: [] as any[] };
+        const diffs: { field: string; label: string; local: string; feeder: string }[] = [];
+        const push = (field: string, label: string, local: number | null, remote: number | null, tol = 0) => {
+          if (local === null && remote === null) return;
+          if (local !== null && remote !== null && Math.abs(local - remote) <= tol) return;
+          diffs.push({ field, label, local: local === null ? '' : String(local), feeder: remote === null ? '' : String(remote) });
+        };
+        push('sksSemester', 'SKS Semester', l.sksSemester, num(f.sks_semester));
+        push('ips', 'IPS', l.ips, num(f.ips), 0.005);
+        push('sksTotal', 'SKS Total', l.sksTotal, num(f.sks_total));
+        push('ipk', 'IPK', l.ipk, num(f.ipk), 0.005);
+        return {
+          id: l.id,
+          foundInFeeder: true,
+          status: this.cleanFeederValue(f.nama_status_mahasiswa) || '',
+          diffs,
+        };
+      });
+      return { success: true, message: `${items.length} mahasiswa dibandingkan.`, items };
+    } catch (err: any) {
+      return { success: false, message: `Gagal membandingkan AKM: ${err?.message || 'Unknown error'}`, items: [] as any[] };
+    }
+  }
+
+  /**
+   * Kirim AKM lokal ke Feeder untuk mahasiswa terpilih pada satu semester: yang sudah ada
+   * di Feeder di-UPDATE (`UpdatePerkuliahanMahasiswa`, status mahasiswa dipertahankan dari
+   * Feeder), yang belum ada di-INSERT (`InsertPerkuliahanMahasiswa`, status Aktif karena
+   * punya KRS di semester itu). Menulis ke basis data resmi Dikti, jadi `studentIds` wajib
+   * dan dibatasi per proses.
+   */
+  async syncAkmToFeeder(semester: string, studentIds: string[]) {
+    const empty = { processed: 0, inserted: 0, updated: 0, failed: 0, skipped: 0 };
+    if (!semester || !Array.isArray(studentIds) || studentIds.length === 0) {
+      return { success: false, message: 'Pilih semester dan minimal satu mahasiswa.', ...empty };
+    }
+    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    if (!setting?.baseUrl || !setting?.username || !setting?.password) {
+      return { success: false, message: 'Konfigurasi Web Service Neo Feeder belum lengkap.', ...empty };
+    }
+
+    const LIMIT_PER_RUN = 50;
+    try {
+      const token = await this.getFeederToken(setting.baseUrl, setting.username, setting.password);
+      const locals = await this.computeAkmLocal(semester, { studentIds: studentIds.slice(0, LIMIT_PER_RUN), limit: LIMIT_PER_RUN });
+      const feeder = await this.fetchAkmFeederRows(
+        setting.baseUrl,
+        token,
+        semester,
+        locals.map((l) => l.feederRegistrationId)
+      );
+
+      let inserted = 0;
+      let updated = 0;
+      let failed = 0;
+      let skipped = 0;
+      const failReasons: Record<string, number> = {};
+      const fail = (reason: string) => {
+        failed += 1;
+        failReasons[reason] = (failReasons[reason] || 0) + 1;
+      };
+      const fmt = (v: number | null) => (v === null ? 0 : v);
+
+      for (const l of locals) {
+        const f = feeder.get(l.feederRegistrationId);
+        const values = {
+          ips: fmt(l.ips),
+          ipk: fmt(l.ipk),
+          sks_semester: l.sksSemester,
+          sks_total: l.sksTotal,
+        };
+        try {
+          if (f) {
+            const same =
+              Math.abs(fmt(l.ips) - (parseFloat(String(f.ips)) || 0)) <= 0.005 &&
+              Math.abs(fmt(l.ipk) - (parseFloat(String(f.ipk)) || 0)) <= 0.005 &&
+              l.sksSemester === (parseInt(String(f.sks_semester), 10) || 0) &&
+              l.sksTotal === (parseInt(String(f.sks_total), 10) || 0);
+            if (same) {
+              skipped += 1;
+              continue;
+            }
+            const { errorCode, errorDesc } = await this.callFeeder(setting.baseUrl, {
+              act: 'UpdatePerkuliahanMahasiswa',
+              token,
+              key: { id_registrasi_mahasiswa: l.feederRegistrationId, id_semester: semester },
+              record: { id_status_mahasiswa: f.id_status_mahasiswa, ...values },
+            });
+            if (errorCode !== '0') fail(`Update AKM ditolak Feeder: ${errorDesc || 'tanpa keterangan'}`);
+            else updated += 1;
+          } else {
+            const { errorCode, errorDesc } = await this.callFeeder(setting.baseUrl, {
+              act: 'InsertPerkuliahanMahasiswa',
+              token,
+              record: {
+                id_registrasi_mahasiswa: l.feederRegistrationId,
+                id_semester: semester,
+                id_status_mahasiswa: 'A',
+                ...values,
+                biaya_kuliah_smt: 0,
+              },
+            });
+            if (errorCode !== '0') fail(`Insert AKM ditolak Feeder: ${errorDesc || 'tanpa keterangan'}`);
+            else inserted += 1;
+          }
+        } catch (err: any) {
+          fail(`Gagal menghubungi Feeder: ${err?.message || 'Unknown error'}`);
+        }
+      }
+
+      try {
+        await this.prisma.systemAuditLog.create({
+          data: {
+            action: 'AKM_SYNC_TO_FEEDER',
+            detail: `AKM semester ${semester} ke Feeder: ${locals.length} diproses, ${inserted} ditambahkan, ${updated} diperbarui, ${failed} gagal, ${skipped} tidak ada perubahan.`,
+          },
+        });
+      } catch {
+        // non-blocking
+      }
+
+      const failText = Object.keys(failReasons).length
+        ? ` Alasan gagal: ${Object.entries(failReasons).map(([r, n]) => `${r} (${n})`).join('; ')}.`
+        : '';
+      const over = studentIds.length > LIMIT_PER_RUN ? ` Dibatasi ${LIMIT_PER_RUN} per proses -- jalankan lagi untuk sisanya.` : '';
+      return {
+        success: true,
+        message: `AKM selesai: ${locals.length} diproses, ${inserted} ditambahkan, ${updated} diperbarui, ${failed} gagal, ${skipped} tidak ada perubahan.${over}${failText}`,
+        processed: locals.length,
+        inserted,
+        updated,
+        failed,
+        skipped,
+      };
+    } catch (err: any) {
+      return { success: false, message: `Gagal sinkronisasi AKM: ${err?.message || 'Unknown error'}`, ...empty };
+    }
+  }
+
+  /**
+   * Tabel nilai perkuliahan lokal (server-side). `grade` memfilter: `graded` (sudah ada
+   * nilai, default -- sama dengan hitungan "Total Lokal"), `unsynced` (sudah bernilai lokal
+   * tapi belum cocok dengan Feeder -- kandidat Push), `ungraded` (KRS belum bernilai), atau `all`.
+   */
+  async getNilaiTable(q: {
+    page?: string;
+    pageSize?: string;
+    search?: string;
+    sortKey?: string;
+    sortDir?: string;
+    grade?: string;
+  }) {
+    const { page, pageSize, skip, search, sortDir } = this.normalizeTableQuery(q);
+    const gradeFilter = q.grade === 'ungraded' || q.grade === 'all' || q.grade === 'unsynced' ? q.grade : 'graded';
+    const base: any =
+      gradeFilter === 'graded'
+        ? { gradePoint: { not: null } }
+        : gradeFilter === 'unsynced'
+          ? { gradePoint: { not: null }, feederGradeSyncedAt: null }
+          : gradeFilter === 'ungraded'
+            ? { gradePoint: null, courseClassId: { not: null } }
+            : {};
+    const where: any = search
+      ? {
+          AND: [
+            base,
+            {
+              OR: [
+                { student: { nim: { contains: search, mode: 'insensitive' } } },
+                { student: { user: { fullName: { contains: search, mode: 'insensitive' } } } },
+                { course: { code: { contains: search, mode: 'insensitive' } } },
+                { course: { name: { contains: search, mode: 'insensitive' } } },
+                { courseClass: { className: { contains: search, mode: 'insensitive' } } },
+              ],
+            },
+          ],
+        }
+      : base;
+    const orderByMap: Record<string, any> = {
+      nim: { student: { nim: sortDir } },
+      studentName: { student: { user: { fullName: sortDir } } },
+      courseLabel: { course: { code: sortDir } },
+      className: { courseClass: { className: sortDir } },
+      academicYear: { academicYear: { code: sortDir } },
+      totalScore: { totalScore: { sort: sortDir, nulls: 'last' } },
+      gradeLetter: { gradeLetter: { sort: sortDir, nulls: 'last' } },
+      gradePoint: { gradePoint: { sort: sortDir, nulls: 'last' } },
+      gradeStatus: { gradeStatus: sortDir },
+      synced: { feederGradeSyncedAt: { sort: sortDir, nulls: 'last' } },
+    };
+    const orderBy = [orderByMap[q.sortKey || ''] || orderByMap.nim, { id: 'asc' }];
+
+    const [total, totalGraded, synced, rows] = await Promise.all([
+      this.prisma.courseEnrollment.count({ where }),
+      this.prisma.courseEnrollment.count({ where: { gradePoint: { not: null } } }),
+      this.prisma.courseEnrollment.count({ where: { ...where, feederGradeSyncedAt: { not: null } } }),
+      this.prisma.courseEnrollment.findMany({
+        where,
+        orderBy,
+        skip,
+        take: pageSize,
+        select: {
+          id: true,
+          totalScore: true,
+          gradeLetter: true,
+          gradePoint: true,
+          gradeStatus: true,
+          feederGradeSyncedAt: true,
+          student: { select: { nim: true, user: { select: { fullName: true } } } },
+          course: { select: { code: true, name: true } },
+          courseClass: { select: { className: true } },
+          academicYear: { select: { code: true, name: true } },
+        },
+      }),
+    ]);
+
+    return {
+      total,
+      totalGraded,
+      synced,
+      page,
+      pageSize,
+      items: rows.map((r) => ({
+        id: r.id,
+        nim: r.student?.nim ?? '',
+        studentName: r.student?.user?.fullName ?? '',
+        courseLabel: r.course ? `${r.course.code} -- ${r.course.name}` : '-',
+        className: r.courseClass?.className ?? '-',
+        academicYear: r.academicYear?.name || r.academicYear?.code || '-',
+        totalScore: r.totalScore,
+        gradeLetter: r.gradeLetter,
+        gradePoint: r.gradePoint,
+        gradeStatus: r.gradeStatus,
+        feederGradeSyncedAt: r.feederGradeSyncedAt,
+      })),
+    };
+  }
+
+  /**
+   * Tabel KRS lokal (server-side). KRS tidak punya feederId sendiri, jadi yang ditampilkan
+   * adalah dua fakta nyata: kelasnya sudah punya ID Feeder & mahasiswanya sudah punya ID
+   * Feeder (prasyarat Push/Sync KRS) -- bukan klaim bahwa baris KRS itu sudah ada di Feeder.
+   */
+  async getKrsTable(q: { page?: string; pageSize?: string; search?: string; sortKey?: string; sortDir?: string }) {
+    const { page, pageSize, skip, search, sortDir } = this.normalizeTableQuery(q);
+    const base: any = { courseClassId: { not: null } };
+    const where: any = search
+      ? {
+          ...base,
+          OR: [
+            { student: { nim: { contains: search, mode: 'insensitive' } } },
+            { student: { user: { fullName: { contains: search, mode: 'insensitive' } } } },
+            { course: { code: { contains: search, mode: 'insensitive' } } },
+            { course: { name: { contains: search, mode: 'insensitive' } } },
+            { courseClass: { className: { contains: search, mode: 'insensitive' } } },
+          ],
+        }
+      : base;
+    const orderByMap: Record<string, any> = {
+      nim: { student: { nim: sortDir } },
+      studentName: { student: { user: { fullName: sortDir } } },
+      courseLabel: { course: { code: sortDir } },
+      className: { courseClass: { className: sortDir } },
+      academicYear: { academicYear: { code: sortDir } },
+      synced: { feederSyncedAt: { sort: sortDir, nulls: 'last' } },
+      classInFeeder: { courseClass: { feederId: { sort: sortDir, nulls: 'last' } } },
+      studentInFeeder: { student: { feederId: { sort: sortDir, nulls: 'last' } } },
+    };
+    const orderBy = [orderByMap[q.sortKey || ''] || orderByMap.nim, { id: 'asc' }];
+
+    const [total, synced, totalAll, rows] = await Promise.all([
+      this.prisma.courseEnrollment.count({ where }),
+      this.prisma.courseEnrollment.count({ where: { ...where, feederSyncedAt: { not: null } } }),
+      this.prisma.courseEnrollment.count({ where: base }),
+      this.prisma.courseEnrollment.findMany({
+        where,
+        orderBy,
+        skip,
+        take: pageSize,
+        select: {
+          id: true,
+          feederSyncedAt: true,
+          student: { select: { nim: true, feederId: true, user: { select: { fullName: true } } } },
+          course: { select: { code: true, name: true } },
+          courseClass: { select: { className: true, feederId: true } },
+          academicYear: { select: { code: true, name: true } },
+        },
+      }),
+    ]);
+
+    return {
+      total,
+      synced,
+      totalAll,
+      page,
+      pageSize,
+      items: rows.map((r) => ({
+        id: r.id,
+        nim: r.student?.nim ?? '',
+        studentName: r.student?.user?.fullName ?? '',
+        courseLabel: r.course ? `${r.course.code} -- ${r.course.name}` : '-',
+        className: r.courseClass?.className ?? '',
+        academicYear: r.academicYear?.name || r.academicYear?.code || '-',
+        classInFeeder: Boolean(r.courseClass?.feederId),
+        studentInFeeder: Boolean(r.student?.feederId),
+        feederSyncedAt: r.feederSyncedAt,
+      })),
+    };
+  }
+
+  // Daftar kelas kuliah lokal yang BELUM punya feederId (belum ada di Feeder) -- dipakai tab
+  // "Push" halaman Sinkronisasi Kelas Perkuliahan.
+  async getPendingKelasKuliahPush() {
+    const classes = await this.prisma.courseClass.findMany({
+      where: { feederId: null },
+      include: {
+        course: { select: { code: true, name: true } },
+        academicYear: { select: { code: true, name: true } },
+        lecturer: { select: { nidn: true, nuptk: true, user: { select: { fullName: true } } } },
+      },
+      orderBy: [{ academicYear: { code: 'desc' } }, { className: 'asc' }],
+    });
+    return classes.map((c) => ({
+      id: c.id,
+      className: c.className,
+      courseCode: c.course?.code ?? '',
+      courseName: c.course?.name ?? '',
+      academicYear: c.academicYear ? `${c.academicYear.name} (${c.academicYear.code})` : '',
+      lecturerName: c.lecturer?.user?.fullName ?? null,
+      lecturerNidn: c.lecturer?.nidn || c.lecturer?.nuptk || null,
     }));
   }
 
@@ -655,6 +1657,17 @@ export class IntegrationSettingsService {
   /** Escape tanda kutip tunggal supaya aman diselipkan ke dalam string `filter` Feeder (mis. "nim = '...'"). */
   private escapeFeederFilter(value: string): string {
     return value.replace(/'/g, "''");
+  }
+
+  /**
+   * Email mahasiswa lokal yang BUKAN buatan sistem. Mahasiswa yang email-nya kosong di
+   * Feeder diberi email cadangan `<nim>@mahasiswa.itn.ac.id` (kolom email akun wajib &
+   * unik) -- email semacam itu tidak boleh dikirim/dibandingkan ke Feeder seolah-olah
+   * data asli.
+   */
+  private realStudentEmail(email?: string | null): string {
+    const e = (email || '').trim();
+    return e && !e.toLowerCase().endsWith('@mahasiswa.itn.ac.id') ? e : '';
   }
 
   private parseFeederDate(value?: string): string | undefined {
@@ -2021,6 +3034,24 @@ export class IntegrationSettingsService {
       // bukan satu per satu seperti dosen (DetailBiodataDosen tidak mendukung IN).
       const BIODATA_BATCH = 100;
       const idsWithFeederId = dedupedItems.filter((i) => i.feederId);
+      const applyBio = (item: RemoteMahasiswaItem, bio: any) => {
+        item.email = this.cleanFeederValue(bio.email);
+        item.phone = this.cleanFeederValue(bio.handphone) || this.cleanFeederValue(bio.telepon);
+        item.religion = this.cleanFeederValue(bio.nama_agama);
+        item.birthPlace = this.cleanFeederValue(bio.tempat_lahir) || item.birthPlace;
+        item.address = this.cleanFeederValue(bio.jalan);
+        item.kecamatan = this.cleanFeederValue(bio.nama_wilayah);
+        item.postalCode = this.cleanFeederValue(bio.kodepos);
+        item.fatherName = this.cleanFeederValue(bio.nama_ayah);
+        item.fatherPhone = this.cleanFeederValue(bio.no_hp_ayah);
+        item.fatherJob = this.cleanFeederValue(bio.nama_pekerjaan_ayah);
+        item.fatherIncome = this.cleanFeederValue(bio.nama_penghasilan_ayah);
+        item.motherName = this.cleanFeederValue(bio.nama_ibu_kandung) || item.motherName;
+        item.motherPhone = this.cleanFeederValue(bio.no_hp_ibu);
+        item.motherJob = this.cleanFeederValue(bio.nama_pekerjaan_ibu);
+        item.motherIncome = this.cleanFeederValue(bio.nama_penghasilan_ibu);
+        item.raw = { ...item.raw, biodata: bio };
+      };
       for (let i = 0; i < idsWithFeederId.length; i += BIODATA_BATCH) {
         const batch = idsWithFeederId.slice(i, i + BIODATA_BATCH);
         const idsFilter = batch.map((it) => this.escapeFeederFilter(it.feederId!)).join("', '");
@@ -2037,28 +3068,36 @@ export class IntegrationSettingsService {
           }
           for (const item of batch) {
             const bio = item.feederId ? biodataMap.get(item.feederId) : undefined;
-            if (!bio) continue;
-            item.email = this.cleanFeederValue(bio.email);
-            item.phone = this.cleanFeederValue(bio.handphone) || this.cleanFeederValue(bio.telepon);
-            item.religion = this.cleanFeederValue(bio.nama_agama);
-            item.birthPlace = this.cleanFeederValue(bio.tempat_lahir) || item.birthPlace;
-            item.address = this.cleanFeederValue(bio.jalan);
-            item.kecamatan = this.cleanFeederValue(bio.nama_wilayah);
-            item.postalCode = this.cleanFeederValue(bio.kodepos);
-            item.fatherName = this.cleanFeederValue(bio.nama_ayah);
-            item.fatherPhone = this.cleanFeederValue(bio.no_hp_ayah);
-            item.fatherJob = this.cleanFeederValue(bio.nama_pekerjaan_ayah);
-            item.fatherIncome = this.cleanFeederValue(bio.nama_penghasilan_ayah);
-            item.motherName = this.cleanFeederValue(bio.nama_ibu_kandung) || item.motherName;
-            item.motherPhone = this.cleanFeederValue(bio.no_hp_ibu);
-            item.motherJob = this.cleanFeederValue(bio.nama_pekerjaan_ibu);
-            item.motherIncome = this.cleanFeederValue(bio.nama_penghasilan_ibu);
-            item.raw = { ...item.raw, biodata: bio };
+            if (bio) applyBio(item, bio);
           }
         } catch {
           // non-blocking -- batch ini tetap disertakan dengan data ringkasan saja
         }
       }
+
+      // Filter IN bisa tidak andal di beberapa versi Feeder (batch dikembalikan kosong/kurang,
+      // dan tanpa error) -- yang biodatanya belum terambil dicari ulang satu per satu supaya
+      // email, HP, dan alamat tidak diam-diam kosong.
+      const withoutBio = idsWithFeederId.filter((it) => !it.raw?.biodata);
+      await this.runWithConcurrency(withoutBio, 5, async (item) => {
+        try {
+          const { data, errorCode } = await this.callFeeder(
+            setting.baseUrl,
+            {
+              act: 'GetBiodataMahasiswa',
+              token,
+              filter: `id_mahasiswa = '${this.escapeFeederFilter(item.feederId!)}'`,
+              limit: 1,
+              offset: 0,
+            },
+            30000
+          );
+          const bio = errorCode === '0' && Array.isArray(data) ? data[0] : null;
+          if (bio) applyBio(item, bio);
+        } catch {
+          // non-blocking
+        }
+      });
 
       try {
         await this.prisma.pddiktiSetting.update({ where: { id: PDDIKTI_SETTING_ID }, data: { lastSyncAt: new Date() } });
@@ -2132,13 +3171,15 @@ export class IntegrationSettingsService {
             motherIncome: item.motherIncome?.trim() || existing.motherIncome,
           },
         });
-        if (item.email?.trim() && existing.userId) {
+        // Email dari Feeder dianggap sumber kebenaran saat Pull: menggantikan email lokal
+        // yang berbeda, kecuali sudah dipakai akun lain (unik) -- tidak ditimpa diam-diam.
+        const feederEmail = item.email?.trim().toLowerCase();
+        if (feederEmail && existing.userId) {
           const currentUser = await this.prisma.user.findUnique({ where: { id: existing.userId } });
-          const looksLikeFallback = currentUser?.email?.endsWith('@mahasiswa.itn.ac.id');
-          if (currentUser?.email !== item.email.trim() && (looksLikeFallback || !currentUser?.email)) {
-            const emailTaken = await this.prisma.user.findUnique({ where: { email: item.email.trim() } });
+          if (currentUser && currentUser.email.toLowerCase() !== feederEmail) {
+            const emailTaken = await this.prisma.user.findUnique({ where: { email: feederEmail } });
             if (!emailTaken) {
-              await this.prisma.user.update({ where: { id: existing.userId }, data: { email: item.email.trim() } });
+              await this.prisma.user.update({ where: { id: existing.userId }, data: { email: feederEmail } });
             }
           }
         }
@@ -2480,7 +3521,7 @@ export class IntegrationSettingsService {
             nama_ibu_kandung: student.motherName || 'Ibu Kandung',
             kewarganegaraan: 'ID',
             handphone,
-            email: student.user.email,
+            email: this.realStudentEmail(student.user.email),
             jalan: (student.streetAddress || student.address || '-').slice(0, 80),
             id_wilayah: idWilayah,
           };
@@ -2587,6 +3628,278 @@ export class IntegrationSettingsService {
     }
   }
 
+  // Daftar mahasiswa lokal yang SUDAH punya id_mahasiswa Feeder -- kandidat tab "Update ke Feeder".
+  async getLinkedMahasiswaForUpdate() {
+    const students = await this.prisma.student.findMany({
+      where: { feederId: { not: null } },
+      include: { user: { select: { fullName: true } }, studyProgram: { select: { name: true } } },
+      orderBy: [{ feederSyncErrorAt: 'desc' }, { nim: 'asc' }],
+    });
+    return students.map((s) => ({
+      id: s.id,
+      nim: s.nim,
+      fullName: s.user.fullName,
+      studyProgram: s.studyProgram?.name ?? null,
+      lastError: s.feederSyncError,
+      lastErrorAt: s.feederSyncErrorAt,
+    }));
+  }
+
+  /**
+   * Bandingkan biodata lokal vs Feeder untuk mahasiswa yang sudah tertaut (`feederId`).
+   * Hanya membaca (GetBiodataMahasiswa, filter IN, satu batch maks 100 id). Perbedaan
+   * dihitung dengan aturan yang sama dengan Update: field yang kosong di lokal tidak
+   * dianggap beda, karena memang tidak akan dikirim.
+   */
+  async compareMahasiswaWithFeeder(studentIds: string[]) {
+    const BATCH = 100;
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+      return { success: true, message: 'Tidak ada mahasiswa untuk dibandingkan.', items: [] as any[] };
+    }
+    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    if (!setting?.baseUrl || !setting?.username || !setting?.password) {
+      return { success: false, message: 'Konfigurasi Web Service Neo Feeder belum lengkap.', items: [] as any[] };
+    }
+
+    try {
+      const token = await this.getFeederToken(setting.baseUrl, setting.username, setting.password);
+      const students = await this.prisma.student.findMany({
+        where: { id: { in: studentIds.slice(0, BATCH) }, feederId: { not: null } },
+        include: { user: true },
+      });
+      const idsFilter = students.map((s) => this.escapeFeederFilter(s.feederId!)).join("', '");
+      const { data, errorCode, errorDesc } = await this.callFeeder(
+        setting.baseUrl,
+        { act: 'GetBiodataMahasiswa', token, filter: `id_mahasiswa IN ('${idsFilter}')`, limit: BATCH, offset: 0 },
+        30000
+      );
+      if (errorCode !== '0' || !Array.isArray(data)) {
+        return { success: false, message: errorDesc || 'Feeder menolak permintaan GetBiodataMahasiswa.', items: [] as any[] };
+      }
+      const bioMap = new Map<string, any>();
+      for (const b of data) if (b?.id_mahasiswa) bioMap.set(String(b.id_mahasiswa), b);
+
+      // Mahasiswa yang id_mahasiswa lokalnya tidak ada di Feeder: coba cari lewat NIM
+      // (GetListRiwayatPendidikanMahasiswa) -- id lokal bisa basi/salah tertaut. Kalau
+      // ketemu, tautan lokal diperbaiki ke id_mahasiswa yang benar supaya Update juga jalan.
+      const relinked = new Map<string, string>(); // student.id -> id_mahasiswa benar
+      const missing = students.filter((s) => !bioMap.has(s.feederId!));
+      // Dicari satu per satu (filter `=`, bukan IN) karena filter IN bisa tidak andal di
+      // beberapa versi Feeder: 1) ulang lewat id_mahasiswa lokal, 2) lewat NIM.
+      const lookupBio = async (idMahasiswa: string) => {
+        const { data: d, errorCode: ec } = await this.callFeeder(
+          setting.baseUrl,
+          { act: 'GetBiodataMahasiswa', token, filter: `id_mahasiswa = '${this.escapeFeederFilter(idMahasiswa)}'`, limit: 1, offset: 0 },
+          30000
+        );
+        return ec === '0' && Array.isArray(d) ? d[0] : null;
+      };
+      await this.runWithConcurrency(missing, 5, async (s) => {
+        try {
+          const byId = await lookupBio(s.feederId!);
+          if (byId?.id_mahasiswa) {
+            bioMap.set(s.feederId!, byId);
+            return;
+          }
+          if (!s.nim) return;
+          const { data: regData, errorCode: regErr } = await this.callFeeder(
+            setting.baseUrl,
+            {
+              act: 'GetListRiwayatPendidikanMahasiswa',
+              token,
+              filter: `nim = '${this.escapeFeederFilter(s.nim)}'`,
+              limit: 1,
+              offset: 0,
+            },
+            30000
+          );
+          const reg = regErr === '0' && Array.isArray(regData) ? regData[0] : null;
+          const realId = this.cleanFeederValue(reg?.id_mahasiswa);
+          if (!realId) return;
+          const bio = bioMap.get(realId) || (await lookupBio(realId));
+          if (bio?.id_mahasiswa) {
+            bioMap.set(realId, bio);
+            relinked.set(s.id, realId);
+          }
+        } catch {
+          // non-blocking -- yang tidak ketemu tetap dilaporkan "tidak ditemukan"
+        }
+      });
+      for (const [studentId, id] of relinked) {
+        await this.prisma.student.update({ where: { id: studentId }, data: { feederId: id } }).catch(() => null);
+      }
+
+      const norm = (v?: string | null) => (v ?? '').toString().trim().replace(/\s+/g, ' ').toLowerCase();
+      const phone = (v?: string | null) => (v ?? '').replace(/\D/g, '').replace(/^62/, '0');
+
+      const items = students.map((s) => {
+        const bio = bioMap.get(relinked.get(s.id) || s.feederId!);
+        if (!bio) return { id: s.id, foundInFeeder: false, relinked: false, diffs: [] as any[] };
+
+        const pairs: { field: string; label: string; local: string; feeder: string; cmp: (v: string) => string }[] = [
+          { field: 'nama', label: 'Nama', local: s.user.fullName || '', feeder: this.cleanFeederValue(bio.nama_mahasiswa) || '', cmp: norm },
+          { field: 'nik', label: 'NIK', local: s.nik || '', feeder: this.cleanFeederValue(bio.nik) || '', cmp: norm },
+          {
+            field: 'tanggalLahir',
+            label: 'Tanggal Lahir',
+            local: s.birthDate ? s.birthDate.toISOString().slice(0, 10) : '',
+            feeder: this.parseFeederDate(this.cleanFeederValue(bio.tanggal_lahir) || '') || '',
+            cmp: norm,
+          },
+          { field: 'tempatLahir', label: 'Tempat Lahir', local: s.birthPlace || '', feeder: this.cleanFeederValue(bio.tempat_lahir) || '', cmp: norm },
+          {
+            field: 'jenisKelamin',
+            label: 'Jenis Kelamin',
+            local: s.gender ? (s.gender === 'FEMALE' ? 'P' : 'L') : '',
+            feeder: this.cleanFeederValue(bio.jenis_kelamin) || '',
+            cmp: norm,
+          },
+          { field: 'ibuKandung', label: 'Nama Ibu', local: s.motherName || '', feeder: this.cleanFeederValue(bio.nama_ibu_kandung) || '', cmp: norm },
+          { field: 'nisn', label: 'NISN', local: s.nisn || '', feeder: this.cleanFeederValue(bio.nisn) || '', cmp: norm },
+          { field: 'handphone', label: 'No. HP', local: s.phone || '', feeder: this.cleanFeederValue(bio.handphone) || '', cmp: phone },
+          { field: 'email', label: 'Email', local: this.realStudentEmail(s.user.email), feeder: this.cleanFeederValue(bio.email) || '', cmp: norm },
+        ];
+
+        const diffs = pairs
+          .filter((p) => p.local.trim() !== '' && p.cmp(p.local) !== p.cmp(p.feeder))
+          .map((p) => ({ field: p.field, label: p.label, local: p.local, feeder: p.feeder }));
+        return { id: s.id, foundInFeeder: true, relinked: relinked.has(s.id), diffs };
+      });
+
+      return { success: true, message: `${items.length} mahasiswa dibandingkan.`, items };
+    } catch (err: any) {
+      return { success: false, message: `Gagal membandingkan data: ${err?.message || 'Unknown error'}`, items: [] as any[] };
+    }
+  }
+
+  /**
+   * Update biodata mahasiswa yang SUDAH ada di Feeder (`UpdateBiodataMahasiswa`, key
+   * `id_mahasiswa`) dari data lokal. Menulis ke basis data resmi Dikti, jadi `studentIds`
+   * WAJIB diisi (dipilih manual dari UI) dan dibatasi per pemanggilan.
+   *
+   * Beda dari Insert, di sini TIDAK ada nilai default pengganti (mis. "Ibu Kandung",
+   * tanggal lahir 2000-01-01): field yang kosong di lokal sengaja tidak dikirim, supaya
+   * data yang sudah benar di Feeder tidak tertimpa nilai karangan.
+   */
+  async updateMahasiswaBiodataToFeeder(studentIds: string[]) {
+    const empty = { processed: 0, updated: 0, failed: 0, skipped: 0, failReasons: {} as Record<string, number> };
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+      return { success: false, message: 'Pilih minimal satu mahasiswa yang akan diupdate.', ...empty };
+    }
+    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    if (!setting?.baseUrl || !setting?.username || !setting?.password) {
+      return {
+        success: false,
+        message: 'Konfigurasi Web Service Neo Feeder (URL, username, password) belum lengkap. Lengkapi dulu di menu Pengaturan DIKTI.',
+        ...empty,
+      };
+    }
+
+    const LIMIT_PER_RUN = 50;
+    try {
+      const token = await this.getFeederToken(setting.baseUrl, setting.username, setting.password);
+      const students = await this.prisma.student.findMany({
+        where: { id: { in: studentIds.slice(0, LIMIT_PER_RUN) }, feederId: { not: null } },
+        include: { user: true },
+      });
+
+      let processed = 0;
+      let updated = 0;
+      let failed = 0;
+      let skipped = 0;
+      const failReasons: Record<string, number> = {};
+      const markFailed = async (studentId: string, reason: string) => {
+        failed += 1;
+        failReasons[reason] = (failReasons[reason] || 0) + 1;
+        await this.prisma.student
+          .update({ where: { id: studentId }, data: { feederSyncError: reason, feederSyncErrorAt: new Date() } })
+          .catch(() => null);
+      };
+
+      for (const student of students) {
+        processed += 1;
+        const record: Record<string, any> = {};
+        if (student.user.fullName) record.nama_mahasiswa = student.user.fullName;
+        if (student.gender) record.jenis_kelamin = student.gender === 'FEMALE' ? 'P' : 'L';
+        if (student.birthPlace) record.tempat_lahir = student.birthPlace;
+        if (student.birthDate) record.tanggal_lahir = student.birthDate.toISOString().slice(0, 10);
+        if (student.religion) record.id_agama = this.agamaToFeederId(student.religion);
+        if (student.nik && /^\d{16}$/.test(student.nik) && !/^0+$/.test(student.nik)) record.nik = student.nik;
+        if (student.motherName) record.nama_ibu_kandung = student.motherName;
+        const handphone = (student.phone || '').replace(/\D/g, '').replace(/^62/, '0');
+        if (handphone) record.handphone = handphone;
+        const realEmail = this.realStudentEmail(student.user.email);
+        if (realEmail) record.email = realEmail;
+        const jalan = student.streetAddress || student.address;
+        if (jalan) record.jalan = jalan.slice(0, 80);
+        if (student.nisn) record.nisn = student.nisn;
+        if (student.dusun) record.dusun = student.dusun.slice(0, 60);
+        if (student.kelurahan) record.kelurahan = student.kelurahan.slice(0, 60);
+        if (student.postalCode && /^\d{5}$/.test(student.postalCode)) record.kode_pos = student.postalCode;
+        const [rt, rw] = (student.rtRw || '').split('/').map((v) => v.trim());
+        if (rt && /^\d+$/.test(rt)) record.rt = parseInt(rt, 10);
+        if (rw && /^\d+$/.test(rw)) record.rw = parseInt(rw, 10);
+
+        if (student.kecamatan) {
+          const { idWilayah } = await this.resolveFeederWilayah(setting.baseUrl, token, student.kecamatan, student.city);
+          if (idWilayah) record.id_wilayah = idWilayah;
+        }
+
+        if (Object.keys(record).length === 0) {
+          skipped += 1;
+          continue;
+        }
+
+        try {
+          const { errorCode, errorDesc } = await this.callFeeder(setting.baseUrl, {
+            act: 'UpdateBiodataMahasiswa',
+            token,
+            key: { id_mahasiswa: student.feederId },
+            record,
+          });
+          if (errorCode !== '0') {
+            await markFailed(student.id, `Update biodata ditolak Feeder: ${errorDesc || 'tanpa keterangan'}`);
+            continue;
+          }
+          await this.prisma.student.update({
+            where: { id: student.id },
+            data: { feederSyncError: null, feederSyncErrorAt: null },
+          });
+          updated += 1;
+        } catch (err: any) {
+          await markFailed(student.id, `Gagal menghubungi Feeder: ${err?.message || 'Unknown error'}`);
+        }
+      }
+
+      try {
+        await this.prisma.systemAuditLog.create({
+          data: {
+            action: 'MAHASISWA_UPDATE_TO_FEEDER',
+            detail: `Update biodata mahasiswa ke Feeder: ${processed} diproses, ${updated} berhasil, ${failed} gagal, ${skipped} dilewati.`,
+          },
+        });
+      } catch {
+        // non-blocking
+      }
+
+      const failReasonText = Object.keys(failReasons).length
+        ? ` Alasan gagal: ${Object.entries(failReasons).map(([r, n]) => `${r} (${n})`).join('; ')}.`
+        : '';
+      const overLimit = studentIds.length > LIMIT_PER_RUN ? ` Dibatasi ${LIMIT_PER_RUN} per proses -- jalankan lagi untuk sisanya.` : '';
+      return {
+        success: true,
+        message: `Update selesai: ${processed} diproses, ${updated} berhasil diupdate di Feeder, ${failed} gagal, ${skipped} dilewati (tidak ada data untuk dikirim).${overLimit}${failReasonText}`,
+        processed,
+        updated,
+        failed,
+        skipped,
+        failReasons,
+      };
+    } catch (err: any) {
+      return { success: false, message: `Gagal update data mahasiswa: ${err?.message || 'Unknown error'}`, ...empty };
+    }
+  }
+
   /**
    * Menarik daftar periode semester (`GetSemester`) dari Web Service Neo Feeder PDDIKTI --
    * TAPI dipersempit cuma ke periode yang BENAR-BENAR punya data KRS (bukan seluruh
@@ -2615,26 +3928,49 @@ export class IntegrationSettingsService {
     try {
       const token = await this.getFeederToken(setting.baseUrl, setting.username, setting.password);
 
-      const nilaiRows = await this.fetchAllFeederPages(setting.baseUrl, token, 'GetListNilaiPerkuliahanKelas', 500, 60000);
-      const semestersWithKrs = new Set<string>();
-      for (const r of nilaiRows) {
-        const idSmt = this.cleanFeederValue(r?.id_smt);
-        const jumlahKrs = parseInt(String(r?.jumlah_mahasiswa_krs ?? ''), 10);
-        if (idSmt && !Number.isNaN(jumlahKrs) && jumlahKrs > 0) semestersWithKrs.add(idSmt);
-      }
-
+      // GetSemester kecil & cepat -- ambil dulu, persempit ke semester yang sudah mulai.
       const rows = await this.fetchAllFeederPages(setting.baseUrl, token, 'GetSemester', 500, 60000);
       const now = new Date();
+      const candidates = rows.filter(
+        (r) => r?.id_semester && r?.tanggal_mulai && r?.tanggal_selesai && new Date(r.tanggal_mulai) <= now
+      );
 
-      const items: RemoteAcademicYearItem[] = rows
-        .filter(
-          (r) =>
-            r?.id_semester &&
-            r?.tanggal_mulai &&
-            r?.tanggal_selesai &&
-            new Date(r.tanggal_mulai) <= now &&
-            semestersWithKrs.has(this.cleanFeederValue(r.id_semester) || '')
-        )
+      // Daripada menarik SELURUH GetListNilaiPerkuliahanKelas (ribuan baris, lambat & rawan
+      // timeout Cloudflare), cek per semester kandidat dengan filter id_smt dan berhenti
+      // di halaman pertama yang memuat minimal 1 kelas ber-KRS. Dijalankan paralel.
+      const semestersWithKrs = new Set<string>();
+      const candidateIds = Array.from(new Set(candidates.map((r) => this.cleanFeederValue(r.id_semester)!).filter(Boolean)));
+      await this.runWithConcurrency(candidateIds, 6, async (idSmt) => {
+        const pageSize = 200;
+        for (let offset = 0, guard = 0; guard < 50; guard += 1, offset += pageSize) {
+          const { data, errorCode } = await this.callFeeder(
+            setting.baseUrl,
+            {
+              act: 'GetListNilaiPerkuliahanKelas',
+              token,
+              limit: pageSize,
+              offset,
+              filter: `id_smt = '${this.escapeFeederFilter(idSmt)}'`,
+            },
+            30000
+          );
+          if (errorCode !== '0') return;
+          const page: any[] = Array.isArray(data) ? data : [];
+          if (
+            page.some((r) => {
+              const n = parseInt(String(r?.jumlah_mahasiswa_krs ?? ''), 10);
+              return !Number.isNaN(n) && n > 0;
+            })
+          ) {
+            semestersWithKrs.add(idSmt);
+            return;
+          }
+          if (page.length < pageSize) return;
+        }
+      });
+
+      const items: RemoteAcademicYearItem[] = candidates
+        .filter((r) => semestersWithKrs.has(this.cleanFeederValue(r.id_semester) || ''))
         .map((r) => {
           const idTahunAjaran = this.cleanFeederValue(r.id_tahun_ajaran);
           const startYear = idTahunAjaran ? parseInt(idTahunAjaran, 10) : undefined;
@@ -3092,6 +4428,24 @@ export class IntegrationSettingsService {
     }
     const updated = toCreate.length - created; // sudah terdaftar sebelumnya -- dilewati oleh skipDuplicates
 
+    // Tandai SEMUA baris yang cocok dengan data Feeder (baru maupun yang sudah ada) sebagai
+    // sinkron -- dikelompokkan per kelas supaya cukup satu updateMany per kelas.
+    const studentsByClass = new Map<string, string[]>();
+    for (const row of toCreate) {
+      const list = studentsByClass.get(row.courseClassId);
+      if (list) list.push(row.studentId);
+      else studentsByClass.set(row.courseClassId, [row.studentId]);
+    }
+    const syncedAt = new Date();
+    await this.runWithConcurrency(Array.from(studentsByClass.entries()), 5, async ([courseClassId, studentIds]) => {
+      for (const chunk of this.chunkArray(studentIds, 2000)) {
+        await this.prisma.courseEnrollment.updateMany({
+          where: { courseClassId, studentId: { in: chunk } },
+          data: { feederSyncedAt: syncedAt },
+        });
+      }
+    });
+
     try {
       await this.prisma.systemAuditLog.create({
         data: {
@@ -3187,7 +4541,39 @@ export class IntegrationSettingsService {
   private async runNilaiPerkuliahanSyncJob(baseUrl: string, username: string, password: string): Promise<void> {
     const token = await this.getFeederToken(baseUrl, username, password);
 
-    const nilaiRows = await this.fetchAllFeederPages(baseUrl, token, 'GetListNilaiPerkuliahanKelas', 500, 60000);
+    // GetListNilaiPerkuliahanKelas tanpa filter sangat lambat di Feeder (~15 detik per 500
+    // baris, makin dalam makin lama -- puluhan ribu baris butuh 30+ menit). Dengan filter
+    // `id_smt` satu semester selesai dalam sekejap, jadi ditarik per semester secara
+    // paralel (semester yang sudah mulai saja, dari GetSemester yang kecil & cepat).
+    this.nilaiSyncJob.phase = 'Mengambil daftar semester dari Feeder';
+    const semesterRows = await this.fetchAllFeederPages(baseUrl, token, 'GetSemester', 500, 60000);
+    const now = new Date();
+    const semesterIds = Array.from(
+      new Set(
+        semesterRows
+          .filter((r) => r?.id_semester && r?.tanggal_mulai && new Date(r.tanggal_mulai) <= now)
+          .map((r) => this.cleanFeederValue(r.id_semester)!)
+          .filter(Boolean)
+      )
+    );
+
+    const nilaiRows: any[] = [];
+    let semestersDone = 0;
+    await this.runWithConcurrency(semesterIds, 5, async (idSmt) => {
+      try {
+        const rows = await this.fetchAllFeederPages(baseUrl, token, 'GetListNilaiPerkuliahanKelas', 500, 60000, {
+          filter: `id_smt = '${this.escapeFeederFilter(idSmt)}'`,
+        });
+        nilaiRows.push(...rows);
+      } catch {
+        // non-blocking -- satu semester gagal tidak menghentikan job
+      } finally {
+        semestersDone += 1;
+        this.nilaiSyncJob.phase = `Mengambil daftar kelas dari Feeder (semester ${semestersDone}/${semesterIds.length})`;
+      }
+    });
+    this.nilaiSyncJob.phase = 'Memproses nilai per kelas';
+
     const classesWithGrades = Array.from(
       new Set(
         nilaiRows
@@ -3255,6 +4641,7 @@ export class IntegrationSettingsService {
               gradePoint: !Number.isNaN(nilaiIndeks) ? nilaiIndeks : undefined,
               gradeLetter: nilaiHuruf,
               gradeStatus: 'FINAL',
+              feederGradeSyncedAt: new Date(),
             },
           });
 

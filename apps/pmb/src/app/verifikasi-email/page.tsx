@@ -182,7 +182,7 @@ function VerificationContent() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 max-w-md mx-auto">
             <Link
-              href="/pmb/login"
+              href="/login"
               className="w-full py-3 px-6 rounded-lg bg-[#1E3A8A] hover:bg-[#162d6b] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs transition-colors"
             >
               <LogIn className="w-4 h-4" />
@@ -210,7 +210,7 @@ function VerificationContent() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 max-w-md mx-auto">
             <Link
-              href="/pmb/login"
+              href="/login"
               className="w-full py-3 px-6 rounded-lg bg-[#1E3A8A] hover:bg-[#162d6b] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs transition-colors"
             >
               <LogIn className="w-4 h-4" />
@@ -297,13 +297,13 @@ function VerificationContent() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 max-w-md mx-auto">
             <Link
-              href="/pmb/daftar"
+              href="/daftar"
               className="w-full py-2.5 px-4 rounded-lg bg-white border border-slate-300 text-slate-700 font-semibold text-xs sm:text-sm hover:bg-slate-50 transition-colors"
             >
               Daftar Akun Baru
             </Link>
             <Link
-              href="/pmb"
+              href="/"
               className="w-full py-2.5 px-4 rounded-lg bg-slate-100 text-slate-700 font-semibold text-xs sm:text-sm hover:bg-slate-200 transition-colors flex items-center justify-center gap-1.5"
             >
               <Home className="w-4 h-4" />
@@ -330,13 +330,13 @@ function VerificationContent() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 max-w-md mx-auto">
             <Link
-              href="/pmb/daftar"
+              href="/daftar"
               className="w-full py-3 px-6 rounded-lg bg-[#1E3A8A] hover:bg-[#162d6b] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs transition-colors"
             >
               <span>Daftar Akun PMB</span>
             </Link>
             <Link
-              href="/pmb"
+              href="/"
               className="w-full py-3 px-6 rounded-lg bg-slate-100 text-slate-700 font-semibold text-xs sm:text-sm hover:bg-slate-200 transition-colors flex items-center justify-center gap-1.5"
             >
               <Home className="w-4 h-4" />
@@ -357,7 +357,7 @@ export default function PmbVerifikasiEmailPage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link
-              href="/pmb"
+              href="/"
               className="p-1.5 rounded-lg bg-blue-900/60 hover:bg-blue-900 text-blue-200 hover:text-white transition-colors"
               title="Kembali ke Beranda PMB"
             >
@@ -380,7 +380,7 @@ export default function PmbVerifikasiEmailPage() {
 
           <div className="flex items-center gap-4 text-xs">
             <Link
-              href="/pmb/login"
+              href="/login"
               className="px-3.5 py-1.5 rounded-lg bg-white text-[#1E3A8A] font-bold hover:bg-blue-50 transition-colors shadow-xs"
             >
               Masuk Akun PMB

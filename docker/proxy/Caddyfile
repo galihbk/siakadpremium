@@ -3,7 +3,7 @@ http://siakadpremium.ac.id {
 }
 
 http://pmb.siakadpremium.ac.id, http://pmbsiakadpremium.ac.id {
-    reverse_proxy host.docker.internal:3000
+    reverse_proxy host.docker.internal:3004
 }
 
 http://portal.siakadpremium.ac.id, http://portalsiakadpremium.ac.id {

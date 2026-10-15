@@ -56,7 +56,7 @@ export default function PmbDaftarPage() {
         try {
           const parsed = JSON.parse(session);
           if (parsed && (parsed.id || parsed.email)) {
-            router.replace('/pmb/dashboard');
+            router.replace('/dashboard');
           }
         } catch (err) {
           console.error('Gagal membaca session PMB:', err);
@@ -352,7 +352,7 @@ export default function PmbDaftarPage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link
-              href="/pmb"
+              href="/"
               className="p-1.5 rounded-lg bg-blue-900/60 hover:bg-blue-900 text-blue-200 hover:text-white transition-colors"
               title="Kembali ke Beranda PMB"
             >
@@ -378,7 +378,7 @@ export default function PmbDaftarPage() {
               Sudah punya akun?
             </span>
             <Link
-              href="/pmb/login"
+              href="/login"
               className="px-3.5 py-1.5 rounded-lg bg-white text-[#1E3A8A] font-bold hover:bg-blue-50 transition-colors shadow-xs"
             >
               Masuk Akun PMB
@@ -452,7 +452,7 @@ export default function PmbDaftarPage() {
 
             <div className="mt-8 pt-5 border-t border-slate-200 text-xs text-slate-500">
               <span>Sudah mengklik tautan di email? </span>
-              <Link href="/pmb/login" className="font-bold text-[#1E3A8A] hover:underline ml-1">
+              <Link href="/login" className="font-bold text-[#1E3A8A] hover:underline ml-1">
                 Masuk ke Akun PMB &rarr;
               </Link>
             </div>

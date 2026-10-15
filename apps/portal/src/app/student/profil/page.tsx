@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getAuthSession } from '@/lib/auth';
 import { getApiBaseUrl } from '@/lib/api';
+import { BirthPlaceSelect } from '@/components/ui/BirthPlaceSelect';
 import { compressUploadedFile, fileToBase64 } from '@/lib/fileCompression';
 import {
   User,
@@ -1098,11 +1099,10 @@ export default function StudentProfilePage() {
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
                       Tempat Lahir
                     </label>
-                    <input
-                      type="text"
+                    <BirthPlaceSelect
                       value={birthPlace}
-                      onChange={(e) => setBirthPlace(e.target.value)}
-                      className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-900"
+                      onChange={setBirthPlace}
+                      className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-900 bg-white disabled:bg-slate-100"
                     />
                   </div>
 

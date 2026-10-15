@@ -97,6 +97,7 @@ export class LecturersService {
       nidn: lec.nidn || '-',
       nuptk: lec.nuptk || '-',
       nip: lec.nip || '-',
+      hasFeederId: Boolean(lec.feederId),
       fullName: lec.user.fullName,
       titlePrefix: lec.titlePrefix || '',
       titleSuffix: lec.titleSuffix || '',

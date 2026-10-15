@@ -1,6 +1,33 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+function isPortalHost(host: string) {
+  return host.startsWith('portal.') || host.startsWith('portalsiakadpremium');
+}
+
+/** Host lokal/IP (dev) tidak punya subdomain -- jangan dipaksa pindah. */
+function isLocalHost(host: string) {
+  const hostname = host.split(':')[0];
+  return hostname === 'localhost' || hostname.endsWith('.localhost') || /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname);
+}
+
+/**
+ * Host subdomain PMB tujuan, diturunkan dari host saat ini (tanpa konfigurasi env, sama
+ * seperti subdomain portal): label depan `siakad.`/`www.` diganti `pmb.`, atau `pmb.`
+ * ditambahkan di depan domain polos. Host lokal/IP tidak dialihkan.
+ *
+ * Halaman PMB sendiri sudah dipindah ke aplikasi terpisah (apps/pmb) -- middleware ini cuma
+ * mengalihkan link lama (/pmb, /pmb/login, /daftar, /register) supaya tetap berfungsi.
+ */
+function resolvePmbHost(host: string): string | null {
+  if (isLocalHost(host)) return null;
+  const withoutPort = host.split(':')[0];
+  const parts = withoutPort.split('.');
+  if (parts.length < 2) return null;
+  if (parts.length >= 3 && ['siakad', 'www', 'web'].includes(parts[0])) parts.shift();
+  return `pmb.${parts.join('.')}`;
+}
+
 export function middleware(request: NextRequest) {
   const host = (
     request.headers.get('x-forwarded-host') ||
@@ -8,46 +35,30 @@ export function middleware(request: NextRequest) {
     ''
   ).toLowerCase();
   const url = request.nextUrl.clone();
+  const pathname = url.pathname;
 
   // 1. Subdomain Portal (e.g. portal.siakadpremium.ac.id or portalsiakadpremium.ac.id)
   // Dedicated to Login, Mahasiswa (/student), Dosen (/lecturer), and BAAK (/admin)
-  if (host.startsWith('portal.') || host.startsWith('portalsiakadpremium')) {
-    if (url.pathname === '/') {
+  if (isPortalHost(host)) {
+    if (pathname === '/') {
       return NextResponse.redirect(new URL('/login', request.url));
     }
     return NextResponse.next();
   }
 
-  // 2. Subdomain PMB (e.g. pmb.siakadpremium.ac.id or pmbsiakadpremium.ac.id or pmb.*)
-  // Dedicated to Penerimaan Mahasiswa Baru
-  if (host.startsWith('pmb.') || host.startsWith('pmbsiakadpremium') || host.includes('pmb')) {
-    if (url.pathname === '/') {
-      url.pathname = '/pmb';
-      return NextResponse.rewrite(url);
+  // 2. Link PMB lama di domain utama -> subdomain pmb. (aplikasi PMB terpisah).
+  const isPmbPath = pathname === '/pmb' || pathname.startsWith('/pmb/');
+  const isLegacyRegister = pathname === '/daftar' || pathname === '/register';
+  if (isPmbPath || isLegacyRegister) {
+    const pmbHost = resolvePmbHost(host);
+    if (pmbHost) {
+      const proto = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim() || 'https';
+      let targetPath = pathname;
+      if (isLegacyRegister) targetPath = '/daftar';
+      else if (pathname === '/pmb' || pathname === '/pmb/') targetPath = '/';
+      else targetPath = pathname.replace(/^\/pmb/, '');
+      return NextResponse.redirect(`${proto}://${pmbHost}${targetPath}${url.search}`, 308);
     }
-    if (url.pathname === '/login') {
-      url.pathname = '/pmb/login';
-      return NextResponse.rewrite(url);
-    }
-    if (
-      url.pathname === '/daftar' ||
-      url.pathname === '/register' ||
-      url.pathname === '/pmb/register'
-    ) {
-      url.pathname = '/pmb/daftar';
-      return NextResponse.rewrite(url);
-    }
-    if (url.pathname === '/dashboard' || url.pathname === '/portal') {
-      url.pathname = '/pmb/dashboard';
-      return NextResponse.rewrite(url);
-    }
-    return NextResponse.next();
-  }
-
-  // Global redirect/rewrite for /register or /daftar to PMB registration
-  if (url.pathname === '/daftar' || url.pathname === '/register') {
-    url.pathname = '/pmb/daftar';
-    return NextResponse.rewrite(url);
   }
 
   return NextResponse.next();

@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { Modal } from '@/components/ui/Modal';
 import { getAuthSession } from '@/lib/auth';
+import { useServerTable } from '@/lib/useServerTable';
+import { TablePagination } from '@/components/ui/TablePagination';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -16,6 +18,8 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   X,
+  Check,
+  Minus,
 } from 'lucide-react';
 
 // ==========================================
@@ -60,10 +64,27 @@ export interface PendingMahasiswaItem {
   lastErrorAt: string | null;
 }
 
+export interface MahasiswaDiffResult {
+  id: string;
+  foundInFeeder: boolean;
+  relinked?: boolean;
+  diffs: { field: string; label: string; local: string; feeder: string }[];
+}
+
+export interface LocalMahasiswaRow {
+  id: string;
+  nim: string;
+  name: string;
+  studyProgram: string;
+  entryYear?: number;
+  status?: string;
+  hasFeederId: boolean;
+}
+
 export default function SinkronisasiMahasiswaPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [syncLogs, setSyncLogs] = useState<SyncLogItem[]>([]);
-  const [activeTab, setActiveTab] = useState<'pull' | 'push'>('pull');
+  const [activeTab, setActiveTab] = useState<'pull' | 'push' | 'update'>('pull');
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -124,6 +145,14 @@ export default function SinkronisasiMahasiswaPage() {
       .catch((err) => console.warn('Gagal memuat daftar program studi:', err));
   }, []);
 
+  // Tabel mahasiswa lokal: pagination, pencarian, dan urutan dihitung di server (hanya
+  // satu halaman yang dikirim ke browser, bukan seluruh ribuan mahasiswa).
+  const mhsTable = useServerTable<LocalMahasiswaRow, { linked?: number }>({
+    endpoint: 'integration-settings/pddikti/mahasiswa/table',
+    defaultSortKey: 'nim',
+  });
+  const mhsSortIndicator = (key: string) => (mhsTable.sortKey === key ? (mhsTable.sortDir === 'asc' ? ' ▲' : ' ▼') : ' ⇅');
+
   // Tarik & Sinkronkan Data Mahasiswa dari Feeder
   const [isPullingMhs, setIsPullingMhs] = useState(false);
   const [isSyncingMhs, setIsSyncingMhs] = useState(false);
@@ -160,6 +189,22 @@ export default function SinkronisasiMahasiswaPage() {
   // dipakai di tab Push supaya kelihatan apa yang belum terpush dan kenapa gagal kalau gagal.
   const [mhsPendingItems, setMhsPendingItems] = useState<PendingMahasiswaItem[]>([]);
   const [isLoadingMhsPending, setIsLoadingMhsPending] = useState(false);
+  const [selectedPendingIds, setSelectedPendingIds] = useState<Set<string>>(new Set());
+
+  const allPendingSelected = mhsPendingItems.length > 0 && mhsPendingItems.every((i) => selectedPendingIds.has(i.id));
+
+  const togglePendingSelected = (id: string) => {
+    setSelectedPendingIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllPending = () => {
+    setSelectedPendingIds(allPendingSelected ? new Set() : new Set(mhsPendingItems.map((i) => i.id)));
+  };
 
   const fetchMhsPending = async () => {
     setIsLoadingMhsPending(true);
@@ -171,7 +216,13 @@ export default function SinkronisasiMahasiswaPage() {
       });
       const json = await res.json().catch(() => null);
       const result = json?.data ?? json;
-      setMhsPendingItems(Array.isArray(result) ? result : []);
+      const list: PendingMahasiswaItem[] = Array.isArray(result) ? result : [];
+      setMhsPendingItems(list);
+      // Buang pilihan yang sudah tidak ada di daftar pending (mis. baru saja berhasil dipush).
+      setSelectedPendingIds((prev) => {
+        const ids = new Set(list.map((i) => i.id));
+        return new Set(Array.from(prev).filter((id) => ids.has(id)));
+      });
     } catch (err) {
       console.warn('Gagal memuat daftar mahasiswa belum terpush:', err);
     } finally {
@@ -182,6 +233,138 @@ export default function SinkronisasiMahasiswaPage() {
   useEffect(() => {
     if (activeTab === 'push') fetchMhsPending();
   }, [activeTab]);
+
+  // Tab Update + tabel perbandingan: centang baris (hanya yang sudah tertaut ke Feeder)
+  // untuk diupdate, dan hasil perbandingan biodata per mahasiswa.
+  const [isUpdatingMhs, setIsUpdatingMhs] = useState(false);
+  const [selectedLinkedIds, setSelectedLinkedIds] = useState<Set<string>>(new Set());
+  const [diffById, setDiffById] = useState<Record<string, MahasiswaDiffResult>>({});
+  const [isComparing, setIsComparing] = useState(false);
+  const [compareProgress, setCompareProgress] = useState<{ done: number; total: number } | null>(null);
+  const [onlyWithDiff, setOnlyWithDiff] = useState(false);
+
+  // Filter "Hanya yang berbeda" hanya berlaku untuk baris di halaman yang sedang tampil,
+  // karena hasil perbandingan disimpan di browser per mahasiswa yang sudah dibandingkan.
+  const visibleRows = useMemo(
+    () =>
+      activeTab === 'update' && onlyWithDiff
+        ? mhsTable.items.filter((r) => (diffById[r.id]?.diffs.length ?? 0) > 0 || diffById[r.id]?.foundInFeeder === false)
+        : mhsTable.items,
+    [mhsTable.items, onlyWithDiff, diffById, activeTab]
+  );
+  const selectableRows = useMemo(() => visibleRows.filter((r) => r.hasFeederId), [visibleRows]);
+  const allLinkedSelected = selectableRows.length > 0 && selectableRows.every((r) => selectedLinkedIds.has(r.id));
+
+  const toggleLinkedSelected = (id: string) => {
+    setSelectedLinkedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllLinked = () => {
+    setSelectedLinkedIds((prev) => {
+      const next = new Set(prev);
+      if (allLinkedSelected) selectableRows.forEach((r) => next.delete(r.id));
+      else selectableRows.forEach((r) => next.add(r.id));
+      return next;
+    });
+  };
+
+  // Bandingkan biodata lokal vs Feeder (hanya membaca) -- per batch 100 supaya tiap
+  // request singkat dan tidak kena timeout; dijalankan berurutan dengan progres.
+  const handleCompareWithFeeder = async () => {
+    const targets = (selectedLinkedIds.size > 0 ? selectableRows.filter((r) => selectedLinkedIds.has(r.id)) : selectableRows).map(
+      (r) => r.id
+    );
+    if (targets.length === 0) return;
+    setIsComparing(true);
+    setCompareProgress({ done: 0, total: targets.length });
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const { token } = getAuthSession();
+    const BATCH = 100;
+    try {
+      for (let i = 0; i < targets.length; i += BATCH) {
+        const res = await fetch(`${apiBase}/integration-settings/pddikti/mahasiswa/compare`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ studentIds: targets.slice(i, i + BATCH) }),
+        });
+        const json = await res.json().catch(() => null);
+        const result = json?.data ?? json;
+        if (!res.ok || !result?.success) throw new Error(result?.message || `HTTP ${res.status}`);
+        setDiffById((prev) => {
+          const next = { ...prev };
+          for (const it of result.items as MahasiswaDiffResult[]) next[it.id] = it;
+          return next;
+        });
+        setCompareProgress({ done: Math.min(i + BATCH, targets.length), total: targets.length });
+      }
+      showToast(`${targets.length} mahasiswa selesai dibandingkan dengan Feeder.`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Gagal membandingkan data dengan Feeder.');
+    } finally {
+      setIsComparing(false);
+      setCompareProgress(null);
+    }
+  };
+
+  // Handler: Update biodata mahasiswa terpilih di Feeder dari data lokal (MENULIS ke PDDIKTI).
+  const handleUpdateMahasiswa = async () => {
+    if (selectedLinkedIds.size === 0) return;
+    setIsUpdatingMhs(true);
+    const startedAt = Date.now();
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    try {
+      const { token } = getAuthSession();
+      const res = await fetch(`${apiBase}/integration-settings/pddikti/mahasiswa/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ studentIds: Array.from(selectedLinkedIds) }),
+      });
+      const json = await res.json().catch(() => null);
+      const result = json?.data ?? json;
+      if (!res.ok || !result) throw new Error(result?.message || `HTTP ${res.status}`);
+
+      const failedCount = result?.failed ?? 0;
+      setSyncLogs((prev) => [
+        {
+          id: `log-mhs-update-${Date.now()}`,
+          timestamp: new Date().toLocaleString('id-ID'),
+          entity: 'Mahasiswa (mahasiswa_pt) -- Update ke Feeder',
+          batchSize: result?.processed ?? 0,
+          successCount: result?.updated ?? 0,
+          errorCount: failedCount,
+          status: !result?.success ? 'FAILED' : failedCount > 0 ? 'WARNING' : 'SUCCESS',
+          durationMs: Date.now() - startedAt,
+          message: result?.message || 'Update mahasiswa ke Feeder selesai.',
+        },
+        ...prev,
+      ]);
+      showToast(result?.message || 'Update mahasiswa ke Feeder selesai.');
+      if (result?.success) setSelectedLinkedIds(new Set());
+    } catch (err) {
+      setSyncLogs((prev) => [
+        {
+          id: `log-mhs-update-${Date.now()}`,
+          timestamp: new Date().toLocaleString('id-ID'),
+          entity: 'Mahasiswa (mahasiswa_pt) -- Update ke Feeder',
+          batchSize: 0,
+          successCount: 0,
+          errorCount: 0,
+          status: 'FAILED',
+          durationMs: Date.now() - startedAt,
+          message: err instanceof Error ? err.message : 'Gagal update data mahasiswa ke Feeder.',
+        },
+        ...prev,
+      ]);
+      showToast(err instanceof Error ? err.message : 'Gagal update data mahasiswa ke Feeder.');
+    } finally {
+      setIsUpdatingMhs(false);
+    }
+  };
 
   // Handler: Tarik Data Mahasiswa dari Feeder (opsional difilter tahun angkatan)
   const handlePullMahasiswa = async () => {
@@ -280,6 +463,7 @@ export default function SinkronisasiMahasiswaPage() {
       setMhsProdiChoice({});
       setIsMhsResultModalOpen(false);
       setMhsLocalTotal((prev) => prev + created);
+      mhsTable.reload();
     } catch (err) {
       setSyncLogs((prev) => [
         {
@@ -305,6 +489,7 @@ export default function SinkronisasiMahasiswaPage() {
   // Beda dari Pull/Sync -- ini MENULIS ke sistem resmi Dikti, jadi sengaja tanpa auto-retry
   // dan selalu ditampilkan utuh pesan dari backend (termasuk alasan gagal per mahasiswa).
   const handlePushMahasiswa = async () => {
+    if (selectedPendingIds.size === 0) return;
     setIsPushingMhs(true);
     const startedAt = Date.now();
     const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
@@ -313,7 +498,7 @@ export default function SinkronisasiMahasiswaPage() {
       const res = await fetch(`${apiBase}/integration-settings/pddikti/mahasiswa/push`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ studentIds: Array.from(selectedPendingIds) }),
       });
       const json = await res.json().catch(() => null);
       const result = json?.data ?? json;
@@ -444,6 +629,14 @@ export default function SinkronisasiMahasiswaPage() {
           >
             Push ke Feeder
           </button>
+          <button
+            onClick={() => setActiveTab('update')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+              activeTab === 'update' ? 'bg-[#1E3A8A] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Update ke Feeder
+          </button>
         </div>
 
         {/* Action Card: Tab Pull */}
@@ -512,12 +705,18 @@ export default function SinkronisasiMahasiswaPage() {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
             <button
               onClick={handlePushMahasiswa}
-              disabled={isPushingMhs}
-              title="Kirim mahasiswa aktif lokal yang belum terdaftar ke Web Service Neo Feeder PDDIKTI"
+              disabled={isPushingMhs || selectedPendingIds.size === 0}
+              title="Kirim mahasiswa yang dicentang ke Web Service Neo Feeder PDDIKTI"
               className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl shadow-xs transition-all disabled:opacity-60 cursor-pointer"
             >
               {isPushingMhs ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowUpFromLine className="w-4 h-4" />}
-              <span>{isPushingMhs ? 'Mengirim...' : 'Push ke Feeder'}</span>
+              <span>
+                {isPushingMhs
+                  ? 'Mengirim...'
+                  : selectedPendingIds.size > 0
+                    ? `Push ${selectedPendingIds.size} Mahasiswa Terpilih ke Feeder`
+                    : 'Centang mahasiswa yang akan dipush'}
+              </span>
             </button>
 
             <div className="pt-3 border-t border-slate-100 space-y-3">
@@ -535,7 +734,7 @@ export default function SinkronisasiMahasiswaPage() {
 
               {!isLoadingMhsPending && (
                 <p className="text-[11px] text-slate-500">
-                  {mhsPendingItems.length} data belum terpush
+                  {mhsPendingItems.length} data belum terpush, {selectedPendingIds.size} dipilih
                   {mhsPendingItems.filter((i) => i.lastError).length > 0 &&
                     `. ${mhsPendingItems.filter((i) => i.lastError).length} di antaranya gagal pada percobaan terakhir.`}
                 </p>
@@ -545,6 +744,16 @@ export default function SinkronisasiMahasiswaPage() {
                 <table className="w-full min-w-[760px] text-left text-xs">
                   <thead className="bg-slate-50 text-slate-500 sticky top-0">
                     <tr>
+                      <th className="py-2.5 px-3 w-8">
+                        <input
+                          type="checkbox"
+                          checked={allPendingSelected}
+                          onChange={toggleAllPending}
+                          disabled={mhsPendingItems.length === 0}
+                          aria-label="Pilih semua"
+                          className="cursor-pointer"
+                        />
+                      </th>
                       <th className="py-2.5 px-3">NIM</th>
                       <th className="py-2.5 px-3">Nama</th>
                       <th className="py-2.5 px-3">Prodi</th>
@@ -555,19 +764,28 @@ export default function SinkronisasiMahasiswaPage() {
                   <tbody className="divide-y divide-slate-100">
                     {isLoadingMhsPending ? (
                       <tr>
-                        <td colSpan={5} className="py-6 px-3 text-center text-slate-400">
+                        <td colSpan={6} className="py-6 px-3 text-center text-slate-400">
                           Memuat data...
                         </td>
                       </tr>
                     ) : mhsPendingItems.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="py-6 px-3 text-center text-slate-400">
+                        <td colSpan={6} className="py-6 px-3 text-center text-slate-400">
                           Semua mahasiswa aktif sudah terdaftar di Feeder.
                         </td>
                       </tr>
                     ) : (
                       mhsPendingItems.map((item) => (
                         <tr key={item.id} className="hover:bg-slate-50/70">
+                          <td className="py-2 px-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedPendingIds.has(item.id)}
+                              onChange={() => togglePendingSelected(item.id)}
+                              aria-label={`Pilih ${item.fullName}`}
+                              className="cursor-pointer"
+                            />
+                          </td>
                           <td className="py-2 px-3 font-mono font-bold text-[#1E3A8A]">{item.nim || '-'}</td>
                           <td className="py-2 px-3 font-semibold text-slate-800">{item.fullName}</td>
                           <td className="py-2 px-3 text-slate-600">{item.studyProgram || '-'}</td>
@@ -610,6 +828,48 @@ export default function SinkronisasiMahasiswaPage() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Action Card: Tab Update */}
+        {activeTab === 'update' && (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
+            <p className="text-[11px] text-slate-500">
+              Centang mahasiswa di tabel perbandingan di bawah, lalu kirim biodata lokal ke Feeder. Klik &quot;Bandingkan dengan
+              Feeder&quot; untuk melihat field mana yang berbeda. Hanya field yang terisi di data lokal yang dikirim, jadi data
+              Feeder tidak ditimpa nilai kosong. Maksimal 50 mahasiswa per proses.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button
+                onClick={handleCompareWithFeeder}
+                disabled={isComparing || selectableRows.length === 0}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold text-[#1E3A8A] bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl shadow-xs transition-all disabled:opacity-60 cursor-pointer"
+              >
+                <RefreshCw className={`w-4 h-4 ${isComparing ? 'animate-spin' : ''}`} />
+                <span>
+                  {isComparing && compareProgress
+                    ? `Membandingkan ${compareProgress.done} / ${compareProgress.total}...`
+                    : selectedLinkedIds.size > 0
+                      ? `Bandingkan ${selectedLinkedIds.size} Terpilih dengan Feeder`
+                      : `Bandingkan ${selectableRows.length} Mahasiswa di Halaman Ini`}
+                </span>
+              </button>
+              <button
+                onClick={handleUpdateMahasiswa}
+                disabled={isUpdatingMhs || selectedLinkedIds.size === 0}
+                title="Kirim perubahan biodata mahasiswa yang dicentang ke Web Service Neo Feeder PDDIKTI"
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl shadow-xs transition-all disabled:opacity-60 cursor-pointer"
+              >
+                {isUpdatingMhs ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowUpFromLine className="w-4 h-4" />}
+                <span>
+                  {isUpdatingMhs
+                    ? 'Mengupdate...'
+                    : selectedLinkedIds.size > 0
+                      ? `Update ${selectedLinkedIds.size} Mahasiswa Terpilih ke Feeder`
+                      : 'Centang mahasiswa yang akan diupdate'}
+                </span>
+              </button>
             </div>
           </div>
         )}
@@ -685,6 +945,179 @@ export default function SinkronisasiMahasiswaPage() {
             </div>
           </div>
         </Modal>
+
+        {/* Perbandingan Data Lokal vs Feeder (server-side) */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="font-bold text-xs text-slate-900 uppercase tracking-wider">Perbandingan Data Lokal vs Feeder</h3>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Kolom Feeder bercentang jika mahasiswa sudah punya ID Feeder (hasil Pull/Push).
+                {activeTab === 'update' && ' Perbedaan Data diisi lewat tombol Bandingkan dengan Feeder.'}
+              </p>
+            </div>
+            <span className="text-[11px] text-slate-400 shrink-0">
+              {mhsTable.isLoading
+                ? 'Memuat...'
+                : `${mhsTable.total.toLocaleString('id-ID')} mahasiswa · ${(mhsTable.extra.linked ?? 0).toLocaleString('id-ID')} sudah di Feeder`}
+            </span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <input
+              type="text"
+              value={mhsTable.searchInput}
+              onChange={(e) => mhsTable.setSearchInput(e.target.value)}
+              placeholder="Cari NIM, nama, atau program studi..."
+              className="flex-1 px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+            />
+            {activeTab === 'update' && (
+              <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 cursor-pointer shrink-0">
+                <input type="checkbox" checked={onlyWithDiff} onChange={(e) => setOnlyWithDiff(e.target.checked)} />
+                Hanya yang berbeda (halaman ini)
+              </label>
+            )}
+          </div>
+
+          {mhsTable.error && (
+            <div className="flex items-start gap-2 text-xs p-3 rounded-xl border bg-amber-50 border-amber-200 text-amber-800">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>Gagal memuat tabel: {mhsTable.error}</span>
+            </div>
+          )}
+
+          <div className={`border border-slate-200 rounded-xl max-h-96 overflow-auto ${mhsTable.isLoading ? 'opacity-60' : ''}`}>
+            <table className="w-full min-w-[720px] text-left text-xs">
+              <thead className="bg-slate-50 text-slate-500 sticky top-0">
+                <tr>
+                  {activeTab === 'update' && (
+                    <th className="py-2.5 px-3 w-8">
+                      <input
+                        type="checkbox"
+                        checked={allLinkedSelected}
+                        onChange={toggleAllLinked}
+                        disabled={selectableRows.length === 0}
+                        aria-label="Pilih semua di halaman ini"
+                        className="cursor-pointer"
+                      />
+                    </th>
+                  )}
+                  {(
+                    [
+                      ['nim', 'NIM', ''],
+                      ['name', 'Nama', ''],
+                      ['studyProgram', 'Program Studi', ''],
+                      ['entryYear', 'Angkatan', ''],
+                      ['status', 'Status', ''],
+                      ['inFeeder', 'Feeder', 'text-center'],
+                    ] as [string, string, string][]
+                  ).map(([key, label, cls]) => (
+                    <th
+                      key={key}
+                      onClick={() => mhsTable.toggleSort(key)}
+                      aria-sort={mhsTable.sortKey === key ? (mhsTable.sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                      className={`py-2.5 px-3 cursor-pointer select-none hover:text-[#1E3A8A] ${cls}`}
+                    >
+                      {label}
+                      <span className={`text-[9px] ${mhsTable.sortKey === key ? '' : 'text-slate-300'}`}>{mhsSortIndicator(key)}</span>
+                    </th>
+                  ))}
+                  {activeTab === 'update' && <th className="py-2.5 px-3 min-w-[260px]">Perbedaan Data</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {!mhsTable.isLoading && visibleRows.length === 0 && (
+                  <tr>
+                    <td colSpan={activeTab === 'update' ? 8 : 6} className="py-6 px-3 text-center text-slate-400">
+                      {mhsTable.searchInput || onlyWithDiff
+                        ? 'Tidak ada mahasiswa yang cocok.'
+                        : 'Belum ada mahasiswa tersimpan lokal. Pull & sinkronkan dari Feeder dulu.'}
+                    </td>
+                  </tr>
+                )}
+                {visibleRows.map((row) => (
+                  <tr key={row.id} className="hover:bg-slate-50/70">
+                    {activeTab === 'update' && (
+                      <td className="py-2 px-3">
+                        {row.hasFeederId ? (
+                          <input
+                            type="checkbox"
+                            checked={selectedLinkedIds.has(row.id)}
+                            onChange={() => toggleLinkedSelected(row.id)}
+                            aria-label={`Pilih ${row.name}`}
+                            className="cursor-pointer"
+                          />
+                        ) : null}
+                      </td>
+                    )}
+                    <td className="py-2 px-3 font-mono font-bold text-[#1E3A8A]">{row.nim || '-'}</td>
+                    <td className="py-2 px-3 font-semibold text-slate-800">{row.name}</td>
+                    <td className="py-2 px-3 text-slate-600">{row.studyProgram || '-'}</td>
+                    <td className="py-2 px-3 text-slate-600">{row.entryYear || '-'}</td>
+                    <td className="py-2 px-3 text-slate-600">{row.status || '-'}</td>
+                    <td className="py-2 px-3 text-center">
+                      {row.hasFeederId ? (
+                        <Check className="w-4 h-4 text-emerald-600 inline-block" />
+                      ) : (
+                        <Minus className="w-4 h-4 text-slate-300 inline-block" />
+                      )}
+                    </td>
+                    {activeTab === 'update' && (
+                      <td className="py-2 px-3 align-top">
+                        {(() => {
+                          const d = diffById[row.id];
+                          if (!d) return <span className="text-[10px] text-slate-400">{row.hasFeederId ? 'Belum dibandingkan' : '-'}</span>;
+                          if (!d.foundInFeeder) {
+                            return (
+                              <span className="text-[10px] font-semibold text-rose-600">Tidak ditemukan di Feeder (ID maupun NIM)</span>
+                            );
+                          }
+                          const relinkNote = d.relinked ? (
+                            <span className="block text-[10px] text-amber-600 mb-1">ID Feeder lokal salah, sudah diperbaiki lewat NIM</span>
+                          ) : null;
+                          if (d.diffs.length === 0) {
+                            return (
+                              <>
+                                {relinkNote}
+                                <span className="text-[10px] font-semibold text-emerald-600">Sama</span>
+                              </>
+                            );
+                          }
+                          return (
+                            <>
+                              {relinkNote}
+                              <ul className="space-y-1">
+                                {d.diffs.map((df) => (
+                                  <li key={df.field} className="text-[10px] leading-snug">
+                                    <span className="font-bold text-slate-700">{df.label}:</span>{' '}
+                                    <span className="text-emerald-700">{df.local || '(kosong)'}</span>
+                                    <span className="text-slate-400"> (lokal) vs </span>
+                                    <span className="text-rose-600">{df.feeder || '(kosong)'}</span>
+                                    <span className="text-slate-400"> (Feeder)</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </>
+                          );
+                        })()}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <TablePagination
+            page={mhsTable.page}
+            pageSize={mhsTable.pageSize}
+            total={mhsTable.total}
+            totalPages={mhsTable.totalPages}
+            noun="mahasiswa"
+            onPageChange={mhsTable.setPage}
+            onPageSizeChange={mhsTable.setPageSize}
+          />
+        </div>
 
         {/* Log Console */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-3">

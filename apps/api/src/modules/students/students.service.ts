@@ -633,6 +633,252 @@ export class StudentsService {
     return counts;
   }
 
+  /**
+   * Rekap presensi (kehadiran) perkuliahan mahasiswa per mata kuliah untuk satu semester,
+   * lengkap dengan rincian tiap pertemuan. Persentase dihitung dari pertemuan yang sudah
+   * dicatat untuk mahasiswa ini (pertemuan tanpa catatan tidak dihitung sebagai alfa).
+   */
+  async getAttendanceRecap(userId: string, academicYearId?: string) {
+    const student = await this.prisma.student.findUnique({ where: { userId }, select: { id: true } });
+    if (!student) {
+      throw new Error('Akun ini bukan akun mahasiswa.');
+    }
+
+    // Semester yang punya KRS disetujui (untuk pilihan semester), terbaru lebih dulu.
+    const yearRows = await this.prisma.courseEnrollment.findMany({
+      where: { studentId: student.id, status: 'APPROVED', courseClassId: { not: null } },
+      select: { academicYear: { select: { id: true, code: true, name: true, semesterType: true, isActive: true } } },
+      distinct: ['academicYearId'],
+    });
+    const years = yearRows
+      .map((r) => r.academicYear)
+      .sort((a, b) => b.code.localeCompare(a.code))
+      .map((y) => ({
+        id: y.id,
+        code: y.code,
+        name: `${y.name} ${y.semesterType === 'ODD' ? 'Gasal' : y.semesterType === 'EVEN' ? 'Genap' : 'Pendek'}`,
+        isActive: y.isActive,
+      }));
+
+    const selected =
+      years.find((y) => y.id === academicYearId) || years.find((y) => y.isActive) || years[0] || null;
+    if (!selected) {
+      return { years, selectedYearId: null, summary: null, courses: [] as any[] };
+    }
+
+    const enrollments = await this.prisma.courseEnrollment.findMany({
+      where: { studentId: student.id, status: 'APPROVED', academicYearId: selected.id, courseClassId: { not: null } },
+      select: {
+        course: { select: { code: true, name: true, sks: true } },
+        courseClass: {
+          select: {
+            id: true,
+            className: true,
+            lecturer: { select: { titlePrefix: true, titleSuffix: true, user: { select: { fullName: true } } } },
+            attendanceSessions: {
+              orderBy: { meetingNumber: 'asc' },
+              select: {
+                id: true,
+                meetingNumber: true,
+                date: true,
+                topic: true,
+                records: { where: { studentId: student.id }, select: { status: true, notes: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const lecturerName = (l?: { titlePrefix?: string | null; titleSuffix?: string | null; user?: { fullName: string } | null } | null) =>
+      l ? [l.titlePrefix, l.user?.fullName, l.titleSuffix].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim() : '-';
+
+    const MIN_PERCENT = 75;
+    const courses = enrollments
+      .map((e) => {
+        const sessions = e.courseClass?.attendanceSessions ?? [];
+        const meetings = sessions.map((m) => ({
+          meetingNumber: m.meetingNumber,
+          date: m.date,
+          topic: m.topic,
+          status: (m.records[0]?.status ?? null) as 'HADIR' | 'IZIN' | 'SAKIT' | 'ALFA' | null,
+          notes: m.records[0]?.notes ?? null,
+        }));
+        const count = (st: string) => meetings.filter((m) => m.status === st).length;
+        const hadir = count('HADIR');
+        const izin = count('IZIN');
+        const sakit = count('SAKIT');
+        const alfa = count('ALFA');
+        const recorded = hadir + izin + sakit + alfa;
+        const percentage = recorded > 0 ? Math.round((hadir / recorded) * 1000) / 10 : null;
+        return {
+          courseCode: e.course?.code ?? '',
+          courseName: e.course?.name ?? '',
+          sks: e.course?.sks ?? 0,
+          className: e.courseClass?.className ?? '',
+          lecturerName: lecturerName(e.courseClass?.lecturer),
+          totalMeetings: meetings.length,
+          recorded,
+          hadir,
+          izin,
+          sakit,
+          alfa,
+          percentage,
+          minPercent: MIN_PERCENT,
+          eligible: percentage === null ? null : percentage >= MIN_PERCENT,
+          meetings,
+        };
+      })
+      .sort((a, b) => a.courseCode.localeCompare(b.courseCode));
+
+    const total = courses.reduce(
+      (acc, c) => ({
+        recorded: acc.recorded + c.recorded,
+        hadir: acc.hadir + c.hadir,
+        izin: acc.izin + c.izin,
+        sakit: acc.sakit + c.sakit,
+        alfa: acc.alfa + c.alfa,
+        meetings: acc.meetings + c.totalMeetings,
+      }),
+      { recorded: 0, hadir: 0, izin: 0, sakit: 0, alfa: 0, meetings: 0 }
+    );
+
+    return {
+      years,
+      selectedYearId: selected.id,
+      summary: {
+        courses: courses.length,
+        totalMeetings: total.meetings,
+        recorded: total.recorded,
+        hadir: total.hadir,
+        izin: total.izin,
+        sakit: total.sakit,
+        alfa: total.alfa,
+        percentage: total.recorded > 0 ? Math.round((total.hadir / total.recorded) * 1000) / 10 : null,
+        belowMinimum: courses.filter((c) => c.eligible === false).length,
+        minPercent: MIN_PERCENT,
+      },
+      courses,
+    };
+  }
+
+  /**
+   * KHS nyata mahasiswa: satu entri per semester (tahun akademik) yang punya KRS disetujui,
+   * lengkap dengan IPS, SKS, IPK kumulatif, dan rincian nilai. Nilai kumulatif memakai nilai
+   * TERBAIK tiap mata kuliah sampai semester itu (mengulang tidak menggandakan SKS).
+   */
+  async getKhs(userId: string) {
+    const student = await this.prisma.student.findUnique({ where: { userId }, select: { id: true } });
+    if (!student) {
+      throw new Error('Akun ini bukan akun mahasiswa.');
+    }
+
+    const enrollments = await this.prisma.courseEnrollment.findMany({
+      where: { studentId: student.id, status: 'APPROVED' },
+      select: {
+        id: true,
+        courseId: true,
+        gradeLetter: true,
+        gradePoint: true,
+        updatedAt: true,
+        course: { select: { code: true, name: true, sks: true } },
+        courseClass: { select: { lecturer: { select: { titlePrefix: true, titleSuffix: true, user: { select: { fullName: true } } } } } },
+        academicYear: { select: { id: true, code: true, name: true, semesterType: true, endDate: true } },
+      },
+    });
+
+    const letterFromPoint = (gp: number) => {
+      if (gp >= 4) return 'A';
+      if (gp >= 3.75) return 'A-';
+      if (gp >= 3.5) return 'B+';
+      if (gp >= 3) return 'B';
+      if (gp >= 2.75) return 'B-';
+      if (gp >= 2.5) return 'C+';
+      if (gp >= 2) return 'C';
+      if (gp >= 1) return 'D';
+      return 'E';
+    };
+    const semesterLabel = (t: string) => (t === 'ODD' ? 'Gasal' : t === 'EVEN' ? 'Genap' : 'Pendek');
+    const maxSksNext = (ips: number | null) => {
+      if (ips === null) return 20;
+      if (ips >= 3) return 24;
+      if (ips >= 2.5) return 21;
+      if (ips >= 2) return 18;
+      return 15;
+    };
+    const lecturerName = (l?: { titlePrefix?: string | null; titleSuffix?: string | null; user?: { fullName: string } | null } | null) =>
+      l ? [l.titlePrefix, l.user?.fullName, l.titleSuffix].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim() : '-';
+
+    // kelompokkan per tahun akademik, urut dari yang terlama
+    const byYear = new Map<string, { year: (typeof enrollments)[number]['academicYear']; rows: typeof enrollments }>();
+    for (const e of enrollments) {
+      const entry = byYear.get(e.academicYear.id) || { year: e.academicYear, rows: [] as typeof enrollments };
+      entry.rows.push(e);
+      byYear.set(e.academicYear.id, entry);
+    }
+    const years = Array.from(byYear.values()).sort((a, b) => a.year.code.localeCompare(b.year.code));
+
+    const best = new Map<string, { sks: number; gp: number }>(); // courseId -> nilai terbaik sejauh ini
+    const semesters = years.map((y, idx) => {
+      const graded = y.rows.filter((r) => r.gradePoint !== null && r.gradePoint !== undefined);
+      const sksSem = graded.reduce((n, r) => n + (r.course?.sks ?? 0), 0);
+      const pts = graded.reduce((n, r) => n + (r.course?.sks ?? 0) * (r.gradePoint as number), 0);
+      const ips = sksSem > 0 ? Math.round((pts / sksSem) * 100) / 100 : null;
+
+      // akumulasi nilai terbaik per mata kuliah sampai semester ini
+      for (const r of graded) {
+        const gp = r.gradePoint as number;
+        const cur = best.get(r.courseId);
+        if (!cur || gp > cur.gp) best.set(r.courseId, { sks: r.course?.sks ?? 0, gp });
+      }
+      let cumSks = 0;
+      let cumPts = 0;
+      let cumGradedSks = 0;
+      best.forEach((b) => {
+        cumGradedSks += b.sks;
+        cumPts += b.sks * b.gp;
+        if (b.gp > 0) cumSks += b.sks;
+      });
+      const ipk = cumGradedSks > 0 ? Math.round((cumPts / cumGradedSks) * 100) / 100 : null;
+
+      // KHS disahkan di akhir semester (updatedAt nilai tidak dipakai: bisa berupa tanggal impor massal).
+      const latest = graded.length > 0 ? y.year.endDate : null;
+      const tipe = semesterLabel(y.year.semesterType);
+      return {
+        id: y.year.id,
+        semesterNumber: idx + 1,
+        namaSemester: `Semester ${idx + 1} (${tipe} ${y.year.name})`,
+        tahunAkademik: `${y.year.name} ${tipe}`,
+        ips,
+        sksSemester: sksSem,
+        sksKumulatif: cumSks,
+        ipkKumulatif: ipk,
+        maksSksBerikutnya: maxSksNext(ips),
+        tanggalKHS: latest
+          ? latest.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
+          : 'Belum diterbitkan',
+        nilaiList: graded
+          .map((r) => {
+            const gp = r.gradePoint as number;
+            return {
+              id: r.id,
+              kode: r.course?.code ?? '',
+              nama: r.course?.name ?? '',
+              sks: r.course?.sks ?? 0,
+              nilaiHuruf: r.gradeLetter || letterFromPoint(gp),
+              nilaiAngka: gp,
+              dosen: lecturerName(r.courseClass?.lecturer),
+              keterangan: gp >= 2 ? 'LULUS' : 'TIDAK LULUS',
+            };
+          })
+          .sort((a, b) => a.kode.localeCompare(b.kode)),
+      };
+    });
+
+    // terbaru lebih dulu (sama seperti urutan pilihan semester di halaman KHS)
+    return { semesters: semesters.reverse() };
+  }
+
   async getStudentsList() {
     try {
       const students = await this.prisma.student.findMany({
@@ -654,6 +900,7 @@ export class StudentsService {
         return {
           id: s.id,
           nim: s.nim,
+          hasFeederId: Boolean(s.feederId),
           name: s.user.fullName,
           email: s.user.email,
           phone: s.phone || null,

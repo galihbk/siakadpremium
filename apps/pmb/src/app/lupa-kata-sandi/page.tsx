@@ -235,7 +235,7 @@ function LupaKataSandiContent() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link
-              href="/pmb/login"
+              href="/login"
               className="p-1.5 rounded-lg bg-blue-900/60 hover:bg-blue-900 text-blue-200 hover:text-white transition-colors"
               title="Kembali ke Halaman Masuk"
             >
@@ -258,7 +258,7 @@ function LupaKataSandiContent() {
 
           <div className="flex items-center gap-4 text-xs">
             <Link
-              href="/pmb/login"
+              href="/login"
               className="px-3.5 py-1.5 rounded-lg bg-white text-[#1E3A8A] font-bold hover:bg-blue-50 transition-colors shadow-xs"
             >
               Masuk Akun PMB
@@ -287,7 +287,7 @@ function LupaKataSandiContent() {
             </p>
 
             <Link
-              href="/pmb/login"
+              href="/login"
               className="w-full py-3.5 px-6 rounded-lg bg-[#1E3A8A] hover:bg-[#162d6b] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs transition-colors"
             >
               <span>Masuk ke Akun PMB</span>
@@ -449,7 +449,7 @@ function LupaKataSandiContent() {
             </div>
 
             <div className="mt-8 pt-5 border-t border-slate-200 text-xs text-slate-500">
-              <Link href="/pmb/login" className="font-bold text-[#1E3A8A] hover:underline">
+              <Link href="/login" className="font-bold text-[#1E3A8A] hover:underline">
                 &larr; Kembali ke Halaman Masuk
               </Link>
             </div>
@@ -578,7 +578,7 @@ function LupaKataSandiContent() {
 
               <div className="pt-3 border-t border-slate-200 text-center text-xs text-slate-600">
                 <span>Ingat kata sandi Anda? </span>
-                <Link href="/pmb/login" className="font-bold text-[#1E3A8A] hover:underline">
+                <Link href="/login" className="font-bold text-[#1E3A8A] hover:underline">
                   Masuk ke Akun PMB
                 </Link>
               </div>

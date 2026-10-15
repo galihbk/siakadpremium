@@ -112,6 +112,55 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ----------------------------------------------------------------------------
+  # Job 3b: Build & Push PMB Next.js Docker Image (GitHub Cloud Runner)
+  # ----------------------------------------------------------------------------
+  build-pmb:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Lowercase Repository Owner for GHCR
+        run: echo "IMAGE_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for PMB Image
+        id: meta-pmb
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/siakad-pmb
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=
+
+      - name: Build and Push PMB Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./apps/pmb/Dockerfile
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            NEXT_PUBLIC_API_URL=/api/v1
+            INTERNAL_API_URL=http://api:3001/api/v1
+          tags: ${{ steps.meta-pmb.outputs.tags }}
+          labels: ${{ steps.meta-pmb.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ----------------------------------------------------------------------------
   # Job 3: Build & Push Portal Next.js Docker Image (GitHub Cloud Runner)
   # ----------------------------------------------------------------------------
   build-portal:
@@ -166,7 +215,7 @@ jobs:
   # ----------------------------------------------------------------------------
   deploy:
     runs-on: self-hosted
-    needs: [build-api, build-web, build-portal]
+    needs: [build-api, build-web, build-pmb, build-portal]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -176,6 +225,7 @@ jobs:
             docker-compose.prod.yml
             .env.api.example
             .env.web.example
+            .env.pmb.example
             .env.portal.example
             docker/postgres/init.sql
 
@@ -200,6 +250,10 @@ jobs:
             echo "Initializing /srv/projects/siakadpremium/.env.web from template..."
             cp .env.web.example /srv/projects/siakadpremium/.env.web
           fi
+          if [ ! -f /srv/projects/siakadpremium/.env.pmb ]; then
+            echo "Initializing /srv/projects/siakadpremium/.env.pmb from template..."
+            cp .env.pmb.example /srv/projects/siakadpremium/.env.pmb
+          fi
           if [ ! -f /srv/projects/siakadpremium/.env.portal ]; then
             echo "Initializing /srv/projects/siakadpremium/.env.portal from template..."
             cp .env.portal.example /srv/projects/siakadpremium/.env.portal
@@ -208,6 +262,7 @@ jobs:
           # Update NEXT_PUBLIC_API_URL to /api/v1 so browser never calls localhost in production
           sed -i 's|NEXT_PUBLIC_API_URL=http://localhost.*|NEXT_PUBLIC_API_URL=/api/v1|g' /srv/projects/siakadpremium/.env.portal 2>/dev/null || true
           sed -i 's|NEXT_PUBLIC_API_URL=http://localhost.*|NEXT_PUBLIC_API_URL=/api/v1|g' /srv/projects/siakadpremium/.env.web 2>/dev/null || true
+          sed -i 's|NEXT_PUBLIC_API_URL=http://localhost.*|NEXT_PUBLIC_API_URL=/api/v1|g' /srv/projects/siakadpremium/.env.pmb 2>/dev/null || true
 
       - name: Pull Fresh Images & Restart Production Containers
         working-directory: /srv/projects/siakadpremium

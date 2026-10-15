@@ -74,6 +74,23 @@ services:
     networks:
       - siakad-network
 
+  pmb:
+    image: ghcr.io/${IMAGE_OWNER:-galihbk}/siakad-pmb:latest
+    pull_policy: always
+    container_name: siakad-pmb-prod
+    restart: always
+    ports:
+      - '${SIAKAD_PMB_PORT:-3103}:3004'
+    environment:
+      INTERNAL_API_URL: http://api:3001/api/v1
+    env_file:
+      - path: .env.pmb
+        required: false
+    depends_on:
+      - api
+    networks:
+      - siakad-network
+
   portal:
     image: ghcr.io/${IMAGE_OWNER:-galihbk}/siakad-portal:latest
     pull_policy: always

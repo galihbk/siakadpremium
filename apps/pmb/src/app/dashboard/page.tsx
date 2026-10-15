@@ -1126,7 +1126,7 @@ export default function PmbDashboardPage() {
           localStorage.removeItem('pmb_applicant_session');
           localStorage.removeItem('pmb_applicant_token');
         }
-        router.push('/pmb/daftar');
+        router.push('/daftar');
         return;
       }
 
@@ -1147,7 +1147,7 @@ export default function PmbDashboardPage() {
           localStorage.removeItem('pmb_applicant_session');
           localStorage.removeItem('pmb_applicant_token');
         }
-        router.push('/pmb/login');
+        router.push('/login');
         return;
       }
 
@@ -1294,7 +1294,7 @@ export default function PmbDashboardPage() {
       localStorage.removeItem('pmb_applicant_session');
       localStorage.removeItem('pmb_applicant_token');
     }
-    router.push('/pmb/login');
+    router.push('/login');
   };
 
 
@@ -2026,7 +2026,7 @@ export default function PmbDashboardPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link
-              href="/pmb"
+              href="/"
               className="p-1.5 rounded-lg bg-blue-900/60 hover:bg-blue-900 text-blue-200 hover:text-white transition-colors"
               title="Kembali ke Beranda PMB"
             >

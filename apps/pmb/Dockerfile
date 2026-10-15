@@ -1,0 +1,61 @@
+FROM node:22-alpine AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN apk add --no-cache libc6-compat
+RUN corepack enable && corepack prepare pnpm@11.9.0 --activate
+
+# ------------------------------------------------------------------------------
+# Stage 1: Build Next.js PMB
+# ------------------------------------------------------------------------------
+FROM base AS builder
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY apps/pmb/package.json                 ./apps/pmb/package.json
+COPY packages/database/package.json        ./packages/database/package.json
+COPY packages/types/package.json           ./packages/types/package.json
+COPY packages/utils/package.json           ./packages/utils/package.json
+COPY packages/auth/package.json            ./packages/auth/package.json
+COPY packages/ui/package.json              ./packages/ui/package.json
+COPY packages/config/package.json          ./packages/config/package.json
+COPY packages/eslint-config/package.json   ./packages/eslint-config/package.json
+COPY packages/typescript-config/package.json ./packages/typescript-config/package.json
+
+RUN pnpm install --frozen-lockfile
+
+COPY . .
+RUN mkdir -p apps/pmb/public
+
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+ARG NEXT_PUBLIC_API_URL=/api/v1
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+# Server-side proxy target used by next.config.ts rewrites() -- resolved at build time
+# (Next.js bakes rewrites into routes-manifest.json during `next build`, so setting this
+# as a runtime container env var has no effect; it must be present here, at build time).
+ARG INTERNAL_API_URL=http://api:3001/api/v1
+ENV INTERNAL_API_URL=${INTERNAL_API_URL}
+
+# Generate Prisma Client & build workspace packages
+RUN pnpm --filter @siakad/database db:generate
+RUN pnpm --filter @siakad/types build
+RUN pnpm --filter @siakad/utils build
+RUN pnpm --filter @siakad/auth build
+RUN pnpm --filter @siakad/database build
+RUN pnpm --filter @siakad/pmb build
+
+# ------------------------------------------------------------------------------
+# Stage 2: Lean production image
+# ------------------------------------------------------------------------------
+FROM base AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3004
+ENV NEXT_TELEMETRY_DISABLED=1
+
+COPY --from=builder /app/apps/pmb/public           ./apps/pmb/public
+COPY --from=builder /app/apps/pmb/.next/standalone ./
+COPY --from=builder /app/apps/pmb/.next/static     ./apps/pmb/.next/static
+
+EXPOSE 3004
+CMD ["node", "apps/pmb/server.js"]

@@ -355,6 +355,15 @@ model Lecturer {
   structuralFaculty      Faculty?            @relation("FacultyDekan", fields: [structuralFacultyId], references: [id], onDelete: SetNull)
   structuralStudyProgram StudyProgram?       @relation("ProdiKaprodi", fields: [structuralStudyProgramId], references: [id], onDelete: SetNull)
 
+  thesisProjectsAsSupervisor1 ThesisProject[]         @relation("ThesisProjectSupervisor1")
+  thesisProjectsAsSupervisor2 ThesisProject[]         @relation("ThesisProjectSupervisor2")
+  thesisGuidances             ThesisGuidance[]        @relation("ThesisGuidanceLecturer")
+  thesisApprovals             ThesisApproval[]        @relation("ThesisApprovalLecturer")
+  thesisExaminerRoles         ThesisDefenseExaminer[] @relation("ThesisExaminerLecturer")
+
+  examProctor1                ExamSchedule[]          @relation("ExamProctor1")
+  examProctor2                ExamSchedule[]          @relation("ExamProctor2")
+
   @@map("lecturers")
 }
 
@@ -438,6 +447,9 @@ model Student {
   letterRequests     LetterRequest[]
   thesisSupervisions ThesisSupervision[]
 
+  thesisProject ThesisProject?
+  graduationApplication GraduationApplication?
+
   @@map("students")
 }
 
@@ -472,6 +484,8 @@ model AcademicYear {
   courseClasses      CourseClass[]
   gradeScaleVersions GradeScaleVersion[]
   thesisSupervisions ThesisSupervision[]
+
+  examSchedules      ExamSchedule[]
 
   @@map("academic_years")
 }
@@ -550,6 +564,8 @@ model CourseClass {
   contract           CourseContract?
 
   @@unique([courseId, academicYearId, className])
+  examSchedules      ExamSchedule[]
+
   @@map("course_classes")
 }
 
@@ -667,6 +683,12 @@ model CourseEnrollment {
   gradeLetter     String? // e.g. "A", "B+", "B"
   gradePoint      Float? // e.g. 4.0, 3.5, 3.0
   gradeStatus     String           @default("DRAFT") // "DRAFT" | "FINAL"
+  // Terisi saat baris KRS ini tercatat sinkron dengan Feeder (hasil Pull/Sync dari Feeder,
+  // atau nanti Push ke Feeder). Null = belum pernah terkonfirmasi ada di Feeder.
+  feederSyncedAt  DateTime?
+  // Terisi saat nilai (angka/huruf/indeks) baris ini cocok dengan nilai di Feeder -- diisi
+  // oleh sinkronisasi Nilai Perkuliahan dari Feeder. Null = nilai belum terkonfirmasi di Feeder.
+  feederGradeSyncedAt DateTime?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
@@ -1152,6 +1174,8 @@ model Room {
   building      Building      @relation(fields: [buildingId], references: [id], onDelete: Cascade)
   courseClasses CourseClass[]
 
+  examSchedules ExamSchedule[]
+
   @@map("rooms")
 }
 
@@ -1469,6 +1493,208 @@ model LetterRequest {
 // Dosen Pembimbing Akademik (PA) di Student.advisorLecturerId, dan berbeda dari
 // "Dosen Pengampu" di CourseClass yang mewakili satu kelas untuk banyak mahasiswa.
 // ==============================================================================
+// ================= JADWAL UJIAN (UTS / UAS) =================
+enum ExamType {
+  UTS
+  UAS
+}
+
+model ExamSchedule {
+  id             String   @id @default(uuid())
+  courseClassId  String
+  academicYearId String
+  type           ExamType
+  examDate       DateTime // tanggal ujian (disimpan 00:00 UTC)
+  startTime      String // "HH:MM"
+  endTime        String // "HH:MM"
+  roomId         String?
+  location       String? // lokasi bebas (dipakai jika ruang tidak dipilih dari master ruang)
+  proctor1Id     String?
+  proctor2Id     String?
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  courseClass  CourseClass  @relation(fields: [courseClassId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  room         Room?        @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  proctor1     Lecturer?    @relation("ExamProctor1", fields: [proctor1Id], references: [id], onDelete: SetNull)
+  proctor2     Lecturer?    @relation("ExamProctor2", fields: [proctor2Id], references: [id], onDelete: SetNull)
+
+  @@unique([courseClassId, type])
+  @@index([academicYearId, type, examDate])
+  @@map("exam_schedules")
+}
+
+// ================= YUDISIUM & KELULUSAN =================
+// Mahasiswa mendaftar yudisium setelah syarat terpenuhi (SKS lulus, IPK, tugas akhir selesai,
+// tagihan lunas). BAAK memverifikasi lalu menetapkan kelulusan (status mahasiswa -> GRADUATED).
+enum GraduationStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+model GraduationApplication {
+  id             String           @id @default(uuid())
+  studentId      String           @unique
+  status         GraduationStatus @default(SUBMITTED)
+  // Snapshot syarat saat mendaftar (bukti verifikasi, tidak berubah walau nilai berubah kemudian).
+  sksLulus       Int              @default(0)
+  sksRequired    Int              @default(144)
+  ipk            Float?
+  thesisGrade    String?
+  // Keputusan BAAK
+  predicate      String? // mis. "Dengan Pujian", "Sangat Memuaskan"
+  graduationDate DateTime?
+  skNumber       String?
+  adminNote      String?          @db.Text
+  decidedAt      DateTime?
+  appliedAt      DateTime         @default(now())
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("graduation_applications")
+}
+
+// ================= TUGAS AKHIR / SKRIPSI (ALUR LENGKAP) =================
+// Alur: pengajuan proposal -> plotting pembimbing (BAAK) -> bimbingan proposal -> ACC proposal
+// -> daftar seminar proposal -> jadwal & penguji (BAAK) -> hasil sempro -> bimbingan skripsi
+// -> ACC skripsi -> daftar ujian skripsi -> jadwal & penguji (BAAK) -> input nilai (BAAK).
+// Terpisah dari ThesisSupervision (penetapan pembimbing per KRS) yang tetap dipakai halaman lama.
+enum ThesisStage {
+  PROPOSAL_SUBMITTED // proposal diajukan, menunggu plotting pembimbing
+  PROPOSAL_REJECTED // proposal ditolak BAAK -- mahasiswa mengajukan ulang
+  PROPOSAL_GUIDANCE // pembimbing sudah ditetapkan, bimbingan proposal
+  PROPOSAL_APPROVED // proposal di-ACC pembimbing -- boleh daftar seminar proposal
+  SEMPRO_REGISTERED // sudah daftar sempro, menunggu jadwal
+  SEMPRO_SCHEDULED // jadwal & penguji sempro sudah ditetapkan
+  SKRIPSI_GUIDANCE // sempro selesai, bimbingan skripsi
+  SKRIPSI_APPROVED // skripsi di-ACC pembimbing -- boleh daftar ujian skripsi
+  UJIAN_REGISTERED // sudah daftar ujian skripsi, menunggu jadwal
+  UJIAN_SCHEDULED // jadwal & penguji ujian sudah ditetapkan
+  COMPLETED // nilai akhir sudah diinput
+}
+
+enum ThesisPhase {
+  PROPOSAL
+  SKRIPSI
+}
+
+enum ThesisDefenseType {
+  SEMPRO
+  UJIAN
+}
+
+enum ThesisDefenseStatus {
+  REGISTERED
+  SCHEDULED
+  DONE
+}
+
+model ThesisProject {
+  id                   String      @id @default(uuid())
+  studentId            String      @unique
+  title                String
+  abstract             String?     @db.Text
+  proposalFileUrl      String?     @db.Text
+  stage                ThesisStage @default(PROPOSAL_SUBMITTED)
+  supervisor1Id        String?
+  supervisor2Id        String?
+  supervisorAssignedAt DateTime?
+  adminNote            String?     @db.Text
+  finalScore           Float?
+  finalGrade           String?
+  completedAt          DateTime?
+  submittedAt          DateTime    @default(now())
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  student     Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  supervisor1 Lecturer?        @relation("ThesisProjectSupervisor1", fields: [supervisor1Id], references: [id], onDelete: SetNull)
+  supervisor2 Lecturer?        @relation("ThesisProjectSupervisor2", fields: [supervisor2Id], references: [id], onDelete: SetNull)
+  guidances   ThesisGuidance[]
+  approvals   ThesisApproval[]
+  defenses    ThesisDefense[]
+
+  @@index([stage])
+  @@map("thesis_projects")
+}
+
+model ThesisGuidance {
+  id           String      @id @default(uuid())
+  projectId    String
+  phase        ThesisPhase
+  lecturerId   String? // pembimbing yang dituju
+  topic        String
+  notes        String?     @db.Text
+  fileUrl      String?     @db.Text
+  meetingDate  DateTime    @default(now())
+  status       String      @default("SUBMITTED") // SUBMITTED | REVIEWED
+  feedback     String?     @db.Text
+  reviewedAt   DateTime?
+  createdAt    DateTime    @default(now())
+
+  project  ThesisProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  lecturer Lecturer?     @relation("ThesisGuidanceLecturer", fields: [lecturerId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, phase])
+  @@map("thesis_guidances")
+}
+
+model ThesisApproval {
+  id         String      @id @default(uuid())
+  projectId  String
+  phase      ThesisPhase
+  lecturerId String
+  approvedAt DateTime    @default(now())
+
+  project  ThesisProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  lecturer Lecturer      @relation("ThesisApprovalLecturer", fields: [lecturerId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, phase, lecturerId])
+  @@map("thesis_approvals")
+}
+
+model ThesisDefense {
+  id           String              @id @default(uuid())
+  projectId    String
+  type         ThesisDefenseType
+  status       ThesisDefenseStatus @default(REGISTERED)
+  fileUrl      String?             @db.Text
+  registeredAt DateTime            @default(now())
+  scheduledAt  DateTime?
+  location     String?
+  result       String? // LULUS | REVISI | TIDAK_LULUS
+  score        Float?
+  gradeLetter  String?
+  notes        String?             @db.Text
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  project   ThesisProject          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  examiners ThesisDefenseExaminer[]
+
+  @@index([projectId, type])
+  @@map("thesis_defenses")
+}
+
+model ThesisDefenseExaminer {
+  id         String @id @default(uuid())
+  defenseId  String
+  lecturerId String
+  role       String @default("PENGUJI") // KETUA | PENGUJI
+
+  defense  ThesisDefense @relation(fields: [defenseId], references: [id], onDelete: Cascade)
+  lecturer Lecturer      @relation("ThesisExaminerLecturer", fields: [lecturerId], references: [id], onDelete: Cascade)
+
+  @@unique([defenseId, lecturerId])
+  @@map("thesis_defense_examiners")
+}
+
 model ThesisSupervision {
   id             String    @id @default(uuid())
   studentId      String

@@ -41,7 +41,7 @@ export default function PmbLoginPage() {
         try {
           const parsed = JSON.parse(session);
           if (parsed && (parsed.id || parsed.email)) {
-            router.replace('/pmb/dashboard');
+            router.replace('/dashboard');
           }
         } catch (err) {
           console.error('Gagal membaca session PMB:', err);
@@ -86,7 +86,7 @@ export default function PmbLoginPage() {
         localStorage.setItem('pmb_applicant_token', token);
       }
 
-      router.push('/pmb/dashboard');
+      router.push('/dashboard');
     } catch (err: any) {
       setErrorMsg(err.message || 'Gagal masuk ke akun PMB. Silakan periksa kembali data Anda.');
     } finally {
@@ -102,7 +102,7 @@ export default function PmbLoginPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link
-              href="/pmb"
+              href="/"
               className="p-1.5 rounded-lg bg-blue-900/60 hover:bg-blue-900 text-blue-200 hover:text-white transition-colors"
               title="Kembali ke Beranda PMB"
             >
@@ -128,7 +128,7 @@ export default function PmbLoginPage() {
               Belum punya akun pendaftaran?
             </span>
             <Link
-              href="/pmb/daftar"
+              href="/daftar"
               className="px-3.5 py-1.5 rounded-md bg-[#D4A017] hover:bg-[#c49214] text-slate-950 font-bold transition-colors shadow-xs"
             >
               Daftar Sekarang
@@ -207,7 +207,7 @@ export default function PmbLoginPage() {
                   </div>
                   {(errorMsg.toLowerCase().includes('diverifikasi') || errorMsg.toLowerCase().includes('verifikasi')) && (
                     <Link
-                      href={`/pmb/daftar?unverified=true&email=${encodeURIComponent(identifier)}`}
+                      href={`/daftar?unverified=true&email=${encodeURIComponent(identifier)}`}
                       className="shrink-0 px-3.5 py-1.5 rounded-lg bg-[#1E3A8A] hover:bg-blue-900 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-2xs"
                     >
                       <Mail className="w-3.5 h-3.5 text-[#D4A017]" />
@@ -245,7 +245,7 @@ export default function PmbLoginPage() {
                       Kata Sandi <span className="text-red-600">*</span>
                     </label>
                     <Link
-                      href="/pmb/lupa-kata-sandi"
+                      href="/lupa-kata-sandi"
                       className="text-[11px] text-[#1E3A8A] hover:underline font-semibold"
                     >
                       Lupa Kata Sandi?
@@ -309,7 +309,7 @@ export default function PmbLoginPage() {
               <p>
                 Belum terdaftar sebagai calon mahasiswa?{' '}
                 <Link
-                  href="/pmb/daftar"
+                  href="/daftar"
                   className="font-bold text-[#1E3A8A] hover:underline ml-1"
                 >
                   Daftar
@@ -317,7 +317,7 @@ export default function PmbLoginPage() {
               </p>
               <div>
                 <Link
-                  href="/pmb#cek-kelulusan"
+                  href="/#cek-kelulusan"
                   className="text-slate-500 hover:text-slate-700 hover:underline inline-flex items-center gap-1 text-[11px]"
                 >
                   <span>Cek Pengumuman Kelulusan Cepat Tanpa Login</span>

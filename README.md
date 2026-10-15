@@ -26,6 +26,7 @@ siakadpremium/
 ├── apps/
 │   ├── web/                     # Next.js 15 Landing Page & PMB Kampus (Port 3000)
 │   ├── portal/                  # Next.js 15 Dashboard Terpadu Mahasiswa/Dosen/Admin (Port 3002)
+│   ├── pmb/                     # Next.js 15 Portal Penerimaan Mahasiswa Baru, subdomain pmb. (Port 3004)
 │   └── api/                     # NestJS 10 Enterprise REST API Backend (Port 3001)
 ├── packages/
 │   ├── database/                # Prisma ORM v6 (PostgreSQL Schema, Client Singleton, Seed Data)
@@ -105,8 +106,8 @@ pnpm dev
 Sistem deployment mengadopsi arsitektur containerized dengan **GitHub Container Registry (GHCR)** dan **Self-Hosted Runner**:
 
 1. **GitHub Cloud Runner**:
-   - Membangun image Docker multi-stage untuk `api`, `web`, dan `portal`.
-   - Mengunggah container image ke `ghcr.io/galihbk/siakad-api`, `ghcr.io/galihbk/siakad-web`, dan `ghcr.io/galihbk/siakad-portal`.
+   - Membangun image Docker multi-stage untuk `api`, `web`, `pmb`, dan `portal`.
+   - Mengunggah container image ke `ghcr.io/galihbk/siakad-api`, `ghcr.io/galihbk/siakad-web`, `ghcr.io/galihbk/siakad-pmb`, dan `ghcr.io/galihbk/siakad-portal`.
 2. **Self-Hosted Runner (Home Server)**:
    - Menarik image terbaru dari GHCR di `/srv/projects/siakadpremium`.
    - Menjalankan `docker compose -f docker-compose.prod.yml up -d --force-recreate`.

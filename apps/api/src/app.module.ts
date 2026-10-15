@@ -27,6 +27,9 @@ import { IntegrationSettingsModule } from './modules/integration-settings/integr
 import { MonitoringModule } from './modules/monitoring/monitoring.module';
 import { LettersModule } from './modules/letters/letters.module';
 import { DocumentSignaturesModule } from './modules/document-signatures/document-signatures.module';
+import { ThesisModule } from './modules/thesis/thesis.module';
+import { GraduationModule } from './modules/graduation/graduation.module';
+import { ExamsModule } from './modules/exams/exams.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -70,6 +73,9 @@ import { AppService } from './app.service';
     MonitoringModule,
     LettersModule,
     DocumentSignaturesModule,
+    ThesisModule,
+    GraduationModule,
+    ExamsModule,
   ],
   controllers: [AppController],
   providers: [

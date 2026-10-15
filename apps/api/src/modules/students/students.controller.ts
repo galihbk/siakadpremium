@@ -58,6 +58,20 @@ export class StudentsController {
     return this.studentsService.submitKrs(userId, dto.courseIds);
   }
 
+  @Get('attendance')
+  @ApiOperation({ summary: 'Rekap presensi/kehadiran perkuliahan mahasiswa yang login per mata kuliah' })
+  async getAttendanceRecap(@Req() req: any, @Query('academicYearId') academicYearId?: string) {
+    const userId = this.requireUserId(req);
+    return this.studentsService.getAttendanceRecap(userId, academicYearId);
+  }
+
+  @Get('khs')
+  @ApiOperation({ summary: 'KHS nyata mahasiswa yang login: IPS/IPK per semester dan rincian nilai' })
+  async getKhs(@Req() req: any) {
+    const userId = this.requireUserId(req);
+    return this.studentsService.getKhs(userId);
+  }
+
   @Get('list')
   @ApiOperation({ summary: 'Mendapatkan daftar semua mahasiswa dari database' })
   async getStudentsList() {

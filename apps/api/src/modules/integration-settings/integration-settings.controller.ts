@@ -68,6 +68,156 @@ export class IntegrationSettingsController {
     return this.integrationSettingsService.getPendingMahasiswaPush();
   }
 
+  @Get('pddikti/mahasiswa/linked')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Daftar mahasiswa lokal yang sudah punya id_mahasiswa Feeder (kandidat Update ke Feeder)' })
+  async getLinkedMahasiswaForUpdate() {
+    return this.integrationSettingsService.getLinkedMahasiswaForUpdate();
+  }
+
+  @Post('pddikti/mahasiswa/compare')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Bandingkan biodata lokal vs Feeder untuk mahasiswa terpilih (hanya membaca, maks 100 per panggilan)' })
+  async compareMahasiswaWithFeeder(@Body() body: { studentIds?: string[] }) {
+    return this.integrationSettingsService.compareMahasiswaWithFeeder(body?.studentIds || []);
+  }
+
+  @Post('pddikti/mahasiswa/update')
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Update biodata mahasiswa terpilih yang sudah ada di Feeder dari data lokal (Khusus Super Admin)' })
+  async updateMahasiswaBiodataToFeeder(@Body() body: { studentIds?: string[] }) {
+    return this.integrationSettingsService.updateMahasiswaBiodataToFeeder(body?.studentIds || []);
+  }
+
+  @Get('pddikti/mahasiswa/table')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Tabel mahasiswa lokal (pagination/pencarian/urutan di server) untuk halaman Sinkronisasi Feeder' })
+  async getMahasiswaTable(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
+    @Query('sortKey') sortKey?: string,
+    @Query('sortDir') sortDir?: string
+  ) {
+    return this.integrationSettingsService.getMahasiswaTable({ page, pageSize, search, sortKey, sortDir });
+  }
+
+  @Get('pddikti/kelas-kuliah/table')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Tabel kelas kuliah lokal (pagination/pencarian/urutan di server)' })
+  async getKelasKuliahTable(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
+    @Query('sortKey') sortKey?: string,
+    @Query('sortDir') sortDir?: string
+  ) {
+    return this.integrationSettingsService.getKelasKuliahTable({ page, pageSize, search, sortKey, sortDir });
+  }
+
+  @Get('pddikti/riwayat-pendidikan/table')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Tabel riwayat pendidikan mahasiswa lokal yang sudah terdaftar di Feeder (server-side)' })
+  async getRiwayatPendidikanTable(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
+    @Query('sortKey') sortKey?: string,
+    @Query('sortDir') sortDir?: string
+  ) {
+    return this.integrationSettingsService.getRiwayatPendidikanTable({ page, pageSize, search, sortKey, sortDir });
+  }
+
+  @Get('pddikti/riwayat-pendidikan/ids')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Semua id mahasiswa terdaftar di Feeder (sesuai pencarian) untuk Bandingkan semua' })
+  async getRiwayatPendidikanIds(@Query('search') search?: string) {
+    return this.integrationSettingsService.getRiwayatPendidikanIds(search);
+  }
+
+  @Post('pddikti/riwayat-pendidikan/compare')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Bandingkan riwayat pendidikan lokal vs Feeder untuk mahasiswa terpilih (hanya membaca, maks 100)' })
+  async compareRiwayatPendidikan(@Body() body: { studentIds?: string[] }) {
+    return this.integrationSettingsService.compareRiwayatPendidikan(body?.studentIds || []);
+  }
+
+  @Post('pddikti/riwayat-pendidikan/update')
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'UpdateRiwayatPendidikanMahasiswa ke Feeder untuk mahasiswa terpilih (Khusus Super Admin)' })
+  async updateRiwayatPendidikanToFeeder(@Body() body: { studentIds?: string[] }) {
+    return this.integrationSettingsService.updateRiwayatPendidikanToFeeder(body?.studentIds || []);
+  }
+
+  @Get('pddikti/akm/table')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Tabel Aktivitas Kuliah Mahasiswa (AKM) lokal per semester (server-side)' })
+  async getAkmTable(
+    @Query('semester') semester?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
+    @Query('sortKey') sortKey?: string,
+    @Query('sortDir') sortDir?: string
+  ) {
+    return this.integrationSettingsService.getAkmTable({ semester, page, pageSize, search, sortKey, sortDir });
+  }
+
+  @Get('pddikti/akm/ids')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Semua id mahasiswa dengan AKM lokal di satu semester (untuk Bandingkan semua)' })
+  async getAkmIds(@Query('semester') semester?: string, @Query('search') search?: string) {
+    return this.integrationSettingsService.getAkmIds(semester || '', search);
+  }
+
+  @Post('pddikti/akm/compare')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Bandingkan AKM lokal vs Feeder untuk mahasiswa terpilih pada satu semester (hanya membaca, maks 100)' })
+  async compareAkm(@Body() body: { semester?: string; studentIds?: string[] }) {
+    return this.integrationSettingsService.compareAkm(body?.semester || '', body?.studentIds || []);
+  }
+
+  @Post('pddikti/akm/sync')
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Kirim AKM lokal ke Feeder (Insert/Update PerkuliahanMahasiswa) untuk mahasiswa terpilih (Khusus Super Admin)' })
+  async syncAkmToFeeder(@Body() body: { semester?: string; studentIds?: string[] }) {
+    return this.integrationSettingsService.syncAkmToFeeder(body?.semester || '', body?.studentIds || []);
+  }
+
+  @Get('pddikti/nilai-perkuliahan/table')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Tabel nilai perkuliahan lokal (pagination/pencarian/urutan di server)' })
+  async getNilaiTable(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
+    @Query('sortKey') sortKey?: string,
+    @Query('sortDir') sortDir?: string,
+    @Query('grade') grade?: string
+  ) {
+    return this.integrationSettingsService.getNilaiTable({ page, pageSize, search, sortKey, sortDir, grade });
+  }
+
+  @Get('pddikti/krs/table')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Tabel KRS (peserta kelas) lokal (pagination/pencarian/urutan di server)' })
+  async getKrsTable(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
+    @Query('sortKey') sortKey?: string,
+    @Query('sortDir') sortDir?: string
+  ) {
+    return this.integrationSettingsService.getKrsTable({ page, pageSize, search, sortKey, sortDir });
+  }
+
+  @Get('pddikti/kelas-kuliah/pending')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Daftar kelas kuliah lokal yang belum punya feederId (belum ada di Feeder)' })
+  async getPendingKelasKuliahPush() {
+    return this.integrationSettingsService.getPendingKelasKuliahPush();
+  }
+
   @Get('pddikti/mata-kuliah/pending')
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_BAAK, UserRole.STAFF)
   @ApiOperation({ summary: 'Daftar mata kuliah yang belum punya feederId, lengkap error Push terakhir' })

@@ -50,6 +50,7 @@ export interface LocalDosenItem {
   fullName: string;
   studyProgramName: string;
   isActive: boolean;
+  hasFeederId?: boolean;
 }
 
 export interface SyncLogItem {
@@ -165,16 +166,21 @@ export default function SinkronisasiDosenPage() {
   const dosenComparisonRows = useMemo<DosenComparisonRow[]>(() => {
     const map = new Map<string, DosenComparisonRow>();
     for (const l of dosenLocalItems) {
-      const key = l.nidn || l.nuptk || l.id;
+      // API mengembalikan '-' untuk NIDN/NUPTK yang kosong -- jangan dipakai sebagai kunci.
+      const nidn = l.nidn && l.nidn !== '-' ? l.nidn : undefined;
+      const nuptk = l.nuptk && l.nuptk !== '-' ? l.nuptk : undefined;
+      const key = nidn || nuptk || l.id;
       map.set(key, {
         key,
-        nidn: l.nidn,
-        nuptk: l.nuptk,
+        nidn,
+        nuptk,
         fullName: l.fullName,
         studyProgramName: l.studyProgramName,
         isActiveLocal: l.isActive,
         inLocal: true,
-        inFeeder: hasPulledOnceDosen ? false : null,
+        // Punya id_dosen Feeder = sudah pernah ditarik/ditautkan dari Feeder (bertahan
+        // setelah halaman dimuat ulang); selain itu baru pasti salah/benar setelah Pull.
+        inFeeder: l.hasFeederId ? true : hasPulledOnceDosen ? false : null,
       });
     }
     for (const r of dosenPullItems) {

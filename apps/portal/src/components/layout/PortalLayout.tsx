@@ -287,13 +287,30 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       ],
     },
     {
-      title: 'AKADEMIK & STUDI',
+      title: 'PERKULIAHAN',
       items: [
         { name: 'Rencana Studi (KRS)', href: '/student/krs', icon: FileText },
         { name: 'Jadwal Kuliah', href: '/student/jadwal', icon: Calendar },
-        { name: 'Hasil Studi (KHS)', href: '/student/khs', icon: Award },
-        { name: 'Layanan Surat', href: '/student/surat', icon: Mail },
+        { name: 'Presensi & Kehadiran', href: '/student/presensi', icon: UserCheck },
       ],
+    },
+    {
+      title: 'UJIAN & HASIL STUDI',
+      items: [
+        { name: 'Jadwal Ujian (UTS/UAS)', href: '/student/ujian', icon: CalendarDays },
+        { name: 'Hasil Studi (KHS)', href: '/student/khs', icon: Award },
+      ],
+    },
+    {
+      title: 'TUGAS AKHIR & KELULUSAN',
+      items: [
+        { name: 'Tugas Akhir / Skripsi', href: '/student/skripsi', icon: GraduationCap },
+        { name: 'Yudisium & Kelulusan', href: '/student/yudisium', icon: Award },
+      ],
+    },
+    {
+      title: 'LAYANAN',
+      items: [{ name: 'Layanan Surat', href: '/student/surat', icon: Mail }],
     },
     {
       title: 'KEUANGAN',
@@ -314,6 +331,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       title: 'PENGAJARAN & NILAI',
       items: [
         { name: 'Jadwal Mengajar', href: '/lecturer/jadwal', icon: Calendar },
+        { name: 'Jadwal Ujian & Pengawasan', href: '/lecturer/ujian', icon: CalendarDays },
         { name: 'Absensi Perkuliahan', href: '/lecturer/absensi', icon: ClipboardCheck },
         { name: 'Kontrak Kuliah', href: '/lecturer/kontrak', icon: FileSignature },
         { name: 'Rencana Pembelajaran (RPS)', href: '/lecturer/rps', icon: UploadCloud },
@@ -324,6 +342,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       title: 'BIMBINGAN',
       items: [
         { name: 'Mahasiswa Bimbingan PA', href: '/lecturer/bimbingan', icon: Users },
+        { name: 'Bimbingan Skripsi', href: '/lecturer/skripsi', icon: GraduationCap },
         { name: 'Persetujuan Surat', href: '/lecturer/surat', icon: Mail },
       ],
     },
@@ -340,7 +359,6 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       title: 'DASHBOARD',
       items: [
         { name: 'Dashboard BAAK', href: '/admin', icon: LayoutDashboard },
-        { name: 'Absensi Harian', href: '/admin/absensi-harian', icon: CheckCircle2 },
       ],
     },
     {
@@ -364,12 +382,15 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         { name: 'Gedung', href: '/admin/gedung', icon: Building2 },
         { name: 'Ruang', href: '/admin/ruang', icon: DoorOpen },
         { name: 'Jadwal Kelas', href: '/admin/jadwal', icon: CalendarDays },
+        { name: 'Jadwal Ujian (UTS/UAS)', href: '/admin/jadwal-ujian', icon: CalendarDays },
       ],
     },
     {
       title: 'PERKULIAHAN',
       items: [
         { name: 'KRS', href: '/admin/krs', icon: FileText },
+        { name: 'Tugas Akhir / Skripsi', href: '/admin/skripsi', icon: GraduationCap },
+        { name: 'Yudisium & Kelulusan', href: '/admin/yudisium', icon: Award },
         { name: 'Bimbingan Tugas Akhir', href: '/admin/bimbingan-ta', icon: GraduationCap },
         { name: 'Presensi', href: '/admin/presensi', icon: UserCheck },
         { name: 'Nilai', href: '/admin/nilai', icon: Award },
@@ -400,7 +421,6 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         { name: 'Dashboard', href: '/admin/superadmin', icon: LayoutDashboard },
         { name: 'Monitoring Server', href: '/admin/superadmin/monitoring', icon: Activity },
         { name: 'Analitik Kunjungan Web', href: '/admin/superadmin/analitik', icon: BarChart3 },
-        { name: 'Absensi Harian', href: '/admin/absensi-harian', icon: CheckCircle2 },
       ],
     },
     {
@@ -439,7 +459,6 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       title: 'MENU UTAMA',
       items: [
         { name: 'Dashboard Keuangan', href: '/finance', icon: LayoutDashboard },
-        { name: 'Absensi Harian', href: '/finance/absensi-harian', icon: CheckCircle2 },
       ],
     },
     {
@@ -554,7 +573,6 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       title: 'MENU UTAMA SDM',
       items: [
         { name: 'Dashboard SDM', href: '/admin/sdm', icon: LayoutDashboard },
-        { name: 'Absensi Harian', href: '/admin/sdm/absensi-harian', icon: CheckCircle2 },
       ],
     },
     {

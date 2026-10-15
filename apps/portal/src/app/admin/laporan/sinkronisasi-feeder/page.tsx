@@ -16,6 +16,8 @@ import {
   BookOpen,
   Calendar,
   Award,
+  History,
+  ClipboardList,
   ChevronRight,
 } from 'lucide-react';
 
@@ -64,6 +66,20 @@ const FEEDER_NAV_ENTITIES: FeederNavEntity[] = [
     code: 'mahasiswa_pt',
     description: 'Biodata, NIM, riwayat pendidikan, dan home base program studi mahasiswa. Bisa difilter per angkatan.',
     icon: <GraduationCap className="w-5 h-5" />,
+  },
+  {
+    href: '/admin/laporan/sinkronisasi-feeder/riwayat-pendidikan',
+    title: 'Riwayat Pendidikan Mahasiswa',
+    code: 'riwayat_pendidikan',
+    description: 'Koreksi NIM, program studi, dan tahun masuk mahasiswa yang sudah terdaftar di Feeder (UpdateRiwayatPendidikanMahasiswa).',
+    icon: <History className="w-5 h-5" />,
+  },
+  {
+    href: '/admin/laporan/sinkronisasi-feeder/akm',
+    title: 'Aktivitas Kuliah Mahasiswa (AKM)',
+    code: 'perkuliahan_mahasiswa',
+    description: 'SKS semester, IPS, SKS total, dan IPK per semester -- dihitung dari KRS lalu dibandingkan & dikirim ke Feeder.',
+    icon: <ClipboardList className="w-5 h-5" />,
   },
   {
     href: '/admin/laporan/sinkronisasi-feeder/mata-kuliah',
@@ -195,11 +211,15 @@ export default function SinkronisasiFeederPage() {
     switch (code) {
       case 'tahun_akademik':
         return { label: 'Total Lokal', value: tahunAkademikLocalCount.toLocaleString('id-ID') };
-      case 'dosen': {
+      case 'dosen_pddikti': {
         const entry = syncStatus.find((e) => e.key === 'dosen');
         return entry
           ? { label: 'Tersinkron', value: `${entry.totalSynced.toLocaleString('id-ID')} / ${entry.totalLocal.toLocaleString('id-ID')}` }
           : { label: 'Tersinkron', value: '-' };
+      }
+      case 'riwayat_pendidikan': {
+        const entry = syncStatus.find((e) => e.key === 'mahasiswa');
+        return { label: 'Terdaftar di Feeder', value: (entry?.totalTerdaftarFeeder ?? 0).toLocaleString('id-ID') };
       }
       case 'mahasiswa_pt': {
         const entry = syncStatus.find((e) => e.key === 'mahasiswa');
@@ -219,6 +239,8 @@ export default function SinkronisasiFeederPage() {
           ? { label: 'Tersinkron', value: `${entry.totalSynced.toLocaleString('id-ID')} / ${entry.totalLocal.toLocaleString('id-ID')}` }
           : { label: 'Tersinkron', value: '-' };
       }
+      case 'perkuliahan_mahasiswa':
+        return { label: 'KRS Tahun Aktif', value: (feederLocalCounts['perkuliahan_mahasiswa'] ?? 0).toLocaleString('id-ID') };
       case 'krs_mahasiswa':
         return { label: 'Total Lokal', value: (feederLocalCounts['krs_mahasiswa'] ?? 0).toLocaleString('id-ID') };
       case 'nilai_perkuliahan':

@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getAuthSession } from '@/lib/auth';
+import { useServerTable } from '@/lib/useServerTable';
+import { TablePagination } from '@/components/ui/TablePagination';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -13,7 +15,10 @@ import {
   Terminal,
   ArrowLeft,
   ArrowDownToLine,
+  ArrowUpFromLine,
   X,
+  Check,
+  Minus,
 } from 'lucide-react';
 
 // ==========================================
@@ -29,6 +34,18 @@ export interface RemoteEnrollmentItem {
   courseCode?: string;
   courseName?: string;
   prodiCode?: string;
+}
+
+export interface LocalKrsRow {
+  id: string;
+  nim: string;
+  studentName: string;
+  courseLabel: string;
+  className: string;
+  academicYear: string;
+  classInFeeder: boolean;
+  studentInFeeder: boolean;
+  feederSyncedAt: string | null;
 }
 
 export interface SyncLogItem {
@@ -83,6 +100,16 @@ export default function SinkronisasiKrsPage() {
       .then((json) => setFeederLocalCounts(json?.data || json || {}))
       .catch((err) => console.warn('Gagal memuat jumlah data lokal per entitas Feeder:', err));
   }, []);
+
+  const [activeTab, setActiveTab] = useState<'pull' | 'push'>('pull');
+
+  // Tabel KRS lokal: pagination, pencarian, dan urutan dihitung di server (hanya satu
+  // halaman yang dikirim ke browser, bukan seluruh ribuan baris KRS).
+  const krsTable = useServerTable<LocalKrsRow, { synced?: number; totalAll?: number }>({
+    endpoint: 'integration-settings/pddikti/krs/table',
+    defaultSortKey: 'nim',
+  });
+  const krsSortIndicator = (key: string) => (krsTable.sortKey === key ? (krsTable.sortDir === 'asc' ? ' ▲' : ' ▼') : ' ⇅');
 
   // Tarik & Sinkronkan KRS & Rencana Studi Mahasiswa dari Feeder
   const [isPullingKrs, setIsPullingKrs] = useState(false);
@@ -162,6 +189,7 @@ export default function SinkronisasiKrsPage() {
       showToast(result?.message || 'Sinkronisasi KRS selesai.');
       setKrsPullItems([]);
       setKrsPullMessage(null);
+      krsTable.reload();
       setFeederLocalCounts((prev) => ({ ...prev, krs_mahasiswa: (prev['krs_mahasiswa'] ?? 0) + (result?.created ?? 0) }));
     } catch (err) {
       setSyncLogs((prev) => [
@@ -233,8 +261,11 @@ export default function SinkronisasiKrsPage() {
             </div>
 
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/15 min-w-[200px] shrink-0">
-              <p className="text-[10px] font-extrabold uppercase text-slate-300">Total Lokal</p>
-              <p className="text-2xl font-black text-white mt-1">{(feederLocalCounts['krs_mahasiswa'] ?? 0).toLocaleString('id-ID')}</p>
+              <p className="text-[10px] font-extrabold uppercase text-slate-300">Total KRS Lokal (semua tahun)</p>
+              <p className="text-2xl font-black text-white mt-1">{(krsTable.extra.totalAll ?? 0).toLocaleString('id-ID')}</p>
+              <p className="text-[10px] text-slate-300 mt-1">
+                Tahun aktif: {(feederLocalCounts['krs_mahasiswa'] ?? 0).toLocaleString('id-ID')}
+              </p>
               <p className="text-[10px] text-slate-300 mt-1">
                 Ditarik terakhir:{' '}
                 {pddiktiStatus?.lastSyncAt
@@ -250,7 +281,49 @@ export default function SinkronisasiKrsPage() {
           </div>
         </div>
 
-        {/* Action Card */}
+        {/* Tab Switcher */}
+        <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-xl border border-slate-200 w-fit">
+          {(
+            [
+              ['pull', 'Tarik dari Feeder'],
+              ['push', 'Push ke Feeder'],
+            ] as ['pull' | 'push', string][]
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                activeTab === key ? 'bg-[#1E3A8A] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Action Card: Tab Push */}
+        {activeTab === 'push' && (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
+            <div className="flex items-start gap-2 text-xs p-3 rounded-xl border bg-amber-50 border-amber-200 text-amber-800">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>
+                Push KRS ke Feeder (mendaftarkan mahasiswa ke kelas lewat <b>InsertPesertaKelasKuliah</b>) belum tersedia. Fitur
+                ini bergantung pada Push Kelas Perkuliahan: kelas lokal harus sudah punya ID Feeder dulu, baru peserta kelasnya
+                bisa dikirim.
+              </span>
+            </div>
+            <button
+              disabled
+              className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold text-slate-400 bg-slate-100 border border-slate-200 rounded-xl cursor-not-allowed"
+            >
+              <ArrowUpFromLine className="w-4 h-4" />
+              <span>Push ke Feeder (belum tersedia)</span>
+            </button>
+          </div>
+        )}
+
+        {/* Action Card: Tab Pull */}
+        {activeTab === 'pull' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
           {krsPullMessage && (
             <div
@@ -264,33 +337,6 @@ export default function SinkronisasiKrsPage() {
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
               )}
               <span>{krsPullMessage.text}</span>
-            </div>
-          )}
-
-          {krsPullItems.length > 0 && (
-            <div className="border border-slate-200 rounded-xl max-h-96 overflow-auto">
-              <table className="w-full min-w-[720px] text-left text-xs">
-                <thead className="bg-slate-50 text-slate-500 sticky top-0">
-                  <tr>
-                    <th className="py-2.5 px-3">Kelas</th>
-                    <th className="py-2.5 px-3">NIM</th>
-                    <th className="py-2.5 px-3">Nama Mahasiswa</th>
-                    <th className="py-2.5 px-3">Mata Kuliah</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {krsPullItems.map((item, idx) => (
-                    <tr key={`${item.classFeederId}-${item.studentFeederId}-${idx}`} className="hover:bg-slate-50/70">
-                      <td className="py-2 px-3 font-semibold text-slate-800">{item.className || '-'}</td>
-                      <td className="py-2 px-3 font-mono font-bold text-[#1E3A8A]">{item.nim || '-'}</td>
-                      <td className="py-2 px-3 text-slate-600">{item.studentName || '-'}</td>
-                      <td className="py-2 px-3 text-slate-600">
-                        {item.courseCode ? `${item.courseCode} -- ${item.courseName}` : '-'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
           )}
 
@@ -314,6 +360,126 @@ export default function SinkronisasiKrsPage() {
               </button>
             )}
           </div>
+        </div>
+        )}
+
+        {/* Tabel KRS Lokal (server-side) */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="font-bold text-xs text-slate-900 uppercase tracking-wider">Data KRS Lokal</h3>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                &quot;Sinkron Feeder&quot; terisi saat baris KRS ini cocok dengan data Feeder (hasil Pull &amp; Sinkronkan). Dua kolom
+                sebelumnya adalah prasyaratnya: kelas dan mahasiswa harus sudah punya ID Feeder.
+              </p>
+            </div>
+            <span className="text-[11px] text-slate-400 shrink-0">
+              {krsTable.isLoading
+                ? 'Memuat...'
+                : `${krsTable.total.toLocaleString('id-ID')} baris · ${(krsTable.extra.synced ?? 0).toLocaleString('id-ID')} sinkron Feeder`}
+            </span>
+          </div>
+
+          <input
+            type="text"
+            value={krsTable.searchInput}
+            onChange={(e) => krsTable.setSearchInput(e.target.value)}
+            placeholder="Cari NIM, nama mahasiswa, mata kuliah, atau kelas..."
+            className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+          />
+
+          {krsTable.error && (
+            <div className="flex items-start gap-2 text-xs p-3 rounded-xl border bg-amber-50 border-amber-200 text-amber-800">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>Gagal memuat tabel: {krsTable.error}</span>
+            </div>
+          )}
+
+          <div className={`border border-slate-200 rounded-xl max-h-96 overflow-auto ${krsTable.isLoading ? 'opacity-60' : ''}`}>
+            <table className="w-full min-w-[940px] text-left text-xs">
+              <thead className="bg-slate-50 text-slate-500 sticky top-0">
+                <tr>
+                  {(
+                    [
+                      ['nim', 'NIM', ''],
+                      ['studentName', 'Nama Mahasiswa', ''],
+                      ['courseLabel', 'Mata Kuliah', ''],
+                      ['className', 'Kelas', ''],
+                      ['academicYear', 'Tahun Akademik', ''],
+                      ['classInFeeder', 'Kelas di Feeder', 'text-center'],
+                      ['studentInFeeder', 'Mahasiswa di Feeder', 'text-center'],
+                      ['synced', 'Sinkron Feeder', 'text-center'],
+                    ] as [string, string, string][]
+                  ).map(([key, label, cls]) => (
+                    <th
+                      key={key}
+                      onClick={() => krsTable.toggleSort(key)}
+                      aria-sort={krsTable.sortKey === key ? (krsTable.sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                      className={`py-2.5 px-3 cursor-pointer select-none hover:text-[#1E3A8A] ${cls}`}
+                    >
+                      {label}
+                      <span className={`text-[9px] ${krsTable.sortKey === key ? '' : 'text-slate-300'}`}>{krsSortIndicator(key)}</span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {!krsTable.isLoading && krsTable.items.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="py-6 px-3 text-center text-slate-400">
+                      {krsTable.searchInput ? 'Tidak ada KRS yang cocok dengan pencarian.' : 'Belum ada KRS tersimpan lokal.'}
+                    </td>
+                  </tr>
+                )}
+                {krsTable.items.map((row) => (
+                  <tr key={row.id} className="hover:bg-slate-50/70">
+                    <td className="py-2 px-3 font-mono font-bold text-[#1E3A8A]">{row.nim || '-'}</td>
+                    <td className="py-2 px-3 font-semibold text-slate-800">{row.studentName || '-'}</td>
+                    <td className="py-2 px-3 text-slate-600">{row.courseLabel}</td>
+                    <td className="py-2 px-3 text-slate-700">{row.className || '-'}</td>
+                    <td className="py-2 px-3 text-slate-600">{row.academicYear || '-'}</td>
+                    <td className="py-2 px-3 text-center">
+                      {row.classInFeeder ? (
+                        <Check className="w-4 h-4 text-emerald-600 inline-block" />
+                      ) : (
+                        <Minus className="w-4 h-4 text-slate-300 inline-block" />
+                      )}
+                    </td>
+                    <td className="py-2 px-3 text-center">
+                      {row.studentInFeeder ? (
+                        <Check className="w-4 h-4 text-emerald-600 inline-block" />
+                      ) : (
+                        <Minus className="w-4 h-4 text-slate-300 inline-block" />
+                      )}
+                    </td>
+                    <td className="py-2 px-3 text-center">
+                      {row.feederSyncedAt ? (
+                        <span
+                          title={`Tersinkron ${new Date(row.feederSyncedAt).toLocaleString('id-ID')}`}
+                          className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md"
+                        >
+                          <Check className="w-3 h-3" />
+                          Sinkron
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-slate-400">Belum</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <TablePagination
+            page={krsTable.page}
+            pageSize={krsTable.pageSize}
+            total={krsTable.total}
+            totalPages={krsTable.totalPages}
+            noun="baris KRS"
+            onPageChange={krsTable.setPage}
+            onPageSizeChange={krsTable.setPageSize}
+          />
         </div>
 
         {/* Log Console */}

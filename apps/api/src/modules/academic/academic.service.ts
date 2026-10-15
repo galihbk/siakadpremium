@@ -875,6 +875,7 @@ export class AcademicService {
   private mapCourseClass(cc: any) {
     return {
       id: cc.id,
+      hasFeederId: Boolean(cc.feederId),
       courseCode: cc.course?.code || '',
       courseName: cc.course?.name || '',
       sks: cc.course?.sks || cc.course?.totalSks || 3,
