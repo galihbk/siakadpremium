@@ -74,6 +74,85 @@ export class LecturersService {
     private storageService: StorageService,
   ) {}
 
+  /** Pilihan status kepegawaian dosen yang diterima (diatur SDM). */
+  static readonly EMPLOYMENT_STATUSES = [
+    'Dosen Tetap',
+    'Dosen Tidak Tetap',
+    'Dosen DPK',
+    'Aktif',
+    'Cuti',
+    'Tugas Belajar',
+    'Diperbantukan/Dipekerjakan (DPK)',
+    'Pensiun',
+    'Berhenti/Keluar',
+  ];
+
+  /** Daftar dosen untuk pengaturan status kepegawaian oleh SDM (server-side). */
+  async listEmploymentStatus(q: { search?: string; status?: string; page?: string; pageSize?: string }) {
+    const page = Math.max(1, parseInt(String(q.page ?? '1'), 10) || 1);
+    const pageSize = Math.min(200, Math.max(10, parseInt(String(q.pageSize ?? '25'), 10) || 25));
+    const search = (q.search ?? '').trim();
+    const where: any = {};
+    if (q.status === '__unset') where.employmentStatus = null;
+    else if (q.status) where.employmentStatus = q.status;
+    if (search) {
+      where.OR = [
+        { nidn: { contains: search, mode: 'insensitive' } },
+        { nuptk: { contains: search, mode: 'insensitive' } },
+        { user: { fullName: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+    const [total, totalAll, unset, rows] = await Promise.all([
+      this.prisma.lecturer.count({ where }),
+      this.prisma.lecturer.count(),
+      this.prisma.lecturer.count({ where: { employmentStatus: null } }),
+      this.prisma.lecturer.findMany({
+        where,
+        orderBy: [{ user: { fullName: 'asc' } }, { id: 'asc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          nidn: true,
+          nuptk: true,
+          titlePrefix: true,
+          titleSuffix: true,
+          employmentStatus: true,
+          functionalPosition: true,
+          user: { select: { fullName: true } },
+          studyProgram: { select: { name: true } },
+        },
+      }),
+    ]);
+    return {
+      total,
+      page,
+      pageSize,
+      totalAll,
+      unset,
+      options: LecturersService.EMPLOYMENT_STATUSES,
+      items: rows.map((r) => ({
+        id: r.id,
+        name: [r.titlePrefix, r.user.fullName, r.titleSuffix].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim(),
+        nidn: r.nidn || r.nuptk || null,
+        studyProgram: r.studyProgram?.name ?? '-',
+        employmentStatus: r.employmentStatus,
+        functionalPosition: r.functionalPosition,
+      })),
+    };
+  }
+
+  async setEmploymentStatus(id: string, status: string | null) {
+    const value = (status ?? '').trim() || null;
+    if (value && !LecturersService.EMPLOYMENT_STATUSES.includes(value)) {
+      throw new BadRequestException('Status kepegawaian tidak valid.');
+    }
+    const exists = await this.prisma.lecturer.findUnique({ where: { id }, select: { id: true } });
+    if (!exists) throw new NotFoundException(`Dosen dengan ID "${id}" tidak ditemukan.`);
+    await this.prisma.lecturer.update({ where: { id }, data: { employmentStatus: value } });
+    return { success: true, employmentStatus: value };
+  }
+
   async findAll() {
     const lecturers = await this.prisma.lecturer.findMany({
       include: {
@@ -362,7 +441,11 @@ export class LecturersService {
     };
   }
 
-  async update(id: string, dto: UpdateLecturerDto) {
+  /**
+   * `canSetEmploymentStatus` hanya true untuk SDM/Super Admin -- status kepegawaian dosen
+   * tidak boleh diubah lewat jalur lain (profil dosen sendiri, BAAK, dst.).
+   */
+  async update(id: string, dto: UpdateLecturerDto, opts?: { canSetEmploymentStatus?: boolean }) {
     const lecturer = await this.prisma.lecturer.findUnique({
       where: { id },
       include: { user: true },
@@ -417,7 +500,9 @@ export class LecturersService {
     if (dto.city !== undefined) lecturerUpdateData.city = dto.city;
     if (dto.province !== undefined) lecturerUpdateData.province = dto.province;
     if (dto.postalCode !== undefined) lecturerUpdateData.postalCode = dto.postalCode;
-    if (dto.employmentStatus !== undefined) lecturerUpdateData.employmentStatus = dto.employmentStatus;
+    if (dto.employmentStatus !== undefined && opts?.canSetEmploymentStatus) {
+      lecturerUpdateData.employmentStatus = dto.employmentStatus;
+    }
     if (dto.functionalPosition !== undefined) lecturerUpdateData.functionalPosition = dto.functionalPosition;
     if (dto.lastEducation !== undefined) lecturerUpdateData.lastEducation = dto.lastEducation;
     if (dto.expertise !== undefined) lecturerUpdateData.expertise = dto.expertise;

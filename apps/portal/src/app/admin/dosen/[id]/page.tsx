@@ -1006,12 +1006,8 @@ export default function DosenDetailPage() {
                   {isEditing && editForm ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
                       <EditField icon={Briefcase} label="Status Kepegawaian">
-                        <PresetSelect
-                          className={inputCls}
-                          options={EMPLOYMENT_STATUS_OPTIONS}
-                          value={editForm.employmentStatus}
-                          onChange={(v) => setEditForm({ ...editForm, employmentStatus: v })}
-                        />
+                        <input className={inputCls + ' bg-slate-50 text-slate-500 cursor-not-allowed'} readOnly value={editForm.employmentStatus || 'Belum diatur'} />
+                        <p className="text-[11px] text-slate-400 mt-1">Diatur oleh bagian SDM (menu Status Dosen).</p>
                       </EditField>
                       <EditField icon={Briefcase} label="Jabatan Fungsional">
                         <PresetSelect

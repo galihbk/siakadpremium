@@ -404,7 +404,7 @@ export class AuthService {
         if (p.city) lecturerData.city = p.city;
         if (p.province) lecturerData.province = p.province;
         if (p.postalCode) lecturerData.postalCode = p.postalCode;
-        if (p.employmentStatus) lecturerData.employmentStatus = p.employmentStatus;
+        // employmentStatus (status kepegawaian) sengaja TIDAK bisa diubah dosen sendiri -- hanya SDM.
         if (p.functionalPosition) lecturerData.functionalPosition = p.functionalPosition;
         if (p.lastEducation) lecturerData.lastEducation = p.lastEducation;
         if (p.expertise) lecturerData.expertise = p.expertise;

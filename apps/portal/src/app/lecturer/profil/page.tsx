@@ -397,7 +397,6 @@ export default function LecturerProfilePage() {
       city,
       province,
       postalCode,
-      employmentStatus,
       functionalPosition,
       lastEducation,
       expertise,
@@ -1006,16 +1005,13 @@ export default function LecturerProfilePage() {
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
                       Status Kepegawaian
                     </label>
-                    <select
-                      value={employmentStatus}
-                      onChange={(e) => setEmploymentStatus(e.target.value)}
-                      className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-900 bg-white"
-                    >
-                      <option value="">Belum Diatur</option>
-                      <option value="Dosen Tetap">Dosen Tetap</option>
-                      <option value="Dosen Tidak Tetap">Dosen Tidak Tetap</option>
-                      <option value="Dosen DPK">Dosen DPK</option>
-                    </select>
+                    <input
+                      type="text"
+                      readOnly
+                      value={employmentStatus || 'Belum Diatur'}
+                      className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-200 bg-slate-50 text-slate-500 font-medium cursor-not-allowed"
+                    />
+                    <p className="text-[11px] text-slate-400 mt-1">Diatur oleh bagian SDM dan tidak dapat diubah di sini.</p>
                   </div>
 
                   <div>

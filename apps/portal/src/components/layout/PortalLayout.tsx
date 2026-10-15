@@ -323,7 +323,6 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       title: 'MENU UTAMA',
       items: [
         { name: 'Dashboard Dosen', href: '/lecturer', icon: LayoutDashboard },
-        { name: 'Absensi Harian', href: '/lecturer/absensi-harian', icon: CheckCircle2 },
         { name: 'Profil', href: '/lecturer/profil', icon: User },
       ],
     },
@@ -555,9 +554,24 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       ],
     },
     {
-      title: 'KURIKULUM',
+      title: 'DATA PROGRAM STUDI',
+      items: [
+        { name: 'Data Mahasiswa', href: '/admin/prodi/mahasiswa', icon: Users },
+        { name: 'Data Dosen', href: '/admin/prodi/dosen', icon: UserCheck },
+      ],
+    },
+    {
+      title: 'KURIKULUM & PERKULIAHAN',
       items: [
         { name: 'Mata Kuliah', href: '/admin/prodi/mata-kuliah', icon: BookOpen },
+        { name: 'Jadwal & Kelas', href: '/admin/prodi/jadwal', icon: CalendarDays },
+      ],
+    },
+    {
+      title: 'TUGAS AKHIR & KELULUSAN',
+      items: [
+        { name: 'Tugas Akhir / Skripsi', href: '/admin/prodi/tugas-akhir', icon: GraduationCap },
+        { name: 'Yudisium & Kelulusan', href: '/admin/prodi/yudisium', icon: Award },
       ],
     },
     {
@@ -579,6 +593,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       title: 'KEPEGAWAIAN',
       items: [
         { name: 'Data Pegawai', href: '/admin/sdm/pegawai', icon: Briefcase },
+        { name: 'Status Dosen', href: '/admin/sdm/status-dosen', icon: UserCheck },
         { name: 'Pengaturan Shift', href: '/admin/sdm/shift', icon: Clock },
         { name: 'Rekap Absensi', href: '/admin/sdm/rekap-absensi', icon: ClipboardCheck },
       ],

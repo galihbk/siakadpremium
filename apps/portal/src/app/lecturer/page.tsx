@@ -10,6 +10,7 @@ import {
   Calendar,
   CheckCircle,
   ChevronRight,
+  ClipboardCheck,
   Clock,
   FileCheck,
   GraduationCap,
@@ -208,10 +209,11 @@ export default function LecturerDashboardPage() {
                     <td className="py-3.5 px-4 text-center font-semibold">{item.enrolledCount} Orang</td>
                     <td className="py-3.5 px-4 text-center">
                       <Link
-                        href="/lecturer/nilai"
-                        className="text-xs font-semibold text-[#1E3A8A] hover:underline"
+                        href={`/lecturer/absensi/${item.id}`}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1E3A8A] hover:underline"
                       >
-                        Input Nilai
+                        <ClipboardCheck className="w-3.5 h-3.5" />
+                        Absen
                       </Link>
                     </td>
                   </tr>

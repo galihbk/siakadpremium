@@ -30,6 +30,7 @@ import { DocumentSignaturesModule } from './modules/document-signatures/document
 import { ThesisModule } from './modules/thesis/thesis.module';
 import { GraduationModule } from './modules/graduation/graduation.module';
 import { ExamsModule } from './modules/exams/exams.module';
+import { ProdiModule } from './modules/prodi/prodi.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -76,6 +77,7 @@ import { AppService } from './app.service';
     ThesisModule,
     GraduationModule,
     ExamsModule,
+    ProdiModule,
   ],
   controllers: [AppController],
   providers: [

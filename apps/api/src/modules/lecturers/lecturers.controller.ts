@@ -1,7 +1,11 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { LecturersService, CreateLecturerDto, UpdateLecturerDto } from './lecturers.service';
+import { UserRole } from '@siakad/types';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 
 @ApiTags('Lecturers (Dosen)')
 @Controller('lecturers')
@@ -181,6 +185,28 @@ export class LecturersController {
     return this.lecturersService.deleteP3mReport(id);
   }
 
+  // ================= STATUS KEPEGAWAIAN (HANYA SDM) =================
+  @Get('employment-status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SDM)
+  @ApiOperation({ summary: 'Daftar dosen untuk pengaturan status kepegawaian (SDM, server-side)' })
+  async listEmploymentStatus(
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.lecturersService.listEmploymentStatus({ search, status, page, pageSize });
+  }
+
+  @Put(':id/employment-status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SDM)
+  @ApiOperation({ summary: 'Menetapkan status kepegawaian dosen (hanya SDM / Super Admin)' })
+  async setEmploymentStatus(@Param('id') id: string, @Body() body: { employmentStatus?: string | null }) {
+    return this.lecturersService.setEmploymentStatus(id, body?.employmentStatus ?? null);
+  }
+
   @Get()
   @ApiOperation({ summary: 'Mengambil daftar seluruh akun dosen' })
   async findAll() {
@@ -201,8 +227,19 @@ export class LecturersController {
 
   @Put(':id')
   @ApiOperation({ summary: 'Memperbarui profil & akun dosen' })
-  async update(@Param('id') id: string, @Body() dto: UpdateLecturerDto) {
-    return this.lecturersService.update(id, dto);
+  async update(@Param('id') id: string, @Body() dto: UpdateLecturerDto, @Req() req: any) {
+    // Status kepegawaian hanya boleh diubah oleh SDM / Super Admin; dari jalur ini field itu diabaikan.
+    let canSetEmploymentStatus = false;
+    const authHeader = req?.headers?.['authorization'] || req?.headers?.['Authorization'];
+    if (authHeader?.startsWith('Bearer ')) {
+      try {
+        const payload: any = this.jwtService.verify(authHeader.slice(7));
+        canSetEmploymentStatus = payload?.role === 'SDM' || payload?.role === 'SUPER_ADMIN';
+      } catch {
+        canSetEmploymentStatus = false;
+      }
+    }
+    return this.lecturersService.update(id, dto, { canSetEmploymentStatus });
   }
 
   @Delete(':id')
