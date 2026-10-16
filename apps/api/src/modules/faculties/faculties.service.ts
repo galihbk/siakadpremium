@@ -90,6 +90,8 @@ export class FacultiesService {
     establishedYear?: number;
     accreditation?: string;
     skAkreditasi?: string;
+    vision?: string;
+    mission?: string;
   }) {
     if (!dto.code?.trim() || !dto.name?.trim()) {
       throw new BadRequestException('Kode dan nama fakultas wajib diisi.');
@@ -109,6 +111,8 @@ export class FacultiesService {
         establishedYear: dto.establishedYear || null,
         accreditation: dto.accreditation?.trim() || null,
         skAkreditasi: dto.skAkreditasi?.trim() || null,
+        vision: dto.vision?.trim() || null,
+        mission: dto.mission?.trim() || null,
       },
       include: { studyPrograms: true, ...DEAN_INCLUDE },
     });
@@ -126,6 +130,8 @@ export class FacultiesService {
       establishedYear?: number;
       accreditation?: string;
       skAkreditasi?: string;
+      vision?: string;
+      mission?: string;
     }
   ) {
     const existing = await this.prisma.faculty.findUnique({ where: { id } });
@@ -150,6 +156,8 @@ export class FacultiesService {
         establishedYear: dto.establishedYear !== undefined ? dto.establishedYear : undefined,
         accreditation: dto.accreditation !== undefined ? dto.accreditation.trim() || null : undefined,
         skAkreditasi: dto.skAkreditasi !== undefined ? dto.skAkreditasi.trim() || null : undefined,
+        vision: dto.vision !== undefined ? dto.vision.trim() || null : undefined,
+        mission: dto.mission !== undefined ? dto.mission.trim() || null : undefined,
       },
       include: { studyPrograms: true, ...DEAN_INCLUDE },
     });

@@ -44,6 +44,8 @@ interface Faculty {
   skAkreditasi: string;
   establishedYear: number | null;
   description: string;
+  vision: string;
+  mission: string;
 }
 
 const dash = (val: string | number | null | undefined) =>
@@ -106,6 +108,8 @@ export default function SuperAdminFakultasPage() {
           skAkreditasi: d.skAkreditasi || '',
           establishedYear: d.establishedYear || null,
           description: d.description || '',
+          vision: d.vision || '',
+          mission: d.mission || '',
         }));
         setFaculties(mapped);
       } else {
@@ -132,6 +136,8 @@ export default function SuperAdminFakultasPage() {
     skAkreditasi: string;
     establishedYear: number;
     description: string;
+    vision: string;
+    mission: string;
   }>({
     code: '',
     name: '',
@@ -141,6 +147,8 @@ export default function SuperAdminFakultasPage() {
     skAkreditasi: '',
     establishedYear: 2000,
     description: '',
+    vision: '',
+    mission: '',
   });
 
   const showToast = (msg: string) => {
@@ -221,6 +229,8 @@ export default function SuperAdminFakultasPage() {
       skAkreditasi: '',
       establishedYear: 2020,
       description: '',
+      vision: '',
+      mission: '',
     });
     setIsAddModalOpen(true);
   };
@@ -236,6 +246,8 @@ export default function SuperAdminFakultasPage() {
       skAkreditasi: f.skAkreditasi,
       establishedYear: f.establishedYear ?? new Date().getFullYear(),
       description: f.description,
+      vision: f.vision,
+      mission: f.mission,
     });
     setIsAddModalOpen(true);
   };
@@ -258,6 +270,9 @@ export default function SuperAdminFakultasPage() {
       skAkreditasi: formData.skAkreditasi || undefined,
       establishedYear: formData.establishedYear ? Number(formData.establishedYear) : undefined,
       description: formData.description || undefined,
+      // dikirim apa adanya (termasuk kosong) agar visi/misi bisa dihapus
+      vision: formData.vision,
+      mission: formData.mission,
     };
 
     try {
@@ -874,9 +889,32 @@ export default function SuperAdminFakultasPage() {
                       rows={2}
                       value={formData.description}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      placeholder="Visi keilmuan fakultas..."
+                      placeholder="Fokus keilmuan fakultas..."
                       className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
                     />
+                  </div>
+
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="font-bold text-slate-700">Visi</label>
+                    <textarea
+                      rows={2}
+                      value={formData.vision}
+                      onChange={(e) => setFormData({ ...formData, vision: e.target.value })}
+                      placeholder="Tuliskan visi (ditampilkan di situs publik)..."
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="font-bold text-slate-700">Misi</label>
+                    <textarea
+                      rows={5}
+                      value={formData.mission}
+                      onChange={(e) => setFormData({ ...formData, mission: e.target.value })}
+                      placeholder={'Satu misi per baris, contoh:\nMenyelenggarakan pendidikan yang bermutu\nMelaksanakan penelitian yang inovatif'}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                    />
+                    <p className="text-[11px] text-slate-400">Tulis satu poin misi per baris; di situs publik tampil sebagai daftar bernomor.</p>
                   </div>
                 </div>
 

@@ -131,15 +131,17 @@ export default function StudentKeuanganPage() {
         formData.append('file', receiptFile);
         const uploadRes = await fetch(`${getApiBaseUrl()}/storage/upload?folder=payment-proofs`, {
           method: 'POST',
+          headers: getAuthSession().token ? { Authorization: `Bearer ${getAuthSession().token}` } : {},
           body: formData,
         });
         const uploadJson = await uploadRes.json().catch(() => null);
-        if (!uploadRes.ok || !uploadJson?.data?.url) {
+        const uploaded = uploadJson?.data?.data || uploadJson?.data;
+        if (!uploadRes.ok || !uploaded?.url) {
           showToast(uploadJson?.message || 'Gagal mengunggah bukti transfer.');
           setPaying(false);
           return;
         }
-        proofUrl = uploadJson.data.url;
+        proofUrl = uploaded.url;
       }
 
       const res = await fetch(`${getApiBaseUrl()}/finance/transactions/${selectedTagihan.id}/submit-payment`, {

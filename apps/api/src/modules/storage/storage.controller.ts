@@ -10,12 +10,16 @@ import {
   Query,
   Headers,
   Res,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
 import { StorageService } from './storage.service';
+import { PrismaService } from '../../shared/prisma/prisma.service';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 @ApiTags('Storage & File Management')
 @Controller('storage')
@@ -23,7 +27,38 @@ export class StorageController {
   constructor(
     private readonly storageService: StorageService,
     private readonly jwtService: JwtService,
+    private readonly prisma: PrismaService,
   ) {}
+
+  /** Mencatat siapa yang mengunggah berkas (gagal mencatat tidak menggagalkan unggahan). */
+  private async recordUpload(
+    result: { key: string; originalName?: string; mimeType: string; size: number; isPrivate?: boolean; driver?: string },
+    folder: string,
+    user: any,
+  ) {
+    try {
+      const userRow = user?.sub
+        ? await this.prisma.user.findUnique({ where: { id: user.sub }, select: { id: true, fullName: true } })
+        : null;
+      await this.prisma.uploadedFile.upsert({
+        where: { key: result.key },
+        update: {},
+        create: {
+          key: result.key,
+          originalName: result.originalName || result.key.split('/').pop() || result.key,
+          mimeType: result.mimeType,
+          size: result.size,
+          folder,
+          isPrivate: result.isPrivate ?? true,
+          driver: result.driver ?? 'local',
+          uploadedById: userRow?.id ?? null,
+          uploadedByName: userRow?.fullName ?? user?.fullName ?? null,
+        },
+      });
+    } catch (err) {
+      console.warn('Gagal mencatat berkas unggahan:', err instanceof Error ? err.message : err);
+    }
+  }
 
   @Get('info')
   @ApiOperation({ summary: 'Informasi konfigurasi storage (Local vs Cloudflare R2)' })
@@ -113,6 +148,7 @@ export class StorageController {
   }
 
   @Post('upload')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Unggah berkas tunggal privat (Multipart/form-data)' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -149,6 +185,7 @@ export class StorageController {
     @Query('folder') queryFolder?: string,
     @Body('folder') bodyFolder?: string,
     @Body('isPrivate') isPrivateBody?: string | boolean,
+    @Req() req?: any,
   ) {
     if (!file) {
       throw new BadRequestException('File tidak ditemukan dalam request.');
@@ -164,6 +201,7 @@ export class StorageController {
       folder,
       isPrivate,
     });
+    await this.recordUpload(result, folder, req?.user);
 
     return {
       success: true,
@@ -173,6 +211,7 @@ export class StorageController {
   }
 
   @Post('upload-base64')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Unggah berkas privat via Base64 Data URI' })
   async uploadBase64(
     @Body()
@@ -182,6 +221,7 @@ export class StorageController {
       fileName?: string;
       isPrivate?: boolean;
     },
+    @Req() req?: any,
   ) {
     if (!body?.base64) {
       throw new BadRequestException('Field base64 wajib diisi.');
@@ -195,6 +235,7 @@ export class StorageController {
       fileName: body.fileName || 'upload',
       isPrivate,
     });
+    await this.recordUpload(result, body.folder || 'documents', req?.user);
 
     return {
       success: true,

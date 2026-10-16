@@ -12,6 +12,7 @@ import {
   AuthUser,
 } from '@/lib/auth';
 import { getApiBaseUrl } from '@/lib/api';
+import { useUnreadUpdates } from '@/lib/updates/useUnreadUpdates';
 import { getInstitutionProfile, FALLBACK_INSTITUTION_PROFILE, type InstitutionProfile } from '@/lib/institution';
 import {
   GraduationCap,
@@ -89,6 +90,7 @@ interface PortalLayoutProps {
 export function PortalLayout({ children, role, userName, userIdText, activeMenuHref }: PortalLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { unreadCount: unreadUpdates } = useUnreadUpdates();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [institutionProfile, setInstitutionProfile] = useState<InstitutionProfile>(FALLBACK_INSTITUTION_PROFILE);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -316,6 +318,10 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       title: 'KEUANGAN',
       items: [{ name: 'Tagihan & Pembayaran', href: '/student/keuangan', icon: CreditCard }],
     },
+    {
+      title: 'BANTUAN',
+      items: [{ name: 'Panduan Penggunaan', href: '/student/dokumentasi', icon: BookOpen }],
+    },
   ];
 
   const lecturerNavGroups = [
@@ -350,6 +356,10 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       items: [
         { name: 'Laporan Penelitian & PkM', href: '/lecturer/p3m', icon: FlaskConical },
       ],
+    },
+    {
+      title: 'BANTUAN',
+      items: [{ name: 'Panduan Penggunaan', href: '/lecturer/dokumentasi', icon: BookOpen }],
     },
   ];
 
@@ -411,6 +421,10 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         { name: 'Sinkronisasi Feeder', href: '/admin/laporan/sinkronisasi-feeder', icon: RefreshCw },
       ],
     },
+    {
+      title: 'BANTUAN',
+      items: [{ name: 'Panduan Penggunaan', href: '/admin/dokumentasi', icon: BookOpen }],
+    },
   ];
 
   const superAdminNavGroups = [
@@ -448,6 +462,13 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         { name: 'Pengaturan DIKTI', href: '/admin/superadmin/pengaturan-dikti', icon: ShieldCheck },
         { name: 'Aturan Tanda Tangan', href: '/admin/superadmin/tanda-tangan', icon: PenTool },
         { name: 'Pengaturan Sistem', href: '/admin/superadmin/pengaturan', icon: Settings },
+      ],
+    },
+    {
+      title: 'BANTUAN',
+      items: [
+        { name: 'Updates', href: '/admin/superadmin/updates', icon: Megaphone },
+        { name: 'Dokumentasi', href: '/admin/superadmin/dokumentasi', icon: BookOpen },
         { name: 'Logout', href: '#logout', icon: LogOut, isLogout: true },
       ],
     },
@@ -486,6 +507,10 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         { name: 'Realisasi Anggaran Kampus', href: '/finance/anggaran', icon: TrendingUp },
       ],
     },
+    {
+      title: 'BANTUAN',
+      items: [{ name: 'Panduan Penggunaan', href: '/finance/dokumentasi', icon: BookOpen }],
+    },
   ];
 
   const lp3mNavGroups = [
@@ -509,6 +534,14 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         { name: 'Bank Dokumen Panduan', href: '/admin/p3m/dokumen', icon: FileText },
         { name: 'Rekap Borang Akreditasi', href: '/admin/p3m/borang', icon: BarChart3 },
       ],
+    },
+    {
+      title: 'INFORMASI',
+      items: [{ name: 'Berita & Pengumuman', href: '/admin/p3m/berita', icon: Megaphone }],
+    },
+    {
+      title: 'BANTUAN',
+      items: [{ name: 'Panduan Penggunaan', href: '/admin/p3m/dokumentasi', icon: BookOpen }],
     },
     {
       title: 'AKUN & SISTEM',
@@ -537,6 +570,14 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
     {
       title: 'REGULASI & DOKUMEN',
       items: [{ name: 'Dokumen Mutu', href: '/admin/p2m/dokumen', icon: FileText }],
+    },
+    {
+      title: 'INFORMASI',
+      items: [{ name: 'Berita & Pengumuman', href: '/admin/p2m/berita', icon: Megaphone }],
+    },
+    {
+      title: 'BANTUAN',
+      items: [{ name: 'Panduan Penggunaan', href: '/admin/p2m/dokumentasi', icon: BookOpen }],
     },
     {
       title: 'AKUN & SISTEM',
@@ -575,6 +616,14 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       ],
     },
     {
+      title: 'INFORMASI',
+      items: [{ name: 'Berita & Pengumuman', href: '/admin/prodi/berita', icon: Megaphone }],
+    },
+    {
+      title: 'BANTUAN',
+      items: [{ name: 'Panduan Penggunaan', href: '/admin/prodi/dokumentasi', icon: BookOpen }],
+    },
+    {
       title: 'AKUN & SISTEM',
       items: [
         { name: 'Logout', href: '#logout', icon: LogOut, isLogout: true },
@@ -599,6 +648,10 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       ],
     },
     {
+      title: 'BANTUAN',
+      items: [{ name: 'Panduan Penggunaan', href: '/admin/sdm/dokumentasi', icon: BookOpen }],
+    },
+    {
       title: 'AKUN & SISTEM',
       items: [
         { name: 'Logout', href: '#logout', icon: LogOut, isLogout: true },
@@ -608,34 +661,46 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
 
   const pmbNavGroups = [
     {
-      title: 'MENU UTAMA PMB',
-      items: [
-        { name: 'Dashboard PMB', href: '/admin/pmb', icon: LayoutDashboard },
-      ],
+      title: 'MENU UTAMA',
+      items: [{ name: 'Dashboard PMB', href: '/admin/pmb', icon: LayoutDashboard }],
     },
     {
-      title: 'SELEKSI & PENDAFTARAN',
+      title: 'PENGATURAN PMB',
       items: [
         { name: 'Gelombang Pendaftaran', href: '/admin/pmb/gelombang', icon: CalendarDays },
         { name: 'Jalur, Jenis & Kelas', href: '/admin/pmb/jalur', icon: Layers },
+      ],
+    },
+    {
+      title: 'PROSES SELEKSI',
+      items: [
         { name: 'Data Calon Mahasiswa', href: '/admin/pmb/pendaftar', icon: Users },
         { name: 'Verifikasi Berkas', href: '/admin/pmb/verifikasi', icon: CheckCircle2 },
         { name: 'Kelulusan & Registrasi', href: '/admin/pmb/kelulusan', icon: GraduationCap },
+      ],
+    },
+    {
+      title: 'KEUANGAN & KEMITRAAN',
+      items: [
         { name: 'Pembayaran & Keuangan', href: '/admin/pmb/biaya', icon: CreditCard },
         { name: 'Data Affiliate', href: '/admin/pmb/affiliate', icon: Share2 },
       ],
     },
     {
-      title: 'LAPORAN & STATISTIK',
-      items: [
-        { name: 'Rekapitulasi PMB', href: '/admin/pmb/statistik', icon: BarChart3 },
-      ],
+      title: 'LAPORAN',
+      items: [{ name: 'Rekapitulasi PMB', href: '/admin/pmb/statistik', icon: BarChart3 }],
+    },
+    {
+      title: 'INFORMASI',
+      items: [{ name: 'Berita & Pengumuman', href: '/admin/pmb/berita', icon: Megaphone }],
+    },
+    {
+      title: 'BANTUAN',
+      items: [{ name: 'Panduan Penggunaan', href: '/admin/pmb/dokumentasi', icon: BookOpen }],
     },
     {
       title: 'AKUN & SISTEM',
-      items: [
-        { name: 'Logout', href: '#logout', icon: LogOut, isLogout: true },
-      ],
+      items: [{ name: 'Logout', href: '#logout', icon: LogOut, isLogout: true }],
     },
   ];
 
@@ -855,7 +920,12 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                       <Icon
                         className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#D4A017]' : 'text-slate-400'}`}
                       />
-                      <span>{item.name}</span>
+                      <span className="flex-1">{item.name}</span>
+                      {item.href === '/admin/superadmin/updates' && unreadUpdates > 0 && (
+                        <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-[#D4A017] text-slate-950 text-[10px] font-extrabold flex items-center justify-center">
+                          {unreadUpdates}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}

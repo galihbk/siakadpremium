@@ -2,36 +2,60 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, X, Phone, Mail, UserCircle, ArrowRight } from 'lucide-react';
+import { Menu, X, Phone, Mail, UserCircle, ArrowRight, ChevronDown, ShieldCheck, LayoutGrid, FlaskConical } from 'lucide-react';
+import { getApiBaseUrl } from '@/lib/api';
 import { getInstitutionProfile, FALLBACK_INSTITUTION_PROFILE, type InstitutionProfile } from '@/lib/institution';
 
 export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [portalUrl, setPortalUrl] = useState('http://portal.siakadpremium.ac.id');
+  const [p2mUrl, setP2mUrl] = useState('http://p2m.siakadpremium.ac.id');
+  const [p3mUrl, setP3mUrl] = useState('http://p3m.siakadpremium.ac.id');
+  const [layananOpen, setLayananOpen] = useState(false);
+  const [fakultasOpen, setFakultasOpen] = useState(false);
+  const [mobileFakultasOpen, setMobileFakultasOpen] = useState(false);
+  const [faculties, setFaculties] = useState<{ code: string; name: string; prodiCount: number }[]>([]);
   const [profile, setProfile] = useState<InstitutionProfile>(FALLBACK_INSTITUTION_PROFILE);
 
   useEffect(() => {
     getInstitutionProfile().then(setProfile);
   }, []);
 
+  // Daftar fakultas untuk dropdown menu (dari database).
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const hostname = window.location.hostname;
+    fetch(`${getApiBaseUrl()}/faculties`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const list = j?.data ?? j;
+        if (!Array.isArray(list)) return;
+        setFaculties(
+          list
+            .map((f: any) => ({
+              code: f.code as string,
+              name: f.name as string,
+              prodiCount: (f.studyPrograms ?? []).filter((p: any) => p.status === 'Aktif').length as number,
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        );
+      })
+      .catch(() => undefined);
+  }, []);
 
-      if (hostname === 'siakadpremium.ac.id' || hostname.endsWith('.siakadpremium.ac.id')) {
-        setPortalUrl('http://portal.siakadpremium.ac.id');
-      } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        setPortalUrl('http://localhost:3002');
-      } else if (hostname === 'galihjp.com' || hostname.endsWith('.galihjp.com')) {
-        setPortalUrl('https://portal.galihjp.com');
-      } else if (process.env.NEXT_PUBLIC_PORTAL_URL) {
-        setPortalUrl(process.env.NEXT_PUBLIC_PORTAL_URL);
-      } else {
-        const protocol = window.location.protocol;
-        setPortalUrl(`${protocol}//portal.${hostname}`);
-      }
-    }
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const { hostname, protocol } = window.location;
+    // Alamat subdomain layanan (portal., p2m.) diturunkan dari host saat ini.
+    const sub = (name: string, localPort: number, envUrl?: string) => {
+      if (hostname === 'siakadpremium.ac.id' || hostname.endsWith('.siakadpremium.ac.id')) return `http://${name}.siakadpremium.ac.id`;
+      if (hostname === 'localhost' || hostname === '127.0.0.1') return `http://localhost:${localPort}`;
+      if (hostname === 'galihjp.com' || hostname.endsWith('.galihjp.com')) return `https://${name}.galihjp.com`;
+      if (envUrl) return envUrl;
+      return `${protocol}//${name}.${hostname}`;
+    };
+    setPortalUrl(sub('portal', 3002, process.env.NEXT_PUBLIC_PORTAL_URL));
+    setP2mUrl(sub('p2m', 3005, process.env.NEXT_PUBLIC_P2M_URL));
+    setP3mUrl(sub('p3m', 3006, process.env.NEXT_PUBLIC_P3M_URL));
   }, []);
 
   useEffect(() => {
@@ -46,10 +70,16 @@ export function Navbar() {
     { name: 'Beranda', href: '/' },
     { name: 'Profil', href: '/profil' },
     { name: 'Akademik', href: '/#keunggulan' },
-    { name: 'Fakultas', href: '/#fakultas' },
+    { name: 'Fakultas', href: '/fakultas' },
     { name: 'PMB', href: '/#cta' },
     { name: 'Berita', href: '/berita' },
     { name: 'Kontak', href: '/kontak' },
+  ];
+
+  const layananLinks = [
+    { name: 'Portal Akademik', desc: 'Login mahasiswa, dosen, dan staf (SIAKAD)', href: portalUrl, icon: UserCircle },
+    { name: 'Penjaminan Mutu (P2M)', desc: 'Standar mutu, audit, dan dokumen mutu', href: p2mUrl, icon: ShieldCheck },
+    { name: 'Penelitian & Pengabdian (LP3M)', desc: 'Kegiatan riset, pengabdian, HAKI, dan panduan', href: p3mUrl, icon: FlaskConical },
   ];
 
   return (
@@ -118,26 +148,102 @@ export function Navbar() {
 
             {/* Nav Menu Desktop (Layar lg & xl) */}
             <div className="hidden lg:flex items-center gap-3 xl:gap-5 2xl:gap-6">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.name}
-                  href={link.href}
-                  className="text-slate-700 hover:text-[#1E3A8A] font-semibold text-xs xl:text-sm whitespace-nowrap transition-colors relative py-1 hover:text-[#1E3A8A]"
+              {navLinks.map((link) =>
+                link.name === 'Fakultas' ? (
+                  <div
+                    key={link.name}
+                    className="relative"
+                    onMouseEnter={() => setFakultasOpen(true)}
+                    onMouseLeave={() => setFakultasOpen(false)}
+                  >
+                    <Link
+                      href={link.href}
+                      className="inline-flex items-center gap-1 text-slate-700 hover:text-[#1E3A8A] font-semibold text-xs xl:text-sm whitespace-nowrap transition-colors py-1"
+                    >
+                      {link.name}
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${fakultasOpen ? 'rotate-180' : ''}`} />
+                    </Link>
+                    {fakultasOpen && (
+                      <div className="absolute left-0 top-full pt-2 w-72 z-50">
+                        <div className="bg-white rounded-xl border border-slate-200 shadow-xl p-2">
+                          {faculties.length === 0 && (
+                            <p className="px-3 py-2 text-xs text-slate-400">Belum ada data fakultas.</p>
+                          )}
+                          {faculties.map((f) => (
+                            <Link
+                              key={f.code}
+                              href={`/fakultas/${f.code}`}
+                              onClick={() => setFakultasOpen(false)}
+                              className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-50 transition-colors"
+                            >
+                              <span className="text-sm font-semibold text-slate-800 leading-snug">{f.name}</span>
+                              <span className="text-[11px] font-bold text-[#1E3A8A] bg-blue-50 rounded-md px-2 py-0.5 shrink-0">
+                                {f.prodiCount} prodi
+                              </span>
+                            </Link>
+                          ))}
+                          <Link
+                            href="/fakultas"
+                            onClick={() => setFakultasOpen(false)}
+                            className="mt-1 flex items-center justify-between px-3 py-2.5 rounded-lg border-t border-slate-100 text-sm font-bold text-[#1E3A8A] hover:bg-blue-50"
+                          >
+                            Lihat Semua Fakultas
+                            <ArrowRight className="w-4 h-4 text-[#D4A017]" />
+                          </Link>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <Link
+                    key={link.name}
+                    href={link.href}
+                    className="text-slate-700 hover:text-[#1E3A8A] font-semibold text-xs xl:text-sm whitespace-nowrap transition-colors relative py-1 hover:text-[#1E3A8A]"
+                  >
+                    {link.name}
+                  </Link>
+                ),
+              )}
+
+              {/* Grup Layanan: portal-portal layanan kampus (PMB tetap di luar grup) */}
+              <div
+                className="relative"
+                onMouseEnter={() => setLayananOpen(true)}
+                onMouseLeave={() => setLayananOpen(false)}
+              >
+                <button
+                  type="button"
+                  onClick={() => setLayananOpen((o) => !o)}
+                  aria-expanded={layananOpen}
+                  className="inline-flex items-center gap-1 text-slate-700 hover:text-[#1E3A8A] font-semibold text-xs xl:text-sm whitespace-nowrap transition-colors py-1"
                 >
-                  {link.name}
-                </Link>
-              ))}
+                  Layanan
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${layananOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {layananOpen && (
+                  <div className="absolute right-0 top-full pt-2 w-64 z-50">
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-xl p-2">
+                      {layananLinks.map((l) => (
+                        <a
+                          key={l.name}
+                          href={l.href}
+                          className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-50 transition-colors"
+                        >
+                          <l.icon className="w-4 h-4 text-[#1E3A8A] mt-0.5 shrink-0" />
+                          <span>
+                            <span className="block text-sm font-semibold text-slate-800">{l.name}</span>
+                            <span className="block text-[11px] text-slate-500 leading-snug">{l.desc}</span>
+                          </span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Action Buttons Kanan */}
             <div className="hidden lg:flex items-center gap-2 xl:gap-3 shrink-0">
-              <a
-                href={portalUrl}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs xl:text-sm font-bold text-[#1E3A8A] border border-[#1E3A8A] rounded-xl hover:bg-blue-50 transition-colors whitespace-nowrap shadow-xs"
-              >
-                <UserCircle className="w-4 h-4 text-[#1E3A8A]" />
-                <span>Portal Akademik</span>
-              </a>
               <Link
                 href="#cta"
                 className="inline-flex items-center gap-1.5 px-4 py-2 text-xs xl:text-sm font-bold text-slate-950 bg-[#D4A017] hover:bg-[#C59114] rounded-xl shadow-xs hover:shadow transition-all whitespace-nowrap"
@@ -165,27 +271,68 @@ export function Navbar() {
         {mobileMenuOpen && (
           <div className="lg:hidden bg-white border-t border-slate-200 px-4 pt-3 pb-6 space-y-3 shadow-xl">
             <div className="flex flex-col space-y-1">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.name}
-                  href={link.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="px-3.5 py-2 rounded-xl text-sm font-semibold text-slate-700 hover:bg-blue-50 hover:text-[#1E3A8A] transition-colors"
-                >
-                  {link.name}
-                </Link>
-              ))}
+              {navLinks.map((link) =>
+                link.name === 'Fakultas' ? (
+                  <div key={link.name}>
+                    <button
+                      type="button"
+                      onClick={() => setMobileFakultasOpen((o) => !o)}
+                      aria-expanded={mobileFakultasOpen}
+                      className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-sm font-semibold text-slate-700 hover:bg-blue-50 hover:text-[#1E3A8A] transition-colors"
+                    >
+                      {link.name}
+                      <ChevronDown className={`w-4 h-4 transition-transform ${mobileFakultasOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {mobileFakultasOpen && (
+                      <div className="ml-3 pl-3 border-l-2 border-slate-100 space-y-0.5 mt-1">
+                        {faculties.map((f) => (
+                          <Link
+                            key={f.code}
+                            href={`/fakultas/${f.code}`}
+                            onClick={() => setMobileMenuOpen(false)}
+                            className="block px-3 py-2 rounded-lg text-sm text-slate-700 hover:bg-blue-50"
+                          >
+                            {f.name} <span className="text-[11px] text-slate-400">· {f.prodiCount} prodi</span>
+                          </Link>
+                        ))}
+                        <Link
+                          href="/fakultas"
+                          onClick={() => setMobileMenuOpen(false)}
+                          className="block px-3 py-2 rounded-lg text-sm font-bold text-[#1E3A8A] hover:bg-blue-50"
+                        >
+                          Lihat Semua Fakultas
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <Link
+                    key={link.name}
+                    href={link.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="px-3.5 py-2 rounded-xl text-sm font-semibold text-slate-700 hover:bg-blue-50 hover:text-[#1E3A8A] transition-colors"
+                  >
+                    {link.name}
+                  </Link>
+                ),
+              )}
             </div>
 
             <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
-              <a
-                href={portalUrl}
-                onClick={() => setMobileMenuOpen(false)}
-                className="w-full text-center px-4 py-2.5 text-xs font-bold text-[#1E3A8A] border border-[#1E3A8A] rounded-xl hover:bg-blue-50 flex items-center justify-center gap-2"
-              >
-                <UserCircle className="w-4 h-4" />
-                <span>Masuk Portal Akademik</span>
-              </a>
+              <p className="px-3.5 pt-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                <LayoutGrid className="w-3 h-3" /> Layanan
+              </p>
+              {layananLinks.map((l) => (
+                <a
+                  key={l.name}
+                  href={l.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full px-4 py-2.5 text-xs font-bold text-[#1E3A8A] border border-[#1E3A8A] rounded-xl hover:bg-blue-50 flex items-center justify-center gap-2"
+                >
+                  <l.icon className="w-4 h-4" />
+                  <span>{l.name}</span>
+                </a>
+              ))}
               <Link
                 href="#cta"
                 onClick={() => setMobileMenuOpen(false)}

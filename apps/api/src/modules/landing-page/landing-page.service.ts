@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { RedisService } from '../../shared/redis/redis.service';
 import { UpdateLandingPageDto } from './dto/update-landing-page.dto';
@@ -76,6 +76,9 @@ const DEFAULT_SETTINGS = {
   updatedAt: new Date().toISOString(),
 };
 
+/** Peran unit yang hanya boleh mengelola berita tulisannya sendiri & tidak mengatur berita unggulan. */
+export const OWN_ARTICLE_ROLES = ['ADMIN_PRODI', 'ADMIN_PMB', 'P2M', 'ADMIN_P2M', 'LP3M', 'ADMIN_LP3M'];
+
 @Injectable()
 export class LandingPageService {
   private inMemorySettings = { ...DEFAULT_SETTINGS };
@@ -146,30 +149,33 @@ export class LandingPageService {
     }
   }
 
-  async getArticles() {
-    try {
-      const articles = await this.prisma.landingPageArticle.findMany({
-        where: { isPublished: true },
-        orderBy: { publishedAt: 'desc' },
-      });
-      if (articles.length > 0) return articles;
-    } catch {
-      // Fallback
-    }
+  /** Bentuk publik: hanya role/unit pengunggah -- tanpa nama akun, ID akun, atau info pengubah. */
+  private toPublic(a: any) {
+    const { authorId, authorName, authorRole, updatedById, updatedByName, ...rest } = a;
+    return { ...rest, authorRole: authorRole || 'Humas ITN' };
+  }
 
-    return this.getDemoArticles();
+  async getArticles() {
+    const articles = await this.prisma.landingPageArticle.findMany({
+      where: { isPublished: true },
+      orderBy: { publishedAt: 'desc' },
+    });
+    return articles.map((a) => this.toPublic(a));
+  }
+
+  async getPublishedBySlug(slug: string) {
+    const a = await this.prisma.landingPageArticle.findFirst({ where: { slug, isPublished: true } });
+    if (!a) throw new NotFoundException('Berita tidak ditemukan.');
+    return this.toPublic(a);
   }
 
   // Dipakai halaman admin (BAAK/Super Admin) -- semua artikel termasuk yang belum dipublikasikan.
-  async getAllArticlesAdmin() {
-    try {
-      const articles = await this.prisma.landingPageArticle.findMany({
-        orderBy: { createdAt: 'desc' },
-      });
-      return articles;
-    } catch {
-      return this.getDemoArticles();
-    }
+  /** `onlyAuthorId`: Admin Prodi hanya melihat berita tulisannya sendiri. */
+  async getAllArticlesAdmin(only?: { id?: string; name?: string }) {
+    return this.prisma.landingPageArticle.findMany({
+      where: only ? this.ownedBy(only) : undefined,
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   async getArticleById(id: string) {
@@ -178,7 +184,51 @@ export class LandingPageService {
     return article;
   }
 
-  async createArticle(dto: CreateArticleDto, authorName: string) {
+  /** ID dari token bisa berupa akun demo (bukan baris User) -- pastikan ada agar FK tidak gagal. */
+  private async existingUserId(id?: string | null): Promise<string | null> {
+    if (!id) return null;
+    const u = await this.prisma.user.findUnique({ where: { id }, select: { id: true } });
+    return u?.id ?? null;
+  }
+
+  /** Admin Prodi hanya boleh mengubah/menghapus berita yang ia tulis sendiri. */
+  async assertCanModify(id: string, user: { sub?: string; role?: string; fullName?: string }) {
+    if (!OWN_ARTICLE_ROLES.includes(user.role ?? '')) return;
+    const a = await this.prisma.landingPageArticle.findFirst({
+      where: { id, ...this.ownedBy({ id: user.sub, name: user.fullName }) },
+      select: { id: true },
+    });
+    if (!a) {
+      const exists = await this.prisma.landingPageArticle.findUnique({ where: { id }, select: { id: true } });
+      if (!exists) throw new NotFoundException('Berita tidak ditemukan.');
+      throw new ForbiddenException('Anda hanya dapat mengelola berita yang Anda tulis sendiri.');
+    }
+  }
+
+  /** Berita milik user: relasi akun; untuk akun demo (tanpa baris User) dicocokkan lewat nama penulis. */
+  private ownedBy(u: { id?: string; name?: string }) {
+    return {
+      OR: [
+        ...(u.id ? [{ authorId: u.id }] : []),
+        ...(u.name ? [{ authorId: null, authorName: u.name }] : []),
+      ],
+    };
+  }
+
+  async createArticle(
+    dto: CreateArticleDto,
+    authorName: string,
+    authorId?: string | null,
+    role?: string,
+    authorRole?: string,
+    studyProgramId?: string | null,
+  ) {
+    authorId = await this.existingUserId(authorId);
+    // Admin Prodi: pengunggah publik = nama program studinya (bukan sekadar "Program Studi").
+    if (role === 'ADMIN_PRODI' && studyProgramId) {
+      const sp = await this.prisma.studyProgram.findUnique({ where: { id: studyProgramId }, select: { name: true } });
+      if (sp) authorRole = `Prodi ${sp.name}`;
+    }
     let slug = slugify(dto.title);
     const existing = await this.prisma.landingPageArticle.findUnique({ where: { slug } });
     if (existing) {
@@ -193,14 +243,17 @@ export class LandingPageService {
         content: dto.content,
         imageUrl: dto.imageUrl || null,
         authorName,
+        authorId: authorId ?? null,
+        authorRole: authorRole ?? null,
         readTime: dto.readTime || '4 min read',
-        isFeatured: Boolean(dto.isFeatured),
+        // Berita unggulan (sorotan beranda) hanya diatur BAAK/Super Admin.
+        isFeatured: OWN_ARTICLE_ROLES.includes(role ?? '') ? false : Boolean(dto.isFeatured),
         isPublished: dto.isPublished !== undefined ? dto.isPublished : true,
       },
     });
   }
 
-  async updateArticle(id: string, dto: UpdateArticleDto) {
+  async updateArticle(id: string, dto: UpdateArticleDto, editor?: { id?: string | null; name?: string | null; role?: string }) {
     const existing = await this.prisma.landingPageArticle.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Berita tidak ditemukan.');
 
@@ -213,8 +266,10 @@ export class LandingPageService {
         content: dto.content !== undefined ? dto.content : undefined,
         imageUrl: dto.imageUrl !== undefined ? dto.imageUrl : undefined,
         readTime: dto.readTime !== undefined ? dto.readTime : undefined,
-        isFeatured: dto.isFeatured !== undefined ? dto.isFeatured : undefined,
+        isFeatured: OWN_ARTICLE_ROLES.includes(editor?.role ?? '') ? undefined : dto.isFeatured !== undefined ? dto.isFeatured : undefined,
         isPublished: dto.isPublished !== undefined ? dto.isPublished : undefined,
+        updatedById: (await this.existingUserId(editor?.id)) ?? undefined,
+        updatedByName: editor?.name ?? undefined,
       },
     });
   }
@@ -226,36 +281,4 @@ export class LandingPageService {
     return { success: true };
   }
 
-  private getDemoArticles() {
-    return [
-      {
-        id: 'demo-art-1',
-        title: 'ITN Raih Juara 1 Kompetisi AI & Robotika Nasional 2026',
-        slug: 'itn-raih-juara-1-kompetisi-ai-robotika-2026',
-        category: 'Prestasi',
-        excerpt:
-          'Tim mahasiswa Fakultas Ilmu Komputer ITN sukses menyabet medali emas dengan inovasi Autonomous Drone pemantau pertanian cerdas.',
-        content:
-          'Prestasi gemilang kembali ditorehkan oleh mahasiswa ITN dalam ajang bergengsi Kompetisi AI Nasional. Karya prototipe drone berbasis Computer Vision mampu mendeteksi kesehatan tanaman secara presisi.',
-        authorName: 'Humas ITN',
-        readTime: '3 min read',
-        isFeatured: true,
-        publishedAt: new Date().toISOString(),
-      },
-      {
-        id: 'demo-art-2',
-        title: 'Kuliah Umum Internasional: Kolaborasi Riset Cloud Computing dengan Silicon Valley',
-        slug: 'kuliah-umum-internasional-cloud-silicon-valley',
-        category: 'Akademik',
-        excerpt:
-          'Menghadirkan Principal Cloud Architect ternama untuk membedah arsitektur microservices terdistribusi skala petabyte.',
-        content:
-          'ITN menggelar webinar dan workshop hands-on arsitektur cloud tingkat lanjut dengan pembicara industri internasional untuk meningkatkan kompetensi mahasiswa.',
-        authorName: 'Biro Kerjasama ITN',
-        readTime: '4 min read',
-        isFeatured: false,
-        publishedAt: new Date().toISOString(),
-      },
-    ];
-  }
 }

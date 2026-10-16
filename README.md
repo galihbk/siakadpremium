@@ -26,6 +26,8 @@ siakadpremium/
 ├── apps/
 │   ├── web/                     # Next.js 15 Landing Page & PMB Kampus (Port 3000)
 │   ├── portal/                  # Next.js 15 Dashboard Terpadu Mahasiswa/Dosen/Admin (Port 3002)
+│   ├── p2m/                     # Next.js 15 Situs publik Penjaminan Mutu, subdomain p2m. (Port 3005)
+│   ├── p3m/                     # Next.js 15 Situs publik LP3M (penelitian & pengabdian), subdomain p3m. (Port 3006)
 │   ├── pmb/                     # Next.js 15 Portal Penerimaan Mahasiswa Baru, subdomain pmb. (Port 3004)
 │   └── api/                     # NestJS 10 Enterprise REST API Backend (Port 3001)
 ├── packages/

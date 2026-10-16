@@ -45,10 +45,11 @@ services:
     ports:
       - '${SIAKAD_API_PORT:-3101}:3001'
     env_file:
-      - path: .env.api
+      - path: .env
         required: false
     volumes:
       - api_uploads:/app/uploads
+      - api_backups:/app/backups
     depends_on:
       postgres:
         condition: service_healthy
@@ -67,7 +68,7 @@ services:
     environment:
       INTERNAL_API_URL: http://api:3001/api/v1
     env_file:
-      - path: .env.web
+      - path: .env
         required: false
     depends_on:
       - api
@@ -84,7 +85,41 @@ services:
     environment:
       INTERNAL_API_URL: http://api:3001/api/v1
     env_file:
-      - path: .env.pmb
+      - path: .env
+        required: false
+    depends_on:
+      - api
+    networks:
+      - siakad-network
+
+  p2m:
+    image: ghcr.io/${IMAGE_OWNER:-galihbk}/siakad-p2m:latest
+    pull_policy: always
+    container_name: siakad-p2m-prod
+    restart: always
+    ports:
+      - '${SIAKAD_P2M_PORT:-3104}:3005'
+    environment:
+      INTERNAL_API_URL: http://api:3001/api/v1
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      - api
+    networks:
+      - siakad-network
+
+  p3m:
+    image: ghcr.io/${IMAGE_OWNER:-galihbk}/siakad-p3m:latest
+    pull_policy: always
+    container_name: siakad-p3m-prod
+    restart: always
+    ports:
+      - '${SIAKAD_P3M_PORT:-3105}:3006'
+    environment:
+      INTERNAL_API_URL: http://api:3001/api/v1
+    env_file:
+      - path: .env
         required: false
     depends_on:
       - api
@@ -101,7 +136,7 @@ services:
     environment:
       INTERNAL_API_URL: http://api:3001/api/v1
     env_file:
-      - path: .env.portal
+      - path: .env
         required: false
     depends_on:
       - api
@@ -115,6 +150,8 @@ volumes:
     name: siakad_redis_prod_data
   api_uploads:
     name: siakad_api_prod_uploads
+  api_backups:
+    name: siakad_api_prod_backups
 
 networks:
   siakad-network:

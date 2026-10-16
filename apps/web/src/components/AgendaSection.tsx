@@ -1,59 +1,71 @@
-import { Calendar, Clock, MapPin, ChevronRight } from 'lucide-react';
-import Link from 'next/link';
+import { Calendar, Users } from 'lucide-react';
+import { getApiBaseUrl } from '@/lib/api';
 
-export function AgendaSection() {
-  const agendaList = [
-    {
-      tanggal: '18',
-      bulan: 'SEP',
-      tahun: '2026',
-      judul: 'Wisuda Program Sarjana & Magister Periode I Tahun Akademik 2026/2027',
-      kategori: 'Seremonial',
-      waktu: '08.00 - 12.30 WIB',
-      lokasi: 'Auditorium Utama Nusantara Hall ITN',
-      status: 'Akan Datang',
-    },
-    {
-      tanggal: '25',
-      bulan: 'SEP',
-      tahun: '2026',
-      judul: 'Seminar Nasional: Masa Depan Kedaulatan Data & Kecerdasan Buatan di Indonesia',
-      kategori: 'Akademik',
-      waktu: '09.00 - 15.00 WIB',
-      lokasi: 'Gedung Riset Lantai 4 & Live Streaming YouTube',
-      status: 'Pendaftaran Dibuka',
-    },
-    {
-      tanggal: '05',
-      bulan: 'OKT',
-      tahun: '2026',
-      judul: 'Pengenalan Kehidupan Kampus Mahasiswa Baru (PKKMB) Gelombang 2',
-      kategori: 'Kemahasiswaan',
-      waktu: '07.30 - 16.00 WIB',
-      lokasi: 'Plaza Rektorat ITN',
-      status: 'Wajib Mahasiswa Baru',
-    },
-    {
-      tanggal: '19',
-      bulan: 'OKT',
-      tahun: '2026',
-      judul: 'Pelaksanaan Ujian Tengah Semester (UTS) Gasal 2026/2027 Terpadu',
-      kategori: 'Akademik',
-      waktu: 'Sesuai Jadwal Kuliah',
-      lokasi: 'Portal SIAKAD & Ruang Kelas Masing-Masing',
-      status: 'Jadwal Akademik',
-    },
-    {
-      tanggal: '10',
-      bulan: 'NOV',
-      tahun: '2026',
-      judul: 'Batas Akhir Pendaftaran Mahasiswa Baru (PMB) Jalur Prestasi & Beasiswa',
-      kategori: 'Penerimaan',
-      waktu: '23.59 WIB',
-      lokasi: 'Portal Daring pmb.itn.ac.id',
-      status: 'Batas Pendaftaran',
-    },
-  ];
+interface CalendarEvent {
+  id: string;
+  title: string;
+  category: string;
+  startDate: string;
+  endDate: string;
+  academicYear: string;
+  semester: string;
+  target: string;
+  status: string;
+  notes: string;
+}
+
+const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MEI', 'JUN', 'JUL', 'AGU', 'SEP', 'OKT', 'NOV', 'DES'];
+
+const parseDate = (v: string) => {
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+const fmtLong = (d: Date) => d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+/** Agenda diambil dari Kalender Akademik (database) -- yang akan datang / sedang berlangsung. */
+async function loadAgenda() {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/academic/calendar-events`, { next: { revalidate: 60 } });
+    if (!res.ok) return { items: [] as CalendarEvent[], failed: true };
+    const json = await res.json();
+    const list: CalendarEvent[] = json?.data ?? json ?? [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const items = list
+      .filter((e) => {
+        const end = parseDate(e.endDate) ?? parseDate(e.startDate);
+        return e.status !== 'Selesai' && end && end >= today;
+      })
+      .sort((a, b) => (parseDate(a.startDate)?.getTime() ?? 0) - (parseDate(b.startDate)?.getTime() ?? 0))
+      .slice(0, 6);
+    return { items, failed: false };
+  } catch {
+    return { items: [] as CalendarEvent[], failed: true };
+  }
+}
+
+export async function AgendaSection() {
+  const { items, failed } = await loadAgenda();
+  const agendaList = items.flatMap((e) => {
+    const start = parseDate(e.startDate);
+    if (!start) return [];
+    const end = parseDate(e.endDate);
+    const multiDay = end && end.toDateString() !== start.toDateString();
+    return [
+      {
+        id: e.id,
+        tanggal: String(start.getDate()).padStart(2, '0'),
+        bulan: MONTHS[start.getMonth()],
+        judul: e.title,
+        kategori: e.category,
+        status: e.status,
+        waktu: multiDay ? `${fmtLong(start)} s.d. ${fmtLong(end)}` : fmtLong(start),
+        target: e.target,
+        catatan: e.notes,
+      },
+    ];
+  });
 
   return (
     <section id="agenda" className="py-20 bg-white border-b border-slate-100">
@@ -73,9 +85,14 @@ export function AgendaSection() {
 
         {/* Timeline List */}
         <div className="space-y-4">
-          {agendaList.map((agenda, index) => (
+          {agendaList.length === 0 && (
+            <p className="text-center text-sm text-slate-400 py-12 border border-dashed border-slate-200 rounded-xl">
+              {failed ? 'Agenda sementara tidak dapat dimuat.' : 'Belum ada agenda kegiatan yang akan datang.'}
+            </p>
+          )}
+          {agendaList.map((agenda) => (
             <div
-              key={index}
+              key={agenda.id}
               className="bg-slate-50 hover:bg-blue-50/40 rounded-xl p-5 sm:p-6 border border-slate-200/90 hover:border-[#1E3A8A]/30 transition-all duration-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 group"
             >
               {/* Kolom Tanggal */}
@@ -104,42 +121,21 @@ export function AgendaSection() {
                     {agenda.judul}
                   </h3>
 
+                  {agenda.catatan && <p className="text-sm text-slate-500 mt-1.5 line-clamp-2">{agenda.catatan}</p>}
                   <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-500 mt-2">
                     <div className="flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
                       <span>{agenda.waktu}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{agenda.lokasi}</span>
+                      <Users className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{agenda.target}</span>
                     </div>
                   </div>
                 </div>
               </div>
-
-              {/* Action Button */}
-              <div className="self-end sm:self-center shrink-0">
-                <Link
-                  href="#cta"
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1E3A8A] hover:text-[#172554] bg-white group-hover:bg-[#1E3A8A] group-hover:text-white px-3.5 py-2 rounded-lg border border-slate-200 group-hover:border-[#1E3A8A] transition-all"
-                >
-                  <span>Detail Acara</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </Link>
-              </div>
             </div>
           ))}
-        </div>
-
-        {/* Footer Link */}
-        <div className="mt-8 text-center sm:text-right">
-          <Link
-            href="#cta"
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#1E3A8A] hover:underline"
-          >
-            <span>Unduh Kalender Akademik Resmi 2026/2027 (PDF)</span>
-            <ChevronRight className="w-4 h-4 text-[#D4A017]" />
-          </Link>
         </div>
 
       </div>

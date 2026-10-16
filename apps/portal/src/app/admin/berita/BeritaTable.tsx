@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Search, Plus, RefreshCw, Pencil, Trash2, Megaphone } from 'lucide-react';
 import { getApiBaseUrl } from '@/lib/api';
+import { getAuthSession } from '@/lib/auth';
 import { useSortedPagination } from '@/lib/useSortedPagination';
 import { SortableTh } from '@/components/common/SortableTh';
 import { TablePagination } from '@/components/common/TablePagination';
@@ -17,6 +18,7 @@ export interface ArticleData {
   content: string;
   imageUrl?: string | null;
   authorName: string;
+  updatedByName?: string | null;
   readTime: string;
   isFeatured: boolean;
   isPublished: boolean;
@@ -24,10 +26,15 @@ export interface ArticleData {
   createdAt?: string;
 }
 
-export function BeritaTable({ initialArticles }: { initialArticles: ArticleData[] }) {
+const authHeaders = (): Record<string, string> => {
+  const { token } = getAuthSession();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+export function BeritaTable({ basePath = '/admin/berita' }: { basePath?: string }) {
   const apiBase = getApiBaseUrl();
-  const [articles, setArticles] = useState<ArticleData[]>(initialArticles);
-  const [loading, setLoading] = useState(false);
+  const [articles, setArticles] = useState<ArticleData[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -38,10 +45,15 @@ export function BeritaTable({ initialArticles }: { initialArticles: ArticleData[
     setTimeout(() => setToast(null), 3500);
   };
 
+  useEffect(() => {
+    void fetchArticles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const fetchArticles = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${apiBase}/landing-page/articles/all`);
+      const res = await fetch(`${apiBase}/landing-page/articles/all`, { headers: authHeaders() });
       if (res.ok) {
         const json = await res.json();
         if (Array.isArray(json.data)) setArticles(json.data);
@@ -57,7 +69,7 @@ export function BeritaTable({ initialArticles }: { initialArticles: ArticleData[
     if (!confirm(`Hapus berita "${a.title}"? Tindakan ini tidak dapat dibatalkan.`)) return;
     setIsDeleting(true);
     try {
-      const res = await fetch(`${apiBase}/landing-page/articles/${a.id}`, { method: 'DELETE' });
+      const res = await fetch(`${apiBase}/landing-page/articles/${a.id}`, { method: 'DELETE', headers: authHeaders() });
       const json = await res.json().catch(() => null);
       if (res.ok) {
         showToast(`Berita "${a.title}" berhasil dihapus.`);
@@ -79,7 +91,7 @@ export function BeritaTable({ initialArticles }: { initialArticles: ArticleData[
     try {
       const res = await fetch(`${apiBase}/landing-page/articles/${a.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ isPublished: nextPublished }),
       });
       if (!res.ok) throw new Error('Gagal mengubah status publikasi.');
@@ -143,7 +155,7 @@ export function BeritaTable({ initialArticles }: { initialArticles: ArticleData[
               Segarkan
             </button>
             <Link
-              href="/admin/berita/baru"
+              href={`${basePath}/baru`}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#1E3A8A] rounded-lg hover:bg-[#1e40af] transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -206,7 +218,10 @@ export function BeritaTable({ initialArticles }: { initialArticles: ArticleData[
                         {a.category}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{a.authorName}</td>
+                    <td className="px-4 py-3 text-slate-600">
+                      <div>{a.authorName}</div>
+                      {a.updatedByName && <div className="text-[10px] text-slate-400">Diubah: {a.updatedByName}</div>}
+                    </td>
                     <td className="px-4 py-3 text-slate-500">
                       {new Date(a.publishedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </td>
@@ -236,7 +251,7 @@ export function BeritaTable({ initialArticles }: { initialArticles: ArticleData[
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Link
-                          href={`/admin/berita/${a.id}`}
+                          href={`${basePath}/${a.id}`}
                           title="Edit berita"
                           className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-[#1E3A8A] transition-colors cursor-pointer inline-flex"
                         >

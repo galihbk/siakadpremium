@@ -8,6 +8,13 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 export class P2mController {
   constructor(private readonly p2mService: P2mService) {}
 
+  // ================= LANDING PAGE PUBLIK (tanpa login) =================
+  @Get('public/landing')
+  @ApiOperation({ summary: 'Data situs publik P2M: standar aktif, dokumen publik, ringkasan audit (tanpa login)' })
+  async getPublicLanding() {
+    return this.p2mService.getPublicLanding();
+  }
+
   // ================= OVERVIEW =================
   @Get('overview')
   @ApiOperation({ summary: 'Mendapatkan statistik ringkasan P2M (standar mutu, audit, tindak lanjut)' })

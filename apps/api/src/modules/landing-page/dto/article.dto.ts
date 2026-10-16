@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, MaxLength } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateArticleDto {
@@ -13,6 +13,7 @@ export class CreateArticleDto {
 
   @ApiPropertyOptional({ example: 'Ringkasan singkat berita...' })
   @IsString()
+  @MaxLength(200, { message: 'Ringkasan maksimal 200 karakter.' })
   excerpt!: string;
 
   @ApiPropertyOptional({ example: 'Isi lengkap berita...' })
@@ -54,6 +55,7 @@ export class UpdateArticleDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(200, { message: 'Ringkasan maksimal 200 karakter.' })
   excerpt?: string;
 
   @ApiPropertyOptional()

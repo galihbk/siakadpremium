@@ -61,6 +61,8 @@ interface StudyProgram {
   accreditation: 'Unggul' | 'Baik Sekali' | 'Baik' | 'A' | 'B';
   accreditationAgency: string;
   skAkreditasi: string;
+  vision?: string | null;
+  mission?: string | null;
   status: 'Aktif' | 'Nonaktif';
 }
 
@@ -245,6 +247,8 @@ function ProdiContent() {
     accreditation: StudyProgram['accreditation'];
     accreditationAgency: string;
     skAkreditasi: string;
+    vision: string;
+    mission: string;
   }>({
     code: '',
     diktiCode: '',
@@ -257,6 +261,8 @@ function ProdiContent() {
     accreditation: 'Unggul',
     accreditationAgency: 'LAM-INFOKOM',
     skAkreditasi: '',
+    vision: '',
+    mission: '',
   });
 
   // Sorting & Pagination State
@@ -342,6 +348,8 @@ function ProdiContent() {
       accreditation: 'Unggul',
       accreditationAgency: 'LAM-INFOKOM',
       skAkreditasi: '',
+      vision: '',
+      mission: '',
     });
     setIsAddModalOpen(true);
   };
@@ -360,6 +368,8 @@ function ProdiContent() {
       accreditation: p.accreditation,
       accreditationAgency: p.accreditationAgency || '',
       skAkreditasi: p.skAkreditasi || '',
+      vision: p.vision || '',
+      mission: p.mission || '',
     });
     setIsAddModalOpen(true);
   };
@@ -384,6 +394,9 @@ function ProdiContent() {
       accreditation: formData.accreditation,
       accreditationAgency: formData.accreditationAgency || 'BAN-PT',
       skAkreditasi: formData.skAkreditasi || 'Dalam Proses',
+      // dikirim apa adanya (termasuk kosong) agar visi/misi bisa dihapus
+      vision: formData.vision,
+      mission: formData.mission,
       status: 'Aktif',
     };
 
@@ -1154,6 +1167,29 @@ function ProdiContent() {
                       onChange={(e) => setFormData({ ...formData, accreditationAgency: e.target.value })}
                       className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] font-bold"
                     />
+                  </div>
+
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="font-bold text-slate-700">Visi</label>
+                    <textarea
+                      rows={2}
+                      value={formData.vision}
+                      onChange={(e) => setFormData({ ...formData, vision: e.target.value })}
+                      placeholder="Tuliskan visi (ditampilkan di situs publik)..."
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="font-bold text-slate-700">Misi</label>
+                    <textarea
+                      rows={5}
+                      value={formData.mission}
+                      onChange={(e) => setFormData({ ...formData, mission: e.target.value })}
+                      placeholder={'Satu misi per baris, contoh:\nMenyelenggarakan pendidikan yang bermutu\nMelaksanakan penelitian yang inovatif'}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                    />
+                    <p className="text-[11px] text-slate-400">Tulis satu poin misi per baris; di situs publik tampil sebagai daftar bernomor.</p>
                   </div>
 
                 </div>

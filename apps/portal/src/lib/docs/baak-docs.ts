@@ -1,0 +1,268 @@
+import type { DocSection } from './types';
+
+export const BAAK_DOCS_VERSION = 'Oktober 2026';
+
+export const BAAK_DOCS: DocSection[] = [
+  {
+    id: 'mulai',
+    group: 'Mulai',
+    title: 'Peran BAAK',
+    summary: 'Gambaran tugas dan menu Admin BAAK.',
+    blocks: [
+      {
+        t: 'p',
+        text: 'BAAK (Biro Administrasi Akademik) adalah pusat operasional akademik: mengelola data induk mahasiswa dan dosen, kurikulum, penjadwalan, KRS, nilai, tugas akhir, yudisium, layanan surat, berita, dan pelaporan ke PDDIKTI.',
+      },
+      {
+        t: 'table',
+        head: ['Kelompok menu', 'Isi'],
+        rows: [
+          ['Dashboard', 'Dashboard BAAK: sebaran mahasiswa, status, gender, tren angkatan.'],
+          ['Data Induk', 'Data Mahasiswa, Data Dosen.'],
+          ['Kurikulum', 'Kurikulum & Mata Kuliah, Master Kurikulum.'],
+          ['Penjadwalan', 'Tahun Akademik, Gedung, Ruang, Jadwal Kelas, Jadwal Ujian (UTS/UAS).'],
+          ['Perkuliahan', 'KRS, Tugas Akhir/Skripsi, Yudisium & Kelulusan, Bimbingan Tugas Akhir, Presensi, Nilai, Skala Nilai.'],
+          ['Layanan Mahasiswa', 'Layanan Surat.'],
+          ['Publikasi', 'Berita & Pengumuman.'],
+          ['Pelaporan & Integrasi', 'Pelaporan PDDIKTI, Sinkronisasi Feeder.'],
+        ],
+      },
+    ],
+  },
+  {
+    id: 'data-induk',
+    group: 'Data Induk',
+    title: 'Data Mahasiswa & Dosen',
+    summary: 'Mengelola data induk, filter, dan ekspor.',
+    blocks: [
+      {
+        t: 'ul',
+        items: [
+          'Tambah, ubah, dan nonaktifkan mahasiswa atau dosen; status aktif/nonaktif lewat tombol toggle.',
+          'Gunakan pencarian dan filter (mis. prodi, angkatan, status) untuk mempersempit daftar.',
+          'Ekspor Excel/PDF mengikuti hasil filter yang sedang aktif.',
+          'Jabatan struktural dosen (Dekan, Kaprodi) memengaruhi nama pada dokumen dan situs publik; diatur pada data dosen.',
+          'Status kepegawaian dosen ditampilkan hanya-baca; yang berwenang mengubah adalah SDM.',
+        ],
+      },
+    ],
+  },
+  {
+    id: 'kurikulum',
+    group: 'Kurikulum & Penjadwalan',
+    title: 'Kurikulum & Mata Kuliah',
+    summary: 'Katalog mata kuliah per kurikulum.',
+    blocks: [
+      {
+        t: 'ul',
+        items: [
+          'Master Kurikulum: buat kurikulum per prodi (tahun mulai, total SKS wajib/pilihan).',
+          'Kurikulum & Mata Kuliah: tambah mata kuliah (kode, nama, SKS teori/praktik, semester, jenis).',
+          'Tandai kategori Tugas Akhir/Lapangan (Skripsi, KKN, PLP, dst.) untuk mata kuliah yang tidak memiliki jadwal tetap; mahasiswa yang mengambilnya otomatis masuk daftar Bimbingan Tugas Akhir.',
+        ],
+      },
+    ],
+  },
+  {
+    id: 'penjadwalan',
+    group: 'Kurikulum & Penjadwalan',
+    title: 'Tahun Akademik, Ruang & Jadwal Kelas',
+    summary: 'Menetapkan semester aktif, ruang, dan jadwal.',
+    blocks: [
+      { t: 'h3', text: 'Tahun Akademik' },
+      {
+        t: 'ol',
+        items: [
+          'Buat tahun akademik/semester dan aktifkan yang berjalan.',
+          'Isi jendela tanggal pengisian KRS dan penginputan nilai. Di luar jendela, KRS dan input nilai terkunci otomatis.',
+        ],
+      },
+      { t: 'h3', text: 'Gedung & Ruang' },
+      { t: 'p', text: 'Kelola gedung dan ruang beserta kapasitasnya; keduanya dipakai pada jadwal kelas dan jadwal ujian.' },
+      { t: 'h3', text: 'Jadwal Kelas' },
+      {
+        t: 'ol',
+        items: [
+          'Buat kelas kuliah: pilih mata kuliah, dosen pengampu, hari, jam, ruang, dan kuota.',
+          'Sistem mendeteksi bentrok ruang dan dosen.',
+          'Kelas mata kuliah tugas akhir/lapangan tidak memerlukan jadwal tetap.',
+        ],
+      },
+    ],
+  },
+  {
+    id: 'ujian',
+    group: 'Kurikulum & Penjadwalan',
+    title: 'Jadwal Ujian UTS/UAS',
+    summary: 'Menjadwalkan ujian dan pengawas.',
+    blocks: [
+      {
+        t: 'ol',
+        items: [
+          'Buka Jadwal Ujian (UTS/UAS) dan pilih jenis ujian.',
+          'Untuk tiap kelas, isi tanggal, jam, ruang, dan pengawas.',
+          'Sistem memblok bentrok ruang dan pengawas pada waktu yang sama.',
+          'Bila ada mahasiswa dengan dua ujian bersamaan, sistem hanya memberi peringatan; selesaikan dengan menggeser jadwal bila perlu.',
+        ],
+      },
+      { t: 'p', text: 'Mahasiswa melihat jadwal dan mencetak kartu ujian; dosen melihat tugas mengawas.' },
+    ],
+  },
+  {
+    id: 'krs-nilai',
+    group: 'Perkuliahan',
+    title: 'KRS, Presensi & Nilai',
+    summary: 'Memantau dan mengoreksi proses perkuliahan.',
+    blocks: [
+      {
+        t: 'ul',
+        items: [
+          'KRS: pantau pengajuan lintas prodi dan status persetujuan dosen PA; periode pengisian diatur lewat Tahun Akademik.',
+          'Presensi: rekap kehadiran lintas kelas dan Berita Acara Perkuliahan.',
+          'Nilai: monitoring dan koreksi nilai; pengisian oleh dosen terkunci per tahun akademik aktif.',
+          'Skala Nilai: atur konversi nilai angka ke huruf dan bobot.',
+        ],
+      },
+    ],
+  },
+  {
+    id: 'skripsi',
+    group: 'Perkuliahan',
+    title: 'Tugas Akhir / Skripsi',
+    summary: 'Plotting pembimbing, penjadwalan sidang, dan input nilai.',
+    blocks: [
+      {
+        t: 'ol',
+        items: [
+          'Proposal masuk: tetapkan dosen pembimbing atau tolak proposal (mahasiswa dapat mengajukan ulang).',
+          'Setelah pembimbing meng-ACC proposal dan mahasiswa mendaftar sempro: jadwalkan seminar dan pilih dosen penguji.',
+          'Setelah skripsi di-ACC dan mahasiswa mendaftar ujian: jadwalkan ujian dan pilih penguji.',
+          'Setelah ujian dilaksanakan: input nilai akhir. Nilai hanya dapat diinput setelah jadwal ditetapkan.',
+        ],
+      },
+      {
+        t: 'note',
+        kind: 'info',
+        text: 'Daftar dapat difilter menurut tahap dan dicari. Menu Bimbingan Tugas Akhir terpisah dipakai untuk mahasiswa yang mengambil mata kuliah kategori TA/Lapangan lewat KRS dan menunggu penetapan pembimbing.',
+      },
+    ],
+  },
+  {
+    id: 'yudisium',
+    group: 'Perkuliahan',
+    title: 'Yudisium & Kelulusan',
+    summary: 'Memverifikasi pendaftar dan menetapkan kelulusan.',
+    blocks: [
+      {
+        t: 'ol',
+        items: [
+          'Buka Yudisium & Kelulusan: daftar pendaftar dengan SKS lulus, IPK, dan hasil checklist syarat.',
+          'Periksa syarat: aktif, SKS minimal, IPK minimal 2,00, tugas akhir selesai, tidak ada tagihan belum lunas.',
+          'Setujui: isi tanggal lulus dan nomor SK. Predikat dihitung dari IPK, dan status mahasiswa otomatis menjadi Lulus.',
+          'Atau tolak dengan catatan agar mahasiswa dapat memperbaiki dan mengajukan lagi.',
+        ],
+      },
+    ],
+  },
+  {
+    id: 'surat',
+    group: 'Layanan & Publikasi',
+    title: 'Layanan Surat',
+    summary: 'Menerbitkan surat resmi.',
+    blocks: [
+      {
+        t: 'ul',
+        items: [
+          'Surat Keterangan Aktif Kuliah terbit otomatis bila mahasiswa aktif dan UKT lunas; selain itu masuk antrean untuk diperiksa manual.',
+          'Surat lain (pengantar magang, izin penelitian, rekomendasi beasiswa, berkelakuan baik) melewati persetujuan Dosen PA lebih dulu, lalu diproses BAAK.',
+          'Nomor surat dibuat otomatis mengikuti format di Profil Institusi.',
+          'Nama dan jabatan penandatangan mengikuti Aturan Tanda Tangan.',
+        ],
+      },
+    ],
+  },
+  {
+    id: 'berita',
+    group: 'Layanan & Publikasi',
+    title: 'Berita & Pengumuman',
+    summary: 'Menulis dan menerbitkan berita untuk situs publik.',
+    blocks: [
+      {
+        t: 'ol',
+        items: [
+          'Buka Berita & Pengumuman lalu klik Tulis Berita Baru.',
+          'Isi judul, kategori, dan ringkasan singkat (maksimal 200 karakter).',
+          'Tulis isi lengkap dengan editor teks kaya (tebal, miring, judul, daftar, tautan).',
+          'Unggah gambar dengan memilih berkas (JPG/PNG/WEBP, maksimal 5 MB); pratinjau muncul dan dapat dihapus.',
+          'Opsional: tandai sebagai berita unggulan (menjadi berita utama di /berita).',
+          'Biarkan "Langsung publikasikan" tercentang untuk terbit seketika, atau lepas centang untuk menyimpan sebagai draf.',
+        ],
+      },
+      {
+        t: 'note',
+        kind: 'info',
+        text: 'Di situs publik, berita memuat keterangan "Diunggah oleh BAAK" (role, bukan nama akun). Daftar berita BAAK menampilkan seluruh berita termasuk draf, beserta penulis dan pengubah terakhir.',
+      },
+    ],
+  },
+  {
+    id: 'feeder',
+    group: 'Pelaporan',
+    title: 'Sinkronisasi Feeder (PDDIKTI)',
+    summary: 'Menarik, membandingkan, dan mengirim data ke Neo Feeder.',
+    blocks: [
+      {
+        t: 'p',
+        text: 'Menu: Pelaporan & Integrasi → Sinkronisasi Feeder. Koneksi Feeder diatur Super Admin di Pengaturan DIKTI.',
+      },
+      {
+        t: 'ol',
+        items: [
+          'Tahun Akademik & Periode Semester',
+          'Dosen',
+          'Mahasiswa',
+          'Riwayat Pendidikan Mahasiswa',
+          'Kurikulum & Mata Kuliah',
+          'Kelas Perkuliahan & Dosen Pengampu',
+          'KRS & Rencana Studi Mahasiswa',
+          'Nilai Perkuliahan Semester',
+          'Aktivitas Kuliah Mahasiswa (AKM)',
+        ],
+      },
+      {
+        t: 'table',
+        head: ['Tab', 'Fungsi'],
+        rows: [
+          ['Tarik', 'Ambil data dari Feeder ke sistem lokal.'],
+          ['Kirim', 'Kirim data lokal yang dipilih (kotak centang) ke Feeder.'],
+          ['Update ke Feeder', 'Satu tabel dengan kolom Perbandingan: yang berbeda ditampilkan selisihnya dan diurutkan di atas.'],
+        ],
+      },
+      {
+        t: 'note',
+        kind: 'warn',
+        text: 'Kirim dan Update mengubah data resmi di PDDIKTI. Lakukan Bandingkan dan periksa selisih sebelum mengirim. Nilai dan KRS diproses per semester karena penarikan tanpa filter sangat lambat.',
+      },
+    ],
+  },
+  {
+    id: 'faq',
+    group: 'Bantuan',
+    title: 'Pertanyaan Umum',
+    summary: 'Masalah yang sering muncul.',
+    blocks: [
+      {
+        t: 'table',
+        head: ['Pertanyaan', 'Jawaban'],
+        rows: [
+          ['Dosen tidak bisa input nilai', 'Periksa jendela tanggal nilai pada Tahun Akademik aktif.'],
+          ['Mahasiswa tidak bisa mengisi KRS', 'Periksa periode KRS pada Tahun Akademik aktif dan status mahasiswa.'],
+          ['Tidak bisa menjadwalkan ujian (bentrok)', 'Ruang atau pengawas sudah terpakai pada waktu yang sama; ganti ruang/pengawas/jam.'],
+          ['Nama Dekan/Kaprodi kosong di dokumen', 'Isi jabatan struktural pada data dosen.'],
+          ['Perubahan berita belum tampil di situs', 'Situs publik memperbarui data paling lambat tiap 60 detik.'],
+          ['Feeder: "Tidak ditemukan"', 'Tarik data dari Feeder terlebih dahulu agar tertaut, lalu bandingkan.'],
+        ],
+      },
+    ],
+  },
+];

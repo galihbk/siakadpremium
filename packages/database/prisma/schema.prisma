@@ -73,48 +73,50 @@ enum AdmissionStatus {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  fullName     String
-  role         Role     @default(STUDENT)
-  avatarUrl    String?
-  isActive     Boolean  @default(true)
+  id             String   @id @default(uuid())
+  email          String   @unique
+  passwordHash   String
+  fullName       String
+  role           Role     @default(STUDENT)
+  avatarUrl      String?
+  isActive       Boolean  @default(true)
   // Dipakai khusus role ADMIN_PRODI -- menandai program studi yang dikelola akun ini.
   studyProgramId String?
   // Shift kerja (jam absen) yang berlaku untuk dosen/karyawan ini.
   shiftId        String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  student                    Student?
-  lecturer                   Lecturer?
-  studyProgram               StudyProgram?         @relation(fields: [studyProgramId], references: [id], onDelete: SetNull)
-  shift                      Shift?                @relation(fields: [shiftId], references: [id], onDelete: SetNull)
-  updatedLandingPageSettings LandingPageSetting[]
-  landingPageArticles        LandingPageArticle[]
-  updatedBankGatewaySettings BankGatewaySetting[]
-  updatedPddiktiSettings     PddiktiSetting[]
-  salarySetting              SalarySetting?
-  salaryComponents           SalaryComponent[]
-  dailyAttendances           DailyAttendance[]
+  student                      Student?
+  lecturer                     Lecturer?
+  studyProgram                 StudyProgram?          @relation(fields: [studyProgramId], references: [id], onDelete: SetNull)
+  shift                        Shift?                 @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  updatedLandingPageSettings   LandingPageSetting[]
+  landingPageArticles          LandingPageArticle[]
+  editedLandingPageArticles    LandingPageArticle[]   @relation("ArticleEditor")
+  uploadedFiles                UploadedFile[]
+  updatedBankGatewaySettings   BankGatewaySetting[]
+  updatedPddiktiSettings       PddiktiSetting[]
+  salarySetting                SalarySetting?
+  salaryComponents             SalaryComponent[]
+  dailyAttendances             DailyAttendance[]
   updatedTransportRateSettings TransportRateSetting[]
-  honorPayments              HonorPayment[]
+  honorPayments                HonorPayment[]
 
   @@map("users")
 }
 
 model SalarySetting {
-  id           String   @id @default(uuid())
-  userId       String   @unique
-  baseSalary   Int      @default(0)
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  baseSalary       Int      @default(0)
   // Beban mengajar wajib (SKS) yang tidak dibayar honor -- honor mengajar dihitung dari
   // SKS bersih (Total SKS diampu - Beban Mengajar), bukan total SKS mentah.
-  bebanMengajarSks Int  @default(0)
-  notes        String?
-  updatedBy    String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  bebanMengajarSks Int      @default(0)
+  notes            String?
+  updatedBy        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -233,6 +235,9 @@ model Faculty {
   establishedYear Int?
   accreditation   String?
   skAkreditasi    String?
+  // Visi & misi ditampilkan di situs publik; diisi Super Admin. Misi: satu poin per baris.
+  vision          String?  @db.Text
+  mission         String?  @db.Text
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -256,6 +261,8 @@ model StudyProgram {
   accreditation       String      @default("Unggul")
   accreditationAgency String?     @default("BAN-PT / LAM")
   skAkreditasi        String?
+  vision              String?     @db.Text
+  mission             String?     @db.Text
   status              String      @default("Aktif")
   studentsCount       Int         @default(0)
   lecturersCount      Int         @default(0)
@@ -300,14 +307,14 @@ model Lecturer {
   isAcademicAdvisor Boolean @default(true)
 
   // Identitas Diri
-  gender         Gender?
-  birthDate      DateTime?
-  birthPlace     String?
-  religion       String?
-  motherName     String?
-  maritalStatus  String?
-  spouseName     String?
-  spouseNip      String?
+  gender           Gender?
+  birthDate        DateTime?
+  birthPlace       String?
+  religion         String?
+  motherName       String?
+  maritalStatus    String?
+  spouseName       String?
+  spouseNip        String?
   spouseOccupation String?
 
   // Alamat
@@ -326,15 +333,15 @@ model Lecturer {
   lastEducation         String?
   expertise             String?
   sdmType               String?
-  rankGroup              String?
-  salarySource           String?
-  skNumber               String?
-  skDate                 DateTime?
-  appointingInstitution  String?
+  rankGroup             String?
+  salarySource          String?
+  skNumber              String?
+  skDate                DateTime?
+  appointingInstitution String?
 
   // Data Tambahan
-  bpjsKesehatan         String?
-  bpjsKetenagakerjaan   String?
+  bpjsKesehatan       String?
+  bpjsKetenagakerjaan String?
 
   // Jabatan struktural (Dekan/Kaprodi) -- sumber kebenaran untuk Faculty.deanLecturers
   // & StudyProgram.kaprodiLecturers. structuralFacultyId dipakai kalau DEKAN,
@@ -361,51 +368,51 @@ model Lecturer {
   thesisApprovals             ThesisApproval[]        @relation("ThesisApprovalLecturer")
   thesisExaminerRoles         ThesisDefenseExaminer[] @relation("ThesisExaminerLecturer")
 
-  examProctor1                ExamSchedule[]          @relation("ExamProctor1")
-  examProctor2                ExamSchedule[]          @relation("ExamProctor2")
+  examProctor1 ExamSchedule[] @relation("ExamProctor1")
+  examProctor2 ExamSchedule[] @relation("ExamProctor2")
 
   @@map("lecturers")
 }
 
 model Student {
-  id                String        @id @default(uuid())
-  userId            String        @unique
-  studyProgramId    String
-  advisorLecturerId String?
+  id                   String        @id @default(uuid())
+  userId               String        @unique
+  studyProgramId       String
+  advisorLecturerId    String?
   // id_mahasiswa dari Neo Feeder (biodata) -- kunci paling stabil untuk mencocokkan ulang
   // data saat re-sync, sama seperti feederId di Lecturer.
-  feederId          String?       @unique
+  feederId             String?       @unique
   // id_registrasi_mahasiswa dari Neo Feeder -- BEDA dari feederId (biodata). Diisi hanya
   // setelah mahasiswa benar-benar terdaftar (riwayat pendidikan) di Feeder, dipakai Push
   // Mahasiswa Baru untuk tahu siapa yang masih perlu didaftarkan vs yang sudah selesai.
-  feederRegistrationId String?    @unique
+  feederRegistrationId String?       @unique
   // Pesan error terakhir kalau Push mahasiswa ini ke Feeder gagal -- dikosongkan lagi begitu
   // Push berikutnya untuk mahasiswa ini berhasil. Dipakai halaman Sinkronisasi Feeder (tab Push).
-  feederSyncError   String?       @db.Text
-  feederSyncErrorAt DateTime?
-  nim               String        @unique
-  gender            Gender        @default(MALE)
-  birthDate         DateTime?
-  birthPlace        String?
-  phone             String?
-  nik               String?
-  nisn              String?
-  noKk              String?
-  address           String?       @db.Text
-  streetAddress     String?       @db.Text
-  rtRw              String?
-  dusun             String?
-  kelurahan         String?
-  kecamatan         String?
-  city              String?
-  province          String?
-  postalCode        String?
-  religion          String?
-  entryYear         Int
-  currentSemester   Int           @default(1)
-  status            StudentStatus @default(ACTIVE)
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  feederSyncError      String?       @db.Text
+  feederSyncErrorAt    DateTime?
+  nim                  String        @unique
+  gender               Gender        @default(MALE)
+  birthDate            DateTime?
+  birthPlace           String?
+  phone                String?
+  nik                  String?
+  nisn                 String?
+  noKk                 String?
+  address              String?       @db.Text
+  streetAddress        String?       @db.Text
+  rtRw                 String?
+  dusun                String?
+  kelurahan            String?
+  kecamatan            String?
+  city                 String?
+  province             String?
+  postalCode           String?
+  religion             String?
+  entryYear            Int
+  currentSemester      Int           @default(1)
+  status               StudentStatus @default(ACTIVE)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
   // Data Sekolah Asal
   schoolName     String?
@@ -447,83 +454,83 @@ model Student {
   letterRequests     LetterRequest[]
   thesisSupervisions ThesisSupervision[]
 
-  thesisProject ThesisProject?
+  thesisProject         ThesisProject?
   graduationApplication GraduationApplication?
 
   @@map("students")
 }
 
 model AcademicYear {
-  id            String       @id @default(uuid())
-  code          String       @unique // e.g. "20261" for 2026/2027 Gasal
-  name          String // e.g. "2026/2027"
-  semesterType  SemesterType @default(ODD)
-  isActive      Boolean      @default(false)
-  startDate     DateTime
-  endDate       DateTime
-  krsStartDate  DateTime?
-  krsEndDate    DateTime?
-  isKrsOpen     Boolean      @default(true)
-  pmbStartDate  DateTime?
-  pmbEndDate    DateTime?
-  skRektor      String?
-  gradeDeadline String?
+  id                  String       @id @default(uuid())
+  code                String       @unique // e.g. "20261" for 2026/2027 Gasal
+  name                String // e.g. "2026/2027"
+  semesterType        SemesterType @default(ODD)
+  isActive            Boolean      @default(false)
+  startDate           DateTime
+  endDate             DateTime
+  krsStartDate        DateTime?
+  krsEndDate          DateTime?
+  isKrsOpen           Boolean      @default(true)
+  pmbStartDate        DateTime?
+  pmbEndDate          DateTime?
+  skRektor            String?
+  gradeDeadline       String?
   // Jendela waktu dosen boleh mengisi/mengubah nilai -- dipakai menggantikan toggle manual
   // isGradeLocked: kalau keduanya terisi, akses dihitung otomatis dari tanggal hari ini
   // dibanding rentang ini (bukan diklik manual lagi). isGradeLocked tetap disimpan sebagai
   // fallback untuk tahun akademik lama yang belum mengisi tanggal ini.
   gradeInputStartDate DateTime?
   gradeInputEndDate   DateTime?
-  isGradeLocked Boolean      @default(true)
-  status        String       @default("Aktif") // Aktif, Arsip, Mendatang
-  notes         String?      @db.Text
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  isGradeLocked       Boolean      @default(true)
+  status              String       @default("Aktif") // Aktif, Arsip, Mendatang
+  notes               String?      @db.Text
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
 
   enrollments        CourseEnrollment[]
   courseClasses      CourseClass[]
   gradeScaleVersions GradeScaleVersion[]
   thesisSupervisions ThesisSupervision[]
 
-  examSchedules      ExamSchedule[]
+  examSchedules ExamSchedule[]
 
   @@map("academic_years")
 }
 
 model Course {
-  id                        String   @id @default(uuid())
+  id                        String    @id @default(uuid())
   // id_matkul dari Neo Feeder -- kunci paling stabil untuk mencocokkan ulang data saat
   // re-sync, sama seperti feederId di Lecturer/Student.
-  feederId                  String?  @unique
+  feederId                  String?   @unique
   // Pesan error terakhir kalau Push mata kuliah ini ke Feeder gagal -- dikosongkan lagi begitu
   // Push berikutnya untuk mata kuliah ini berhasil.
-  feederSyncError           String?  @db.Text
+  feederSyncError           String?   @db.Text
   feederSyncErrorAt         DateTime?
   studyProgramId            String?
   studyProgramName          String?
   facultyCode               String?
   curriculumId              String?
-  code                      String   @unique // e.g. "TIF-201"
+  code                      String    @unique // e.g. "TIF-201"
   name                      String
-  sksTeori                  Int      @default(2)
-  sksPraktik                Int      @default(0)
-  totalSks                  Int      @default(2)
-  sks                       Int      @default(3)
-  semester                  Int      @default(1)
-  type                      String   @default("Wajib Prodi")
+  sksTeori                  Int       @default(2)
+  sksPraktik                Int       @default(0)
+  totalSks                  Int       @default(2)
+  sks                       Int       @default(3)
+  semester                  Int       @default(1)
+  type                      String    @default("Wajib Prodi")
   // true untuk kategori mata kuliah lapangan/tugas akhir (Skripsi/TA, KKN, PLP, Kerja Praktik, dst.):
   // SEMUA kelas dari mata kuliah ini otomatis dianggap tanpa jadwal & ruang tetap, dan mahasiswa
   // yang mengambilnya otomatis masuk daftar Bimbingan Tugas Akhir untuk ditetapkan pembimbingnya —
   // BAAK tidak perlu mencentang "Tanpa jadwal tetap" satu-satu tiap kali membuat kelasnya.
-  requiresThesisSupervision Boolean  @default(false)
+  requiresThesisSupervision Boolean   @default(false)
   // Label kategori spesifik saat requiresThesisSupervision true, mis. "Skripsi/TA", "KKN", "PLP",
   // "Kerja Praktik", "Magang" -- murni untuk tampilan/pelaporan, logika jadwal tetap pakai field di atas.
   finalProjectLabel         String?
   coordinator               String?
-  status                    String   @default("Aktif")
-  description               String?  @db.Text
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
+  status                    String    @default("Aktif")
+  description               String?   @db.Text
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
   studyProgram       StudyProgram?       @relation(fields: [studyProgramId], references: [id], onDelete: Cascade)
   curriculum         Curriculum?         @relation(fields: [curriculumId], references: [id], onDelete: SetNull)
@@ -562,10 +569,9 @@ model CourseClass {
   enrollments        CourseEnrollment[]
   attendanceSessions AttendanceSession[]
   contract           CourseContract?
-
-  @@unique([courseId, academicYearId, className])
   examSchedules      ExamSchedule[]
 
+  @@unique([courseId, academicYearId, className])
   @@map("course_classes")
 }
 
@@ -609,42 +615,42 @@ model AttendanceRecord {
 }
 
 model CourseContract {
-  id                String    @id @default(uuid())
-  courseClassId     String    @unique
+  id                       String    @id @default(uuid())
+  courseClassId            String    @unique
   // Identitas dokumen RPS (format SN-Dikti)
-  rpsCode           String? // Kode/Nomor Dokumen RPS
-  description       String?   @db.Text // Deskripsi singkat mata kuliah
+  rpsCode                  String? // Kode/Nomor Dokumen RPS
+  description              String?   @db.Text // Deskripsi singkat mata kuliah
   // CPL & CPMK
-  graduateLearningOutcomes String? @db.Text // CPL-Prodi yang dibebankan pada MK
-  learningOutcomes  String?   @db.Text // CPMK (Capaian Pembelajaran Mata Kuliah)
-  subCpmk           String?   @db.Text // Sub-CPMK (kemampuan akhir tiap tahapan belajar)
+  graduateLearningOutcomes String?   @db.Text // CPL-Prodi yang dibebankan pada MK
+  learningOutcomes         String?   @db.Text // CPMK (Capaian Pembelajaran Mata Kuliah)
+  subCpmk                  String?   @db.Text // Sub-CPMK (kemampuan akhir tiap tahapan belajar)
   // Materi, metode, penilaian
-  studyMaterials     String?  @db.Text // Bahan kajian / pokok bahasan
-  teachingMethods     String? @db.Text // Bentuk & metode pembelajaran
-  studentExperience   String? @db.Text // Pengalaman belajar mahasiswa
-  assessmentCriteria  String? @db.Text // Kriteria & bentuk penilaian (naratif)
-  assessmentWeights Json? // Bobot penilaian numerik (tugas/uts/uas/kehadiran) -- dipakai perhitungan nilai
+  studyMaterials           String?   @db.Text // Bahan kajian / pokok bahasan
+  teachingMethods          String?   @db.Text // Bentuk & metode pembelajaran
+  studentExperience        String?   @db.Text // Pengalaman belajar mahasiswa
+  assessmentCriteria       String?   @db.Text // Kriteria & bentuk penilaian (naratif)
+  assessmentWeights        Json? // Bobot penilaian numerik (tugas/uts/uas/kehadiran) -- dipakai perhitungan nilai
   // Pustaka & media
-  references          String?  @db.Text // Pustaka utama
-  supportingReferences String? @db.Text // Pustaka pendukung
-  learningMedia        String? @db.Text // Media & perangkat pembelajaran
+  references               String?   @db.Text // Pustaka utama
+  supportingReferences     String?   @db.Text // Pustaka pendukung
+  learningMedia            String?   @db.Text // Media & perangkat pembelajaran
   // Otorisasi / pengesahan
-  coordinatorName   String? // Koordinator bidang/rumpun MK
-  headOfProdiName   String? // Ketua Program Studi (Kaprodi)
-  preparedDate      DateTime?
-  isPublished       Boolean   @default(false)
+  coordinatorName          String? // Koordinator bidang/rumpun MK
+  headOfProdiName          String? // Ketua Program Studi (Kaprodi)
+  preparedDate             DateTime?
+  isPublished              Boolean   @default(false)
   // Validasi Penjaminan Mutu (P2M) -- RPS yang dosen "Simpan & Publikasikan" masuk status
   // DIAJUKAN menunggu disahkan P2M; P2M bisa mengesahkan (DISAHKAN) atau minta revisi
   // (PERLU_REVISI) dengan catatan. Terpisah dari isPublished (visibilitas ke mahasiswa).
-  p2mStatus         String?   @default("BELUM_DIAJUKAN") // 'BELUM_DIAJUKAN' | 'DIAJUKAN' | 'DISAHKAN' | 'PERLU_REVISI'
-  p2mNote           String?   @db.Text
-  p2mValidatedAt    DateTime?
-  p2mValidatedBy    String?
-  rpsFileUrl        String?
-  rpsFileName       String?
-  rpsUploadedAt     DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  p2mStatus                String?   @default("BELUM_DIAJUKAN") // 'BELUM_DIAJUKAN' | 'DIAJUKAN' | 'DISAHKAN' | 'PERLU_REVISI'
+  p2mNote                  String?   @db.Text
+  p2mValidatedAt           DateTime?
+  p2mValidatedBy           String?
+  rpsFileUrl               String?
+  rpsFileName              String?
+  rpsUploadedAt            DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
   courseClass CourseClass          @relation(fields: [courseClassId], references: [id], onDelete: Cascade)
   weeks       CourseContractWeek[]
@@ -653,12 +659,12 @@ model CourseContract {
 }
 
 model CourseContractWeek {
-  id         String  @id @default(uuid())
-  contractId String
-  weekNumber Int
-  topic      String // Bahan kajian / materi pertemuan
-  method     String? // Bentuk & metode pembelajaran
-  indicator  String? // Sub-CPMK / kemampuan akhir tahap belajar
+  id                String  @id @default(uuid())
+  contractId        String
+  weekNumber        Int
+  topic             String // Bahan kajian / materi pertemuan
+  method            String? // Bentuk & metode pembelajaran
+  indicator         String? // Sub-CPMK / kemampuan akhir tahap belajar
   duration          String? // Alokasi waktu (e.g. "2 x 50 menit")
   studentExperience String? @db.Text // Pengalaman belajar mahasiswa
   assessmentWeight  String? // Kriteria & bobot penilaian pertemuan ini
@@ -670,27 +676,27 @@ model CourseContractWeek {
 }
 
 model CourseEnrollment {
-  id              String           @id @default(uuid())
-  studentId       String
-  courseId        String
-  courseClassId   String?
-  academicYearId  String
-  status          EnrollmentStatus @default(SUBMITTED)
-  assignmentScore Float? // Nilai Tugas
-  midtermScore    Float? // Nilai UTS
-  finalScore      Float? // Nilai UAS
-  totalScore      Float? // Nilai Akhir Angka
-  gradeLetter     String? // e.g. "A", "B+", "B"
-  gradePoint      Float? // e.g. 4.0, 3.5, 3.0
-  gradeStatus     String           @default("DRAFT") // "DRAFT" | "FINAL"
+  id                  String           @id @default(uuid())
+  studentId           String
+  courseId            String
+  courseClassId       String?
+  academicYearId      String
+  status              EnrollmentStatus @default(SUBMITTED)
+  assignmentScore     Float? // Nilai Tugas
+  midtermScore        Float? // Nilai UTS
+  finalScore          Float? // Nilai UAS
+  totalScore          Float? // Nilai Akhir Angka
+  gradeLetter         String? // e.g. "A", "B+", "B"
+  gradePoint          Float? // e.g. 4.0, 3.5, 3.0
+  gradeStatus         String           @default("DRAFT") // "DRAFT" | "FINAL"
   // Terisi saat baris KRS ini tercatat sinkron dengan Feeder (hasil Pull/Sync dari Feeder,
   // atau nanti Push ke Feeder). Null = belum pernah terkonfirmasi ada di Feeder.
-  feederSyncedAt  DateTime?
+  feederSyncedAt      DateTime?
   // Terisi saat nilai (angka/huruf/indeks) baris ini cocok dengan nilai di Feeder -- diisi
   // oleh sinkronisasi Nilai Perkuliahan dari Feeder. Null = nilai belum terkonfirmasi di Feeder.
   feederGradeSyncedAt DateTime?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
 
   student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   course       Course       @relation(fields: [courseId], references: [id], onDelete: Restrict)
@@ -1073,23 +1079,27 @@ model PddiktiSetting {
 }
 
 model LandingPageArticle {
-  id          String   @id @default(uuid())
-  title       String
-  slug        String   @unique
-  category    String   @default("Akademik")
-  excerpt     String   @db.Text
-  content     String   @db.Text
-  imageUrl    String?
-  authorId    String?
-  authorName  String   @default("Humas ITN")
-  readTime    String   @default("4 min read")
-  isFeatured  Boolean  @default(false)
-  isPublished Boolean  @default(true)
-  publishedAt DateTime @default(now())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(uuid())
+  title         String
+  slug          String   @unique
+  category      String   @default("Akademik")
+  excerpt       String   @db.Text
+  content       String   @db.Text
+  imageUrl      String?
+  authorId      String?
+  authorName    String   @default("Humas ITN")
+  authorRole    String?
+  updatedById   String?
+  updatedByName String?
+  readTime      String   @default("4 min read")
+  isFeatured    Boolean  @default(false)
+  isPublished   Boolean  @default(true)
+  publishedAt   DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  author    User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  updatedBy User? @relation("ArticleEditor", fields: [updatedById], references: [id], onDelete: SetNull)
 
   @@map("landing_page_articles")
 }
@@ -1226,29 +1236,29 @@ model GradeScale {
 }
 
 model Curriculum {
-  id             String   @id @default(uuid())
+  id                String    @id @default(uuid())
   // id_kurikulum dari Neo Feeder -- kunci paling stabil untuk mencocokkan ulang data saat
   // re-sync, sama seperti feederId di Lecturer/Student/Course.
-  feederId       String?  @unique
+  feederId          String?   @unique
   // Pesan error terakhir kalau Push kurikulum ini ke Feeder gagal -- dikosongkan lagi begitu
   // Push berikutnya untuk kurikulum ini berhasil.
-  feederSyncError   String?  @db.Text
+  feederSyncError   String?   @db.Text
   feederSyncErrorAt DateTime?
-  code           String   @unique
-  name           String
-  studyProgram   String
-  degreeLevel    String   @default("S1")
-  facultyCode    String   @default("FASILKOM")
-  startYear      Int      @default(2024)
-  sksWajib       Int      @default(120)
-  sksPilihan     Int      @default(24)
-  totalSks       Int      @default(144)
-  curriculumType String   @default("Kurikulum OBE")
-  skRektor       String?
-  status         String   @default("Aktif")
-  description    String?  @db.Text
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  code              String    @unique
+  name              String
+  studyProgram      String
+  degreeLevel       String    @default("S1")
+  facultyCode       String    @default("FASILKOM")
+  startYear         Int       @default(2024)
+  sksWajib          Int       @default(120)
+  sksPilihan        Int       @default(24)
+  totalSks          Int       @default(144)
+  curriculumType    String    @default("Kurikulum OBE")
+  skRektor          String?
+  status            String    @default("Aktif")
+  description       String?   @db.Text
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   courses Course[]
 
@@ -1625,18 +1635,18 @@ model ThesisProject {
 }
 
 model ThesisGuidance {
-  id           String      @id @default(uuid())
-  projectId    String
-  phase        ThesisPhase
-  lecturerId   String? // pembimbing yang dituju
-  topic        String
-  notes        String?     @db.Text
-  fileUrl      String?     @db.Text
-  meetingDate  DateTime    @default(now())
-  status       String      @default("SUBMITTED") // SUBMITTED | REVIEWED
-  feedback     String?     @db.Text
-  reviewedAt   DateTime?
-  createdAt    DateTime    @default(now())
+  id          String      @id @default(uuid())
+  projectId   String
+  phase       ThesisPhase
+  lecturerId  String? // pembimbing yang dituju
+  topic       String
+  notes       String?     @db.Text
+  fileUrl     String?     @db.Text
+  meetingDate DateTime    @default(now())
+  status      String      @default("SUBMITTED") // SUBMITTED | REVIEWED
+  feedback    String?     @db.Text
+  reviewedAt  DateTime?
+  createdAt   DateTime    @default(now())
 
   project  ThesisProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   lecturer Lecturer?     @relation("ThesisGuidanceLecturer", fields: [lecturerId], references: [id], onDelete: SetNull)
@@ -1675,7 +1685,7 @@ model ThesisDefense {
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 
-  project   ThesisProject          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   ThesisProject           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   examiners ThesisDefenseExaminer[]
 
   @@index([projectId, type])
@@ -1855,4 +1865,24 @@ model PaymentInvoiceItem {
   feeComponent FeeComponent?  @relation(fields: [feeComponentId], references: [id], onDelete: SetNull)
 
   @@map("payment_invoice_items")
+}
+
+/// Catatan setiap berkas yang diunggah lewat /storage/upload (siapa, kapan, apa).
+model UploadedFile {
+  id             String   @id @default(uuid())
+  key            String   @unique
+  originalName   String
+  mimeType       String
+  size           Int
+  folder         String
+  isPrivate      Boolean  @default(true)
+  driver         String   @default("local")
+  uploadedById   String?
+  uploadedByName String?
+  createdAt      DateTime @default(now())
+
+  uploadedBy User? @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([uploadedById])
+  @@map("uploaded_files")
 }

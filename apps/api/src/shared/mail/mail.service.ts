@@ -27,13 +27,15 @@ export class MailService {
   private failedCount = 0;
 
   constructor() {
+    // Kredensial SMTP HANYA dari environment (tanpa nilai cadangan di kode). Bila belum
+    // lengkap, pengiriman gagal dan halaman Pengaturan Sistem menampilkan peringatan.
     this.transporter = nodemailer.createTransport({
-      host: process.env.MAIL_HOST || 'smtp.hostinger.com',
+      host: process.env.MAIL_HOST,
       port: Number(process.env.MAIL_PORT) || 587,
       secure: false, // Port 587 uses STARTTLS
       auth: {
-        user: process.env.MAIL_USERNAME || 'noreply@bibsport.id',
-        pass: process.env.MAIL_PASSWORD || 'Fath0303$',
+        user: process.env.MAIL_USERNAME,
+        pass: process.env.MAIL_PASSWORD,
       },
       tls: {
         rejectUnauthorized: false,
@@ -162,7 +164,7 @@ export class MailService {
    */
   private async deliverVerificationEmail(job: EmailQueueJob): Promise<boolean> {
     const fromName = process.env.MAIL_FROM_NAME || 'STKIP MAJENANG';
-    const fromAddress = process.env.MAIL_FROM_ADDRESS || 'noreply@bibsport.id';
+    const fromAddress = process.env.MAIL_FROM_ADDRESS || process.env.MAIL_USERNAME || '';
 
     const htmlContent = `
 <!DOCTYPE html>
@@ -304,7 +306,7 @@ export class MailService {
    */
   private async deliverPasswordResetEmail(job: EmailQueueJob): Promise<boolean> {
     const fromName = process.env.MAIL_FROM_NAME || 'STKIP MAJENANG';
-    const fromAddress = process.env.MAIL_FROM_ADDRESS || 'noreply@bibsport.id';
+    const fromAddress = process.env.MAIL_FROM_ADDRESS || process.env.MAIL_USERNAME || '';
 
     const htmlContent = `
 <!DOCTYPE html>

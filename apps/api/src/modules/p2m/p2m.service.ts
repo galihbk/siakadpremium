@@ -27,6 +27,82 @@ export class P2mService {
     };
   }
 
+  // ================= LANDING PAGE PUBLIK =================
+  /**
+   * Data untuk situs publik P2M (subdomain p2m.). Hanya memuat yang aman dipublikasikan:
+   * standar mutu berstatus Aktif, dokumen berakses "Publik", jadwal & ringkasan hasil audit
+   * secara agregat -- temuan per program studi sengaja TIDAK ditampilkan.
+   */
+  async getPublicLanding() {
+    const [standards, documents, totalAudits, completedAudits, auditsByResult, followUpDone, upcoming, downloads] =
+      await Promise.all([
+        this.prisma.qualityStandard.findMany({
+          where: { status: 'Aktif' },
+          orderBy: [{ category: 'asc' }, { code: 'asc' }],
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            category: true,
+            description: true,
+            indicator: true,
+            targetValue: true,
+            academicYear: true,
+          },
+        }),
+        this.prisma.qualityDocument.findMany({
+          where: { accessLevel: 'Publik' },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            code: true,
+            title: true,
+            category: true,
+            fileType: true,
+            fileSize: true,
+            version: true,
+            academicYear: true,
+            description: true,
+            fileUrl: true,
+            downloadsCount: true,
+            updatedAt: true,
+          },
+        }),
+        this.prisma.qualityAudit.count(),
+        this.prisma.qualityAudit.count({ where: { status: 'Selesai' } }),
+        this.prisma.qualityAudit.groupBy({
+          by: ['result'],
+          where: { status: 'Selesai' },
+          _count: { _all: true },
+        }),
+        this.prisma.qualityAudit.count({ where: { status: 'Selesai', followUpStatus: 'Selesai' } }),
+        this.prisma.qualityAudit.findMany({
+          where: { status: { in: ['Terjadwal', 'Berlangsung'] }, auditDate: { gte: new Date(Date.now() - 86400000) } },
+          orderBy: { auditDate: 'asc' },
+          take: 6,
+          select: { id: true, studyProgram: true, faculty: true, auditDate: true, status: true },
+        }),
+        this.prisma.qualityDocument.aggregate({ where: { accessLevel: 'Publik' }, _sum: { downloadsCount: true } }),
+      ]);
+
+    const categories = Array.from(new Set(standards.map((s) => s.category)));
+    return {
+      stats: {
+        activeStandards: standards.length,
+        totalAudits,
+        completedAudits,
+        followUpDone,
+        publicDocuments: documents.length,
+        totalDownloads: downloads._sum.downloadsCount ?? 0,
+      },
+      categories,
+      standards,
+      documents,
+      auditSummary: auditsByResult.map((g) => ({ result: g.result, count: g._count._all })),
+      upcomingAudits: upcoming,
+    };
+  }
+
   // ================= STANDAR MUTU =================
   async getStandards(filters?: { category?: string; status?: string; search?: string }) {
     const where: any = {};

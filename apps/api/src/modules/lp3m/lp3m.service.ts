@@ -37,6 +37,80 @@ export class Lp3mService implements OnModuleInit {
     return status as ReportStatus;
   }
 
+  // ================= LANDING PAGE PUBLIK =================
+  /**
+   * Data untuk situs publik LP3M (subdomain p3m.). Hanya yang aman dipublikasikan:
+   * kegiatan berstatus Terverifikasi, HAKI Tersertifikasi, dan dokumen berakses "Publik".
+   * Tidak memuat NIDN, anggaran per kegiatan, catatan reviewer, maupun laporan yang belum terverifikasi.
+   */
+  async getPublicLanding() {
+    const [researches, haki, documents, downloads] = await Promise.all([
+      this.prisma.lp3mResearch.findMany({
+        where: { status: 'Terverifikasi' },
+        orderBy: [{ year: 'desc' }, { createdAt: 'desc' }],
+        select: {
+          id: true,
+          type: true,
+          title: true,
+          scheme: true,
+          focusArea: true,
+          leader: true,
+          faculty: true,
+          studyProgram: true,
+          membersCount: true,
+          year: true,
+          targetOutput: true,
+          mitraSasaran: true,
+        },
+      }),
+      this.prisma.lp3mIntellectualProperty.findMany({
+        where: { status: 'Tersertifikasi' },
+        orderBy: [{ grantYear: 'desc' }, { createdAt: 'desc' }],
+        select: { id: true, regNumber: true, title: true, type: true, inventor: true, faculty: true, grantYear: true, description: true },
+      }),
+      this.prisma.lp3mDocument.findMany({
+        where: { accessLevel: 'Publik' },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          code: true,
+          title: true,
+          category: true,
+          fileType: true,
+          fileSize: true,
+          version: true,
+          academicYear: true,
+          description: true,
+          fileUrl: true,
+          downloadsCount: true,
+          updatedAt: true,
+        },
+      }),
+      this.prisma.lp3mDocument.aggregate({ where: { accessLevel: 'Publik' }, _sum: { downloadsCount: true } }),
+    ]);
+
+    const focusMap = new Map<string, number>();
+    for (const r of researches) focusMap.set(r.focusArea, (focusMap.get(r.focusArea) ?? 0) + 1);
+    const years = Array.from(new Set(researches.map((r) => r.year))).sort((a, b) => b - a);
+
+    return {
+      stats: {
+        penelitian: researches.filter((r) => r.type === 'Penelitian').length,
+        pengabdian: researches.filter((r) => r.type === 'Pengabdian').length,
+        haki: haki.length,
+        publicDocuments: documents.length,
+        totalDownloads: downloads._sum.downloadsCount ?? 0,
+      },
+      years,
+      focusAreas: Array.from(focusMap.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count),
+      researches,
+      haki,
+      documents,
+    };
+  }
+
   // ================= 1. OVERVIEW & STATS =================
   async getOverview() {
     const totalPenelitian = await this.prisma.lp3mResearch.count({

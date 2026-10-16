@@ -55,6 +55,8 @@ export class StudyProgramsService {
         accreditation: p.accreditation,
         accreditationAgency: p.accreditationAgency,
         skAkreditasi: p.skAkreditasi,
+        vision: p.vision,
+        mission: p.mission,
         status: p.status,
       };
     });
@@ -166,6 +168,8 @@ export class StudyProgramsService {
         accreditation: data.accreditation || 'Unggul',
         accreditationAgency: data.accreditationAgency?.trim() || null,
         skAkreditasi: data.skAkreditasi?.trim() || null,
+        vision: data.vision?.trim() || null,
+        mission: data.mission?.trim() || null,
         status: data.status || 'Aktif',
         studentsCount: Number(data.studentsCount) || 0,
         lecturersCount: Number(data.lecturersCount) || 0,
@@ -191,6 +195,8 @@ export class StudyProgramsService {
       accreditation: created.accreditation,
       accreditationAgency: created.accreditationAgency,
       skAkreditasi: created.skAkreditasi,
+      vision: created.vision,
+      mission: created.mission,
       status: created.status,
     };
   }
@@ -215,6 +221,8 @@ export class StudyProgramsService {
         accreditation: data.accreditation !== undefined ? data.accreditation : undefined,
         accreditationAgency: data.accreditationAgency !== undefined ? data.accreditationAgency.trim() : undefined,
         skAkreditasi: data.skAkreditasi !== undefined ? data.skAkreditasi.trim() : undefined,
+        vision: data.vision !== undefined ? data.vision.trim() || null : undefined,
+        mission: data.mission !== undefined ? data.mission.trim() || null : undefined,
         status: data.status !== undefined ? data.status : undefined,
         studentsCount: data.studentsCount !== undefined ? Number(data.studentsCount) : undefined,
         lecturersCount: data.lecturersCount !== undefined ? Number(data.lecturersCount) : undefined,
@@ -240,6 +248,8 @@ export class StudyProgramsService {
       accreditation: updated.accreditation,
       accreditationAgency: updated.accreditationAgency,
       skAkreditasi: updated.skAkreditasi,
+      vision: updated.vision,
+      mission: updated.mission,
       status: updated.status,
     };
   }

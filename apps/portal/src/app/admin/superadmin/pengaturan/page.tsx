@@ -3,34 +3,29 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
+import { BackupPanel } from '@/components/system/BackupPanel';
 import {
-  Calendar, Database, RefreshCw, Save, Globe, Mail, ArrowRight, AlertTriangle, Sliders, Info,
+  Calendar, Globe, ArrowRight, Sliders, Info,
 } from 'lucide-react';
 
 type ToggleSetting = { label: string; desc: string; value: boolean; key: string };
 
 export default function PengaturanSistemPage() {
-  // Toggle & SMTP di bawah ini SENGAJA tidak tersambung ke sistem apa pun — belum ada
-  // feature-flag, mode maintenance, atau penyimpanan kredensial SMTP di backend.
+  // Toggle fitur di bawah ini SENGAJA tidak tersambung ke sistem apa pun — belum ada
+  // feature-flag atau mode maintenance di backend.
   // Jangan dijadikan tempat mengubah pengaturan sungguhan sampai infrastrukturnya dibangun.
   const [maintenanceMode, setMaintenanceMode] = useState(false);
-  const [debugMode, setDebugMode] = useState(false);
   const [emailNotif, setEmailNotif] = useState(true);
   const [pushNotif, setPushNotif] = useState(false);
-  const [smtpHost, setSmtpHost] = useState('');
-  const [smtpPort, setSmtpPort] = useState('587');
-  const [smtpUser, setSmtpUser] = useState('');
 
   const toggles: ToggleSetting[] = [
     { label: 'Mode Maintenance', desc: 'Nonaktifkan akses portal untuk seluruh pengguna sementara', value: maintenanceMode, key: 'maintenance' },
-    { label: 'Mode Debug', desc: 'Aktifkan logging detail untuk troubleshooting sistem', value: debugMode, key: 'debug' },
     { label: 'Notifikasi Email', desc: 'Kirim notifikasi transaksi & akademik via email kampus', value: emailNotif, key: 'email' },
     { label: 'Push Notification', desc: 'Kirim push notifikasi ke aplikasi mobile mahasiswa & dosen', value: pushNotif, key: 'push' },
   ];
 
   const setters: Record<string, (v: boolean) => void> = {
     maintenance: setMaintenanceMode,
-    debug: setDebugMode,
     email: setEmailNotif,
     push: setPushNotif,
   };
@@ -80,42 +75,12 @@ export default function PengaturanSistemPage() {
         <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl p-4">
           <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <div className="text-xs text-amber-800">
-            <p className="font-bold">Bagian di bawah ini belum tersambung ke sistem sebenarnya.</p>
-            <p className="mt-0.5">Belum ada penyimpanan konfigurasi SMTP, mode maintenance/debug sungguhan, backup database otomatis, atau sinkronisasi PDDIKTI manual di sistem ini. Perubahan di bawah tidak akan tersimpan atau berefek apa pun sampai fiturnya dibangun.</p>
+            <p className="font-bold">Pengaturan fitur di bawah ini belum tersambung ke sistem sebenarnya.</p>
+            <p className="mt-0.5">Belum ada mode maintenance sungguhan di sistem ini. Toggle di bawah tidak akan tersimpan atau berefek apa pun sampai fiturnya dibangun.</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Integrasi SMTP (belum tersambung) */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden opacity-90">
-            <div className="flex items-center gap-3 p-5 border-b border-slate-100 bg-slate-50">
-              <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center"><Mail className="w-5 h-5 text-white" /></div>
-              <div className="flex-1">
-                <h2 className="font-bold text-slate-800">Konfigurasi Email (SMTP)</h2>
-                <p className="text-xs text-slate-500">Belum tersedia</p>
-              </div>
-            </div>
-            <div className="p-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2 sm:col-span-1">
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">SMTP Host</label>
-                  <input value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="mis. smtp.itn.ac.id" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all" />
-                </div>
-                <div className="col-span-2 sm:col-span-1">
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Port</label>
-                  <input value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Email Pengirim (From)</label>
-                <input value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} placeholder="mis. noreply@itn.ac.id" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all" />
-              </div>
-              <button disabled title="Belum tersedia — belum ada penyimpanan konfigurasi SMTP di backend" className="w-full flex items-center justify-center gap-2 py-2.5 bg-slate-200 text-slate-500 text-sm font-semibold rounded-xl cursor-not-allowed">
-                <Save className="w-4 h-4" />Belum Tersedia
-              </button>
-            </div>
-          </div>
-
           {/* Toggle fitur (belum tersambung) */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden opacity-90">
             <div className="flex items-center gap-3 p-5 border-b border-slate-100 bg-slate-50">
@@ -145,23 +110,7 @@ export default function PengaturanSistemPage() {
           </div>
         </div>
 
-        {/* Backup Database (belum tersedia) */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 opacity-90">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center"><Database className="w-5 h-5 text-white" /></div>
-            <div>
-              <h3 className="font-bold text-slate-800">Backup Database</h3>
-              <p className="text-xs text-slate-500">Belum tersedia — belum ada mekanisme backup manual dari portal ini</p>
-            </div>
-          </div>
-          <div className="flex items-start gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl p-3 mb-4">
-            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-            <span>Backup database dikelola langsung di level infrastruktur (mis. cron pg_dump di server), bukan dari halaman ini. Hubungi tim infrastruktur untuk jadwal & lokasi backup yang sebenarnya.</span>
-          </div>
-          <button disabled className="w-full flex items-center justify-center gap-2 py-2.5 bg-slate-200 text-slate-500 text-sm font-semibold rounded-xl cursor-not-allowed">
-            <RefreshCw className="w-4 h-4" />Belum Tersedia
-          </button>
-        </div>
+        <BackupPanel />
       </div>
     </PortalLayout>
   );

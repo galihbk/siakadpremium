@@ -1,31 +1,18 @@
-import Image from 'next/image';
+import { loadArticles, fmtArticleDate } from '@/lib/articles';
 import Link from 'next/link';
-import { Calendar, Tag, ArrowRight } from 'lucide-react';
+import { Calendar, ArrowRight, Newspaper } from 'lucide-react';
 
-export function BeritaSection() {
-  const beritaList = [
-    {
-      kategori: 'Prestasi Mahasiswa',
-      tanggal: '3 September 2026',
-      judul: 'Tim Robotika ITN Raih Medali Emas di Ajang International Autonomous Robotics Competition 2026',
-      ringkasan: 'Mengalahkan 48 universitas dari 14 negara, robot karya mahasiswa FIK & FT ITN berhasil memukau dewan juri dengan efisiensi sistem navigasi cerdas.',
-      image: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=700&q=80',
-    },
-    {
-      kategori: 'Riset & Inovasi',
-      tanggal: '28 Agustus 2026',
-      judul: 'Dosen ITN Kembangkan Panel Surya Berbasis Material Organik Ramah Lingkungan untuk Daerah Terpencil',
-      ringkasan: 'Riset unggulan yang didanai Kemendikbudristek ini menawarkan solusi efisiensi energi terbarukan dengan biaya produksi 40% lebih terjangkau bagi masyarakat kepulauan.',
-      image: 'https://images.unsplash.com/photo-1532094349884-543bc11b234d?auto=format&fit=crop&w=700&q=80',
-    },
-    {
-      kategori: 'Kerja Sama Global',
-      tanggal: '20 Agustus 2026',
-      judul: 'ITN Resmi Gandeng Konsorsium Industri Jerman untuk Program Magang dan Double Degree S2',
-      ringkasan: 'Kesepakatan strategis ini membuka peluang 50 mahasiswa ITN setiap semester untuk mengikuti transfer kredit akademik dan penempatan magang profesional di Stuttgart.',
-      image: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=700&q=80',
-    },
-  ];
+export async function BeritaSection() {
+  const { items, failed } = await loadArticles();
+  const beritaList = items.slice(0, 3).map((a) => ({
+    slug: a.slug,
+    kategori: a.category,
+    tanggal: fmtArticleDate(a.publishedAt),
+    judul: a.title,
+    ringkasan: a.excerpt,
+    image: a.imageUrl,
+    oleh: a.authorRole,
+  }));
 
   return (
     <section id="berita" className="py-20 bg-slate-50 border-b border-slate-200/80">
@@ -46,7 +33,7 @@ export function BeritaSection() {
           </div>
 
           <Link
-            href="#cta"
+            href="/berita"
             className="inline-flex items-center gap-2 text-sm font-semibold text-[#1E3A8A] hover:text-[#172554] transition-colors"
           >
             <span>Lihat Semua Berita</span>
@@ -55,21 +42,32 @@ export function BeritaSection() {
         </div>
 
         {/* Grid 3 Berita */}
+        {beritaList.length === 0 && (
+          <p className="text-center text-sm text-slate-400 py-12 border border-dashed border-slate-300 rounded-2xl bg-white">
+            {failed ? 'Berita sementara tidak dapat dimuat.' : 'Belum ada berita yang dipublikasikan.'}
+          </p>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {beritaList.map((berita, idx) => (
+          {beritaList.map((berita) => (
             <article
-              key={idx}
+              key={berita.slug}
               className="bg-white rounded-2xl overflow-hidden border border-slate-200/90 shadow-subtle hover:shadow-card-hover transition-all duration-300 flex flex-col group"
             >
               {/* Thumbnail */}
               <div className="relative h-52 w-full overflow-hidden bg-slate-100">
-                <Image
-                  src={berita.image}
-                  alt={berita.judul}
-                  fill
-                  sizes="(max-width: 768px) 100vw, 33vw"
-                  className="object-cover group-hover:scale-105 transition-transform duration-500"
-                />
+                {berita.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={berita.image}
+                    alt={berita.judul}
+                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                ) : (
+                  <div className="absolute inset-0 bg-gradient-to-br from-[#1E3A8A] to-[#172554] flex items-center justify-center">
+                    <Newspaper className="w-10 h-10 text-white/30" />
+                  </div>
+                )}
                 <div className="absolute top-3 left-3 bg-[#1E3A8A]/90 backdrop-blur-xs text-white text-xs font-medium px-2.5 py-1 rounded-md">
                   {berita.kategori}
                 </div>
@@ -92,10 +90,11 @@ export function BeritaSection() {
                   </p>
                 </div>
 
-                <div className="pt-4 border-t border-slate-100">
+                <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+                  <span className="text-[11px] text-slate-400 truncate">Diunggah oleh {berita.oleh}</span>
                   <Link
-                    href="#cta"
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1E3A8A] hover:text-[#D4A017] transition-colors"
+                    href={`/berita/${berita.slug}`}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1E3A8A] hover:text-[#D4A017] transition-colors shrink-0"
                   >
                     <span>Baca Selengkapnya</span>
                     <ArrowRight className="w-3.5 h-3.5" />

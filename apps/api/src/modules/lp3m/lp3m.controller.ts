@@ -16,6 +16,13 @@ import { Lp3mService } from './lp3m.service';
 export class Lp3mController {
   constructor(private readonly lp3mService: Lp3mService) {}
 
+  // ================= LANDING PAGE PUBLIK (tanpa login) =================
+  @Get('public/landing')
+  @ApiOperation({ summary: 'Data situs publik LP3M: kegiatan terverifikasi, HAKI tersertifikasi, dokumen publik (tanpa login)' })
+  async getPublicLanding() {
+    return this.lp3mService.getPublicLanding();
+  }
+
   // ================= 1. OVERVIEW =================
   @Get('overview')
   @ApiOperation({ summary: 'Mendapatkan statistik ringkasan dan KPI LP3M dari basis data' })

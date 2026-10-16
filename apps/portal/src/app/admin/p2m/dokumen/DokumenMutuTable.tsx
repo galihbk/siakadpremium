@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { Search, Plus, RefreshCw, Loader2, Check, Trash2, ArrowLeft, FileText, ExternalLink } from 'lucide-react';
 import { getApiBaseUrl } from '@/lib/api';
+import { getAuthSession } from '@/lib/auth';
 import { useSortedPagination } from '@/lib/useSortedPagination';
 import { SortableTh } from '@/components/common/SortableTh';
 import { TablePagination } from '@/components/common/TablePagination';
@@ -93,7 +94,7 @@ export function DokumenMutuTable({ initialDocuments }: { initialDocuments: Quali
     try {
       const uploadBody = new FormData();
       uploadBody.append('file', pendingFile);
-      const uploadRes = await fetch(`${apiBase}/storage/upload?folder=p2m-documents`, { method: 'POST', body: uploadBody });
+      const uploadRes = await fetch(`${apiBase}/storage/upload?folder=p2m-documents`, { method: 'POST', headers: getAuthSession().token ? { Authorization: `Bearer ${getAuthSession().token}` } : {}, body: uploadBody });
       const uploadJson = await uploadRes.json().catch(() => null);
       const uploaded = uploadJson?.data?.data || uploadJson?.data;
       if (!uploadRes.ok || !uploaded?.key) {

@@ -52,6 +52,8 @@ RUN cd /standalone && DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dumm
 # ------------------------------------------------------------------------------
 FROM base AS runner
 WORKDIR /app
+# pg_dump untuk fitur backup database (versi klien harus >= versi server: postgres 16)
+RUN apk add --no-cache postgresql16-client
 ENV NODE_ENV=production
 ENV PORT=3001
 
@@ -63,7 +65,8 @@ COPY --from=builder /standalone/package.json ./package.json
 COPY --from=builder /app/apps/api/dist               ./dist
 COPY --from=builder /standalone/prisma              ./prisma
 
-RUN mkdir -p uploads
+RUN mkdir -p uploads backups
+ENV BACKUP_DIR=/app/backups
 
 EXPOSE 3001
 CMD ["node", "dist/main.js"]

@@ -31,6 +31,7 @@ import { ThesisModule } from './modules/thesis/thesis.module';
 import { GraduationModule } from './modules/graduation/graduation.module';
 import { ExamsModule } from './modules/exams/exams.module';
 import { ProdiModule } from './modules/prodi/prodi.module';
+import { BackupsModule } from './modules/backups/backups.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -78,6 +79,7 @@ import { AppService } from './app.service';
     GraduationModule,
     ExamsModule,
     ProdiModule,
+    BackupsModule,
   ],
   controllers: [AppController],
   providers: [

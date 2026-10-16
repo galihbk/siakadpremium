@@ -46,6 +46,8 @@ export class FacultiesController {
       establishedYear?: number;
       accreditation?: string;
       skAkreditasi?: string;
+      vision?: string;
+      mission?: string;
     }
   ) {
     return this.facultiesService.create(body);
@@ -66,6 +68,8 @@ export class FacultiesController {
       establishedYear?: number;
       accreditation?: string;
       skAkreditasi?: string;
+      vision?: string;
+      mission?: string;
     }
   ) {
     return this.facultiesService.update(id, body);
