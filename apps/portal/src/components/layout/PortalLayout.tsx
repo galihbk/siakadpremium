@@ -13,6 +13,7 @@ import {
 } from '@/lib/auth';
 import { getApiBaseUrl } from '@/lib/api';
 import { useUnreadUpdates } from '@/lib/updates/useUnreadUpdates';
+import { DOCS_ENABLED, isDocsPath } from '@/lib/features';
 import { getInstitutionProfile, FALLBACK_INSTITUTION_PROFILE, type InstitutionProfile } from '@/lib/institution';
 import {
   GraduationCap,
@@ -704,7 +705,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
     },
   ];
 
-  const navGroups =
+  const allNavGroups =
     effectiveRole === 'student'
       ? studentNavGroups
       : effectiveRole === 'lecturer'
@@ -724,6 +725,13 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                     : effectiveRole === 'pmb'
                       ? pmbNavGroups
                       : adminNavGroups;
+
+  // Menu dokumentasi disembunyikan selama DOCS_ENABLED=false (mode demo); grup yang jadi kosong ikut dibuang.
+  const navGroups = DOCS_ENABLED
+    ? allNavGroups
+    : allNavGroups
+        .map((g) => ({ ...g, items: g.items.filter((i) => !isDocsPath(i.href)) }))
+        .filter((g) => g.items.length > 0);
 
   const roleLabel =
     effectiveRole === 'student'

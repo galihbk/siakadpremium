@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, BookOpen, Check, Copy, Info, Lightbulb, Printer, Search } from 'lucide-react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
+import { DOCS_ENABLED } from '@/lib/features';
 
 type PortalRole = React.ComponentProps<typeof PortalLayout>['role'];
 import type { DocBlock, DocSection } from '@/lib/docs/types';
@@ -163,6 +164,20 @@ export function DocsViewer({ docs, role, title, subtitle, version, userName = ''
     els.forEach((el) => obs.observe(el));
     return () => obs.disconnect();
   }, [sections]);
+
+  if (!DOCS_ENABLED) {
+    return (
+      <PortalLayout role={role} userName={userName} userIdText={userIdText}>
+        <div className="max-w-xl mx-auto mt-16 bg-white rounded-2xl border border-slate-200 shadow-sm p-10 text-center">
+          <BookOpen className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+          <h1 className="text-lg font-black text-slate-800">Dokumentasi belum tersedia</h1>
+          <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
+            Halaman ini ditutup sementara selama sistem berjalan dalam mode demo.
+          </p>
+        </div>
+      </PortalLayout>
+    );
+  }
 
   return (
     <PortalLayout role={role} userName={userName} userIdText={userIdText}>
