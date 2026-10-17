@@ -1,4 +1,7 @@
+'use client';
+
 import { PortalLayout } from '@/components/layout/PortalLayout';
+import { ClientLoad } from '@/components/common/ClientLoad';
 import { getApiBaseUrl } from '@/lib/api';
 import { TahunAkademikTable, type AcademicYearItem } from './TahunAkademikTable';
 
@@ -15,12 +18,14 @@ async function getAcademicYears(): Promise<AcademicYearItem[]> {
   }
 }
 
-export default async function AdminTahunAkademikPage() {
-  const years = await getAcademicYears();
-
+export default function AdminTahunAkademikPage() {
   return (
     <PortalLayout role="admin" userName="Admin BAAK" userIdText="Biro Administrasi Akademik & Kemahasiswaan">
-      <TahunAkademikTable initialYears={years} />
+      <ClientLoad load={getAcademicYears}>
+        {(years) => (
+        <TahunAkademikTable initialYears={years} />
+        )}
+      </ClientLoad>
     </PortalLayout>
   );
 }

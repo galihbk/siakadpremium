@@ -234,7 +234,7 @@ export const BAAK_DOCS: DocSection[] = [
         head: ['Tab', 'Fungsi'],
         rows: [
           ['Tarik', 'Ambil data dari Feeder ke sistem lokal.'],
-          ['Kirim', 'Kirim data lokal yang dipilih (kotak centang) ke Feeder.'],
+          ['Kirim', 'Kirim data lokal yang dipilih (kotak centang) ke Feeder. Tersedia untuk Mahasiswa, Riwayat Pendidikan, AKM, Kelas Perkuliahan, KRS, dan Nilai; Push Kelas/KRS/Nilai hanya dapat dijalankan Super Admin (BAAK dapat melihat jumlah yang siap dan tertahan).'],
           ['Update ke Feeder', 'Satu tabel dengan kolom Perbandingan: yang berbeda ditampilkan selisihnya dan diurutkan di atas.'],
         ],
       },

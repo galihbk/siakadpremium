@@ -1,4 +1,7 @@
+'use client';
+
 import { PortalLayout } from '@/components/layout/PortalLayout';
+import { ClientLoad } from '@/components/common/ClientLoad';
 import { getApiBaseUrl } from '@/lib/api';
 import { TindakLanjutTable, type AuditFollowUp } from './TindakLanjutTable';
 
@@ -15,12 +18,14 @@ async function getOpenAudits(): Promise<AuditFollowUp[]> {
   }
 }
 
-export default async function AdminP2mTindakLanjutPage() {
-  const audits = await getOpenAudits();
-
+export default function AdminP2mTindakLanjutPage() {
   return (
     <PortalLayout role="p2m" userName="" userIdText="">
-      <TindakLanjutTable initialAudits={audits} />
+      <ClientLoad load={getOpenAudits}>
+        {(audits) => (
+        <TindakLanjutTable initialAudits={audits} />
+        )}
+      </ClientLoad>
     </PortalLayout>
   );
 }

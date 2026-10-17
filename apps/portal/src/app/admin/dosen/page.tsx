@@ -1,4 +1,7 @@
+'use client';
+
 import { PortalLayout } from '@/components/layout/PortalLayout';
+import { ClientLoad } from '@/components/common/ClientLoad';
 import { getApiBaseUrl } from '@/lib/api';
 import { DosenTable, type LecturerData } from './DosenTable';
 
@@ -14,12 +17,14 @@ async function getLecturers(): Promise<LecturerData[]> {
   }
 }
 
-export default async function AdminDosenPage() {
-  const lecturers = await getLecturers();
-
+export default function AdminDosenPage() {
   return (
     <PortalLayout role="admin" userName="Admin BAAK" userIdText="Biro Administrasi Akademik & Kemahasiswaan">
-      <DosenTable initialLecturers={lecturers} />
+      <ClientLoad load={getLecturers}>
+        {(lecturers) => (
+        <DosenTable initialLecturers={lecturers} />
+        )}
+      </ClientLoad>
     </PortalLayout>
   );
 }

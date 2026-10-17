@@ -1,4 +1,7 @@
+'use client';
+
 import { PortalLayout } from '@/components/layout/PortalLayout';
+import { ClientLoad } from '@/components/common/ClientLoad';
 import { getApiBaseUrl } from '@/lib/api';
 import { ValidasiRpsTable, type RpsRow } from './ValidasiRpsTable';
 
@@ -14,12 +17,14 @@ async function getRpsList(): Promise<RpsRow[]> {
   }
 }
 
-export default async function AdminP2mValidasiRpsPage() {
-  const rpsList = await getRpsList();
-
+export default function AdminP2mValidasiRpsPage() {
   return (
     <PortalLayout role="p2m" userName="" userIdText="">
-      <ValidasiRpsTable initialRps={rpsList} />
+      <ClientLoad load={getRpsList}>
+        {(rpsList) => (
+        <ValidasiRpsTable initialRps={rpsList} />
+        )}
+      </ClientLoad>
     </PortalLayout>
   );
 }

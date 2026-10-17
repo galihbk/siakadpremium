@@ -1,4 +1,7 @@
+'use client';
+
 import { PortalLayout } from '@/components/layout/PortalLayout';
+import { ClientLoad } from '@/components/common/ClientLoad';
 import { getApiBaseUrl } from '@/lib/api';
 import { MahasiswaTable, type StudentData } from './MahasiswaTable';
 
@@ -14,12 +17,14 @@ async function getStudents(): Promise<StudentData[]> {
   }
 }
 
-export default async function AdminMahasiswaPage() {
-  const students = await getStudents();
-
+export default function AdminMahasiswaPage() {
   return (
     <PortalLayout role="admin" userName="Admin BAAK" userIdText="Biro Administrasi Akademik & Kemahasiswaan">
-      <MahasiswaTable initialStudents={students} />
+      <ClientLoad load={getStudents}>
+        {(students) => (
+        <MahasiswaTable initialStudents={students} />
+        )}
+      </ClientLoad>
     </PortalLayout>
   );
 }

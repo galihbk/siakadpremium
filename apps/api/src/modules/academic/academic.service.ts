@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { AdminDashboardSummary } from '@siakad/types';
 
@@ -1376,6 +1376,22 @@ export class AcademicService {
     if (!year.gradeInputStartDate || !year.gradeInputEndDate) return false;
     const now = new Date();
     return now < year.gradeInputStartDate || now > year.gradeInputEndDate;
+  }
+
+  /** ID dosen dari akun yang login (null bila akun bukan dosen). */
+  async lecturerIdOfUser(userId?: string): Promise<string | null> {
+    if (!userId) return null;
+    const l = await this.prisma.lecturer.findUnique({ where: { userId }, select: { id: true } });
+    return l?.id ?? null;
+  }
+
+  /** Dosen hanya boleh mengakses/mengisi nilai kelas yang ia ampu. */
+  async assertLecturerOwnsClass(userId: string | undefined, classId: string) {
+    const lecturerId = await this.lecturerIdOfUser(userId);
+    if (!lecturerId) throw new ForbiddenException('Akun ini bukan akun dosen.');
+    const cc = await this.prisma.courseClass.findUnique({ where: { id: classId }, select: { lecturerId: true } });
+    if (!cc) throw new NotFoundException('Kelas tidak ditemukan.');
+    if (cc.lecturerId !== lecturerId) throw new ForbiddenException('Anda bukan dosen pengampu kelas ini.');
   }
 
   async getGradeClasses(lecturerId?: string, academicYearId?: string) {

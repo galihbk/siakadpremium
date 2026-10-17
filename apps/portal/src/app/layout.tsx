@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { CopyrightBanner } from '@/components/CopyrightBanner';
+import { AuthFetchInstaller } from '@/components/AuthFetchInstaller';
 import './globals.css';
 
 export default function RootLayout({
@@ -33,6 +34,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen bg-slate-50 text-slate-900 antialiased">
         <CopyrightBanner />
+        <AuthFetchInstaller />
         <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
       </body>
     </html>

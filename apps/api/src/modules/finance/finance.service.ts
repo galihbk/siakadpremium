@@ -1,4 +1,4 @@
-﻿import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+﻿import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { AttendanceService } from '../attendance/attendance.service';
 
@@ -525,6 +525,25 @@ export class FinanceService {
       spent: Number(dto.spent) || 0,
       ...(dto.academicYear ? { academicYear: String(dto.academicYear) } : {}),
     };
+  }
+
+  /** NIM mahasiswa yang login (dari token). Dipakai agar mahasiswa hanya menyentuh tagihannya sendiri. */
+  private async ownNim(user: { sub?: string }): Promise<string> {
+    const st = user?.sub
+      ? await this.prisma.student.findUnique({ where: { userId: user.sub }, select: { nim: true } })
+      : null;
+    if (!st) throw new ForbiddenException('Akun ini bukan akun mahasiswa.');
+    return st.nim;
+  }
+
+  async assertOwnNim(user: { sub?: string }, nim: string) {
+    if ((await this.ownNim(user)) !== nim) throw new ForbiddenException('Anda hanya dapat melihat tagihan milik Anda sendiri.');
+  }
+
+  async assertOwnInvoice(user: { sub?: string }, invoiceId: string) {
+    const trx = await this.prisma.paymentInvoice.findUnique({ where: { id: invoiceId }, select: { nim: true } });
+    if (!trx) throw new NotFoundException('Tagihan tidak ditemukan.');
+    if ((await this.ownNim(user)) !== trx.nim) throw new ForbiddenException('Tagihan ini bukan milik Anda.');
   }
 
   async getTransactions(query?: { status?: string; search?: string; type?: string }) {

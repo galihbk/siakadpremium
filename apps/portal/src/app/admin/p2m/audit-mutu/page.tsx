@@ -1,4 +1,7 @@
+'use client';
+
 import { PortalLayout } from '@/components/layout/PortalLayout';
+import { ClientLoad } from '@/components/common/ClientLoad';
 import { getApiBaseUrl } from '@/lib/api';
 import { AuditMutuTable, type AuditData } from './AuditMutuTable';
 
@@ -14,12 +17,14 @@ async function getAudits(): Promise<AuditData[]> {
   }
 }
 
-export default async function AdminP2mAuditMutuPage() {
-  const audits = await getAudits();
-
+export default function AdminP2mAuditMutuPage() {
   return (
     <PortalLayout role="p2m" userName="" userIdText="">
-      <AuditMutuTable initialAudits={audits} />
+      <ClientLoad load={getAudits}>
+        {(audits) => (
+        <AuditMutuTable initialAudits={audits} />
+        )}
+      </ClientLoad>
     </PortalLayout>
   );
 }

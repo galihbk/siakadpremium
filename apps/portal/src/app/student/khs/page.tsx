@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
+import { SignatureBlock } from '@/components/common/SignatureBlock';
 import { getAuthSession, AuthUser } from '@/lib/auth';
 import { getApiBaseUrl } from '@/lib/api';
 import {
@@ -544,6 +545,14 @@ export default function HasilStudiKHSPage() {
             </div>
           )}
         </div>
+
+        {/* Tanda tangan sesuai Aturan Tanda Tangan (Super Admin) -- ikut tercetak */}
+        <SignatureBlock
+          documentCode="KHS"
+          studentId={studentProfile.id}
+          place={undefined}
+          date={new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+        />
 
         {/* PERFORMANCE & GRADE DISTRIBUTION CHART BOX */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 print:hidden">

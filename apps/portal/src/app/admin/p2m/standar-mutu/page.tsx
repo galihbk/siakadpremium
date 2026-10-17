@@ -1,4 +1,7 @@
+'use client';
+
 import { PortalLayout } from '@/components/layout/PortalLayout';
+import { ClientLoad } from '@/components/common/ClientLoad';
 import { getApiBaseUrl } from '@/lib/api';
 import { StandarMutuTable, type StandardData } from './StandarMutuTable';
 
@@ -14,12 +17,14 @@ async function getStandards(): Promise<StandardData[]> {
   }
 }
 
-export default async function AdminP2mStandarMutuPage() {
-  const standards = await getStandards();
-
+export default function AdminP2mStandarMutuPage() {
   return (
     <PortalLayout role="p2m" userName="" userIdText="">
-      <StandarMutuTable initialStandards={standards} />
+      <ClientLoad load={getStandards}>
+        {(standards) => (
+        <StandarMutuTable initialStandards={standards} />
+        )}
+      </ClientLoad>
     </PortalLayout>
   );
 }

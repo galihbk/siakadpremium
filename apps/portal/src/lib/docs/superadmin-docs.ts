@@ -109,7 +109,7 @@ export const SUPERADMIN_DOCS: DocSection[] = [
     blocks: [
       {
         t: 'p',
-        text: 'Setiap akun memiliki satu peran. Peran menentukan area portal yang dapat dibuka dan endpoint API yang boleh dipanggil. Pembatasan dijaga di dua lapis: pengalihan di portal, dan yang terpenting pemeriksaan token di API (JwtAuthGuard + RolesGuard).',
+        text: 'Setiap akun memiliki satu peran. Peran menentukan area portal yang dapat dibuka dan endpoint API yang boleh dipanggil. Pembatasan dijaga di dua lapis: pengalihan di portal, dan yang terpenting pemeriksaan token di API. Seluruh endpoint API wajib login kecuali daftar publik yang sengaja dibuka (situs publik, login, dan pendaftar PMB); kelompok endpoint sensitif juga dibatasi per peran (lihat bagian Keamanan & Audit).',
       },
       {
         t: 'table',
@@ -301,7 +301,6 @@ export const SUPERADMIN_DOCS: DocSection[] = [
         t: 'ul',
         items: [
           'Backup Database: buat dan unduh backup (lihat bagian Backup & Pemulihan).',
-          'Pengaturan Fitur (Mode Maintenance, Notifikasi): masih berupa pratinjau dan belum tersambung ke sistem.',
         ],
       },
     ],
@@ -678,7 +677,7 @@ export const SUPERADMIN_DOCS: DocSection[] = [
         head: ['Tab', 'Fungsi'],
         rows: [
           ['Tarik (Pull)', 'Mengambil data dari Feeder ke lokal. Data dicocokkan lewat ID Feeder yang stabil, lalu NIM/NIDN bila perlu. Email dari Feeder dipakai bila ada; email buatan sistem tidak dikirim balik ke Feeder.'],
-          ['Kirim (Push)', 'Mengirim data lokal ke Feeder; dapat memilih baris dengan kotak centang.'],
+          ['Kirim (Push)', 'Mengirim data lokal ke Feeder; dapat memilih baris dengan kotak centang. Tersedia untuk Mahasiswa, Riwayat Pendidikan, AKM, Kelas Perkuliahan (beserta dosen pengajar), KRS (peserta kelas), dan Nilai. Push Kelas/KRS/Nilai hanya dapat dijalankan Super Admin dan diproses per batch (50 kelas / 200 KRS / 200 nilai).'],
           ['Update ke Feeder', 'Satu tabel dengan kolom Perbandingan yang menampilkan selisih (mis. NIK berbeda) dan mengurutkan yang berbeda di atas. Bandingkan dahulu, lalu perbarui yang perlu.'],
         ],
       },
@@ -689,6 +688,21 @@ export const SUPERADMIN_DOCS: DocSection[] = [
           'Kolom status menandai data yang sudah tersinkron.',
           'Nilai dan KRS diproses per semester karena penarikan tanpa filter semester sangat lambat (sekitar 15 detik per 500 baris).',
           'Proses panjang berjalan sebagai job latar belakang agar tidak terkena timeout Cloudflare.',
+        ],
+      },
+      {
+        t: 'h3',
+        text: 'Syarat dan perilaku Push Kelas, KRS, dan Nilai',
+      },
+      {
+        t: 'ul',
+        items: [
+          'Urutan wajib: Mata Kuliah → Kelas → KRS → Nilai. Mahasiswa harus sudah punya registrasi (riwayat pendidikan) di Feeder.',
+          'Feeder hanya menerima perubahan untuk semester yang periodenya aktif; selain itu ditolak dengan pesan "Periode data di luar periode aktif".',
+          'Kelas: nama kelas maksimal 5 karakter; mata kuliah harus tergabung dalam kurikulum prodi di Feeder. Dosen pengajar ikut dikirim bila dosen punya ID Feeder dan penugasannya di tahun itu ada di Feeder; bila tidak, kelas tetap terdaftar dan alasannya dicatat per baris.',
+          'KRS: hanya yang berstatus Disetujui. Peserta yang sudah ada di Feeder hanya ditautkan (tidak dobel).',
+          'Nilai: hanya nilai berstatus Terbit untuk peserta yang sudah terdaftar di kelas Feeder.',
+          'Setiap baris yang gagal mencatat alasannya dan dapat dicoba lagi pada proses berikutnya.',
         ],
       },
       {
@@ -855,7 +869,7 @@ export const SUPERADMIN_DOCS: DocSection[] = [
         t: 'note',
         kind: 'warn',
         title: 'Cakupan penerapan',
-        text: 'Saat ini aturan dipakai pada pratinjau surat mahasiswa (penandatangan 1). Halaman KHS dan KRS serta penandatangan 2 belum membaca aturan ini. Endpoint pengelolaan aturan (tambah/hapus) belum dikunci per peran dan sebaiknya dilindungi.',
+        text: 'Aturan dipakai pada pratinjau surat mahasiswa (penandatangan 1 dan 2) dan pada blok tanda tangan KHS yang ikut tercetak. KRS belum memiliki tampilan cetak sehingga aturannya belum dipakai. Mengelola aturan (tambah/ubah/hapus) hanya untuk Super Admin.',
       },
     ],
   },
@@ -939,7 +953,11 @@ export const SUPERADMIN_DOCS: DocSection[] = [
         t: 'ul',
         items: [
           'Autentikasi memakai JWT; endpoint login dibatasi 10 percobaan per menit dan seluruh API dibatasi 120 permintaan per menit per alamat.',
-          'Endpoint sensitif memakai JwtAuthGuard dan RolesGuard dengan daftar peran eksplisit.',
+          'Penjaga global (GlobalAuthGuard): SEMUA endpoint wajib membawa token yang valid kecuali daftar publik di apps/api/src/common/guards/global-auth.guard.ts (situs publik, login, berkas bertanda tangan, serta pendaftaran/login/opsi PMB). Tambahkan ke daftar itu hanya bila memang untuk publik.',
+          'Pembatasan peran pada kelompok sensitif: /users dan pengelolaan aturan tanda tangan (Super Admin); /employees dan /shifts (SDM); /finance (Keuangan, kecuali tagihan/transaksi yang juga diakses mahasiswa); /admissions (Panitia PMB/BAAK); /lp3m dan /p2m (unit masing-masing). Mengubah fakultas/program studi hanya Super Admin.',
+          'Pendaftar PMB memakai JWT sungguhan (peran PMB_APPLICANT, berlaku 7 hari) yang hanya sah untuk /admissions/pmb/*; identitas pendaftar selalu dari token dan tagihan hanya bisa dibayar oleh pemiliknya. Token lama berbentuk pmb_token_... tidak berlaku lagi (pendaftar perlu login ulang sekali).',
+          'Mahasiswa hanya dapat melihat tagihannya sendiri dan mengirim bukti bayar untuk tagihannya; dosen hanya dapat melihat dan mengisi nilai kelas yang ia ampu; pengunci nilai semester hanya BAAK.',
+          'Portal menyisipkan token otomatis pada setiap panggilan ke /api/v1; halaman yang dulu mengambil data di server kini mengambilnya di browser dengan token.',
           'Berita: membuat memerlukan peran BAAK/Prodi/PMB/P2M/LP3M/Super Admin; mengubah/menghapus dibatasi pemilik untuk Prodi, PMB, P2M, dan LP3M.',
           'Unggahan berkas wajib login dan setiap berkas dicatat di tabel uploaded_files (siapa, kapan, ukuran, folder). Berkas publik hanya yang diunggah dengan isPrivate=false.',
           'Berita mencatat penulis (authorId dan role publik) dan pengubah terakhir (updatedById).',
@@ -950,8 +968,8 @@ export const SUPERADMIN_DOCS: DocSection[] = [
       {
         t: 'note',
         kind: 'warn',
-        title: 'Yang masih terbuka dan perlu dikunci',
-        text: 'Beberapa endpoint lama belum memakai login: pengelolaan aturan tanda tangan, tambah/ubah program studi, serta endpoint baca/ubah modul P2M dan LP3M (documents, audits, research, haki). Prioritaskan penguncian sebelum sistem dipakai dengan data riil.',
+        title: 'Keterbatasan yang diketahui',
+        text: 'Kepemilikan data sudah dijaga untuk jalur utama (tagihan mahasiswa, nilai dan kelas dosen, data pendaftar PMB) dan pembatasan peran untuk operasi tulis di modul akademik, surat, dan master data. Endpoint baca lain yang hanya "harus login" (mis. daftar tahun akademik atau detail dosen) masih dapat dibaca peran mana pun yang sudah login. Tinjau ulang bila ada data yang sangat sensitif di luar yang disebut.',
       },
       {
         t: 'note',

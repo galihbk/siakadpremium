@@ -1,4 +1,7 @@
+'use client';
+
 import { PortalLayout } from '@/components/layout/PortalLayout';
+import { ClientLoad } from '@/components/common/ClientLoad';
 import { getApiBaseUrl } from '@/lib/api';
 import { KurikulumTable, type CourseData } from './KurikulumTable';
 
@@ -14,12 +17,14 @@ async function getCourses(): Promise<CourseData[]> {
   }
 }
 
-export default async function AdminKurikulumPage() {
-  const courses = await getCourses();
-
+export default function AdminKurikulumPage() {
   return (
     <PortalLayout role="admin" userName="Admin BAAK" userIdText="Biro Administrasi Akademik & Kemahasiswaan">
-      <KurikulumTable initialCourses={courses} />
+      <ClientLoad load={getCourses}>
+        {(courses) => (
+        <KurikulumTable initialCourses={courses} />
+        )}
+      </ClientLoad>
     </PortalLayout>
   );
 }

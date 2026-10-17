@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { CopyrightBanner } from '@/components/CopyrightBanner';
+import { AuthFetchInstaller } from '@/components/AuthFetchInstaller';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -17,6 +18,7 @@ export default function RootLayout({
     <html lang="id" className="scroll-smooth">
       <body className="min-h-screen bg-white text-slate-800 antialiased selection:bg-[#1E3A8A] selection:text-white">
         <CopyrightBanner />
+        <AuthFetchInstaller />
         {children}
       </body>
     </html>

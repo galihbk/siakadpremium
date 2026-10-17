@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getAuthSession } from '@/lib/auth';
 import { useServerTable } from '@/lib/useServerTable';
+import { FeederPushPanel } from '@/components/feeder/FeederPushPanel';
 import { TablePagination } from '@/components/ui/TablePagination';
 import {
   ShieldCheck,
@@ -302,25 +303,7 @@ export default function SinkronisasiKrsPage() {
         </div>
 
         {/* Action Card: Tab Push */}
-        {activeTab === 'push' && (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
-            <div className="flex items-start gap-2 text-xs p-3 rounded-xl border bg-amber-50 border-amber-200 text-amber-800">
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>
-                Push KRS ke Feeder (mendaftarkan mahasiswa ke kelas lewat <b>InsertPesertaKelasKuliah</b>) belum tersedia. Fitur
-                ini bergantung pada Push Kelas Perkuliahan: kelas lokal harus sudah punya ID Feeder dulu, baru peserta kelasnya
-                bisa dikirim.
-              </span>
-            </div>
-            <button
-              disabled
-              className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold text-slate-400 bg-slate-100 border border-slate-200 rounded-xl cursor-not-allowed"
-            >
-              <ArrowUpFromLine className="w-4 h-4" />
-              <span>Push ke Feeder (belum tersedia)</span>
-            </button>
-          </div>
-        )}
+        {activeTab === 'push' && <FeederPushPanel kind="krs" onDone={() => krsTable.reload()} />}
 
         {/* Action Card: Tab Pull */}
         {activeTab === 'pull' && (

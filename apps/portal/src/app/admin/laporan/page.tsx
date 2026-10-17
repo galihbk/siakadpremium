@@ -395,13 +395,6 @@ export default function LaporanDanPddiktiPage() {
     });
   }, [anomalies, anomalyFilter]);
 
-  // Handler: Sinkronisasi push/pull ke Dikti BELUM TERSEDIA -- sistem ini belum punya
-  // integrasi pengiriman sungguhan ke Web Service Neo Feeder, jadi aksi ini hanya
-  // memberi tahu pengguna dengan jujur alih-alih berpura-pura mengirim data.
-  const handleStartSync = (_entity: FeederEntity | null, _direction: 'push' | 'pull' = 'push') => {
-    showToast('Integrasi pengiriman data ke Dikti (Web Service Neo Feeder) belum tersedia di sistem ini.');
-  };
-
   // Handler: Quick Fix Anomaly
   const handleSaveAnomalyFix = () => {
     if (!selectedAnomaly) return;
@@ -546,25 +539,13 @@ export default function LaporanDanPddiktiPage() {
               <span>Ekspor Dokumen</span>
             </button>
 
-            <button
-              onClick={() => handleStartSync(null, 'pull')}
-              disabled
-              title="Belum tersedia — integrasi pengiriman data ke Dikti belum dibangun"
-              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-slate-400 bg-slate-100 border border-slate-200 rounded-xl cursor-not-allowed"
-            >
-              <ArrowDownToLine className="w-4 h-4" />
-              <span>Pull Semua</span>
-            </button>
-
-            <button
-              onClick={() => handleStartSync(null, 'push')}
-              disabled
-              title="Belum tersedia — integrasi pengiriman data ke Dikti belum dibangun"
-              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-black text-slate-400 bg-slate-100 border border-slate-200 rounded-xl cursor-not-allowed"
+            <Link
+              href="/admin/laporan/sinkronisasi-feeder"
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-black text-white bg-[#1E3A8A] hover:bg-blue-900 rounded-xl shadow-xs transition-all active:scale-[0.98]"
             >
               <ArrowUpFromLine className="w-4 h-4" />
-              <span>Push Semua</span>
-            </button>
+              <span>Buka Sinkronisasi Feeder</span>
+            </Link>
           </div>
         </div>
 

@@ -4,9 +4,11 @@ import {
   UnauthorizedException,
   NotFoundException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import {
   RegisterPmbAccountDto,
@@ -57,7 +59,13 @@ export class PmbService {
     private feeRulesService: FeeRulesService,
     private storageService: StorageService,
     private mailService: MailService,
+    private jwtService: JwtService,
   ) {}
+
+  /** Token pendaftar PMB: JWT sungguhan (bukan string tebakan) dengan peran khusus yang hanya boleh ke /admissions/pmb/*. */
+  private issueApplicantToken(account: { id: string; email: string }) {
+    return this.jwtService.sign({ sub: account.id, email: account.email, role: 'PMB_APPLICANT' }, { expiresIn: '7d' });
+  }
 
   /**
    * Helper konversi file/base64 dokumen PMB ke Storage (Local Server Disk atau Cloudflare R2)
@@ -307,7 +315,7 @@ export class PmbService {
           return {
             success: true,
             message: 'Login berhasil.',
-            token: `pmb_token_${pmbAcc.id}`,
+            token: this.issueApplicantToken(pmbAcc),
             account: {
               id: pmbAcc.id,
               fullName: pmbAcc.fullName,
@@ -341,7 +349,7 @@ export class PmbService {
     return {
       success: true,
       message: 'Login berhasil.',
-      token: `pmb_token_${account.id}`,
+      token: this.issueApplicantToken(account),
       account: {
         id: account.id,
         fullName: account.fullName,
@@ -895,13 +903,18 @@ export class PmbService {
   /**
    * Upload bukti pembayaran (Registrasi atau Daftar Ulang)
    */
-  async uploadPaymentProof(paymentId: string, dto: UploadPaymentProofDto) {
+  async uploadPaymentProof(paymentId: string, dto: UploadPaymentProofDto, accountId?: string) {
     const payment = await this.prisma.admissionPayment.findUnique({
       where: { id: paymentId },
+      include: { application: { select: { accountId: true } } },
     });
 
     if (!payment) {
       throw new NotFoundException('Tagihan pembayaran tidak ditemukan.');
+    }
+    // Pendaftar hanya boleh mengunggah bukti untuk tagihannya sendiri.
+    if (accountId && payment.application?.accountId !== accountId) {
+      throw new ForbiddenException('Tagihan ini bukan milik akun Anda.');
     }
 
     let proofUrl = dto.proofUrl;

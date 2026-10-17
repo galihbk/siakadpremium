@@ -184,20 +184,26 @@ export default function LayananSuratPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [previewLetter, setPreviewLetter] = useState<LetterRequest | null>(null);
   const [previewSigner, setPreviewSigner] = useState<ResolvedSigner | null>(null);
+  const [previewSigner2, setPreviewSigner2] = useState<ResolvedSigner | null>(null);
 
   useEffect(() => {
     if (!previewLetter) {
       setPreviewSigner(null);
+      setPreviewSigner2(null);
       return;
     }
     const params = new URLSearchParams({ documentCode: previewLetter.typeCode });
     if (profile?.studentId) params.set('studentId', profile.studentId);
     fetch(`${getApiBaseUrl()}/document-signatures/resolve?${params.toString()}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => setPreviewSigner(j?.data?.signer1 ?? null))
+      .then((j) => {
+        setPreviewSigner(j?.data?.signer1 ?? null);
+        setPreviewSigner2(j?.data?.signer2 ?? null);
+      })
       .catch((err) => {
         console.warn('Gagal memuat aturan tanda tangan surat:', err);
         setPreviewSigner(null);
+        setPreviewSigner2(null);
       });
   }, [previewLetter, profile?.studentId]);
   const [trackingLetter, setTrackingLetter] = useState<LetterRequest | null>(null);
@@ -885,6 +891,16 @@ export default function LayananSuratPage() {
                     <p>Nomor tiket pengajuan</p>
                     <p className="font-mono mt-0.5">{previewLetter.requestNo}</p>
                   </div>
+                  {previewSigner2 && (
+                    <div className="mt-5 space-y-1 text-xs">
+                      <p>Mengetahui,</p>
+                      <p className="font-bold text-slate-800">{previewSigner2.roleLabel},</p>
+                      <div className="h-12" />
+                      <p className={`font-bold ${previewSigner2.name ? 'text-slate-900' : 'text-slate-400 italic'}`}>
+                        {previewSigner2.name ?? '(belum ditetapkan)'}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="text-right space-y-1">

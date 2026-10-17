@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AcademicService } from './academic.service';
 
@@ -209,19 +209,27 @@ export class AcademicController {
 
   @Get('grades/classes')
   @ApiOperation({ summary: 'Mendapatkan daftar kelas yang memiliki entri nilai' })
-  async getGradeClasses(@Query('lecturerId') lecturerId?: string, @Query('academicYearId') academicYearId?: string) {
+  async getGradeClasses(@Req() req: any, @Query('lecturerId') lecturerId?: string, @Query('academicYearId') academicYearId?: string) {
+    // Dosen hanya melihat kelasnya sendiri: parameter lecturerId dari klien diabaikan.
+    if (req.user?.role === 'LECTURER') {
+      const own = await this.academicService.lecturerIdOfUser(req.user.sub);
+      if (!own) throw new ForbiddenException('Akun ini bukan akun dosen.');
+      lecturerId = own;
+    }
     return this.academicService.getGradeClasses(lecturerId, academicYearId);
   }
 
   @Get('grades/classes/:classId')
   @ApiOperation({ summary: 'Mendapatkan daftar mahasiswa dan nilai pada suatu kelas' })
-  async getClassEnrollments(@Param('classId') classId: string) {
+  async getClassEnrollments(@Param('classId') classId: string, @Req() req: any) {
+    if (req.user?.role === 'LECTURER') await this.academicService.assertLecturerOwnsClass(req.user.sub, classId);
     return this.academicService.getClassEnrollments(classId);
   }
 
   @Post('grades/save')
   @ApiOperation({ summary: 'Menyimpan atau menerbitkan nilai mahasiswa suatu kelas secara batch' })
-  async saveBatchGrades(@Body() body: { classId: string; grades: any[]; isFinalSubmit?: boolean }) {
+  async saveBatchGrades(@Body() body: { classId: string; grades: any[]; isFinalSubmit?: boolean }, @Req() req: any) {
+    if (req.user?.role === 'LECTURER') await this.academicService.assertLecturerOwnsClass(req.user.sub, body.classId);
     return this.academicService.saveBatchGrades(body.classId, {
       grades: body.grades,
       isFinalSubmit: body.isFinalSubmit,

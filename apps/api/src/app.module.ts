@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { JwtModule } from '@nestjs/jwt';
+import { GlobalAuthGuard } from './common/guards/global-auth.guard';
 import { PrismaModule } from './shared/prisma/prisma.module';
 import { RedisModule } from './shared/redis/redis.module';
 import { MailModule } from './shared/mail/mail.module';
@@ -37,6 +39,14 @@ import { AppService } from './app.service';
 
 @Module({
   imports: [
+    // JwtService untuk GlobalAuthGuard (rahasia sama dengan AuthModule).
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        secret: config.get<string>('JWT_SECRET', 'siakad_premium_jwt_secret_2026'),
+      }),
+    }),
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env.local', '.env', '../../.env'],
@@ -85,6 +95,8 @@ import { AppService } from './app.service';
   providers: [
     AppService,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // Semua endpoint wajib login kecuali yang terdaftar publik (lihat global-auth.guard.ts).
+    { provide: APP_GUARD, useClass: GlobalAuthGuard },
   ],
 })
 export class AppModule {}

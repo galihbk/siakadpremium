@@ -1368,6 +1368,7 @@ export class IntegrationSettingsService {
       academicYear: c.academicYear ? `${c.academicYear.name} (${c.academicYear.code})` : '',
       lecturerName: c.lecturer?.user?.fullName ?? null,
       lecturerNidn: c.lecturer?.nidn || c.lecturer?.nuptk || null,
+      lastError: c.feederSyncError ?? null,
     }));
   }
 
@@ -4470,6 +4471,435 @@ export class IntegrationSettingsService {
   }
 
   /** Menjalankan `worker` atas tiap elemen `items` dengan batas jumlah proses paralel -- dipakai supaya panggilan ke Feeder per-kelas tidak membanjiri servernya sekaligus (2000+ kelas) tapi tetap lebih cepat dari sekuensial murni. */
+  // =====================================================================================
+  // PUSH KELAS PERKULIAHAN, KRS (PESERTA KELAS) & NILAI KE FEEDER
+  //
+  // Field & act mengikuti GetDictionary resmi Feeder: InsertKelasKuliah,
+  // InsertDosenPengajarKelasKuliah, InsertPesertaKelasKuliah, UpdateNilaiPerkuliahanKelas.
+  // Semua MENULIS ke basis data Feeder -- hanya Super Admin (lihat controller). Setiap data dicek
+  // dulu ke Feeder supaya tidak membuat duplikat; yang sudah ada hanya ditautkan.
+  // =====================================================================================
+
+  private pushEmptyResult(message: string) {
+    return { success: false, message, processed: 0, created: 0, linked: 0, failed: 0, skipped: 0, failReasons: {} as Record<string, number> };
+  }
+
+  private pushReasonText(failReasons: Record<string, number>) {
+    return Object.keys(failReasons).length
+      ? ` Alasan gagal: ${Object.entries(failReasons).map(([r, n]) => `${r} (${n})`).join('; ')}.`
+      : '';
+  }
+
+  /** Ringkasan Push KRS/Nilai: berapa yang siap dikirim dan berapa yang tertahan (beserta penyebabnya). */
+  async getPendingKrsNilaiPush() {
+    const [krsReady, krsNoClass, krsNoStudent, nilaiReady, nilaiWaitingKrs] = await Promise.all([
+      this.prisma.courseEnrollment.count({
+        where: { status: 'APPROVED', feederSyncedAt: null, courseClass: { feederId: { not: null } }, student: { feederRegistrationId: { not: null } } },
+      }),
+      this.prisma.courseEnrollment.count({
+        where: { status: 'APPROVED', feederSyncedAt: null, OR: [{ courseClassId: null }, { courseClass: { feederId: null } }] },
+      }),
+      this.prisma.courseEnrollment.count({
+        where: { status: 'APPROVED', feederSyncedAt: null, courseClass: { feederId: { not: null } }, student: { feederRegistrationId: null } },
+      }),
+      this.prisma.courseEnrollment.count({
+        where: { gradeStatus: 'FINAL', gradeLetter: { not: null }, feederSyncedAt: { not: null }, feederGradeSyncedAt: null },
+      }),
+      this.prisma.courseEnrollment.count({
+        where: { gradeStatus: 'FINAL', gradeLetter: { not: null }, feederSyncedAt: null },
+      }),
+    ]);
+    return {
+      krs: { ready: krsReady, blockedClassNotInFeeder: krsNoClass, blockedStudentNotInFeeder: krsNoStudent },
+      nilai: { ready: nilaiReady, blockedKrsNotInFeeder: nilaiWaitingKrs },
+    };
+  }
+
+  /**
+   * Push kelas perkuliahan lokal yang belum punya feederId (`InsertKelasKuliah`), lalu -- bila dosen
+   * pengampu punya ID Feeder dan penugasannya di tahun itu ditemukan -- mengirim dosen pengajarnya
+   * (`InsertDosenPengajarKelasKuliah`). Kegagalan dosen pengajar TIDAK membatalkan kelas; dicatat
+   * sebagai peringatan pada baris kelas.
+   */
+  async pushKelasKuliahBaruToFeeder(classIds?: string[]) {
+    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    if (!setting?.baseUrl || !setting?.username || !setting?.password) {
+      return this.pushEmptyResult('Konfigurasi Web Service Neo Feeder belum lengkap. Lengkapi dulu di menu Pengaturan DIKTI.');
+    }
+
+    const LIMIT_PER_RUN = 50;
+    try {
+      const token = await this.getFeederToken(setting.baseUrl, setting.username, setting.password);
+      const prodiFeederIdByCode = await this.getProdiFeederIdByCode(setting.baseUrl, token);
+
+      const eligible = await this.prisma.courseClass.findMany({
+        where: { feederId: null, ...(classIds && classIds.length > 0 ? { id: { in: classIds } } : {}) },
+        include: {
+          course: { include: { studyProgram: true } },
+          academicYear: { select: { code: true } },
+          lecturer: { select: { feederId: true } },
+        },
+        take: LIMIT_PER_RUN,
+        orderBy: { createdAt: 'asc' },
+      });
+
+      let processed = 0;
+      let created = 0;
+      let linked = 0;
+      let failed = 0;
+      let skipped = 0;
+      let lecturersSent = 0;
+      let lecturersPending = 0;
+      const failReasons: Record<string, number> = {};
+      const markFailed = async (id: string, reason: string) => {
+        failed += 1;
+        failReasons[reason] = (failReasons[reason] || 0) + 1;
+        await this.prisma.courseClass.update({ where: { id }, data: { feederSyncError: reason, feederSyncErrorAt: new Date() } }).catch(() => null);
+      };
+
+      for (const cls of eligible) {
+        processed += 1;
+        const diktiCode = cls.course.studyProgram?.diktiCode?.trim();
+        const idProdi = diktiCode ? prodiFeederIdByCode.get(diktiCode) : undefined;
+        if (!idProdi) {
+          skipped += 1;
+          await this.prisma.courseClass
+            .update({ where: { id: cls.id }, data: { feederSyncError: 'Program studi belum tersinkron ke Feeder (kode PDDIKTI tidak cocok).', feederSyncErrorAt: new Date() } })
+            .catch(() => null);
+          continue;
+        }
+        if (!cls.course.feederId) {
+          await markFailed(cls.id, 'Mata kuliah belum terdaftar di Feeder -- Push mata kuliah lebih dulu.');
+          continue;
+        }
+        const semesterId = cls.academicYear?.code;
+        if (!semesterId || semesterId.length !== 5) {
+          await markFailed(cls.id, 'Kode tahun akademik tidak berformat ID semester Feeder (5 karakter, mis. 20261).');
+          continue;
+        }
+        const name = (cls.className || '').trim();
+        if (!name || name.length > 5) {
+          await markFailed(cls.id, `Nama kelas "${name}" melebihi batas Feeder (maksimal 5 karakter).`);
+          continue;
+        }
+
+        let idKelas: string | null = null;
+        try {
+          const { data: found, errorCode, errorDesc } = await this.callFeeder(setting.baseUrl, {
+            act: 'GetListKelasKuliah',
+            token,
+            filter:
+              `id_prodi = '${this.escapeFeederFilter(idProdi)}' and id_semester = '${this.escapeFeederFilter(semesterId)}' ` +
+              `and id_matkul = '${this.escapeFeederFilter(cls.course.feederId)}' and nama_kelas_kuliah = '${this.escapeFeederFilter(name)}'`,
+            limit: 1,
+            offset: 0,
+          });
+          if (errorCode !== '0') throw new Error(errorDesc || 'Respon Feeder tidak valid');
+          const hit = Array.isArray(found) ? found[0] : null;
+          if (hit?.id_kelas_kuliah) {
+            idKelas = String(hit.id_kelas_kuliah);
+            await this.prisma.courseClass.update({ where: { id: cls.id }, data: { feederId: idKelas, feederSyncError: null, feederSyncErrorAt: null } });
+            linked += 1;
+          }
+        } catch (err: any) {
+          await markFailed(cls.id, `Gagal cek data di Feeder: ${err?.message || 'Unknown error'}`);
+          continue;
+        }
+
+        if (!idKelas) {
+          const { data: ins, errorCode, errorDesc } = await this.callFeeder(setting.baseUrl, {
+            act: 'InsertKelasKuliah',
+            token,
+            record: {
+              id_prodi: idProdi,
+              id_semester: semesterId,
+              id_matkul: cls.course.feederId,
+              nama_kelas_kuliah: name,
+              kapasitas: cls.quota,
+            },
+          });
+          if (errorCode !== '0' || !ins?.id_kelas_kuliah) {
+            await markFailed(cls.id, `Insert kelas ditolak Feeder: ${errorDesc || 'tanpa keterangan'}`);
+            continue;
+          }
+          idKelas = String(ins.id_kelas_kuliah);
+          await this.prisma.courseClass.update({ where: { id: cls.id }, data: { feederId: idKelas, feederSyncError: null, feederSyncErrorAt: null } });
+          created += 1;
+        }
+
+        // ---- dosen pengajar (opsional, tidak membatalkan kelas bila gagal)
+        let warning: string | null = null;
+        if (!cls.lecturer?.feederId) {
+          warning = 'Kelas terdaftar, tetapi dosen pengajar belum dikirim: dosen pengampu belum punya ID Feeder (atau belum ditetapkan).';
+        } else {
+          try {
+            const { data: pen, errorCode: penErr } = await this.callFeeder(setting.baseUrl, {
+              act: 'GetListPenugasanDosen',
+              token,
+              filter: `id_dosen = '${this.escapeFeederFilter(cls.lecturer.feederId)}' and id_prodi = '${this.escapeFeederFilter(idProdi)}' and id_tahun_ajaran = '${this.escapeFeederFilter(semesterId.slice(0, 4))}'`,
+              limit: 1,
+              offset: 0,
+            });
+            const idReg = penErr === '0' && Array.isArray(pen) ? pen[0]?.id_registrasi_dosen : null;
+            if (!idReg) {
+              warning = `Kelas terdaftar, tetapi dosen pengajar belum dikirim: penugasan dosen tahun ${semesterId.slice(0, 4)} di prodi ini tidak ditemukan di Feeder.`;
+            } else {
+              const { errorCode: dErr, errorDesc: dDesc } = await this.callFeeder(setting.baseUrl, {
+                act: 'InsertDosenPengajarKelasKuliah',
+                token,
+                record: {
+                  id_registrasi_dosen: idReg,
+                  id_kelas_kuliah: idKelas,
+                  sks_substansi_total: cls.course.sks,
+                  rencana_minggu_pertemuan: 16,
+                  id_jenis_evaluasi: 1,
+                },
+              });
+              if (dErr === '0' || dErr === '1192') lecturersSent += 1; // 1192 = "Data Dosen Pengajar sudah ada"
+              else warning = `Kelas terdaftar, tetapi dosen pengajar ditolak Feeder: ${dDesc || 'tanpa keterangan'}`;
+            }
+          } catch (err: any) {
+            warning = `Kelas terdaftar, tetapi dosen pengajar gagal dikirim: ${err?.message || 'Unknown error'}`;
+          }
+        }
+        if (warning) {
+          lecturersPending += 1;
+          await this.prisma.courseClass.update({ where: { id: cls.id }, data: { feederSyncError: warning, feederSyncErrorAt: new Date() } }).catch(() => null);
+        }
+      }
+
+      try {
+        await this.prisma.systemAuditLog.create({
+          data: {
+            action: 'KELAS_PUSH_TO_FEEDER',
+            detail: `Push kelas ke Feeder: ${processed} diproses, ${created} dibuat, ${linked} ditautkan, ${failed} gagal, ${skipped} dilewati; dosen pengajar terkirim ${lecturersSent}, tertunda ${lecturersPending}.`,
+          },
+        });
+      } catch {
+        // non-blocking
+      }
+
+      const remaining = await this.prisma.courseClass.count({ where: { feederId: null } });
+      return {
+        success: true,
+        message:
+          `Push selesai: ${processed} diproses, ${created} kelas baru dibuat di Feeder, ${linked} sudah ada (ditautkan), ${failed} gagal, ${skipped} dilewati. ` +
+          `Dosen pengajar terkirim: ${lecturersSent}; tertunda: ${lecturersPending}.` +
+          (remaining > 0 ? ` Masih ada ${remaining} kelas belum terdaftar -- jalankan Push lagi untuk lanjut.` : '') +
+          this.pushReasonText(failReasons),
+        processed,
+        created,
+        linked,
+        failed,
+        skipped,
+        failReasons,
+      };
+    } catch (err: any) {
+      return this.pushEmptyResult(`Gagal push data kelas: ${err?.message || 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Push KRS = mendaftarkan mahasiswa sebagai peserta kelas (`InsertPesertaKelasKuliah`). Hanya KRS
+   * berstatus APPROVED yang kelasnya sudah ber-ID Feeder dan mahasiswanya sudah punya
+   * id_registrasi_mahasiswa. Dicek dulu via GetDetailNilaiPerkuliahanKelas agar tidak dobel.
+   */
+  async pushKrsToFeeder(enrollmentIds?: string[]) {
+    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    if (!setting?.baseUrl || !setting?.username || !setting?.password) {
+      return this.pushEmptyResult('Konfigurasi Web Service Neo Feeder belum lengkap. Lengkapi dulu di menu Pengaturan DIKTI.');
+    }
+    const LIMIT_PER_RUN = 200;
+    try {
+      const token = await this.getFeederToken(setting.baseUrl, setting.username, setting.password);
+      const eligible = await this.prisma.courseEnrollment.findMany({
+        where: {
+          status: 'APPROVED',
+          feederSyncedAt: null,
+          courseClass: { feederId: { not: null } },
+          student: { feederRegistrationId: { not: null } },
+          ...(enrollmentIds && enrollmentIds.length > 0 ? { id: { in: enrollmentIds } } : {}),
+        },
+        select: { id: true, courseClass: { select: { feederId: true } }, student: { select: { feederRegistrationId: true } } },
+        take: LIMIT_PER_RUN,
+        orderBy: { createdAt: 'asc' },
+      });
+
+      let created = 0;
+      let linked = 0;
+      let failed = 0;
+      const failReasons: Record<string, number> = {};
+      await this.runWithConcurrency(eligible, 5, async (e) => {
+        const idKelas = e.courseClass!.feederId!;
+        const idReg = e.student.feederRegistrationId!;
+        const fail = async (reason: string) => {
+          failed += 1;
+          failReasons[reason] = (failReasons[reason] || 0) + 1;
+          await this.prisma.courseEnrollment.update({ where: { id: e.id }, data: { feederSyncError: reason } }).catch(() => null);
+        };
+        try {
+          const { data: found, errorCode, errorDesc } = await this.callFeeder(setting.baseUrl, {
+            act: 'GetDetailNilaiPerkuliahanKelas',
+            token,
+            filter: `id_kelas_kuliah = '${this.escapeFeederFilter(idKelas)}' and id_registrasi_mahasiswa = '${this.escapeFeederFilter(idReg)}'`,
+            limit: 1,
+            offset: 0,
+          });
+          if (errorCode !== '0') throw new Error(errorDesc || 'Respon Feeder tidak valid');
+          if (Array.isArray(found) && found.length > 0) {
+            await this.prisma.courseEnrollment.update({ where: { id: e.id }, data: { feederSyncedAt: new Date(), feederSyncError: null } });
+            linked += 1;
+            return;
+          }
+          const { errorCode: insErr, errorDesc: insDesc } = await this.callFeeder(setting.baseUrl, {
+            act: 'InsertPesertaKelasKuliah',
+            token,
+            record: { id_kelas_kuliah: idKelas, id_registrasi_mahasiswa: idReg },
+          });
+          if (insErr === '119') {
+            // "Data yang akan ditambahkan sudah ada" -- peserta sudah terdaftar di Feeder: cukup ditautkan.
+            await this.prisma.courseEnrollment.update({ where: { id: e.id }, data: { feederSyncedAt: new Date(), feederSyncError: null } });
+            linked += 1;
+            return;
+          }
+          if (insErr !== '0') {
+            await fail(`Insert peserta kelas ditolak Feeder: ${insDesc || 'tanpa keterangan'}`);
+            return;
+          }
+          await this.prisma.courseEnrollment.update({ where: { id: e.id }, data: { feederSyncedAt: new Date(), feederSyncError: null } });
+          created += 1;
+        } catch (err: any) {
+          await fail(`Gagal memproses: ${err?.message || 'Unknown error'}`);
+        }
+      });
+
+      try {
+        await this.prisma.systemAuditLog.create({
+          data: { action: 'KRS_PUSH_TO_FEEDER', detail: `Push KRS ke Feeder: ${eligible.length} diproses, ${created} terdaftar baru, ${linked} sudah ada, ${failed} gagal.` },
+        });
+      } catch {
+        // non-blocking
+      }
+
+      const pending = await this.getPendingKrsNilaiPush();
+      return {
+        success: true,
+        message:
+          `Push KRS selesai: ${eligible.length} diproses, ${created} peserta baru didaftarkan di Feeder, ${linked} sudah ada (ditautkan), ${failed} gagal.` +
+          (pending.krs.ready > 0 ? ` Masih ada ${pending.krs.ready} KRS siap kirim -- jalankan Push lagi untuk lanjut.` : '') +
+          (pending.krs.blockedClassNotInFeeder + pending.krs.blockedStudentNotInFeeder > 0
+            ? ` Tertahan: ${pending.krs.blockedClassNotInFeeder} (kelas belum di Feeder), ${pending.krs.blockedStudentNotInFeeder} (mahasiswa belum punya registrasi di Feeder).`
+            : '') +
+          this.pushReasonText(failReasons),
+        processed: eligible.length,
+        created,
+        linked,
+        failed,
+        skipped: 0,
+        failReasons,
+      };
+    } catch (err: any) {
+      return this.pushEmptyResult(`Gagal push KRS: ${err?.message || 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Push nilai (`UpdateNilaiPerkuliahanKelas`) untuk peserta yang sudah terdaftar di kelas Feeder.
+   * Hanya nilai berstatus FINAL yang punya huruf nilai.
+   */
+  async pushNilaiToFeeder(enrollmentIds?: string[]) {
+    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    if (!setting?.baseUrl || !setting?.username || !setting?.password) {
+      return this.pushEmptyResult('Konfigurasi Web Service Neo Feeder belum lengkap. Lengkapi dulu di menu Pengaturan DIKTI.');
+    }
+    const LIMIT_PER_RUN = 200;
+    try {
+      const token = await this.getFeederToken(setting.baseUrl, setting.username, setting.password);
+      const eligible = await this.prisma.courseEnrollment.findMany({
+        where: {
+          gradeStatus: 'FINAL',
+          gradeLetter: { not: null },
+          feederSyncedAt: { not: null },
+          feederGradeSyncedAt: null,
+          courseClass: { feederId: { not: null } },
+          student: { feederRegistrationId: { not: null } },
+          ...(enrollmentIds && enrollmentIds.length > 0 ? { id: { in: enrollmentIds } } : {}),
+        },
+        select: {
+          id: true,
+          totalScore: true,
+          gradeLetter: true,
+          gradePoint: true,
+          courseClass: { select: { feederId: true } },
+          student: { select: { feederRegistrationId: true } },
+        },
+        take: LIMIT_PER_RUN,
+        orderBy: { updatedAt: 'asc' },
+      });
+
+      let updated = 0;
+      let failed = 0;
+      const failReasons: Record<string, number> = {};
+      await this.runWithConcurrency(eligible, 5, async (e) => {
+        try {
+          // Nilai HARUS dikirim sebagai string: bila berupa angka JSON, Feeder menjawab 1178
+          // ("Data Nilai Perkuliahan Kelas ... tidak ditemukan") walau pesertanya ada (terverifikasi di Feeder).
+          const record: Record<string, string> = { nilai_huruf: String(e.gradeLetter) };
+          if (e.totalScore != null) record.nilai_angka = (Math.round(e.totalScore * 10) / 10).toFixed(1);
+          if (e.gradePoint != null) record.nilai_indeks = e.gradePoint.toFixed(2);
+          const { errorCode, errorDesc } = await this.callFeeder(setting.baseUrl, {
+            act: 'UpdateNilaiPerkuliahanKelas',
+            token,
+            key: { id_registrasi_mahasiswa: e.student.feederRegistrationId, id_kelas_kuliah: e.courseClass!.feederId },
+            record,
+          });
+          if (errorCode !== '0') {
+            const reason = `Update nilai ditolak Feeder: ${errorDesc || 'tanpa keterangan'}`;
+            failed += 1;
+            failReasons[reason] = (failReasons[reason] || 0) + 1;
+            await this.prisma.courseEnrollment.update({ where: { id: e.id }, data: { feederGradeSyncError: reason } }).catch(() => null);
+            return;
+          }
+          await this.prisma.courseEnrollment.update({ where: { id: e.id }, data: { feederGradeSyncedAt: new Date(), feederGradeSyncError: null } });
+          updated += 1;
+        } catch (err: any) {
+          const reason = `Gagal memproses: ${err?.message || 'Unknown error'}`;
+          failed += 1;
+          failReasons[reason] = (failReasons[reason] || 0) + 1;
+          await this.prisma.courseEnrollment.update({ where: { id: e.id }, data: { feederGradeSyncError: reason } }).catch(() => null);
+        }
+      });
+
+      try {
+        await this.prisma.systemAuditLog.create({
+          data: { action: 'NILAI_PUSH_TO_FEEDER', detail: `Push nilai ke Feeder: ${eligible.length} diproses, ${updated} berhasil, ${failed} gagal.` },
+        });
+      } catch {
+        // non-blocking
+      }
+
+      const pending = await this.getPendingKrsNilaiPush();
+      return {
+        success: true,
+        message:
+          `Push nilai selesai: ${eligible.length} diproses, ${updated} nilai terkirim, ${failed} gagal.` +
+          (pending.nilai.ready > 0 ? ` Masih ada ${pending.nilai.ready} nilai siap kirim -- jalankan Push lagi untuk lanjut.` : '') +
+          (pending.nilai.blockedKrsNotInFeeder > 0
+            ? ` Tertahan: ${pending.nilai.blockedKrsNotInFeeder} nilai karena peserta belum terdaftar di kelas Feeder (Push KRS dulu).`
+            : '') +
+          this.pushReasonText(failReasons),
+        processed: eligible.length,
+        created: updated,
+        linked: 0,
+        failed,
+        skipped: 0,
+        failReasons,
+      };
+    } catch (err: any) {
+      return this.pushEmptyResult(`Gagal push nilai: ${err?.message || 'Unknown error'}`);
+    }
+  }
+
   private async runWithConcurrency<T>(items: T[], concurrency: number, worker: (item: T) => Promise<void>): Promise<void> {
     let index = 0;
     const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {

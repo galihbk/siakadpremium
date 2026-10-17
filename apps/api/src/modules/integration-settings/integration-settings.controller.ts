@@ -387,6 +387,34 @@ export class IntegrationSettingsController {
     return this.integrationSettingsService.pushMataKuliahBaruToFeeder(body?.courseIds);
   }
 
+  @Post('pddikti/kelas-kuliah/push')
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Push kelas perkuliahan (+ dosen pengajar) ke Web Service Neo Feeder PDDIKTI (Khusus Super Admin)' })
+  async pushKelasKuliahBaruToFeeder(@Body() body: { classIds?: string[] }) {
+    return this.integrationSettingsService.pushKelasKuliahBaruToFeeder(body?.classIds);
+  }
+
+  @Get('pddikti/krs-nilai/pending-push')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Jumlah KRS dan nilai yang siap/tertahan untuk dikirim ke Feeder' })
+  async getPendingKrsNilaiPush() {
+    return this.integrationSettingsService.getPendingKrsNilaiPush();
+  }
+
+  @Post('pddikti/krs/push')
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Push KRS (peserta kelas) ke Web Service Neo Feeder PDDIKTI (Khusus Super Admin)' })
+  async pushKrsToFeeder(@Body() body: { enrollmentIds?: string[] }) {
+    return this.integrationSettingsService.pushKrsToFeeder(body?.enrollmentIds);
+  }
+
+  @Post('pddikti/nilai/push')
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Push nilai perkuliahan ke Web Service Neo Feeder PDDIKTI (Khusus Super Admin)' })
+  async pushNilaiToFeeder(@Body() body: { enrollmentIds?: string[] }) {
+    return this.integrationSettingsService.pushNilaiToFeeder(body?.enrollmentIds);
+  }
+
   @Post('pddikti/kurikulum/push')
   @Roles(UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: 'Push kurikulum lokal yang belum terdaftar ke Web Service Neo Feeder PDDIKTI (Khusus Super Admin)' })

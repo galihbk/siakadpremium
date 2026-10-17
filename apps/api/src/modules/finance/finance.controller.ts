@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Query, Body } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Query, Body, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { FinanceService } from './finance.service';
 import { FeeRulesService } from './fee-rules.service';
@@ -35,7 +35,8 @@ export class FinanceController {
 
   @Post('transactions/:id/submit-payment')
   @ApiOperation({ summary: 'Mahasiswa mengirim pembayaran (kanal otomatis) atau mengunggah bukti transfer manual' })
-  async submitStudentPayment(@Param('id') id: string, @Body() body: { channel: string; proofUrl?: string }) {
+  async submitStudentPayment(@Param('id') id: string, @Body() body: { channel: string; proofUrl?: string }, @Req() req: any) {
+    if (req.user?.role === 'STUDENT') await this.financeService.assertOwnInvoice(req.user, id);
     return await this.financeService.submitStudentPayment(id, body);
   }
 
@@ -47,7 +48,8 @@ export class FinanceController {
 
   @Get('invoices/student/:nim')
   @ApiOperation({ summary: 'Mendapatkan semua tagihan mahasiswa berdasarkan NIM' })
-  async getInvoicesByStudent(@Param('nim') nim: string) {
+  async getInvoicesByStudent(@Param('nim') nim: string, @Req() req: any) {
+    if (req.user?.role === 'STUDENT') await this.financeService.assertOwnNim(req.user, nim);
     return await this.financeService.getInvoicesByStudent(nim);
   }
 

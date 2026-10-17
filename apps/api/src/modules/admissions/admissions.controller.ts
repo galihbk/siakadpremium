@@ -239,8 +239,9 @@ export class AdmissionsController {
 
   @Get('pmb/me')
   @ApiOperation({ summary: 'Profil dan Data Pendaftaran Calon Mahasiswa Login' })
-  async pmbProfile(@Query('accountId') accountId: string, @Query('email') email?: string) {
-    return this.pmbService.getMyProfile(accountId || email || '');
+  async pmbProfile(@Req() req: any) {
+    // Identitas dari token pendaftar -- parameter accountId/email dari klien tidak dipercaya.
+    return this.pmbService.getMyProfile(req.user.sub);
   }
 
   @Get('pmb/options')
@@ -257,22 +258,20 @@ export class AdmissionsController {
 
   @Put('pmb/draft')
   @ApiOperation({ summary: 'Simpan Draf Formulir PMB' })
-  async pmbSaveDraft(@Query('accountId') accountIdQuery: string, @Body() dto: SaveApplicationDraftDto) {
-    const accountId = accountIdQuery || dto.accountId || dto.email || '';
-    return this.pmbService.saveDraft(accountId, dto);
+  async pmbSaveDraft(@Req() req: any, @Body() dto: SaveApplicationDraftDto) {
+    return this.pmbService.saveDraft(req.user.sub, { ...dto, accountId: req.user.sub, email: undefined } as SaveApplicationDraftDto);
   }
 
   @Post('pmb/submit')
   @ApiOperation({ summary: 'Submit Formulir PMB (Generate Nomor Pendaftaran & Buat Tagihan Registrasi)' })
-  async pmbSubmit(@Query('accountId') accountIdQuery: string, @Body() dto: SaveApplicationDraftDto) {
-    const accountId = accountIdQuery || dto.accountId || dto.email || '';
-    return this.pmbService.submitApplication(accountId, dto);
+  async pmbSubmit(@Req() req: any, @Body() dto: SaveApplicationDraftDto) {
+    return this.pmbService.submitApplication(req.user.sub, { ...dto, accountId: req.user.sub, email: undefined } as SaveApplicationDraftDto);
   }
 
   @Post('pmb/payments/:id/pay')
   @ApiOperation({ summary: 'Upload Bukti Pembayaran (Registrasi / Daftar Ulang)' })
-  async pmbUploadPayment(@Param('id') paymentId: string, @Body() dto: UploadPaymentProofDto) {
-    return this.pmbService.uploadPaymentProof(paymentId, dto);
+  async pmbUploadPayment(@Param('id') paymentId: string, @Body() dto: UploadPaymentProofDto, @Req() req: any) {
+    return this.pmbService.uploadPaymentProof(paymentId, dto, req.user.sub);
   }
 
   // Admin PMB Endpoints

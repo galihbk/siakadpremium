@@ -33,7 +33,8 @@ export default function LecturerDashboardPage() {
   const [profile, setProfile] = useState<any>(null);
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [advisees, setAdvisees] = useState<AdviseeItem[]>([]);
-  const [thesisCount, setThesisCount] = useState(0);
+  // Bimbingan skripsi dihitung dari modul Tugas Akhir (/thesis/lecturer), bukan dari mahasiswa PA.
+  const [thesis, setThesis] = useState({ supervising: 0, examining: 0 });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -49,11 +50,16 @@ export default function LecturerDashboardPage() {
       fetch(`${apiBase}/auth/me`, { headers }).then(unwrap).catch(() => null),
       fetch(`${apiBase}/lecturers/schedules`, { headers }).then(unwrap).catch(() => null),
       fetch(`${apiBase}/lecturers/advisees`, { headers }).then(unwrap).catch(() => null),
-    ]).then(([me, sch, adv]) => {
+      fetch(`${apiBase}/thesis/lecturer`, { headers }).then(unwrap).catch(() => null),
+    ]).then(([me, sch, adv, th]) => {
       setProfile(me);
       setSchedules(Array.isArray(sch) ? sch : []);
       setAdvisees(Array.isArray(adv?.students) ? adv.students : []);
-      setThesisCount(adv?.summary?.thesisStudents ?? 0);
+      const items: { myRole?: string }[] = Array.isArray(th?.items) ? th.items : [];
+      setThesis({
+        supervising: items.filter((i) => i.myRole === 'PEMBIMBING').length,
+        examining: items.filter((i) => i.myRole === 'PENGUJI').length,
+      });
       setIsLoading(false);
     });
   }, []);
@@ -143,8 +149,10 @@ export default function LecturerDashboardPage() {
                 <GraduationCap className="w-4 h-4" />
               </div>
             </div>
-            <p className="text-3xl font-extrabold text-slate-900">{thesisCount} <span className="text-base font-normal text-slate-500">Mahasiswa</span></p>
-            <p className="text-xs text-slate-500 mt-1">Data bimbingan skripsi belum tersedia</p>
+            <p className="text-3xl font-extrabold text-slate-900">{thesis.supervising} <span className="text-base font-normal text-slate-500">Mahasiswa</span></p>
+            <p className="text-xs text-slate-500 mt-1">
+              {thesis.supervising + thesis.examining === 0 ? 'Belum ada bimbingan skripsi' : `Sebagai penguji: ${thesis.examining} mahasiswa`}
+            </p>
           </div>
 
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-subtle">

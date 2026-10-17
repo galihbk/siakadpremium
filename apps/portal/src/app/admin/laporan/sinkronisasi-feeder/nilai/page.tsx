@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getAuthSession } from '@/lib/auth';
 import { useServerTable } from '@/lib/useServerTable';
+import { FeederPushPanel } from '@/components/feeder/FeederPushPanel';
 import { TablePagination } from '@/components/ui/TablePagination';
 import {
   ShieldCheck,
@@ -228,25 +229,7 @@ export default function SinkronisasiNilaiPage() {
         </div>
 
         {/* Action Card: Tab Push */}
-        {activeTab === 'push' && (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
-            <div className="flex items-start gap-2 text-xs p-3 rounded-xl border bg-amber-50 border-amber-200 text-amber-800">
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>
-                Push nilai ke Feeder (mengirim nilai lokal lewat <b>UpdateNilaiPerkuliahanKelas</b>) belum tersedia. Nilai hanya
-                bisa dikirim ke peserta yang sudah terdaftar di kelas Feeder, jadi bergantung pada Push Kelas Perkuliahan dan Push
-                KRS. Tabel di bawah menampilkan nilai lokal yang <b>belum cocok dengan Feeder</b> (kandidat Push nanti).
-              </span>
-            </div>
-            <button
-              disabled
-              className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold text-slate-400 bg-slate-100 border border-slate-200 rounded-xl cursor-not-allowed"
-            >
-              <ArrowUpFromLine className="w-4 h-4" />
-              <span>Push ke Feeder (belum tersedia)</span>
-            </button>
-          </div>
-        )}
+        {activeTab === 'push' && <FeederPushPanel kind="nilai" onDone={() => nilaiTable.reload()} />}
 
         {/* Action Card: Tab Pull */}
         {activeTab === 'pull' && (

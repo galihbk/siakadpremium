@@ -166,7 +166,7 @@ export default function AdminAturanPembiayaanPage() {
         fetch(`${apiBase}/admissions/admin/pmb/registration-types`, { cache: 'no-store' }),
         fetch(`${apiBase}/admissions/admin/pmb/tracks`, { cache: 'no-store' }),
         fetch(`${apiBase}/admissions/admin/pmb/classes`, { cache: 'no-store' }),
-        fetch(`${apiBase}/admissions/admin/pmb/batches`, { cache: 'no-store' }),
+        fetch(`${apiBase}/admissions/admin/pmb/waves`, { cache: 'no-store' }),
         fetch(`${apiBase}/study-programs`, { cache: 'no-store' }),
       ]);
 

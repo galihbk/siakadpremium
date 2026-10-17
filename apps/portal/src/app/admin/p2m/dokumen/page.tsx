@@ -1,4 +1,7 @@
+'use client';
+
 import { PortalLayout } from '@/components/layout/PortalLayout';
+import { ClientLoad } from '@/components/common/ClientLoad';
 import { getApiBaseUrl } from '@/lib/api';
 import { DokumenMutuTable, type QualityDocumentData } from './DokumenMutuTable';
 
@@ -14,12 +17,14 @@ async function getDocuments(): Promise<QualityDocumentData[]> {
   }
 }
 
-export default async function AdminP2mDokumenPage() {
-  const documents = await getDocuments();
-
+export default function AdminP2mDokumenPage() {
   return (
     <PortalLayout role="p2m" userName="" userIdText="">
-      <DokumenMutuTable initialDocuments={documents} />
+      <ClientLoad load={getDocuments}>
+        {(documents) => (
+        <DokumenMutuTable initialDocuments={documents} />
+        )}
+      </ClientLoad>
     </PortalLayout>
   );
 }

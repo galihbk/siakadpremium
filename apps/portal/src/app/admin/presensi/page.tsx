@@ -1,4 +1,7 @@
+'use client';
+
 import { PortalLayout } from '@/components/layout/PortalLayout';
+import { ClientLoad } from '@/components/common/ClientLoad';
 import { getApiBaseUrl } from '@/lib/api';
 import { PresensiTable, type ClassAttendance, type AcademicYearOption } from './PresensiTable';
 
@@ -29,14 +32,21 @@ async function getAttendanceOverview(academicYearId: string): Promise<ClassAtten
   }
 }
 
-export default async function AdminPresensiPage() {
+async function loadPresensi() {
   const years = await getYears();
   const activeYearId = years.find((y) => y.isActive)?.id || '';
   const attendances = await getAttendanceOverview(activeYearId);
+  return { years, activeYearId, attendances };
+}
 
+export default function AdminPresensiPage() {
   return (
     <PortalLayout role="admin" userName="Admin BAAK" userIdText="Biro Administrasi Akademik & Kemahasiswaan" activeMenuHref="/admin/presensi">
-      <PresensiTable initialAttendances={attendances} years={years} initialYearId={activeYearId} />
+      <ClientLoad load={loadPresensi}>
+        {({ years, activeYearId, attendances }) => (
+          <PresensiTable initialAttendances={attendances} years={years} initialYearId={activeYearId} />
+        )}
+      </ClientLoad>
     </PortalLayout>
   );
 }

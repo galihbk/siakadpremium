@@ -58,6 +58,7 @@ export interface PendingKelasItem {
   academicYear: string;
   lecturerName: string | null;
   lecturerNidn: string | null;
+  lastError?: string | null;
 }
 
 export interface SyncLogItem {
@@ -109,6 +110,8 @@ export default function SinkronisasiKelasKuliahPage() {
   const kelasSortIndicator = (key: string) => (kelasTable.sortKey === key ? (kelasTable.sortDir === 'asc' ? ' ▲' : ' ▼') : ' ⇅');
 
   const [activeTab, setActiveTab] = useState<'pull' | 'push'>('pull');
+  const [isPushingKelas, setIsPushingKelas] = useState(false);
+  const isSuperAdmin = getAuthSession().user?.role === 'SUPER_ADMIN';
 
   // Tab Push: kelas lokal yang belum punya feederId (belum ada di Feeder), bisa dicentang.
   const [kelasPendingItems, setKelasPendingItems] = useState<PendingKelasItem[]>([]);
@@ -127,6 +130,29 @@ export default function SinkronisasiKelasKuliahPage() {
 
   const toggleAllPending = () => {
     setSelectedPendingIds(allPendingSelected ? new Set() : new Set(kelasPendingItems.map((i) => i.id)));
+  };
+
+  const handlePushKelas = async () => {
+    setIsPushingKelas(true);
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    try {
+      const { token } = getAuthSession();
+      const res = await fetch(`${apiBase}/integration-settings/pddikti/kelas-kuliah/push`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ classIds: selectedPendingIds.size > 0 ? Array.from(selectedPendingIds) : undefined }),
+      });
+      const json = await res.json().catch(() => null);
+      const body = json?.data ?? json;
+      showToast(body?.message || (res.ok ? 'Push kelas selesai.' : `Gagal push kelas (HTTP ${res.status}).`));
+      setSelectedPendingIds(new Set());
+      await fetchKelasPending();
+      kelasTable.reload();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Gagal mengirim kelas ke Feeder.');
+    } finally {
+      setIsPushingKelas(false);
+    }
   };
 
   const fetchKelasPending = React.useCallback(async () => {
@@ -388,16 +414,28 @@ export default function SinkronisasiKelasKuliahPage() {
 
           {activeTab === 'push' && (
             <div className="space-y-3">
+              {!isSuperAdmin && (
+                <p className="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-xl p-3">
+                  Push menulis ke data resmi Feeder sehingga hanya dapat dijalankan Super Admin.
+                </p>
+              )}
+              <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3 leading-relaxed">
+                Mata kuliah kelas harus sudah terdaftar di Feeder (Push Mata Kuliah dulu), nama kelas maksimal 5 karakter, dan semester
+                harus berperiode aktif di Feeder. Dosen pengajar ikut dikirim bila dosen pengampu punya ID Feeder dan penugasannya di
+                tahun itu ada di Feeder; bila tidak, kelas tetap terdaftar dan alasannya dicatat di kolom Catatan. Maksimal 50 kelas per proses.
+              </p>
               <button
-                disabled
-                title="Belum tersedia -- Insert kelas perkuliahan ke Feeder belum dibuat"
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold text-slate-400 bg-slate-100 border border-slate-200 rounded-xl cursor-not-allowed"
+                onClick={handlePushKelas}
+                disabled={isPushingKelas || !isSuperAdmin || kelasPendingItems.length === 0}
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-900 rounded-xl shadow-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
-                <ArrowUpFromLine className="w-4 h-4" />
+                {isPushingKelas ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowUpFromLine className="w-4 h-4" />}
                 <span>
-                  {selectedPendingIds.size > 0
-                    ? `Push ${selectedPendingIds.size} Kelas Terpilih ke Feeder (belum tersedia)`
-                    : 'Push ke Feeder (belum tersedia)'}
+                  {isPushingKelas
+                    ? 'Mengirim...'
+                    : selectedPendingIds.size > 0
+                      ? `Push ${selectedPendingIds.size} Kelas Terpilih ke Feeder`
+                      : 'Push Kelas Belum Terdaftar ke Feeder'}
                 </span>
               </button>
 
@@ -436,18 +474,19 @@ export default function SinkronisasiKelasKuliahPage() {
                         <th className="py-2.5 px-3">Mata Kuliah</th>
                         <th className="py-2.5 px-3">Tahun Akademik</th>
                         <th className="py-2.5 px-3">Dosen Pengampu</th>
+                        <th className="py-2.5 px-3">Catatan Push Terakhir</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {isLoadingKelasPending ? (
                         <tr>
-                          <td colSpan={5} className="py-6 px-3 text-center text-slate-400">
+                          <td colSpan={6} className="py-6 px-3 text-center text-slate-400">
                             Memuat data...
                           </td>
                         </tr>
                       ) : kelasPendingItems.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="py-6 px-3 text-center text-slate-400">
+                          <td colSpan={6} className="py-6 px-3 text-center text-slate-400">
                             Semua kelas lokal sudah punya ID Feeder.
                           </td>
                         </tr>
@@ -471,6 +510,7 @@ export default function SinkronisasiKelasKuliahPage() {
                             <td className="py-2 px-3 text-slate-600">
                               {item.lecturerName ? `${item.lecturerName}${item.lecturerNidn ? ` (${item.lecturerNidn})` : ''}` : '-'}
                             </td>
+                            <td className="py-2 px-3 text-[11px] text-amber-700 max-w-xs">{item.lastError || <span className="text-slate-300">-</span>}</td>
                           </tr>
                         ))
                       )}

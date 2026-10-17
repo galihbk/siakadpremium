@@ -542,25 +542,28 @@ model Course {
 }
 
 model CourseClass {
-  id                 String   @id @default(uuid())
+  id                 String    @id @default(uuid())
   // id_kelas_kuliah dari Neo Feeder -- kunci paling stabil untuk mencocokkan ulang data
   // saat re-sync, sama seperti feederId di Lecturer/Student/Course/Curriculum.
-  feederId           String?  @unique
+  feederId           String?   @unique
+  // Pesan error/peringatan terakhir Push kelas ini ke Feeder (kosong bila sukses).
+  feederSyncError    String?   @db.Text
+  feederSyncErrorAt  DateTime?
   courseId           String
   academicYearId     String
   className          String // e.g. "TIF-5A"
   // true untuk mata kuliah tanpa jadwal & ruang tetap (Skripsi/TA, KKN, Kerja Praktik, dst.) —
   // day/startTime/endTime diabaikan dan tidak diikutkan pada cek bentrok jadwal.
-  isFlexibleSchedule Boolean  @default(false)
-  day                String   @default("Senin")
-  startTime          String   @default("08:00")
-  endTime            String   @default("10:30")
+  isFlexibleSchedule Boolean   @default(false)
+  day                String    @default("Senin")
+  startTime          String    @default("08:00")
+  endTime            String    @default("10:30")
   roomId             String?
   lecturerId         String?
-  quota              Int      @default(40)
-  status             String   @default("Berjalan")
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  quota              Int       @default(40)
+  status             String    @default("Berjalan")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   course             Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
   academicYear       AcademicYear        @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
@@ -676,27 +679,30 @@ model CourseContractWeek {
 }
 
 model CourseEnrollment {
-  id                  String           @id @default(uuid())
-  studentId           String
-  courseId            String
-  courseClassId       String?
-  academicYearId      String
-  status              EnrollmentStatus @default(SUBMITTED)
-  assignmentScore     Float? // Nilai Tugas
-  midtermScore        Float? // Nilai UTS
-  finalScore          Float? // Nilai UAS
-  totalScore          Float? // Nilai Akhir Angka
-  gradeLetter         String? // e.g. "A", "B+", "B"
-  gradePoint          Float? // e.g. 4.0, 3.5, 3.0
-  gradeStatus         String           @default("DRAFT") // "DRAFT" | "FINAL"
+  id                   String           @id @default(uuid())
+  studentId            String
+  courseId             String
+  courseClassId        String?
+  academicYearId       String
+  status               EnrollmentStatus @default(SUBMITTED)
+  assignmentScore      Float? // Nilai Tugas
+  midtermScore         Float? // Nilai UTS
+  finalScore           Float? // Nilai UAS
+  totalScore           Float? // Nilai Akhir Angka
+  gradeLetter          String? // e.g. "A", "B+", "B"
+  gradePoint           Float? // e.g. 4.0, 3.5, 3.0
+  gradeStatus          String           @default("DRAFT") // "DRAFT" | "FINAL"
   // Terisi saat baris KRS ini tercatat sinkron dengan Feeder (hasil Pull/Sync dari Feeder,
   // atau nanti Push ke Feeder). Null = belum pernah terkonfirmasi ada di Feeder.
-  feederSyncedAt      DateTime?
+  feederSyncedAt       DateTime?
   // Terisi saat nilai (angka/huruf/indeks) baris ini cocok dengan nilai di Feeder -- diisi
   // oleh sinkronisasi Nilai Perkuliahan dari Feeder. Null = nilai belum terkonfirmasi di Feeder.
-  feederGradeSyncedAt DateTime?
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
+  feederGradeSyncedAt  DateTime?
+  // Error terakhir Push KRS / Push Nilai baris ini ke Feeder (kosong bila sukses).
+  feederSyncError      String?          @db.Text
+  feederGradeSyncError String?          @db.Text
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
 
   student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   course       Course       @relation(fields: [courseId], references: [id], onDelete: Restrict)

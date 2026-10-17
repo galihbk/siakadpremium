@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { DocumentSignaturesService, SignerRole } from './document-signatures.service';
 
@@ -45,6 +45,7 @@ export class DocumentSignaturesController {
   @Get('resolve')
   @ApiOperation({ summary: 'Resolusi nama & jabatan penandatangan nyata untuk sebuah dokumen & mahasiswa' })
   resolve(@Query('documentCode') documentCode: string, @Query('studentId') studentId?: string) {
+    if (!documentCode?.trim()) throw new BadRequestException('Parameter documentCode wajib diisi.');
     return this.service.resolveSigners(documentCode, studentId);
   }
 }
