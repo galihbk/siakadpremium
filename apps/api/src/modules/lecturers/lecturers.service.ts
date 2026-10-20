@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { AssessmentSchemesService } from '../academic/assessment-schemes.service';
 import { Role } from '@siakad/database';
 import { LecturerDashboardSummary } from '@siakad/types';
 
@@ -72,6 +73,7 @@ export class LecturersService {
   constructor(
     private prisma: PrismaService,
     private storageService: StorageService,
+    private assessmentSchemes: AssessmentSchemesService,
   ) {}
 
   /** Pilihan status kepegawaian dosen yang diterima (diatur SDM). */
@@ -815,17 +817,40 @@ export class LecturersService {
       where: { courseClassId: classId },
       include: { weeks: { orderBy: { weekNumber: 'asc' } } },
     });
+    // Komponen penilaian kampus (diatur Akademik) yang berlaku untuk semester kelas ini; dosen mengisi bobotnya.
+    const scheme = cc.academicYearId ? await this.assessmentSchemes.resolveForYear(cc.academicYearId) : null;
     return {
       classId,
       courseCode: cc.course.code,
       courseName: cc.course.name,
       className: cc.className,
       contract: contract || null,
+      scheme: scheme
+        ? {
+            id: scheme.id,
+            name: scheme.name,
+            components: scheme.components.map((c) => ({ id: c.id, name: c.name, source: c.source })),
+          }
+        : null,
     };
   }
 
   async saveCourseContract(lecturerId: string | undefined, classId: string, payload: any) {
-    await this.assertClassOwnedByLecturer(classId, lecturerId);
+    const owned = await this.assertClassOwnedByLecturer(classId, lecturerId);
+
+    // Bobot komponen skema kampus: harus memuat tepat komponen skema dan berjumlah 100%.
+    const weightComponents = payload.assessmentWeights?.components as Record<string, unknown> | undefined;
+    if (weightComponents) {
+      const scheme = (owned as any).academicYearId ? await this.assessmentSchemes.resolveForYear((owned as any).academicYearId) : null;
+      if (!scheme) throw new BadRequestException('Belum ada skema komponen penilaian untuk semester kelas ini.');
+      let total = 0;
+      for (const c of scheme.components) {
+        const v = Number(weightComponents[c.id]);
+        if (!Number.isFinite(v) || v < 0 || v > 100) throw new BadRequestException(`Bobot "${c.name}" harus antara 0 dan 100.`);
+        total += v;
+      }
+      if (Math.abs(total - 100) > 0.01) throw new BadRequestException(`Total bobot penilaian harus 100% (saat ini ${Number(total.toFixed(2))}%).`);
+    }
 
     const sharedData = {
       rpsCode: payload.rpsCode?.trim() || null,

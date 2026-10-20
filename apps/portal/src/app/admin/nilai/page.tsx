@@ -67,6 +67,8 @@ export default function SuperAdminNilaiPage() {
   const [isLoadingDetail, setIsLoadingDetail] = useState<boolean>(false);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [editedGrades, setEditedGrades] = useState<Record<string, { assignment: string; midterm: string; finalExam: string }>>({});
+  // Nilai per komponen skema kampus (kunci: ID siswa -> ID komponen), dipakai bila kelas memakai skema
+  const [editedScores, setEditedScores] = useState<Record<string, Record<string, string>>>({});
   const [isSavingGrades, setIsSavingGrades] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
@@ -146,6 +148,12 @@ export default function SuperAdminNilaiPage() {
           };
         }
         setEditedGrades(initial);
+        const initialScores: Record<string, Record<string, string>> = {};
+        for (const st of json.data?.students || []) {
+          initialScores[st.id] = {};
+          for (const [cid, v] of Object.entries((st.scores || {}) as Record<string, number>)) initialScores[st.id][cid] = String(v);
+        }
+        setEditedScores(initialScores);
       }
     } catch (err) {
       console.error(err);
@@ -159,6 +167,10 @@ export default function SuperAdminNilaiPage() {
     setEditedGrades((prev) => ({ ...prev, [studentId]: { ...prev[studentId], [field]: value } }));
   };
 
+  const updateEditedScore = (studentId: string, componentId: string, value: string) => {
+    setEditedScores((prev) => ({ ...prev, [studentId]: { ...(prev[studentId] || {}), [componentId]: value } }));
+  };
+
   // Simpan koreksi nilai dari Admin -- pakai endpoint batch yang sama dengan entri dosen
   // (POST /academic/grades/save), jadi totalScore/gradeLetter/gradePoint dihitung ulang
   // server-side dari bobot penilaian kelas, bukan ditimpa manual dari frontend.
@@ -166,12 +178,16 @@ export default function SuperAdminNilaiPage() {
     if (!viewingClassId || !classDetail) return;
     setIsSavingGrades(true);
     try {
-      const grades = classDetail.students.map((st: any) => ({
-        id: st.id,
-        assignment: editedGrades[st.id]?.assignment || 0,
-        midterm: editedGrades[st.id]?.midterm || 0,
-        finalExam: editedGrades[st.id]?.finalExam || 0,
-      }));
+      const grades = classDetail.students.map((st: any) =>
+        classDetail.classInfo.scheme
+          ? { id: st.id, scores: editedScores[st.id] || {} }
+          : {
+              id: st.id,
+              assignment: editedGrades[st.id]?.assignment || 0,
+              midterm: editedGrades[st.id]?.midterm || 0,
+              finalExam: editedGrades[st.id]?.finalExam || 0,
+            },
+      );
       const res = await fetch(`${apiBase}/academic/grades/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -669,10 +685,20 @@ export default function SuperAdminNilaiPage() {
                   <thead className="bg-slate-50 text-slate-500 sticky top-0 border-b border-slate-200">
                     <tr>
                       <th className="py-2.5 px-3">NIM & Mahasiswa</th>
-                      <th className="py-2.5 px-2 text-center">Presensi (10%)</th>
-                      <th className="py-2.5 px-2 text-center">Tugas (20%)</th>
-                      <th className="py-2.5 px-2 text-center">UTS (30%)</th>
-                      <th className="py-2.5 px-2 text-center">UAS (40%)</th>
+                      {classDetail.classInfo.scheme ? (
+                        classDetail.classInfo.scheme.components.map((c: any) => (
+                          <th key={c.id} className="py-2.5 px-2 text-center">
+                            {c.name} ({c.weight}%)
+                          </th>
+                        ))
+                      ) : (
+                        <>
+                          <th className="py-2.5 px-2 text-center">Presensi (10%)</th>
+                          <th className="py-2.5 px-2 text-center">Tugas (20%)</th>
+                          <th className="py-2.5 px-2 text-center">UTS (30%)</th>
+                          <th className="py-2.5 px-2 text-center">UAS (40%)</th>
+                        </>
+                      )}
                       <th className="py-2.5 px-2 text-center">Nilai Akhir</th>
                       <th className="py-2.5 px-2 text-center">Mutu</th>
                       <th className="py-2.5 px-3 text-center">Status</th>
@@ -685,6 +711,26 @@ export default function SuperAdminNilaiPage() {
                           <div className="font-semibold text-slate-800">{st.studentName}</div>
                           <div className="text-[11px] text-slate-400 font-mono">{st.nim}</div>
                         </td>
+                        {classDetail.classInfo.scheme ? (
+                          classDetail.classInfo.scheme.components.map((c: any) =>
+                            c.source === 'ATTENDANCE' ? (
+                              <td key={c.id} className="py-2 px-2 text-center">{st.attendance ?? '-'}</td>
+                            ) : (
+                              <td key={c.id} className="py-2 px-1 text-center">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  disabled={classDetail.classInfo.isLocked}
+                                  value={editedScores[st.id]?.[c.id] ?? ''}
+                                  onChange={(e) => updateEditedScore(st.id, c.id, e.target.value)}
+                                  className="w-14 px-1.5 py-1 text-center rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] disabled:bg-slate-50 disabled:text-slate-400"
+                                />
+                              </td>
+                            ),
+                          )
+                        ) : (
+                          <>
                         <td className="py-2 px-2 text-center">{st.attendance ?? '-'}</td>
                         <td className="py-2 px-1 text-center">
                           <input
@@ -719,6 +765,8 @@ export default function SuperAdminNilaiPage() {
                             className="w-14 px-1.5 py-1 text-center rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] disabled:bg-slate-50 disabled:text-slate-400"
                           />
                         </td>
+                          </>
+                        )}
                         <td className="py-2 px-2 text-center font-bold text-emerald-700">
                           {st.totalScore ?? '-'}
                         </td>
@@ -744,6 +792,12 @@ export default function SuperAdminNilaiPage() {
                 </table>
               </div>
 
+              {classDetail.classInfo.scheme && classDetail.classInfo.scheme.weightsReady === false && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                  Bobot penilaian kelas ini belum diatur dosen pengampu di Kontrak Kuliah, sehingga nilai belum dapat disimpan.
+                </div>
+              )}
+
               {classDetail.classInfo.isLocked && (
                 <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-center gap-2">
                   <Lock className="w-3.5 h-3.5 shrink-0" />
@@ -765,7 +819,7 @@ export default function SuperAdminNilaiPage() {
                 <button
                   type="button"
                   onClick={() => handleSaveGrades(false)}
-                  disabled={isSavingGrades || classDetail.classInfo.isLocked}
+                  disabled={isSavingGrades || classDetail.classInfo.isLocked || (classDetail.classInfo.scheme && classDetail.classInfo.scheme.weightsReady === false)}
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold disabled:opacity-50"
                 >
                   {isSavingGrades && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
@@ -774,7 +828,7 @@ export default function SuperAdminNilaiPage() {
                 <button
                   type="button"
                   onClick={() => handleSaveGrades(true)}
-                  disabled={isSavingGrades || classDetail.classInfo.isLocked}
+                  disabled={isSavingGrades || classDetail.classInfo.isLocked || (classDetail.classInfo.scheme && classDetail.classInfo.scheme.weightsReady === false)}
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs disabled:opacity-50"
                 >
                   {isSavingGrades && <Loader2 className="w-3.5 h-3.5 animate-spin" />}

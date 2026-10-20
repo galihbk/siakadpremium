@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
+import { AssessmentSchemesService } from './assessment-schemes.service';
 import { AdminDashboardSummary } from '@siakad/types';
 
 function semesterTypeLabel(type: string): string {
@@ -33,7 +34,10 @@ export function computeIsKrsOpen(year: { isActive: boolean; krsStartDate: Date |
 
 @Injectable()
 export class AcademicService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private assessmentSchemes: AssessmentSchemesService,
+  ) {}
 
   async getAdminDashboardSummary(): Promise<AdminDashboardSummary> {
     const [
@@ -1242,6 +1246,25 @@ export class AcademicService {
     };
   }
 
+  /**
+   * Bobot komponen skema untuk satu kelas, diisi dosen di Kontrak Kuliah (`assessmentWeights.components[idKomponen]`).
+   * Mengembalikan null bila belum lengkap atau totalnya bukan 100%.
+   */
+  private async getSchemeClassWeights(courseClassId: string, componentIds: string[]): Promise<Record<string, number> | null> {
+    const contract = await this.prisma.courseContract.findUnique({ where: { courseClassId } });
+    const raw = ((contract?.assessmentWeights as any)?.components ?? null) as Record<string, unknown> | null;
+    if (!raw) return null;
+    const out: Record<string, number> = {};
+    let total = 0;
+    for (const id of componentIds) {
+      const v = Number(raw[id]);
+      if (!Number.isFinite(v) || v < 0) return null;
+      out[id] = v;
+      total += v;
+    }
+    return Math.abs(total - 100) < 0.01 ? out : null;
+  }
+
   private async computeAttendancePercentages(courseClassId: string, studentIds: string[]) {
     const sessions = await this.prisma.attendanceSession.findMany({
       where: { courseClassId },
@@ -1592,6 +1615,25 @@ export class AcademicService {
     const weights = await this.getAssessmentWeights(classId);
     const attendanceMap = await this.computeAttendancePercentages(classId, enrollments.map((e) => e.studentId));
 
+    // Skema komponen penilaian kampus yang berlaku untuk semester kelas ini (null = belum ada, pakai cara lama)
+    const scheme = cc.academicYearId ? await this.assessmentSchemes.resolveForYear(cc.academicYearId) : null;
+    const schemeWeights = scheme ? await this.getSchemeClassWeights(classId, scheme.components.map((c) => c.id)) : null;
+    const componentScores = scheme
+      ? await this.prisma.enrollmentComponentScore.findMany({
+          where: { enrollmentId: { in: enrollments.map((e) => e.id) }, component: { schemeId: scheme.id } },
+          select: { enrollmentId: true, componentId: true, score: true },
+        })
+      : [];
+    const scoresByEnrollment = new Map<string, Record<string, number>>();
+    for (const cs of componentScores) {
+      const m = scoresByEnrollment.get(cs.enrollmentId) ?? {};
+      m[cs.componentId] = cs.score;
+      scoresByEnrollment.set(cs.enrollmentId, m);
+    }
+    const gradeScale = (await this.getGradeScales())
+      .filter((x: any) => x.isActive !== false)
+      .map((x: any) => ({ letter: x.letter, minScore: x.minScore, gradePoint: x.gradePoint }));
+
     const students = enrollments.map((e) => ({
       id: e.id,
       nim: e.student.nim,
@@ -1600,6 +1642,7 @@ export class AcademicService {
       assignment: e.assignmentScore ?? 0,
       midterm: e.midtermScore ?? 0,
       finalExam: e.finalScore ?? 0,
+      scores: scoresByEnrollment.get(e.id) ?? {},
       totalScore: e.totalScore ?? 0,
       gradeLetter: e.gradeLetter || '-',
       gradePoint: e.gradePoint ?? 0,
@@ -1625,6 +1668,16 @@ export class AcademicService {
         gradeInputStartDate: cc.academicYear?.gradeInputStartDate || null,
         gradeInputEndDate: cc.academicYear?.gradeInputEndDate || null,
         weights,
+        gradeScale,
+        scheme: scheme
+          ? {
+              id: scheme.id,
+              name: scheme.name,
+              // bobot = yang diisi dosen di Kontrak Kuliah kelas ini (0 bila belum diisi)
+              weightsReady: schemeWeights !== null,
+              components: scheme.components.map((c) => ({ id: c.id, code: c.code, name: c.name, weight: schemeWeights?.[c.id] ?? 0, source: c.source })),
+            }
+          : null,
       },
       students,
     };
@@ -1645,6 +1698,18 @@ export class AcademicService {
     const enrollments = await this.prisma.courseEnrollment.findMany({ where: { id: { in: enrollmentIds } } });
     const enrollmentById = new Map(enrollments.map((e) => [e.id, e]));
     const attendanceMap = await this.computeAttendancePercentages(classId, enrollments.map((e) => e.studentId));
+
+    // Skema komponen kampus untuk semester kelas ini: bila ada, nilai dihitung per komponen skema.
+    const scheme = cc.academicYearId ? await this.assessmentSchemes.resolveForYear(cc.academicYearId) : null;
+    if (scheme) {
+      const schemeWeights = await this.getSchemeClassWeights(classId, scheme.components.map((c) => c.id));
+      if (!schemeWeights) {
+        throw new BadRequestException(
+          'Bobot penilaian kelas ini belum diatur. Dosen pengampu perlu mengisi bobot semua komponen (total 100%) di menu Kontrak Kuliah sebelum nilai bisa diinput.',
+        );
+      }
+      return this.saveSchemeGrades(payload, scheme, schemeWeights, enrollmentById, attendanceMap);
+    }
 
     const updated: any[] = [];
     for (const item of payload.grades) {
@@ -1691,6 +1756,82 @@ export class AcademicService {
         gradePoint,
         status: saved.gradeStatus === 'FINAL' ? 'Final' : 'Draf',
       });
+    }
+
+    return {
+      success: true,
+      message: payload.isFinalSubmit
+        ? 'Seluruh nilai mahasiswa berhasil disahkan dan diterbitkan secara resmi.'
+        : 'Draf nilai mahasiswa berhasil disimpan.',
+      data: updated,
+    };
+  }
+
+  /** Simpan nilai memakai skema komponen penilaian kampus (komponen dinamis, bobot dari skema). */
+  private async saveSchemeGrades(
+    payload: { grades: any[]; isFinalSubmit?: boolean },
+    scheme: { id: string; components: Array<{ id: string; name: string; source: string }> },
+    weightMap: Record<string, number>,
+    enrollmentById: Map<string, { id: string; studentId: string }>,
+    attendanceMap: Map<string, number>,
+  ) {
+    const clamp = (v: unknown) => Math.min(100, Math.max(0, Number(v) || 0));
+    const updated: any[] = [];
+
+    // Nilai komponen yang sudah tersimpan: dipakai bila permintaan tidak membawa nilai komponen itu
+    // (mis. klien lama yang masih mengirim Tugas/UTS/UAS), supaya nilai tidak tertimpa nol.
+    const stored = await this.prisma.enrollmentComponentScore.findMany({
+      where: { enrollmentId: { in: Array.from(enrollmentById.keys()) }, component: { schemeId: scheme.id } },
+      select: { enrollmentId: true, componentId: true, score: true },
+    });
+    const storedBy = new Map<string, number>(
+      stored.map((x: { enrollmentId: string; componentId: string; score: number }) => [`${x.enrollmentId}:${x.componentId}`, x.score] as [string, number]),
+    );
+
+    for (const item of payload.grades) {
+      const enrollment = enrollmentById.get(item.id);
+      if (!enrollment) continue;
+
+      const attendance = attendanceMap.get(enrollment.studentId) ?? 0;
+      const input: Record<string, unknown> = item.scores ?? {};
+      const values: Record<string, number> = {};
+      let total = 0;
+      for (const c of scheme.components) {
+        const provided = input[c.id];
+        const v =
+          c.source === 'ATTENDANCE'
+            ? attendance
+            : provided !== undefined && provided !== null && provided !== ''
+              ? clamp(provided)
+              : storedBy.get(`${enrollment.id}:${c.id}`) ?? 0;
+        values[c.id] = v;
+        total += v * ((weightMap[c.id] ?? 0) / 100);
+      }
+      const totalScore = Number(total.toFixed(1));
+
+      const activeScale = (await this.getGradeScales())
+        .filter((x: any) => x.isActive !== false)
+        .sort((a: any, b: any) => b.minScore - a.minScore);
+      const matched = activeScale.find((x: any) => totalScore >= x.minScore) || activeScale[activeScale.length - 1];
+      const gradeLetter = matched?.letter || 'E';
+      const gradePoint = matched?.gradePoint ?? 0;
+
+      await this.prisma.$transaction([
+        // komponen kehadiran ikut disimpan (nilai saat disimpan) agar arsip & ekspor OBE lengkap
+        ...scheme.components.map((c) =>
+          this.prisma.enrollmentComponentScore.upsert({
+            where: { enrollmentId_componentId: { enrollmentId: enrollment.id, componentId: c.id } },
+            update: { score: values[c.id] },
+            create: { enrollmentId: enrollment.id, componentId: c.id, score: values[c.id] },
+          }),
+        ),
+        this.prisma.courseEnrollment.update({
+          where: { id: enrollment.id },
+          data: { totalScore, gradeLetter, gradePoint, gradeStatus: payload.isFinalSubmit ? 'FINAL' : 'DRAFT' },
+        }),
+      ]);
+
+      updated.push({ id: enrollment.id, attendance, scores: values, totalScore, gradeLetter, gradePoint, status: payload.isFinalSubmit ? 'Final' : 'Draf' });
     }
 
     return {

@@ -535,6 +535,7 @@ model AcademicYear {
   enrollments        CourseEnrollment[]
   courseClasses      CourseClass[]
   gradeScaleVersions GradeScaleVersion[]
+  assessmentSchemes  AssessmentScheme[]
   thesisSupervisions ThesisSupervision[]
 
   examSchedules ExamSchedule[]
@@ -763,6 +764,7 @@ model CourseEnrollment {
   course       Course       @relation(fields: [courseId], references: [id], onDelete: Restrict)
   courseClass  CourseClass? @relation(fields: [courseClassId], references: [id], onDelete: SetNull)
   academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  componentScores EnrollmentComponentScore[]
 
   @@unique([studentId, courseId, academicYearId])
   @@unique([studentId, courseClassId])
@@ -2020,4 +2022,57 @@ model PasswordResetToken {
 
   @@index([userId])
   @@map("password_reset_tokens")
+}
+
+
+/// Skema komponen penilaian kampus (diatur Akademik). Berlaku mulai tahun akademik + semester `effectiveFromYearId`
+/// sampai ada skema yang lebih baru; semua dosen memakai skema yang sama untuk semester itu.
+model AssessmentScheme {
+  id                  String   @id @default(uuid())
+  name                String
+  effectiveFromYearId String
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  effectiveFrom AcademicYear         @relation(fields: [effectiveFromYearId], references: [id], onDelete: Restrict)
+  components    AssessmentComponent[]
+
+  @@unique([effectiveFromYearId])
+  @@map("assessment_schemes")
+}
+
+/// Satu komponen dalam skema (mis. Tugas 20%, UTS 30%, UAS 40%, Kehadiran 10%).
+/// `source`: MANUAL = dosen mengisi nilainya; ATTENDANCE = otomatis dari persentase kehadiran.
+model AssessmentComponent {
+  id        String @id @default(uuid())
+  schemeId  String
+  code      String
+  name      String
+  /// Tidak dipakai: bobot ditentukan dosen per kelas (Kontrak Kuliah). Dibiarkan 0.
+  weight    Float  @default(0)
+  source    String @default("MANUAL")
+  sortOrder Int    @default(0)
+
+  scheme AssessmentScheme            @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  scores EnrollmentComponentScore[]
+
+  @@unique([schemeId, code])
+  @@map("assessment_components")
+}
+
+/// Nilai satu mahasiswa (baris KRS) untuk satu komponen penilaian.
+model EnrollmentComponentScore {
+  id           String   @id @default(uuid())
+  enrollmentId String
+  componentId  String
+  score        Float
+  updatedAt    DateTime @updatedAt
+
+  enrollment CourseEnrollment     @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  component  AssessmentComponent  @relation(fields: [componentId], references: [id], onDelete: Restrict)
+
+  @@unique([enrollmentId, componentId])
+  @@index([componentId])
+  @@map("enrollment_component_scores")
 }

@@ -553,7 +553,7 @@ export class FinanceService {
     if ((await this.ownNim(user)) !== trx.nim) throw new ForbiddenException('Tagihan ini bukan milik Anda.');
   }
 
-  async getTransactions(query?: { status?: string; search?: string; type?: string }) {
+  async getTransactions(query?: { status?: string; search?: string; type?: string; limit?: string }) {
     const where: any = {};
     if (query?.status && query.status !== 'Semua' && query.status !== 'ALL') {
       const statusMap: Record<string, string> = { 'LUNAS': 'LUNAS', 'MENUNGGU VERIFIKASI': 'MENUNGGU_VERIFIKASI', 'TERTUNDA': 'TERTUNDA' };
@@ -570,7 +570,7 @@ export class FinanceService {
         { studyProgram: { contains: query.search, mode: 'insensitive' } },
       ];
     }
-    const transactions = await this.prisma.paymentInvoice.findMany({ where, orderBy: { createdAt: 'desc' }, take: 100 });
+    const transactions = await this.prisma.paymentInvoice.findMany({ where, orderBy: { createdAt: 'desc' }, ...(query?.limit === 'all' ? {} : { take: 100 }) });
     const mapped = transactions.map((t) => ({ ...t, status: t.status === 'MENUNGGU_VERIFIKASI' ? 'MENUNGGU VERIFIKASI' : t.status }));
     const summary = await this.getSummary();
     return { summary, transactions: mapped };

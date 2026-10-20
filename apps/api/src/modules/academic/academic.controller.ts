@@ -1,11 +1,15 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AcademicService } from './academic.service';
+import { AssessmentSchemesService, SchemeInput } from './assessment-schemes.service';
 
 @ApiTags('Academic (Layanan Akademik, Kurikulum, Jadwal & Admin)')
 @Controller('academic')
 export class AcademicController {
-  constructor(private academicService: AcademicService) {}
+  constructor(
+    private academicService: AcademicService,
+    private assessmentSchemes: AssessmentSchemesService,
+  ) {}
 
   @Get('admin-dashboard')
   @ApiOperation({ summary: 'Mendapatkan ringkasan dashboard administrator BAAK / Pimpinan Kampus' })
@@ -198,6 +202,31 @@ export class AcademicController {
     @Query('studyProgramId') studyProgramId?: string,
   ) {
     return this.academicService.getAttendanceOverview({ academicYearId, studyProgramId });
+  }
+
+  // ================= SKEMA KOMPONEN PENILAIAN (diatur Akademik) =================
+  @Get('assessment-schemes')
+  @ApiOperation({ summary: 'Daftar skema komponen penilaian beserta masa berlakunya' })
+  async listAssessmentSchemes() {
+    return this.assessmentSchemes.list();
+  }
+
+  @Post('assessment-schemes')
+  @ApiOperation({ summary: 'Membuat skema komponen penilaian baru (berlaku mulai tahun akademik + semester tertentu)' })
+  async createAssessmentScheme(@Body() body: SchemeInput) {
+    return this.assessmentSchemes.create(body);
+  }
+
+  @Put('assessment-schemes/:id')
+  @ApiOperation({ summary: 'Mengubah skema penilaian (hanya bila belum dipakai menginput nilai)' })
+  async updateAssessmentScheme(@Param('id') id: string, @Body() body: SchemeInput) {
+    return this.assessmentSchemes.update(id, body);
+  }
+
+  @Delete('assessment-schemes/:id')
+  @ApiOperation({ summary: 'Menghapus skema penilaian (hanya bila belum dipakai menginput nilai)' })
+  async deleteAssessmentScheme(@Param('id') id: string) {
+    return this.assessmentSchemes.remove(id);
   }
 
   // ================= INPUT & PENGELOLAAN NILAI (GRADES) =================

@@ -23,8 +23,9 @@ export class FinanceController {
     @Query('status') status?: string,
     @Query('type') type?: string,
     @Query('search') search?: string,
+    @Query('limit') limit?: string,
   ) {
-    return await this.financeService.getTransactions({ status, type, search });
+    return await this.financeService.getTransactions({ status, type, search, limit });
   }
 
   @Post('transactions/:id/verify')

@@ -100,6 +100,7 @@ const ROLE_RULES: RoleRule[] = [
   { path: /^\/academic\/admin-dashboard$/, roles: BAAK },
   { path: /^\/academic\/(krs-overview|attendance-overview|feeder-entities)(\/|$)/, roles: BAAK },
   { path: /^\/academic\/grades\/(summary|lock)$/, roles: BAAK },
+  { path: /^\/academic\/assessment-schemes(\/|$)/, roles: BAAK },
   { path: /^\/academic\/grades(\/|$)/, roles: [...BAAK, 'LECTURER'] },
   { methods: WRITE, path: /^\/academic\/(courses|curriculums)(\/|$)/, roles: [...BAAK, 'ADMIN_PRODI'] },
   { methods: WRITE, path: /^\/academic\/(years|schedules|grade-scale|thesis-supervisions)(\/|$)/, roles: BAAK },

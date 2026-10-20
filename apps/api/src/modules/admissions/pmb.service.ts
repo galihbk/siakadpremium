@@ -1399,6 +1399,7 @@ export class PmbService {
       amount: Number(p.amount),
       status: p.status,
       proofUrl: p.proofUrl,
+      paymentMethod: p.paymentMethod,
       paidAt: p.paidAt,
       verifiedAt: p.verifiedAt,
       verifiedBy: p.verifiedBy,

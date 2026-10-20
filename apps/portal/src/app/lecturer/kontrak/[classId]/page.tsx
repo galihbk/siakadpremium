@@ -24,6 +24,10 @@ export default function LecturerContractPage() {
   const [courseName, setCourseName] = useState('');
   const [className, setClassName] = useState('');
   const [weights, setWeights] = useState({ tugas: 20, uts: 30, uas: 35, kehadiran: 15 });
+  // Komponen penilaian kampus (diatur Akademik) untuk semester kelas ini; dosen mengisi bobotnya.
+  const [scheme, setScheme] = useState<{ id: string; name: string; components: Array<{ id: string; name: string; source: string }> } | null>(null);
+  const [componentWeights, setComponentWeights] = useState<Record<string, number>>({});
+  const [storedWeights, setStoredWeights] = useState<Record<string, unknown>>({});
   const [isPublished, setIsPublished] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -45,6 +49,18 @@ export default function LecturerContractPage() {
         setCourseName(data.courseName || '');
         setClassName(data.className || '');
         const c = data.contract;
+        setScheme(data.scheme || null);
+        if (c?.assessmentWeights) {
+          setStoredWeights(c.assessmentWeights);
+          const saved = (c.assessmentWeights.components || {}) as Record<string, number>;
+          const init: Record<string, number> = {};
+          for (const comp of data.scheme?.components || []) init[comp.id] = Number(saved[comp.id]) || 0;
+          setComponentWeights(init);
+        } else {
+          const init: Record<string, number> = {};
+          for (const comp of data.scheme?.components || []) init[comp.id] = 0;
+          setComponentWeights(init);
+        }
         if (c) {
           if (c.assessmentWeights) setWeights({ tugas: 20, uts: 30, uas: 35, kehadiran: 15, ...c.assessmentWeights });
           setIsPublished(Boolean(c.isPublished));
@@ -67,10 +83,12 @@ export default function LecturerContractPage() {
     loadContract();
   }, [loadContract]);
 
-  const totalWeight = weights.tugas + weights.uts + weights.uas + weights.kehadiran;
+  const totalWeight = scheme
+    ? Number(Object.values(componentWeights).reduce((a, v) => a + (Number(v) || 0), 0).toFixed(2))
+    : weights.tugas + weights.uts + weights.uas + weights.kehadiran;
 
   const handleSave = async () => {
-    if (totalWeight !== 100) {
+    if (Math.abs(totalWeight - 100) > 0.01) {
       showToast(`Total bobot penilaian harus 100% (sekarang ${totalWeight}%).`, 'error');
       return;
     }
@@ -80,7 +98,7 @@ export default function LecturerContractPage() {
         method: 'PUT',
         headers: authHeaders(),
         body: JSON.stringify({
-          assessmentWeights: weights,
+          assessmentWeights: scheme ? { ...storedWeights, components: componentWeights } : weights,
           isPublished,
         }),
       });
@@ -126,28 +144,58 @@ export default function LecturerContractPage() {
             <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-bold text-[#1E3A8A] uppercase tracking-wider">Bobot Penilaian</h4>
-                <span className={`text-xs font-bold ${totalWeight === 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                <span className={`text-xs font-bold ${Math.abs(totalWeight - 100) < 0.01 ? 'text-emerald-600' : 'text-rose-600'}`}>
                   Total: {totalWeight}%
                 </span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {(['tugas', 'uts', 'uas', 'kehadiran'] as const).map((key) => (
-                  <div key={key}>
-                    <label className="text-xs font-semibold text-slate-600 block mb-1 capitalize">{key}</label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        value={weights[key]}
-                        onChange={(e) => setWeights((prev) => ({ ...prev, [key]: Number(e.target.value) || 0 }))}
-                        className="w-full text-xs p-2.5 rounded-lg border border-slate-300 pr-6"
-                      />
-                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
-                    </div>
+              {scheme ? (
+                <>
+                  <p className="text-xs text-slate-500">
+                    Komponen penilaian ditetapkan kampus ({scheme.name}). Isi bobot tiap komponen untuk kelas ini; totalnya harus 100%.
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {scheme.components.map((c) => (
+                      <div key={c.id}>
+                        <label className="text-xs font-semibold text-slate-600 block mb-1">
+                          {c.name}
+                          {c.source === 'ATTENDANCE' && <span className="ml-1 text-[10px] font-normal italic text-slate-400">(otomatis dari kehadiran)</span>}
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step="any"
+                            value={componentWeights[c.id] ?? 0}
+                            onChange={(e) => setComponentWeights((prev) => ({ ...prev, [c.id]: Number(e.target.value) || 0 }))}
+                            className="w-full text-xs p-2.5 rounded-lg border border-slate-300 pr-6"
+                          />
+                          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {(['tugas', 'uts', 'uas', 'kehadiran'] as const).map((key) => (
+                    <div key={key}>
+                      <label className="text-xs font-semibold text-slate-600 block mb-1 capitalize">{key}</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={weights[key]}
+                          onChange={(e) => setWeights((prev) => ({ ...prev, [key]: Number(e.target.value) || 0 }))}
+                          className="w-full text-xs p-2.5 rounded-lg border border-slate-300 pr-6"
+                        />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">

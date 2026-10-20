@@ -37,6 +37,8 @@ interface StudentGradeItem {
   assignment: number;
   midterm: number;
   finalExam: number;
+  /** Nilai per komponen skema kampus (kunci = ID komponen). Hanya dipakai bila kelas memakai skema. */
+  scores?: Record<string, number>;
   totalScore: number;
   gradeLetter: string;
   gradePoint: number;
@@ -131,51 +133,75 @@ function LecturerNilaiContent() {
 
   const weights = classInfo?.weights || { tugas: 20, uts: 30, uas: 40, kehadiran: 10 };
 
+  // Skema komponen penilaian kampus (diatur Akademik). Bila ada, kolom nilai mengikuti skema ini.
+  type SchemeComponent = { id: string; code: string; name: string; weight: number; source: 'MANUAL' | 'ATTENDANCE' };
+  const scheme: { id: string; name: string; weightsReady?: boolean; components: SchemeComponent[] } | null = classInfo?.scheme || null;
+  // Skema kampus ada tapi dosen belum mengisi bobotnya di Kontrak Kuliah -> nilai belum bisa diinput
+  const weightsMissing = !!scheme && scheme.weightsReady === false;
+
+  // Huruf & mutu memakai skala nilai kampus dari server; cadangan hanya bila skala belum termuat.
+  const letterFor = (total: number) => {
+    const scale: Array<{ letter: string; minScore: number; gradePoint: number }> = classInfo?.gradeScale || [];
+    if (scale.length > 0) {
+      const sorted = [...scale].sort((x, y) => y.minScore - x.minScore);
+      const m = sorted.find((x) => total >= x.minScore) || sorted[sorted.length - 1];
+      return { gradeLetter: m.letter, gradePoint: m.gradePoint };
+    }
+    if (total >= 85) return { gradeLetter: 'A', gradePoint: 4.0 };
+    if (total >= 80) return { gradeLetter: 'A-', gradePoint: 3.7 };
+    if (total >= 75) return { gradeLetter: 'B+', gradePoint: 3.3 };
+    if (total >= 70) return { gradeLetter: 'B', gradePoint: 3.0 };
+    if (total >= 65) return { gradeLetter: 'B-', gradePoint: 2.7 };
+    if (total >= 60) return { gradeLetter: 'C+', gradePoint: 2.3 };
+    if (total >= 55) return { gradeLetter: 'C', gradePoint: 2.0 };
+    if (total >= 40) return { gradeLetter: 'D', gradePoint: 1.0 };
+    return { gradeLetter: 'E', gradePoint: 0.0 };
+  };
+
   // Calculate scores
-  const calculateRow = (attendance: number, assignment: number, midterm: number, finalExam: number) => {
-    const total = Number(
-      (
-        attendance * (weights.kehadiran / 100) +
-        assignment * (weights.tugas / 100) +
-        midterm * (weights.uts / 100) +
-        finalExam * (weights.uas / 100)
-      ).toFixed(1),
-    );
-    let letter = 'E';
-    let point = 0.0;
-
-    if (total >= 85) { letter = 'A'; point = 4.0; }
-    else if (total >= 80) { letter = 'A-'; point = 3.7; }
-    else if (total >= 75) { letter = 'B+'; point = 3.3; }
-    else if (total >= 70) { letter = 'B'; point = 3.0; }
-    else if (total >= 65) { letter = 'B-'; point = 2.7; }
-    else if (total >= 60) { letter = 'C+'; point = 2.3; }
-    else if (total >= 55) { letter = 'C'; point = 2.0; }
-    else if (total >= 40) { letter = 'D'; point = 1.0; }
-    else { letter = 'E'; point = 0.0; }
-
-    return { totalScore: total, gradeLetter: letter, gradePoint: point };
+  const calculateRow = (item: StudentGradeItem) => {
+    let total: number;
+    if (scheme) {
+      total = Number(
+        scheme.components
+          .reduce((acc, c) => acc + (c.source === 'ATTENDANCE' ? item.attendance : item.scores?.[c.id] ?? 0) * (c.weight / 100), 0)
+          .toFixed(1),
+      );
+    } else {
+      total = Number(
+        (
+          item.attendance * (weights.kehadiran / 100) +
+          item.assignment * (weights.tugas / 100) +
+          item.midterm * (weights.uts / 100) +
+          item.finalExam * (weights.uas / 100)
+        ).toFixed(1),
+      );
+    }
+    return { totalScore: total, ...letterFor(total) };
   };
 
   // Handle Score Input Change
   const handleScoreChange = (
     index: number,
-    field: 'assignment' | 'midterm' | 'finalExam',
+    field: 'assignment' | 'midterm' | 'finalExam' | { componentId: string },
     value: number
   ) => {
     const clampedVal = Math.max(0, Math.min(100, isNaN(value) ? 0 : value));
     setStudents((prev) => {
       const next = [...prev];
-      const item = { ...next[index], [field]: clampedVal };
-      const computed = calculateRow(item.attendance, item.assignment, item.midterm, item.finalExam);
-      next[index] = { ...item, ...computed };
+      const base = next[index];
+      const item: StudentGradeItem =
+        typeof field === 'string'
+          ? { ...base, [field]: clampedVal }
+          : { ...base, scores: { ...(base.scores || {}), [field.componentId]: clampedVal } };
+      next[index] = { ...item, ...calculateRow(item) };
       return next;
     });
   };
 
   // Save Draft
   const handleSaveDraft = async () => {
-    if (!selectedClassId) return;
+    if (!selectedClassId || weightsMissing) return;
     setIsSubmitting(true);
     try {
       const res = await fetch(`${apiBase}/academic/grades/save`, {
@@ -200,7 +226,7 @@ function LecturerNilaiContent() {
 
   // Submit Final
   const handleFinalSubmit = async () => {
-    if (!selectedClassId) return;
+    if (!selectedClassId || weightsMissing) return;
     setIsSubmitting(true);
     try {
       const res = await fetch(`${apiBase}/academic/grades/save`, {
@@ -247,9 +273,16 @@ function LecturerNilaiContent() {
   // Export CSV
   const handleExportCsv = () => {
     if (!classInfo || students.length === 0) return;
-    let csv = `No,NIM,Nama Mahasiswa,Presensi (${weights.kehadiran}%),Tugas (${weights.tugas}%),UTS (${weights.uts}%),UAS (${weights.uas}%),Nilai Akhir,Huruf Mutu,Bobot IPK,Status\n`;
+    const dynamic = scheme?.components ?? null;
+    const head = dynamic
+      ? dynamic.map((c) => `${c.name} (${c.weight}%)`).join(',')
+      : `Presensi (${weights.kehadiran}%),Tugas (${weights.tugas}%),UTS (${weights.uts}%),UAS (${weights.uas}%)`;
+    let csv = `No,NIM,Nama Mahasiswa,${head},Nilai Akhir,Huruf Mutu,Bobot IPK,Status\n`;
     students.forEach((s, idx) => {
-      csv += `${idx + 1},"${s.nim}","${s.studentName}",${s.attendance},${s.assignment},${s.midterm},${s.finalExam},${s.totalScore},${s.gradeLetter},${s.gradePoint},${s.status}\n`;
+      const cells = dynamic
+        ? dynamic.map((c) => (c.source === 'ATTENDANCE' ? s.attendance : s.scores?.[c.id] ?? 0)).join(',')
+        : `${s.attendance},${s.assignment},${s.midterm},${s.finalExam}`;
+      csv += `${idx + 1},"${s.nim}","${s.studentName}",${cells},${s.totalScore},${s.gradeLetter},${s.gradePoint},${s.status}\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -376,16 +409,40 @@ function LecturerNilaiContent() {
             )}
           </div>
 
+          {weightsMissing && (
+            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex flex-wrap items-center justify-between gap-2">
+              <span>
+                <strong>Bobot penilaian kelas ini belum diatur.</strong> Isi bobot semua komponen (total 100%) di Kontrak Kuliah sebelum menginput nilai.
+              </span>
+              <a href={`/lecturer/kontrak/${selectedClassId}`} className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold">
+                Atur Bobot
+              </a>
+            </div>
+          )}
+
           {/* Formula weight reminder badge */}
           <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-700">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#1E3A8A] shrink-0" />
               <span>
-                Rumus Evaluasi {classInfo?.weights ? 'Kelas Ini' : 'Resmi (Default)'}:{' '}
-                <strong className="text-[#1E3A8A]">Presensi {weights.kehadiran}%</strong> +{' '}
-                <strong className="text-[#1E3A8A]">Tugas {weights.tugas}%</strong> +{' '}
-                <strong className="text-[#1E3A8A]">UTS {weights.uts}%</strong> +{' '}
-                <strong className="text-[#1E3A8A]">UAS {weights.uas}%</strong>
+                Rumus Evaluasi {scheme ? `(${scheme.name})` : classInfo?.weights ? 'Kelas Ini' : 'Resmi (Default)'}:{' '}
+                {scheme ? (
+                  scheme.components.map((c, i) => (
+                    <React.Fragment key={c.id}>
+                      {i > 0 && ' + '}
+                      <strong className="text-[#1E3A8A]">
+                        {c.name} {c.weight}%
+                      </strong>
+                    </React.Fragment>
+                  ))
+                ) : (
+                  <>
+                    <strong className="text-[#1E3A8A]">Presensi {weights.kehadiran}%</strong> +{' '}
+                    <strong className="text-[#1E3A8A]">Tugas {weights.tugas}%</strong> +{' '}
+                    <strong className="text-[#1E3A8A]">UTS {weights.uts}%</strong> +{' '}
+                    <strong className="text-[#1E3A8A]">UAS {weights.uas}%</strong>
+                  </>
+                )}
               </span>
             </div>
 
@@ -437,10 +494,20 @@ function LecturerNilaiContent() {
                   <tr>
                     <th className="py-3.5 px-4 w-12 text-center">No</th>
                     <th className="py-3.5 px-4">NIM & Nama Mahasiswa</th>
-                    <th className="py-3.5 px-3 text-center w-28">Presensi ({weights.kehadiran}%)</th>
-                    <th className="py-3.5 px-3 text-center w-28">Tugas ({weights.tugas}%)</th>
-                    <th className="py-3.5 px-3 text-center w-28">UTS ({weights.uts}%)</th>
-                    <th className="py-3.5 px-3 text-center w-28">UAS ({weights.uas}%)</th>
+                    {scheme ? (
+                      scheme.components.map((c) => (
+                        <th key={c.id} className="py-3.5 px-3 text-center w-28">
+                          {c.name} ({c.weight}%)
+                        </th>
+                      ))
+                    ) : (
+                      <>
+                        <th className="py-3.5 px-3 text-center w-28">Presensi ({weights.kehadiran}%)</th>
+                        <th className="py-3.5 px-3 text-center w-28">Tugas ({weights.tugas}%)</th>
+                        <th className="py-3.5 px-3 text-center w-28">UTS ({weights.uts}%)</th>
+                        <th className="py-3.5 px-3 text-center w-28">UAS ({weights.uas}%)</th>
+                      </>
+                    )}
                     <th className="py-3.5 px-3 text-center w-28">Nilai Akhir</th>
                     <th className="py-3.5 px-3 text-center w-24">Huruf Mutu</th>
                     <th className="py-3.5 px-4 text-center w-24">Status</th>
@@ -456,51 +523,79 @@ function LecturerNilaiContent() {
                         <div className="text-xs text-slate-500 font-mono mt-0.5">NIM: {st.nim}</div>
                       </td>
 
-                      {/* Presensi (readonly, dihitung otomatis dari data kehadiran) */}
-                      <td className="py-3 px-3 text-center">
-                        <span
-                          title="Dihitung otomatis dari data Absensi Perkuliahan"
-                          className="inline-flex w-20 items-center justify-center px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 font-mono font-bold"
-                        >
-                          {st.attendance}
-                        </span>
-                      </td>
+                      {scheme ? (
+                        scheme.components.map((c) =>
+                          c.source === 'ATTENDANCE' ? (
+                            <td key={c.id} className="py-3 px-3 text-center">
+                              <span
+                                title="Dihitung otomatis dari data Absensi Perkuliahan"
+                                className="inline-flex w-20 items-center justify-center px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 font-mono font-bold"
+                              >
+                                {st.attendance}
+                              </span>
+                            </td>
+                          ) : (
+                            <td key={c.id} className="py-3 px-3 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={st.scores?.[c.id] ?? 0}
+                                onChange={(e) => handleScoreChange(index, { componentId: c.id }, parseFloat(e.target.value))}
+                                className="w-20 text-center px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-[#1E3A8A]"
+                              />
+                            </td>
+                          ),
+                        )
+                      ) : (
+                        <>
+                        {/* Presensi (readonly, dihitung otomatis dari data kehadiran) */}
+                        <td className="py-3 px-3 text-center">
+                          <span
+                            title="Dihitung otomatis dari data Absensi Perkuliahan"
+                            className="inline-flex w-20 items-center justify-center px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 font-mono font-bold"
+                          >
+                            {st.attendance}
+                          </span>
+                        </td>
 
-                      {/* Tugas */}
-                      <td className="py-3 px-3 text-center">
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={st.assignment}
-                          onChange={(e) => handleScoreChange(index, 'assignment', parseFloat(e.target.value))}
-                          className="w-20 text-center px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-[#1E3A8A]"
-                        />
-                      </td>
+                        {/* Tugas */}
+                        <td className="py-3 px-3 text-center">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={st.assignment}
+                            onChange={(e) => handleScoreChange(index, 'assignment', parseFloat(e.target.value))}
+                            className="w-20 text-center px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-[#1E3A8A]"
+                          />
+                        </td>
 
-                      {/* UTS */}
-                      <td className="py-3 px-3 text-center">
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={st.midterm}
-                          onChange={(e) => handleScoreChange(index, 'midterm', parseFloat(e.target.value))}
-                          className="w-20 text-center px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-[#1E3A8A]"
-                        />
-                      </td>
+                        {/* UTS */}
+                        <td className="py-3 px-3 text-center">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={st.midterm}
+                            onChange={(e) => handleScoreChange(index, 'midterm', parseFloat(e.target.value))}
+                            className="w-20 text-center px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-[#1E3A8A]"
+                          />
+                        </td>
 
-                      {/* UAS */}
-                      <td className="py-3 px-3 text-center">
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={st.finalExam}
-                          onChange={(e) => handleScoreChange(index, 'finalExam', parseFloat(e.target.value))}
-                          className="w-20 text-center px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-[#1E3A8A]"
-                        />
-                      </td>
+                        {/* UAS */}
+                        <td className="py-3 px-3 text-center">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={st.finalExam}
+                            onChange={(e) => handleScoreChange(index, 'finalExam', parseFloat(e.target.value))}
+                            className="w-20 text-center px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-[#1E3A8A]"
+                          />
+                        </td>
+                        </>
+                      )}
 
                       {/* Nilai Akhir Angka */}
                       <td className="py-3 px-3 text-center">

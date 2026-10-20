@@ -296,6 +296,7 @@ export class ObeIntegrationService {
             finalScore: true,
             totalScore: true,
             gradePoint: true,
+            componentScores: { select: { score: true, component: { select: { code: true, name: true } } } },
           },
         }),
       (e) => {
@@ -304,9 +305,14 @@ export class ObeIntegrationService {
         const add = (key: string, component: string | null, score: number | null) => {
           if (score !== null && score !== undefined) rows.push({ id: `${e.id}:${key}`, ...base, component, score });
         };
-        add('tugas', 'Tugas', e.assignmentScore);
-        add('uts', 'UTS', e.midtermScore);
-        add('uas', 'UAS', e.finalScore);
+        if (e.componentScores.length > 0) {
+          // Nilai memakai skema komponen kampus: satu baris per komponen (nama komponen apa adanya)
+          for (const cs of e.componentScores) add(cs.component.code, cs.component.name, cs.score);
+        } else {
+          add('tugas', 'Tugas', e.assignmentScore);
+          add('uts', 'UTS', e.midtermScore);
+          add('uas', 'UAS', e.finalScore);
+        }
         // `totalScore` tidak seragam di data SIAKAD: sebagian baris berisi nilai 0-100, sebagian (hasil impor
         // Feeder) berisi indeks 0-4 yang sama dengan `gradePoint`. Skalanya dikirim apa adanya lewat
         // `max_score` supaya OBE menormalkannya dengan benar; baris yang skalanya tidak dapat dipastikan

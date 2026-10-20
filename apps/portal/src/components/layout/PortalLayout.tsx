@@ -434,6 +434,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         { name: 'Presensi', href: '/admin/presensi', icon: UserCheck },
         { name: 'Nilai', href: '/admin/nilai', icon: Award },
         { name: 'Skala Nilai', href: '/admin/skala-nilai', icon: Award },
+        { name: 'Komponen Penilaian', href: '/admin/komponen-penilaian', icon: Award },
       ],
     },
     {
@@ -517,6 +518,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         { name: 'Penerimaan SPP & UKT', href: '/finance/penerimaan', icon: CreditCard },
         { name: 'Daftar Tagihan Mahasiswa', href: '/finance/tagihan', icon: FileText },
         { name: 'Verifikasi Pembayaran', href: '/finance/verifikasi', icon: ShieldCheck },
+        { name: 'Riwayat Pembayaran', href: '/finance/riwayat', icon: Clock },
         { name: 'Aturan Biaya Perkuliahan', href: '/finance/aturan-pembiayaan', icon: BookOpen },
       ],
     },
