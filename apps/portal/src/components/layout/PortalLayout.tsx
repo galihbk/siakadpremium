@@ -168,7 +168,11 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
   }, []);
 
   useEffect(() => {
-    getInstitutionProfile().then(setInstitutionProfile);
+    const load = () => getInstitutionProfile().then(setInstitutionProfile);
+    load();
+    // Profil institusi diubah di halaman Profil Institusi -> muat ulang tanpa perlu refresh halaman.
+    window.addEventListener('siakad:institution-updated', load);
+    return () => window.removeEventListener('siakad:institution-updated', load);
   }, []);
 
   useEffect(() => {

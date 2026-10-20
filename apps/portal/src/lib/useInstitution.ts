@@ -8,9 +8,12 @@ export function useInstitution(): InstitutionProfile {
   const [profile, setProfile] = useState<InstitutionProfile>(FALLBACK_INSTITUTION_PROFILE);
   useEffect(() => {
     let alive = true;
-    getInstitutionProfile().then((p) => alive && setProfile(p));
+    const load = () => getInstitutionProfile().then((p) => alive && setProfile(p));
+    load();
+    window.addEventListener('siakad:institution-updated', load);
     return () => {
       alive = false;
+      window.removeEventListener('siakad:institution-updated', load);
     };
   }, []);
   return profile;

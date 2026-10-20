@@ -56,6 +56,11 @@ export class AuthService {
     }
 
     if (!user) {
+      // Akun demo (tanpa baris di tabel User dan TANPA pengecekan kata sandi) hanya boleh hidup di instance demo.
+      // Di server kampus sungguhan ia harus mati, kalau tidak siapa pun bisa masuk hanya dengan mengetik emailnya.
+      if (process.env.PUBLIC_DEMO_ACCOUNTS?.trim().toLowerCase() !== 'true') {
+        throw new UnauthorizedException('NIM / NIDN / Email atau Kata Sandi yang dimasukkan salah.');
+      }
       // Demo mock authentication based on identifier format if DB is empty
       if (identifier === 'superadmin@itn.ac.id') {
         user = {

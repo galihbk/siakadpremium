@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { RedisService } from '../../shared/redis/redis.service';
 import { UpdateLandingPageDto } from './dto/update-landing-page.dto';
@@ -81,6 +81,7 @@ export const OWN_ARTICLE_ROLES = ['ADMIN_PRODI', 'ADMIN_PMB', 'P2M', 'ADMIN_P2M'
 
 @Injectable()
 export class LandingPageService {
+  private readonly logger = new Logger(LandingPageService.name);
   private inMemorySettings = { ...DEFAULT_SETTINGS };
 
   constructor(
@@ -110,9 +111,11 @@ export class LandingPageService {
     };
 
     try {
+      // Akun demo tidak punya baris di tabel User; mengisi kolom relasi dengan ID-nya membuat penyimpanan gagal.
+      const editor = userId ? await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true } }) : null;
       const data: any = {
         ...dto,
-        ...(userId ? { updatedByUserId: userId } : {}),
+        ...(editor ? { updatedByUserId: editor.id } : {}),
       };
 
       const updated = await this.prisma.landingPageSetting.upsert({
@@ -144,8 +147,10 @@ export class LandingPageService {
       // Clear cache
       await this.redis.del('landing-page:settings');
       return updated;
-    } catch {
-      return this.inMemorySettings;
+    } catch (err) {
+      // Jangan pura-pura sukses: bila database menolak, perubahan hanya ada di memori dan hilang saat server restart.
+      this.logger.error(`Gagal menyimpan profil institusi: ${err instanceof Error ? err.message : err}`);
+      throw new InternalServerErrorException('Profil institusi gagal disimpan ke database. Periksa log server untuk detailnya.');
     }
   }
 

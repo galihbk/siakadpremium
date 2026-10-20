@@ -247,6 +247,7 @@ export default function SuperAdminProfilInstitusiPage() {
       if (res.ok) {
         setProfile({ ...editFormData });
         setDbConnected(true);
+        window.dispatchEvent(new Event('siakad:institution-updated'));
         showToast('Profil institusi berhasil diperbarui!');
       } else {
         setProfile({ ...editFormData });
@@ -312,6 +313,7 @@ export default function SuperAdminProfilInstitusiPage() {
       setProfile({ ...profile, logoInitials: initials, ...(logoUrl !== undefined ? { logoUrl: logoUrl || null } : {}) });
       setDbConnected(true);
       setIsLogoModalOpen(false);
+      window.dispatchEvent(new Event('siakad:institution-updated'));
       showToast('Logo dan identitas visual kampus berhasil diperbarui!');
     } catch (err) {
       setLogoError(err instanceof Error ? err.message : 'Gagal menyimpan logo.');
