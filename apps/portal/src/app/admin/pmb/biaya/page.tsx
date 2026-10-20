@@ -171,7 +171,7 @@ export default function AdminPmbBiayaPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: targetStatus,
-          verifiedBy: authUser?.fullName || 'Panitia PMB ITN',
+          verifiedBy: authUser?.fullName || 'Panitia PMB',
         }),
       });
 

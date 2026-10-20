@@ -123,7 +123,7 @@ export default function LecturerJadwalPage() {
 
   // Export iCal (.ics)
   const handleExportIcs = () => {
-    let ics = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//ITN Siakad Premium//Jadwal Mengajar Dosen//ID\nCALSCALE:GREGORIAN\nMETHOD:PUBLISH\nX-WR-CALNAME:Jadwal Mengajar Dosen ITN\n`;
+    let ics = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//SIAKAD Premium//Jadwal Mengajar Dosen//ID\nCALSCALE:GREGORIAN\nMETHOD:PUBLISH\nX-WR-CALNAME:Jadwal Mengajar Dosen ITN\n`;
     sessions.forEach((item) => {
       ics += `BEGIN:VEVENT\nSUMMARY:${item.courseName} (${item.className})${item.sesi === 'Praktikum' ? ' - Praktikum' : ''}\nDESCRIPTION:Mata Kuliah: ${item.courseName}\\nKelas: ${item.className}\\nSKS: ${item.sks}\\nRuang: ${item.roomName}\nLOCATION:${item.roomName}\nSTATUS:CONFIRMED\nEND:VEVENT\n`;
     });
@@ -133,7 +133,7 @@ export default function LecturerJadwalPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', 'Jadwal_Mengajar_Dosen_ITN.ics');
+    link.setAttribute('download', 'Jadwal_Mengajar_Dosen.ics');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

@@ -328,7 +328,7 @@ export default function LayananSuratPage() {
     if (user) setCurrentUser(user);
   }, []);
 
-  const studentName = profile?.nama || currentUser?.fullName || 'Mahasiswa ITN';
+  const studentName = profile?.nama || currentUser?.fullName || 'Mahasiswa';
 
   return (
     <PortalLayout
@@ -836,7 +836,7 @@ export default function LayananSuratPage() {
             <div className="p-4 bg-slate-900 text-white flex items-center justify-between print:hidden">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs font-bold">Pratinjau Dokumen Surat Resmi BAAK ITN</span>
+                <span className="text-xs font-bold">Pratinjau Dokumen Surat Resmi BAAK</span>
               </div>
               <div className="flex items-center gap-2">
                 <button

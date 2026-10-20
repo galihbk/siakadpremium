@@ -200,7 +200,7 @@ export default function AdminPmbDashboardPage() {
         body: JSON.stringify({
           status: updateStatusVal,
           notes: updateNotesVal,
-          verifiedBy: authUser?.fullName || 'Panitia PMB ITN',
+          verifiedBy: authUser?.fullName || 'Panitia PMB',
         }),
       });
 
@@ -259,7 +259,7 @@ export default function AdminPmbDashboardPage() {
             body: JSON.stringify({
               status: 'VERIFIED',
               notes: 'Berkas digital telah diperiksa dan dinyatakan memenuhi syarat administrasi.',
-              verifiedBy: authUser?.fullName || 'Panitia PMB ITN',
+              verifiedBy: authUser?.fullName || 'Panitia PMB',
             }),
           });
           if (!res.ok) throw new Error('Gagal memverifikasi berkas.');
@@ -286,7 +286,7 @@ export default function AdminPmbDashboardPage() {
       message: (
         <span>
           Terbitkan Nomor Induk Mahasiswa (NIM) resmi dan konversi{' '}
-          <strong className="text-slate-900 font-bold">&quot;{app.fullName}&quot;</strong> menjadi Mahasiswa Aktif ITN di sistem akademik?
+          <strong className="text-slate-900 font-bold">&quot;{app.fullName}&quot;</strong> menjadi Mahasiswa Aktif di sistem akademik?
         </span>
       ),
       type: 'success',
@@ -970,7 +970,7 @@ export default function AdminPmbDashboardPage() {
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 pb-4 border-b border-slate-100">
               <div>
                 <h3 className="text-base font-extrabold text-slate-900">Rekapitulasi Penerimaan Mahasiswa Baru TA 2027/2028</h3>
-                <p className="text-xs text-slate-500">Laporan agregasi riil terintegrasi database sistem seleksi ITN</p>
+                <p className="text-xs text-slate-500">Laporan agregasi riil terintegrasi database sistem seleksi</p>
               </div>
               <button
                 onClick={() => window.print()}

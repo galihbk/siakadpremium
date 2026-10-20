@@ -302,7 +302,7 @@ export default function SuperAdminKalenderPage() {
             </div>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
               <CalendarDays className="w-7 h-7 text-[#1E3A8A]" />
-              <span>Kalender Akademik ITN</span>
+              <span>Kalender Akademik</span>
             </h1>
             <p className="text-xs sm:text-sm text-slate-600 mt-1">
               Jadwal resmi semester Gasal, Genap, masa perkuliahan, evaluasi UTS/UAS, dan yudisium kampus.
@@ -803,7 +803,7 @@ export default function SuperAdminKalenderPage() {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           title={editingEvent ? 'Edit Agenda Akademik' : 'Tambah Agenda Akademik Baru'}
-          subtitle="Jadwal operasional Institut Teknologi Nusantara"
+          subtitle="Jadwal operasional kampus"
           icon={<CalendarDays className="w-5 h-5" />}
           maxWidth="xl"
         >

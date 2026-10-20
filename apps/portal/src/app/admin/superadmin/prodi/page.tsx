@@ -485,7 +485,7 @@ function ProdiContent() {
               <span>Manajemen Program Studi (Prodi)</span>
             </h1>
             <p className="text-xs sm:text-sm text-slate-600 mt-1">
-              Daftar seluruh program studi S1, D4, dan D3 terakreditasi Institut Teknologi Nusantara.
+              Daftar seluruh program studi S1, D4, dan D3 terakreditasi.
             </p>
           </div>
 
@@ -1060,7 +1060,7 @@ function ProdiContent() {
           isOpen={isAddModalOpen}
           onClose={() => setIsAddModalOpen(false)}
           title={editingProgram ? 'Edit Program Studi' : 'Tambah Program Studi Baru'}
-          subtitle="Master data program studi akademik Institut Teknologi Nusantara"
+          subtitle="Master data program studi akademik"
           icon={<GraduationCap className="w-5 h-5" />}
           maxWidth="xl"
         >

@@ -154,7 +154,7 @@ export default function AdminP3mDashboardPage() {
           hData.map((h: any) => ({
             ...h,
             registrationNumber: h.regNumber || h.registrationNumber,
-            inventors: Array.isArray(h.inventors) ? h.inventors : [h.inventor || 'Dosen ITN'],
+            inventors: Array.isArray(h.inventors) ? h.inventors : [h.inventor || 'Dosen'],
             year: h.grantYear || 2026,
           }))
         );

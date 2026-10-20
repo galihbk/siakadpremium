@@ -1639,7 +1639,7 @@ export default function StudentProfilePage() {
                       <span>Informasi Akademik & Studi</span>
                     </h2>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Data kurikulum resmi dan status perkuliahan mahasiswa di Institut Teknologi Nusantara.
+                      Data kurikulum resmi dan status perkuliahan mahasiswa.
                     </p>
                   </div>
 

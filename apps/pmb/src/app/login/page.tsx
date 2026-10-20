@@ -1,5 +1,7 @@
 'use client';
 
+import { CampusLogo } from '@/components/CampusLogo';
+import { useCampus } from '@/lib/campusProfile';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -23,6 +25,7 @@ import {
 } from 'lucide-react';
 
 export default function PmbLoginPage() {
+  const campus = useCampus();
   const router = useRouter();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -109,9 +112,7 @@ export default function PmbLoginPage() {
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-white border-2 border-[#D4A017] flex items-center justify-center font-extrabold text-[#1E3A8A] text-xs shadow-xs">
-                ITN
-              </div>
+              <CampusLogo url={campus.logoUrl} initials={campus.initials} className="w-9 h-9 rounded-full bg-white border-2 border-[#D4A017] flex items-center justify-center font-extrabold text-[#1E3A8A] text-xs shadow-xs" />
               <div>
                 <span className="font-bold text-sm tracking-wide block leading-tight">
                   INSTITUT TEKNOLOGI NUSANTARA
@@ -161,7 +162,7 @@ export default function PmbLoginPage() {
                 </div>
                 <div className="flex items-start gap-2.5">
                   <FileText className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                  <span>Unduh dan cetak Kartu Tanda Peserta Ujian / Seleksi Masuk ITN.</span>
+                  <span>Unduh dan cetak Kartu Tanda Peserta Ujian / Seleksi Masuk {campus.short}.</span>
                 </div>
                 <div className="flex items-start gap-2.5">
                   <Calendar className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
@@ -175,11 +176,11 @@ export default function PmbLoginPage() {
               <span className="font-bold text-white block mb-1">Pusat Layanan Informasi PMB:</span>
               <p className="flex items-center gap-1.5 mt-0.5">
                 <Phone className="w-3.5 h-3.5 text-amber-400" />
-                <span>(021) 7890-1234 ext. 101</span>
+                <span>{campus.phone || '-'}</span>
               </p>
               <p className="flex items-center gap-1.5 mt-0.5">
                 <Mail className="w-3.5 h-3.5 text-amber-400" />
-                <span>pmb@itn.ac.id (08.00 - 16.00 WIB)</span>
+                <span>{campus.email || '-'} (08.00 - 16.00 WIB)</span>
               </p>
             </div>
           </div>
@@ -336,10 +337,10 @@ export default function PmbLoginPage() {
       <footer className="bg-slate-200/80 border-t border-slate-300 py-4 text-center text-xs text-slate-600">
         <div className="max-w-7xl mx-auto px-4">
           <p className="font-semibold text-slate-700">
-            Panitia Penerimaan Mahasiswa Baru (PMB) • Institut Teknologi Nusantara (ITN)
+            Panitia Penerimaan Mahasiswa Baru (PMB) • {campus.nameWithShort}
           </p>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            Kampus Utama: Jl. Boulevard Teknologi No. 1, Jakarta • Hotline: (021) 7890-1234 • Email: pmb@itn.ac.id
+            Kampus Utama: {campus.address || '-'} • Hotline: {campus.phone || '-'} • Email: {campus.email || '-'}
           </p>
         </div>
       </footer>

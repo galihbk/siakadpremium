@@ -348,7 +348,7 @@ function RuangContent() {
               <span>Manajemen Ruang Perkuliahan & Lab</span>
             </h1>
             <p className="text-xs sm:text-sm text-slate-600 mt-1">
-              Inventaris ruang kelas teori, laboratorium komputasi/rekayasa, studio kreatif, dan auditorium kampus ITN.
+              Inventaris ruang kelas teori, laboratorium komputasi/rekayasa, studio kreatif, dan auditorium kampus.
             </p>
           </div>
 
@@ -796,7 +796,7 @@ function RuangContent() {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           title={editingRoom ? 'Edit Data Ruangan' : 'Tambah Ruangan Baru'}
-          subtitle="Sarana perkuliahan & riset Institut Teknologi Nusantara"
+          subtitle="Sarana perkuliahan & riset kampus"
           icon={<DoorOpen className="w-5 h-5" />}
           maxWidth="xl"
         >

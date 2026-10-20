@@ -1,12 +1,13 @@
 'use client';
 
+import { CampusLogo } from '@/components/CampusLogo';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LogIn, Menu, X } from 'lucide-react';
 import { NAV } from '@/lib/nav';
 
-export function SiteHeader({ shortName, campusName, portalUrl }: { shortName: string; campusName: string; portalUrl: string }) {
+export function SiteHeader({ shortName, logoUrl, campusName, portalUrl }: { shortName: string; logoUrl?: string | null; campusName: string; portalUrl: string }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -18,9 +19,7 @@ export function SiteHeader({ shortName, campusName, portalUrl }: { shortName: st
     <header className="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-slate-200">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
         <Link href="/" className="flex items-center gap-3 min-w-0">
-          <span className="w-9 h-9 rounded-xl bg-[#1E3A8A] text-white flex items-center justify-center text-xs font-black shrink-0">
-            {shortName.slice(0, 3)}
-          </span>
+          <CampusLogo url={logoUrl} initials={shortName.slice(0, 3)} className="w-9 h-9 rounded-xl bg-[#1E3A8A] text-white flex items-center justify-center text-xs font-black shrink-0" />
           <span className="min-w-0">
             <span className="block text-sm font-black text-slate-900 leading-tight">LP3M · Penelitian &amp; Pengabdian</span>
             <span className="block text-[11px] text-slate-500 truncate">{campusName}</span>

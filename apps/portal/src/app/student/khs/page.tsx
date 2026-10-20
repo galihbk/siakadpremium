@@ -1,5 +1,6 @@
 'use client';
 
+import { useInstitution } from '@/lib/useInstitution';
 import React, { useState, useMemo, useEffect } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { SignatureBlock } from '@/components/common/SignatureBlock';
@@ -51,6 +52,7 @@ interface SemesterData {
 }
 
 export default function HasilStudiKHSPage() {
+  const inst = useInstitution();
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [studentProfile, setStudentProfile] = useState<{
     id?: string;
@@ -120,10 +122,10 @@ export default function HasilStudiKHSPage() {
     fetchProfile();
   }, []);
 
-  const studentName = currentUser?.fullName || 'Mahasiswa ITN';
+  const studentName = currentUser?.fullName || 'Mahasiswa';
   const displayNim = studentProfile.nim || 'Mahasiswa';
   const displayProdi = studentProfile.studyProgram || 'Program Studi';
-  const displayFaculty = studentProfile.faculty || 'Institut Teknologi Nusantara';
+  const displayFaculty = studentProfile.faculty || inst.campusName;
   const displayAdvisor = studentProfile.advisorName || 'Dr. Aris Sudrajat, S.Ds., M.Ds.';
   const displayAdvisorNip = studentProfile.advisorNip || '198208152010121002';
 
@@ -316,10 +318,10 @@ export default function HasilStudiKHSPage() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-black uppercase tracking-wider text-slate-900">
-                Institut Teknologi Nusantara
+                {inst.campusName}
               </h2>
               <p className="text-xs text-slate-700">{displayFaculty} &bull; Program Studi {displayProdi}</p>
-              <p className="text-[11px] text-slate-500">Jalan Soekarno Hatta No. 128, Bandung, Jawa Barat | Website: siakad.itn.ac.id</p>
+              <p className="text-[11px] text-slate-500">{[inst.contactAddress, inst.website && `Website: ${inst.website}`].filter(Boolean).join(' | ')}</p>
             </div>
             <div className="text-right">
               <h3 className="text-base font-bold text-slate-900">KARTU HASIL STUDI (KHS)</h3>

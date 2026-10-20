@@ -180,7 +180,7 @@ export default function VerifikasiPage() {
               Verifikasi Berkas Calon Mahasiswa
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Pemeriksaan keabsahan dokumen persyaratan administratif pendaftaran PMB ITN.
+              Pemeriksaan keabsahan dokumen persyaratan administratif pendaftaran PMB.
             </p>
           </div>
 

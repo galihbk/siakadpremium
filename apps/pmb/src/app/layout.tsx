@@ -2,13 +2,18 @@ import type { Metadata } from 'next';
 import { CopyrightBanner } from '@/components/CopyrightBanner';
 import { AuthFetchInstaller } from '@/components/AuthFetchInstaller';
 import { ChatWidget } from '@/components/ChatWidget';
+import { getCampusServer } from '@/lib/campusServer';
 import './globals.css';
 
-export const metadata: Metadata = {
-  title: 'PMB Institut Teknologi Nusantara - Penerimaan Mahasiswa Baru',
-  description:
-    'Portal resmi Penerimaan Mahasiswa Baru (PMB) Institut Teknologi Nusantara (ITN): gelombang pendaftaran, jalur masuk, biaya kuliah, registrasi akun, dan pemantauan hasil seleksi.',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const campus = await getCampusServer();
+  const name = campus.name || 'Kampus';
+  return {
+    title: `PMB ${name} - Penerimaan Mahasiswa Baru`,
+    description: `Portal resmi Penerimaan Mahasiswa Baru (PMB) ${campus.nameWithShort || name}: gelombang pendaftaran, jalur masuk, biaya kuliah, registrasi akun, dan pemantauan hasil seleksi.`,
+    ...(campus.logoUrl ? { icons: { icon: campus.logoUrl } } : {}),
+  };
+}
 
 export default function RootLayout({
   children,

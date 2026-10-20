@@ -54,7 +54,7 @@ export default function HakiAdminPage() {
         const normalized = data.map((item: any) => ({
           ...item,
           registrationNumber: item.regNumber || item.registrationNumber,
-          inventors: Array.isArray(item.inventors) ? item.inventors : [item.inventor || 'Dosen Peneliti ITN'],
+          inventors: Array.isArray(item.inventors) ? item.inventors : [item.inventor || 'Dosen Peneliti'],
           year: item.grantYear || item.year || 2026,
         }));
         setItems(normalized);

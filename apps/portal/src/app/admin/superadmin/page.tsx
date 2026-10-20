@@ -251,7 +251,7 @@ export default function SuperAdminDashboardPage() {
               Sistem Informasi Akademik (SIAKAD) Enterprise
             </h1>
             <p className="text-xs sm:text-sm text-slate-600 mt-1.5 leading-relaxed">
-              Institut Teknologi Nusantara &bull; Mengelola seluruh operasional perkuliahan, data mahasiswa, dosen, kurikulum, dan pelaporan PDDIKTI secara terpusat.
+              Mengelola seluruh operasional perkuliahan, data mahasiswa, dosen, kurikulum, dan pelaporan PDDIKTI secara terpusat.
             </p>
           </div>
 
@@ -326,7 +326,7 @@ export default function SuperAdminDashboardPage() {
                 <div>
                   <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <Landmark className="w-4 h-4 text-[#1E3A8A]" />
-                    Distribusi Fakultas & Program Studi ITN
+                    Distribusi Fakultas & Program Studi
                   </h2>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Struktur fakultas, dekanat, sebaran mahasiswa, dosen, dan status akreditasi BAN-PT

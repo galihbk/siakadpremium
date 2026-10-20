@@ -1,5 +1,7 @@
 'use client';
 
+import { useInstitution } from '@/lib/useInstitution';
+import { CampusLogo } from '@/components/common/CampusLogo';
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
@@ -87,6 +89,7 @@ const employmentStatusOptions = [
 ];
 
 export default function SuperAdminPegawaiPage() {
+  const inst = useInstitution();
   const [employees, setEmployees] = useState<PegawaiItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
@@ -1314,7 +1317,7 @@ export default function SuperAdminPegawaiPage() {
                   <input
                     type="email"
                     required
-                    placeholder="nama.pegawai@itn.ac.id"
+                    placeholder="nama.pegawai@kampus.ac.id"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#1E3A8A]"
@@ -1357,7 +1360,7 @@ export default function SuperAdminPegawaiPage() {
             isOpen={!!selectedIdCard}
             onClose={() => setSelectedIdCard(null)}
             title="Kartu Identitas Pegawai Digital"
-            subtitle="KTA resmi kepegawaian Institut Teknologi Nusantara berstandar smart card."
+            subtitle={`KTA resmi kepegawaian ${inst.campusName} berstandar smart card.`}
             icon={<IdCard className="w-5 h-5" />}
             maxWidth="md"
           >
@@ -1374,12 +1377,10 @@ export default function SuperAdminPegawaiPage() {
                 {/* Header Card */}
                 <div className="flex items-center justify-between border-b border-white/15 pb-3">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-[#D4A017] text-[#0F172A] font-black text-sm flex items-center justify-center shadow-sm">
-                      ITN
-                    </div>
+                    <CampusLogo url={inst.logoUrl} initials={inst.logoInitials} className="w-8 h-8 rounded-lg bg-[#D4A017] text-[#0F172A] font-black text-sm flex items-center justify-center shadow-sm" />
                     <div>
                       <h4 className="font-extrabold text-xs tracking-wider uppercase text-white">
-                        Institut Teknologi Nusantara
+                        {inst.campusName}
                       </h4>
                       <p className="text-[9px] text-amber-300 font-medium">KARTU TANDA PEGAWAI RESMI</p>
                     </div>

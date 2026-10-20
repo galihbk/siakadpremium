@@ -79,12 +79,12 @@ export default function LecturerP3mPage() {
   const [formData, setFormData] = useState({
     type: 'Penelitian' as 'Penelitian' | 'Pengabdian',
     title: '',
-    scheme: 'Penelitian Fundamental Internal ITN',
+    scheme: 'Penelitian Fundamental Internal',
     focusArea: '',
     year: 2026,
     status: 'Laporan Masuk' as P3mReportItem['status'],
     fundingAmount: '' as unknown as number,
-    fundingSource: 'DIPA Internal ITN',
+    fundingSource: 'DIPA Internal',
     leader: 'Dr. Bayu Wicaksono, M.Kom.',
     membersText: '',
     targetOutput: '',
@@ -277,12 +277,12 @@ export default function LecturerP3mPage() {
     setFormData({
       type: 'Penelitian',
       title: '',
-      scheme: 'Penelitian Fundamental Internal ITN',
+      scheme: 'Penelitian Fundamental Internal',
       focusArea: '',
       year: 2026,
       status: 'Laporan Masuk',
       fundingAmount: '' as unknown as number,
-      fundingSource: 'DIPA Internal ITN',
+      fundingSource: 'DIPA Internal',
       leader: currentUser?.fullName || 'Dr. Bayu Wicaksono, M.Kom.',
       membersText: '',
       targetOutput: '',
@@ -727,7 +727,7 @@ export default function LecturerP3mPage() {
                       {editingItem ? 'Perbarui Laporan Kegiatan' : 'Formulir Pelaporan Kegiatan Penelitian & PkM'}
                     </h3>
                     <p className="text-xs text-blue-100">
-                      Pencatatan & Arsip Portofolio Tri Dharma Dosen &bull; ITN
+                      Pencatatan & Arsip Portofolio Tri Dharma Dosen
                     </p>
                   </div>
                 </div>
@@ -813,8 +813,8 @@ export default function LecturerP3mPage() {
                     >
                       {formData.type === 'Penelitian' ? (
                         <>
-                          <option value="Penelitian Fundamental Internal ITN">
-                            Penelitian Fundamental Internal ITN
+                          <option value="Penelitian Fundamental Internal">
+                            Penelitian Fundamental Internal
                           </option>
                           <option value="Penelitian Terapan Kemendikbudristek (BIMA)">
                             Penelitian Terapan Kemendikbudristek (BIMA)
@@ -832,8 +832,8 @@ export default function LecturerP3mPage() {
                           <option value="Penerapan Iptek bagi Masyarakat (PIM)">
                             Penerapan Iptek bagi Masyarakat (PIM)
                           </option>
-                          <option value="Pemberdayaan Desa Binaan ITN">
-                            Pemberdayaan Desa Binaan ITN
+                          <option value="Pemberdayaan Desa Binaan">
+                            Pemberdayaan Desa Binaan
                           </option>
                           <option value="Pengabdian Tanggap Bencana & CSR">
                             Pengabdian Tanggap Bencana & CSR
@@ -894,10 +894,10 @@ export default function LecturerP3mPage() {
                       onChange={(e) => setFormData({ ...formData, fundingSource: e.target.value })}
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E3A8A] text-slate-800 font-medium"
                     >
-                      <option value="DIPA Internal ITN">DIPA Internal ITN</option>
+                      <option value="DIPA Internal">DIPA Internal</option>
                       <option value="Kemendikbudristek / BIMA">Kemendikbudristek / BIMA</option>
                       <option value="Hibah Kolaborasi Riset Industri">Hibah Kolaborasi Riset Industri</option>
-                      <option value="DIPA Internal ITN & CSR Mitra">DIPA Internal ITN & CSR Mitra</option>
+                      <option value="DIPA Internal & CSR Mitra">DIPA Internal & CSR Mitra</option>
                       <option value="Mandiri">Mandiri</option>
                     </select>
                   </div>
@@ -971,7 +971,7 @@ export default function LecturerP3mPage() {
                     type="url"
                     value={formData.documentUrl}
                     onChange={(e) => setFormData({ ...formData, documentUrl: e.target.value })}
-                    placeholder="https://siakad.itn.ac.id/dokumen/p3m/laporan.pdf"
+                    placeholder="https://contoh.ac.id/dokumen/p3m/laporan.pdf"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E3A8A] text-slate-800 font-mono text-[11px]"
                   />
                 </div>
@@ -1111,7 +1111,7 @@ export default function LecturerP3mPage() {
                   <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-200">
                     <span className="text-[10px] text-amber-800 font-bold uppercase block flex items-center gap-1">
                       <CheckCircle2 className="w-3.5 h-3.5 text-amber-600" />
-                      <span>Catatan Tim Reviewer P3M ITN</span>
+                      <span>Catatan Tim Reviewer P3M</span>
                     </span>
                     <p className="text-slate-700 mt-1 leading-relaxed">
                       {detailItem.reviewerNote}

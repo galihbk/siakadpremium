@@ -9,6 +9,11 @@ const nextConfig: NextConfig = {
         source: '/api/v1/:path*',
         destination: `${process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/:path*`,
       },
+      // Gambar publik hasil unggahan (mis. logo kampus) disajikan API di /uploads/public.
+      {
+        source: '/uploads/public/:path*',
+        destination: `${(process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1').replace(/\/api\/v1\/?$/, '')}/uploads/public/:path*`,
+      },
     ];
   },
 };

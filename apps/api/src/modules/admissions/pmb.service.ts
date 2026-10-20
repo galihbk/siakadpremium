@@ -542,7 +542,7 @@ export class PmbService {
    * Opsi Form Master (Dinamis dari PostgreSQL: Gelombang, Jenis Pendaftaran, Jenis Mahasiswa, Kelas, Prodi Master Akademik)
    */
   async getFormOptions() {
-    const [waves, registrationTypes, tracks, classes, studyPrograms] = await Promise.all([
+    const [waves, registrationTypes, tracks, classes, studyPrograms, paymentAccounts] = await Promise.all([
       this.prisma.admissionBatch.findMany({
         where: { status: { in: ['OPEN', 'UPCOMING'] } },
         orderBy: [{ isDefault: 'desc' }, { startDate: 'asc' }],
@@ -564,6 +564,12 @@ export class PmbService {
         include: { faculty: true },
         orderBy: [{ degreeLevel: 'asc' }, { name: 'asc' }],
       }),
+      // Rekening tujuan pembayaran pendaftar = rekening aktif yang dikelola Keuangan (tanpa saldo).
+      this.prisma.financeBankAccount.findMany({
+        where: { isActive: true },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, bankName: true, accountNumber: true, accountName: true, description: true },
+      }),
     ]);
 
     return {
@@ -571,6 +577,7 @@ export class PmbService {
       registrationTypes,
       tracks,
       classes,
+      paymentAccounts,
       studyPrograms: studyPrograms.map((p) => ({
         id: p.id,
         code: p.code,

@@ -190,9 +190,9 @@ export async function compressPdfFile(
 
     // Bersihkan metadata berlebihan untuk merampingkan ukuran
     pdfDoc.setTitle(file.name.replace(/\.pdf$/i, ''));
-    pdfDoc.setAuthor('SIAKAD ITN');
+    pdfDoc.setAuthor('SIAKAD');
     pdfDoc.setCreator('SIAKAD Document Optimizer');
-    pdfDoc.setProducer('SIAKAD ITN System');
+    pdfDoc.setProducer('SIAKAD System');
 
     // Simpan ulang dengan object streams compression diaktifkan
     const optimizedBytes = await pdfDoc.save({

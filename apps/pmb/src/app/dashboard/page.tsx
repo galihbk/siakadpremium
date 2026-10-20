@@ -1,5 +1,7 @@
 'use client';
 
+import { CampusLogo } from '@/components/CampusLogo';
+import { useCampus } from '@/lib/campusProfile';
 import { PmbUrl } from '@/components/PmbUrl';
 import { useServiceUrl } from '@/lib/publicUrls';
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -73,6 +75,31 @@ interface SchoolSearchResult {
   regency: string;
   district: string;
   address?: string;
+}
+
+interface PaymentAccount {
+  id: string;
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+  description?: string | null;
+}
+
+/** Rekening tujuan pembayaran dari data Keuangan kampus; kalau belum diisi, arahkan ke panitia. */
+function PaymentAccountsInfo({ accounts, phone }: { accounts: PaymentAccount[]; phone?: string }) {
+  if (!accounts || accounts.length === 0) {
+    return <>Nomor rekening pembayaran belum tersedia di sistem. Silakan hubungi panitia PMB{phone ? ` (${phone})` : ''}.</>;
+  }
+  return (
+    <>
+      {accounts.map((a, i) => (
+        <span key={a.id} className="block">
+          {accounts.length > 1 ? `${i + 1}. ` : ''}
+          {a.bankName}: <span className="font-mono font-bold text-slate-900">{a.accountNumber}</span> a.n. {a.accountName}
+        </span>
+      ))}
+    </>
+  );
 }
 
 function toTitleCase(str: string): string {
@@ -241,45 +268,21 @@ function formatIndoDate(dateStr?: string | Date) {
   }
 }
 
-/** Lambang / Logo Resmi Institut Teknologi Nusantara (ITN) */
+/** Lambang resmi kampus pada dokumen cetak: logo yang diunggah, atau inisial kampus bila belum ada. */
 function UniversitySealLogo({ className = 'w-18 h-18' }: { className?: string }) {
+  const campus = useCampus();
   return (
-    <svg viewBox="0 0 120 120" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Lingkaran Luar Ganda Elegan */}
-      <circle cx="60" cy="60" r="56" stroke="#1E3A8A" strokeWidth="3" fill="#F8FAFC" />
-      <circle cx="60" cy="60" r="50" stroke="#D4A017" strokeWidth="1.5" strokeDasharray="3 2" />
-      <circle cx="60" cy="60" r="46" stroke="#1E3A8A" strokeWidth="1" />
-
-      {/* Teks Melingkar Institusi */}
-      <path id="itnCirclePath" d="M 18,60 A 42,42 0 1,1 102,60 A 42,42 0 1,1 18,60" fill="none" />
-      <text fill="#1E3A8A" fontSize="7" fontWeight="800" letterSpacing="1.2">
-        <textPath href="#itnCirclePath" startOffset="50%" textAnchor="middle">
-          INSTITUT TEKNOLOGI NUSANTARA
-        </textPath>
-      </text>
-
-      {/* Perisai Utama */}
-      <circle cx="60" cy="60" r="32" fill="#1E3A8A" />
-      <polygon points="60,34 78,44 78,66 60,82 42,66 42,44" fill="#0F172A" stroke="#D4A017" strokeWidth="1.5" />
-
-      {/* Buku Terbuka */}
-      <path d="M50 63 C55 60 60 62 60 62 C60 62 65 60 70 63 L70 70 C65 67 60 69 60 69 C60 69 55 67 50 70 Z" fill="#FFFFFF" />
-      <path d="M60 62 L60 69" stroke="#D4A017" strokeWidth="1" />
-
-      {/* Obor / Api Ilmu Pengetahuan */}
-      <path d="M58 55 C57 51 59 48 60 46 C61 48 63 51 62 55 C61 57 59 57 58 55 Z" fill="#F59E0B" />
-      <ellipse cx="60" cy="55" rx="1.5" ry="3" fill="#EF4444" />
-
-      {/* Monogram ITN */}
-      <text x="60" y="78" textAnchor="middle" fill="#D4A017" fontSize="7.5" fontWeight="900" fontFamily="sans-serif">
-        ITN
-      </text>
-    </svg>
+    <CampusLogo
+      url={campus.logoUrl}
+      initials={campus.initials}
+      className={`${className} rounded-full border-2 border-[#1E3A8A] bg-slate-50 text-[#1E3A8A] flex items-center justify-center font-black text-xl`}
+    />
   );
 }
 
 /** QR Code Validasi Dokumen (SVG Vector) */
 function DocumentQrCode({ text, size = 68 }: { text: string; size?: number }) {
+  const campus = useCampus();
   return (
     <div className="flex flex-col items-center">
       <div className="p-1 bg-white border border-slate-300 rounded shadow-2xs">
@@ -313,10 +316,10 @@ function DocumentQrCode({ text, size = 68 }: { text: string; size?: number }) {
           <rect x="80" y="80" width="8" height="8" fill="#1E3A8A" />
           <rect x="70" y="82" width="5" height="5" fill="#0F172A" />
           <rect x="44" y="84" width="6" height="6" fill="#0F172A" />
-          {/* Logo Tengah ITN */}
+          {/* Logo Tengah {campus.short} */}
           <rect x="43" y="43" width="14" height="14" fill="#D4A017" rx="2" />
           <text x="50" y="52" textAnchor="middle" fill="#1E3A8A" fontSize="6.5" fontWeight="900">
-            ITN
+            {campus.short}
           </text>
         </svg>
       </div>
@@ -337,6 +340,7 @@ function BuktiPendaftaranDocument({
   regPayment?: any;
   isRegistrationPaid?: boolean;
 }) {
+  const campus = useCampus();
   const printDate = formatIndoDate(new Date());
   const regDate = formatIndoDate(application?.createdAt);
   const regNumber = application?.registrationNumber || 'PMB-2027-000007';
@@ -359,10 +363,10 @@ function BuktiPendaftaranDocument({
             PANITIA PENERIMAAN MAHASISWA BARU (PMB) T.A. 2027/2028
           </h2>
           <p className="text-[8.5px] sm:text-[9px] text-slate-600 mt-0.5 leading-tight">
-            Kampus Utama: Jl. Boulevard Teknologi No. 1, Menteng, Jakarta Pusat 10310 • Telp: (021) 7890-1234
+            Kampus Utama: {campus.address || '-'} • Telp: {campus.phone || '-'}
           </p>
           <p className="text-[8px] sm:text-[8.5px] text-slate-500 leading-tight">
-            Laman Resmi: <PmbUrl /> • Surel: pmb@itn.ac.id • WhatsApp PMB: 0812-7643-8553
+            Laman Resmi: <PmbUrl /> • Surel: {campus.email || '-'} • WhatsApp PMB: {campus.whatsapp || '-'}
           </p>
         </div>
         <div className="w-16 shrink-0 flex items-center justify-center">
@@ -655,7 +659,7 @@ function BuktiPendaftaranDocument({
         </span>
         <ol className="list-decimal pl-3.5 space-y-0.2">
           <li>
-            Lembar ini merupakan <strong>Tanda Bukti Pendaftaran Resmi</strong> Seleksi Penerimaan Mahasiswa Baru Institut Teknologi Nusantara (ITN) Tahun Akademik 2027/2028.
+            Lembar ini merupakan <strong>Tanda Bukti Pendaftaran Resmi</strong> Seleksi Penerimaan Mahasiswa Baru {campus.nameWithShort} Tahun Akademik 2027/2028.
           </li>
           <li>
             Cetak dan simpan kartu bukti pendaftaran ini dengan baik. Dokumen ini wajib dilampirkan atau ditunjukkan saat verifikasi fisik berkas serta proses registrasi ulang.
@@ -664,14 +668,14 @@ function BuktiPendaftaranDocument({
             Pantau hasil seleksi kelulusan dan tahapan registrasi secara berkala melalui portal resmi di <strong><PmbUrl /></strong>.
           </li>
           <li>
-            Layanan Bantuan & Informasi Resmi Helpdesk PMB: WhatsApp Hotline <strong>0812-7643-8553</strong> atau Surel <strong>pmb@itn.ac.id</strong>.
+            Layanan Bantuan & Informasi Resmi Helpdesk PMB: WhatsApp Hotline <strong>{campus.whatsapp || '-'}</strong> atau Surel <strong>{campus.email || '-'}</strong>.
           </li>
         </ol>
       </div>
 
       {/* Watermark Catatan Cetak */}
       <div className="mt-1.5 pt-1 border-t border-slate-200 flex items-center justify-between text-[7px] text-slate-400 font-mono">
-        <span>DOKUMEN RESMI PMB ONLINE • INSTITUT TEKNOLOGI NUSANTARA (ITN)</span>
+        <span>DOKUMEN RESMI PMB ONLINE • {campus.nameWithShort.toUpperCase()}</span>
         <span>DICETAK: {new Date().toLocaleString('id-ID')}</span>
       </div>
     </div>
@@ -877,6 +881,7 @@ function DocumentUploadCard({
 }
 
 export default function PmbDashboardPage() {
+  const campus = useCampus();
   const router = useRouter();
   const apiBaseUrl = getApiBaseUrl();
 
@@ -925,6 +930,7 @@ export default function PmbDashboardPage() {
     registrationTypes: AdmissionRegistrationTypeItem[];
     tracks: AdmissionTrackItem[];
     classes: AdmissionClassItem[];
+    paymentAccounts: PaymentAccount[];
     studyPrograms: Array<{
       id: string;
       code: string;
@@ -938,6 +944,7 @@ export default function PmbDashboardPage() {
     registrationTypes: [],
     tracks: [],
     classes: [],
+    paymentAccounts: [],
     studyPrograms: [],
   });
 
@@ -1319,7 +1326,7 @@ export default function PmbDashboardPage() {
 
       const cleanReg = application?.registrationNumber
         ? application.registrationNumber.replace(/[^a-zA-Z0-9-_]/g, '_')
-        : 'PMB_ITN';
+        : 'PMB';
 
       const opt = {
         margin: [4, 6, 4, 6],
@@ -2018,9 +2025,7 @@ export default function PmbDashboardPage() {
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-white border-2 border-[#D4A017] flex items-center justify-center font-extrabold text-[#1E3A8A] text-xs shadow-xs">
-                ITN
-              </div>
+              <CampusLogo url={campus.logoUrl} initials={campus.initials} className="w-9 h-9 rounded-full bg-white border-2 border-[#D4A017] flex items-center justify-center font-extrabold text-[#1E3A8A] text-xs shadow-xs" />
               <div>
                 <span className="font-bold text-sm tracking-wide block leading-tight">
                   INSTITUT TEKNOLOGI NUSANTARA
@@ -2299,7 +2304,7 @@ export default function PmbDashboardPage() {
                       Selamat! Pembayaran Daftar Ulang Lunas
                     </h2>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Anda resmi terdaftar sebagai mahasiswa baru {application.studyProgram?.name || 'ITN'}. Berikut kredensial portal akademik Anda:
+                      Anda resmi terdaftar sebagai mahasiswa baru {application.studyProgram?.name || `${campus.short}`}. Berikut kredensial portal akademik Anda:
                     </p>
                   </div>
 
@@ -2363,8 +2368,10 @@ export default function PmbDashboardPage() {
                       Tagihan Biaya Registrasi: Rp{regPayment.amount.toLocaleString('id-ID')}
                     </span>
                     <p className="text-xs text-amber-700 mt-0.5">
-                      Silakan lakukan pembayaran biaya registrasi awal ke Virtual Account BNI ITN:{' '}
-                      <span className="font-mono font-bold text-slate-900">8802 0812 7643 8553</span> a.n. ITN Penerimaan Mahasiswa Baru.
+                      Silakan lakukan pembayaran biaya registrasi awal ke rekening berikut:
+                      <span className="block mt-1">
+                        <PaymentAccountsInfo accounts={options.paymentAccounts} phone={campus.phone} />
+                      </span>
                     </p>
                     {regPayment.status === 'VERIFYING' && (
                       <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800">
@@ -4114,7 +4121,7 @@ export default function PmbDashboardPage() {
                       className="mt-0.5 w-4 h-4 text-[#1E3A8A] rounded-sm focus:ring-[#1E3A8A] cursor-pointer"
                     />
                     <label htmlFor="agreement" className="text-xs text-slate-700 cursor-pointer">
-                      Saya menyatakan bahwa seluruh data dan dokumen yang saya isikan pada formulir pendaftaran ini adalah benar, sah, dan dapat dipertanggungjawabkan sesuai peraturan yang berlaku di Institut Teknologi Nusantara.
+                      Saya menyatakan bahwa seluruh data dan dokumen yang saya isikan pada formulir pendaftaran ini adalah benar, sah, dan dapat dipertanggungjawabkan sesuai peraturan yang berlaku di {campus.name}.
                     </label>
                   </div>
                 </div>
@@ -4231,7 +4238,7 @@ export default function PmbDashboardPage() {
                     Rp{selectedPayment.amount.toLocaleString('id-ID')}
                   </span>
                   <span className="text-[11px] text-slate-500 block">
-                    Tujuan: Bank BNI VA 8802 0812 7643 8553 a.n ITN PMB
+                    Tujuan: <PaymentAccountsInfo accounts={options.paymentAccounts} phone={campus.phone} />
                   </span>
                 </div>
 
@@ -4464,10 +4471,10 @@ export default function PmbDashboardPage() {
       <footer className="mt-auto bg-slate-900 text-slate-400 text-xs py-6 border-t border-slate-800 print:hidden">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-1">
           <p className="font-bold text-slate-300">
-            Panitia Penerimaan Mahasiswa Baru (PMB) • Institut Teknologi Nusantara (ITN)
+            Panitia Penerimaan Mahasiswa Baru (PMB) • {campus.nameWithShort}
           </p>
           <p className="text-[11px] text-slate-500">
-            Kampus Utama: Jl. Boulevard Teknologi No. 1, Jakarta • Hotline: (021) 7890-1234 • WhatsApp PMB: 0812-3456-7890
+            Kampus Utama: {campus.address || '-'} • Hotline: {campus.phone || '-'} • WhatsApp PMB: {campus.whatsapp || '-'}
           </p>
         </div>
       </footer>

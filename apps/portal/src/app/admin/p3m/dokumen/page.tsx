@@ -70,7 +70,7 @@ export default function BankDokumenPage() {
     version: 'v2026.1',
     accessLevel: 'Publik' as DocumentItem['accessLevel'],
     description: '',
-    author: 'LP3M ITN',
+    author: 'LP3M',
   });
 
   const showToast = (msg: string) => {
@@ -175,7 +175,7 @@ export default function BankDokumenPage() {
           version: 'v2026.1',
           accessLevel: 'Publik',
           description: '',
-          author: 'LP3M ITN',
+          author: 'LP3M',
         });
         fetchDocs();
       } else {

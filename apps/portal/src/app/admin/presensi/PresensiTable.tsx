@@ -391,7 +391,7 @@ export function PresensiTable({
             </div>
 
             <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-200 text-[11px] text-blue-900 space-y-1">
-              <p className="font-bold">Ketentuan Akademik ITN:</p>
+              <p className="font-bold">Ketentuan Akademik:</p>
               <p>Mahasiswa wajib memenuhi minimal 75% kehadiran untuk berhak mengikuti Ujian Akhir Semester (UAS).</p>
             </div>
 

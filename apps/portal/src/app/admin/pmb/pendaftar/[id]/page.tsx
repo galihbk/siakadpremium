@@ -1,3 +1,4 @@
+import { useInstitution } from '@/lib/useInstitution';
 'use client';
 
 import { PmbUrl } from '@/components/PmbUrl';
@@ -41,6 +42,7 @@ import {
 } from 'lucide-react';
 
 export default function PendaftarDetailPage() {
+  const inst = useInstitution();
   const params = useParams();
   const router = useRouter();
   const id = params?.id as string;
@@ -125,7 +127,7 @@ export default function PendaftarDetailPage() {
         body: JSON.stringify({
           status: targetStatus,
           notes: targetStatus === 'PAID' ? 'Diverifikasi Lunas oleh Admin PMB' : 'Status diubah ke PENDING oleh Admin PMB',
-          verifiedBy: 'Admin PMB ITN',
+          verifiedBy: 'Admin PMB',
         }),
       });
 
@@ -219,7 +221,7 @@ export default function PendaftarDetailPage() {
         body: JSON.stringify({
           status: updateStatusVal,
           notes: updateNotesVal,
-          verifiedBy: 'Admin PMB ITN',
+          verifiedBy: 'Admin PMB',
         }),
       });
 
@@ -322,7 +324,7 @@ export default function PendaftarDetailPage() {
 
       const cleanReg = applicant?.registrationNumber
         ? applicant.registrationNumber.replace(/[^a-zA-Z0-9-_]/g, '_')
-        : 'PMB_ITN';
+        : 'PMB';
 
       const opt = {
         margin: [4, 6, 4, 6],
@@ -633,7 +635,7 @@ export default function PendaftarDetailPage() {
                 <div className="shrink-0 flex sm:flex-col gap-2 w-full md:w-auto">
                   {waNumber ? (
                     <a
-                      href={`https://wa.me/${waNumber}?text=Halo%20${encodeURIComponent(applicant.fullName)},%20kami%20dari%20Panitia%20PMB%20Institut%20Teknologi%20Nusantara%20(ITN)%20terkait%20pendaftaran%20PMB%20Nomor%20${encodeURIComponent(applicant.registrationNumber)}...`}
+                      href={`https://wa.me/${waNumber}?text=Halo%20${encodeURIComponent(applicant.fullName)},%20kami%20dari%20Panitia%20PMB%20${encodeURIComponent(inst.campusName)}%20terkait%20pendaftaran%20PMB%20Nomor%20${encodeURIComponent(applicant.registrationNumber)}...`}
                       target="_blank"
                       rel="noreferrer"
                       className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-sm transition-all"
@@ -645,7 +647,7 @@ export default function PendaftarDetailPage() {
 
                   {applicant.email ? (
                     <a
-                      href={`mailto:${applicant.email}?subject=Informasi%20PMB%20ITN%20-%20${encodeURIComponent(applicant.registrationNumber)}`}
+                      href={`mailto:${applicant.email}?subject=Informasi%20PMB%20${encodeURIComponent(inst.campusShortName)}%20-%20${encodeURIComponent(applicant.registrationNumber)}`}
                       className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all"
                     >
                       <Mail className="w-4 h-4 text-blue-700" />
@@ -1180,33 +1182,31 @@ export default function PendaftarDetailPage() {
             {/* 1. KOP SURAT RESMI */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
               <div style={{ width: '60px', height: '60px', flexShrink: 0 }}>
-                {/* ITN Logo Vector */}
-                <svg viewBox="0 0 120 120" width="60" height="60" fill="none">
-                  <circle cx="60" cy="60" r="54" fill="#0F172A" />
-                  <circle cx="60" cy="60" r="50" fill="#FFFFFF" stroke="#D4A017" strokeWidth="2" />
-                  <circle cx="60" cy="60" r="32" fill="#1E3A8A" />
-                  <polygon points="60,34 78,44 78,66 60,82 42,66 42,44" fill="#0F172A" stroke="#D4A017" strokeWidth="1.5" />
-                  <path d="M50 63 C55 60 60 62 60 62 C60 62 65 60 70 63 L70 70 C65 67 60 69 60 69 C60 69 55 67 50 70 Z" fill="#FFFFFF" />
-                  <path d="M58 55 C57 51 59 48 60 46 C61 48 63 51 62 55 C61 57 59 57 58 55 Z" fill="#F59E0B" />
-                  <text x="60" y="78" textAnchor="middle" fill="#D4A017" fontSize="7.5" fontWeight="900">ITN</text>
-                </svg>
+                {inst.logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={inst.logoUrl} alt="" width={60} height={60} crossOrigin="anonymous" style={{ width: '60px', height: '60px', objectFit: 'contain' }} />
+                ) : (
+                  <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: '#1E3A8A', border: '2px solid #D4A017', color: '#fff', fontWeight: 900, fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {inst.logoInitials}
+                  </div>
+                )}
               </div>
 
               <div style={{ flex: 1, textAlign: 'center' }}>
                 <h4 style={{ margin: 0, fontSize: '10px', fontWeight: 700, letterSpacing: '2px', color: '#475569', textTransform: 'uppercase' }}>
-                  YAYASAN PENDIDIKAN TINGGI TEKNOLOGI NUSANTARA
+                  {inst.foundationName}
                 </h4>
                 <h1 style={{ margin: '2px 0 0 0', fontSize: '18px', fontWeight: 900, color: '#1e3a8a', textTransform: 'uppercase' }}>
-                  INSTITUT TEKNOLOGI NUSANTARA
+                  {inst.campusName}
                 </h1>
                 <h2 style={{ margin: '2px 0 0 0', fontSize: '11px', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase' }}>
                   PANITIA PENERIMAAN MAHASISWA BARU (PMB) T.A. 2027/2028
                 </h2>
                 <p style={{ margin: '2px 0 0 0', fontSize: '9px', color: '#475569' }}>
-                  Kampus Utama: Jl. Boulevard Teknologi No. 1, Menteng, Jakarta Pusat • Telp: (021) 7890-1234
+                  {[inst.contactAddress, inst.contactPhone && `Telp: ${inst.contactPhone}`].filter(Boolean).join(' • ')}
                 </p>
                 <p style={{ margin: '1px 0 0 0', fontSize: '8.5px', color: '#64748b' }}>
-                  Laman Resmi: <PmbUrl /> • Surel: pmb@itn.ac.id • WhatsApp: 0812-7643-8553
+                  Laman Resmi: <PmbUrl />{inst.contactEmail ? ` • Surel: ${inst.contactEmail}` : ''}{inst.contactWhatsapp ? ` • WhatsApp: ${inst.contactWhatsapp}` : ''}
                 </p>
               </div>
 
@@ -1227,7 +1227,7 @@ export default function PendaftarDetailPage() {
                   <rect x="38" y="54" width="6" height="6" fill="#0F172A" />
                   <rect x="62" y="52" width="7" height="7" fill="#1E3A8A" />
                   <rect x="43" y="43" width="14" height="14" fill="#D4A017" rx="2" />
-                  <text x="50" y="52" textAnchor="middle" fill="#1E3A8A" fontSize="6.5" fontWeight="900">ITN</text>
+                  <text x="50" y="52" textAnchor="middle" fill="#1E3A8A" fontSize="6.5" fontWeight="900">{inst.logoInitials.slice(0, 4)}</text>
                 </svg>
               </div>
             </div>
@@ -1376,7 +1376,7 @@ export default function PendaftarDetailPage() {
             <div style={{ border: '1px solid #94a3b8', borderRadius: '4px', padding: '8px 12px', fontSize: '9px', lineHeight: 1.5, color: '#334155', backgroundColor: '#f8fafc' }}>
               <strong>PETUNJUK BAGI CALON MAHASISWA:</strong>
               <ol style={{ margin: '4px 0 0 0', paddingLeft: '16px' }}>
-                <li>Simpan Kartu Tanda Bukti Pendaftaran ini sebagai bukti sah pendaftaran mahasiswa baru Institut Teknologi Nusantara.</li>
+                <li>Simpan Kartu Tanda Bukti Pendaftaran ini sebagai bukti sah pendaftaran mahasiswa baru {inst.campusName}.</li>
                 <li>Pantau pengumuman verifikasi berkas dan kelulusan seleksi secara berkala melalui portal PMB resmi di <strong><PmbUrl /></strong>.</li>
                 <li>Bila dinyatakan diterima, segera lakukan proses registrasi ulang dan pembayaran biaya pendidikan untuk penerbitan NIM.</li>
               </ol>
@@ -1384,7 +1384,7 @@ export default function PendaftarDetailPage() {
 
             {/* Footer Cetak */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '14px', fontSize: '8.5px', color: '#64748b' }}>
-              <div>Dicetak melalui Sistem PMB ITN • {new Date().toLocaleDateString('id-ID', { dateStyle: 'full' })}</div>
+              <div>Dicetak melalui Sistem PMB {inst.campusShortName} • {new Date().toLocaleDateString('id-ID', { dateStyle: 'full' })}</div>
               <div>Halaman 1 dari 1 (Dokumen Sah Elektronik)</div>
             </div>
           </div>

@@ -1,5 +1,7 @@
 'use client';
 
+import { CampusLogo } from '@/components/CampusLogo';
+import { useCampus } from '@/lib/campusProfile';
 import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -38,6 +40,7 @@ function detectSqlRisk(val: string): string | null {
 }
 
 function LupaKataSandiContent() {
+  const campus = useCampus();
   const router = useRouter();
   const searchParams = useSearchParams();
   const tokenParam = searchParams.get('token');
@@ -242,9 +245,7 @@ function LupaKataSandiContent() {
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-white border-2 border-[#D4A017] flex items-center justify-center font-extrabold text-[#1E3A8A] text-xs shadow-xs">
-                ITN
-              </div>
+              <CampusLogo url={campus.logoUrl} initials={campus.initials} className="w-9 h-9 rounded-full bg-white border-2 border-[#D4A017] flex items-center justify-center font-extrabold text-[#1E3A8A] text-xs shadow-xs" />
               <div>
                 <span className="font-bold text-sm tracking-wide block leading-tight">
                   INSTITUT TEKNOLOGI NUSANTARA
@@ -591,10 +592,10 @@ function LupaKataSandiContent() {
       <footer className="bg-slate-200/80 border-t border-slate-300 py-4 text-center text-xs text-slate-600">
         <div className="max-w-5xl mx-auto px-4">
           <p className="font-semibold text-slate-700">
-            Panitia Penerimaan Mahasiswa Baru (PMB) • Institut Teknologi Nusantara (ITN)
+            Panitia Penerimaan Mahasiswa Baru (PMB) • {campus.nameWithShort}
           </p>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            Kampus Utama: Jl. Boulevard Teknologi No. 1, Jakarta • Hotline: (021) 7890-1234 • Email: pmb@itn.ac.id
+            Kampus Utama: {campus.address || '-'} • Hotline: {campus.phone || '-'} • Email: {campus.email || '-'}
           </p>
         </div>
       </footer>

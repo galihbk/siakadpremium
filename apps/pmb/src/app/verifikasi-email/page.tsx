@@ -1,5 +1,7 @@
 'use client';
 
+import { CampusLogo } from '@/components/CampusLogo';
+import { useCampus } from '@/lib/campusProfile';
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -350,6 +352,7 @@ function VerificationContent() {
 }
 
 export default function PmbVerifikasiEmailPage() {
+  const campus = useCampus();
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-800 antialiased">
       {/* Top Header Resmi Kampus */}
@@ -364,9 +367,7 @@ export default function PmbVerifikasiEmailPage() {
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-white border-2 border-[#D4A017] flex items-center justify-center font-extrabold text-[#1E3A8A] text-xs shadow-xs">
-                ITN
-              </div>
+              <CampusLogo url={campus.logoUrl} initials={campus.initials} className="w-9 h-9 rounded-full bg-white border-2 border-[#D4A017] flex items-center justify-center font-extrabold text-[#1E3A8A] text-xs shadow-xs" />
               <div>
                 <span className="font-bold text-sm tracking-wide block leading-tight">
                   INSTITUT TEKNOLOGI NUSANTARA
@@ -406,7 +407,7 @@ export default function PmbVerifikasiEmailPage() {
       {/* Footer */}
       <footer className="py-6 border-t border-slate-200 bg-white text-center text-xs text-slate-500">
         <div className="max-w-5xl mx-auto px-4">
-          &copy; 2027/2028 PMB Institut Teknologi Nusantara. Seluruh Hak Cipta Dilindungi.
+          &copy; 2027/2028 PMB {campus.name}. Seluruh Hak Cipta Dilindungi.
         </div>
       </footer>
     </div>

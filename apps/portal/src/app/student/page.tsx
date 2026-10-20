@@ -123,7 +123,7 @@ export default function StudentDashboardPage() {
   const firstName = fullName.trim().split(' ')[0] || 'Mahasiswa';
   const displayNim = studentData.nim ? `NIM: ${studentData.nim}` : 'Mahasiswa Aktif';
   const displayProdi = studentData.studyProgram || 'Program Studi';
-  const displayFaculty = studentData.faculty || 'Institut Teknologi Nusantara';
+  const displayFaculty = studentData.faculty || '';
   const displayAngkatan = studentData.angkatan || '2026';
   const currentSemester = studentData.currentSemester || 1;
 

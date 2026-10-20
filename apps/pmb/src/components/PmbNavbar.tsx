@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useServiceUrl } from '@/lib/publicUrls';
+import { useCampusProfile } from '@/lib/campusProfile';
+import { CampusLogo } from '@/components/CampusLogo';
 import { ArrowLeft, LogIn, Mail, Menu, Phone, Sparkles, X } from 'lucide-react';
 
 const LINKS = [
@@ -22,6 +24,9 @@ const LINKS = [
 export function PmbNavbar({ webUrl: webUrlFallback }: { webUrl: string }) {
   const [open, setOpen] = useState(false);
   const webUrl = useServiceUrl('web', webUrlFallback);
+  const campus = useCampusProfile();
+  const short = (campus?.campusShortName || campus?.logoInitials || '').trim();
+  const name = (campus?.campusName || '').trim();
 
   // tutup menu saat layar dilebarkan / tombol Esc
   useEffect(() => {
@@ -42,25 +47,31 @@ export function PmbNavbar({ webUrl: webUrlFallback }: { webUrl: string }) {
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
           <div className="flex items-center gap-4 text-slate-300 min-w-0">
             <span className="flex items-center gap-1.5 min-w-0">
-              <Phone className="w-3.5 h-3.5 text-[#D4A017] shrink-0" />
-              <span className="truncate">
-                <span className="hidden sm:inline">Hotline PMB: </span>
-                <strong>(021) 7890-1234 ext. 101</strong>
+              {campus?.contactPhone && (
+                <>
+                  <Phone className="w-3.5 h-3.5 text-[#D4A017] shrink-0" />
+                  <span className="truncate">
+                    <span className="hidden sm:inline">Hotline PMB: </span>
+                    <strong>{campus.contactPhone}</strong>
+                  </span>
+                </>
+              )}
+            </span>
+            {campus?.contactPhone && campus?.contactEmail && <span className="hidden lg:inline text-slate-600">|</span>}
+            {campus?.contactEmail && (
+              <span className="hidden lg:flex items-center gap-1.5">
+                <Mail className="w-3.5 h-3.5 text-[#D4A017]" />
+                <span>Email: {campus.contactEmail}</span>
               </span>
-            </span>
-            <span className="hidden lg:inline text-slate-600">|</span>
-            <span className="hidden lg:flex items-center gap-1.5">
-              <Mail className="w-3.5 h-3.5 text-[#D4A017]" />
-              <span>Email: pmb@itn.ac.id</span>
-            </span>
+            )}
           </div>
           <a
             href={webUrl}
             className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-300 hover:text-white transition-colors shrink-0"
           >
             <ArrowLeft className="w-3 h-3" />
-            <span className="hidden sm:inline">Kembali ke Website Utama ITN</span>
-            <span className="sm:hidden">Website ITN</span>
+            <span className="hidden sm:inline">Kembali ke Website Utama{short ? ` ${short}` : ''}</span>
+            <span className="sm:hidden">Website{short ? ` ${short}` : ''}</span>
           </a>
         </div>
       </div>
@@ -70,13 +81,15 @@ export function PmbNavbar({ webUrl: webUrlFallback }: { webUrl: string }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-3 h-16 sm:h-20">
             <Link href="/" className="flex items-center gap-2.5 sm:gap-3 min-w-0 shrink">
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#1E3A8A] border-2 border-[#D4A017] flex items-center justify-center text-white font-black text-sm sm:text-base shadow-xs shrink-0">
-                ITN
-              </div>
+              <CampusLogo
+                url={campus?.logoUrl}
+                initials={campus?.logoInitials || short || 'PMB'}
+                className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#1E3A8A] border-2 border-[#D4A017] flex items-center justify-center text-white font-black text-sm sm:text-base shadow-xs shrink-0"
+              />
               <div className="flex flex-col min-w-0">
                 <span className="font-extrabold text-sm sm:text-base text-[#1E3A8A] tracking-tight leading-tight truncate">
-                  <span className="sm:hidden">PMB ITN</span>
-                  <span className="hidden sm:inline">PMB INSTITUT TEKNOLOGI NUSANTARA</span>
+                  <span className="sm:hidden">PMB {short}</span>
+                  <span className="hidden sm:inline">PMB {name.toUpperCase()}</span>
                 </span>
                 <span className="hidden sm:block text-[10px] md:text-xs font-semibold text-[#D4A017] tracking-wider uppercase truncate">
                   Penerimaan Mahasiswa Baru TA 2027/2028

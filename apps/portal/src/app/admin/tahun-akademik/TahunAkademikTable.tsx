@@ -521,7 +521,7 @@ export function TahunAkademikTable({ initialYears }: { initialYears: AcademicYea
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingYear ? 'Edit Periode' : 'Tambah Periode Baru'}
-        subtitle="Master tahun ajaran & semester Institut Teknologi Nusantara"
+        subtitle="Master tahun ajaran & semester"
         icon={<Calendar className="w-5 h-5" />}
         maxWidth="xl"
       >

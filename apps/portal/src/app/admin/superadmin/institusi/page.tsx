@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { Modal } from '@/components/ui/Modal';
 import { CompressedFileUpload } from '@/components/common/CompressedFileUpload';
+import { CampusLogo } from '@/components/common/CampusLogo';
+import { getAuthSession } from '@/lib/auth';
 import { copyToClipboard } from '@/lib/clipboard';
 import {
   Building2,
@@ -83,12 +85,20 @@ interface CampusProfile {
   viceRector2: string; // Keuangan & SDM
   viceRector3: string; // Kemahasiswaan
   logoInitials: string;
+  logoUrl?: string | null;
 }
 
 export default function SuperAdminProfilInstitusiPage() {
   const [profile, setProfile] = useState<CampusProfile | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isLogoModalOpen, setIsLogoModalOpen] = useState(false);
+  // Isian modal logo: dikendalikan state (bukan defaultValue) supaya selalu terisi inisial kampus saat modal dibuka.
+  const [logoInitialsInput, setLogoInitialsInput] = useState('');
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [removeLogo, setRemoveLogo] = useState(false);
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [editFormData, setEditFormData] = useState<CampusProfile | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -144,7 +154,8 @@ export default function SuperAdminProfilInstitusiPage() {
             viceRector1: data.viceRector1 ?? '',
             viceRector2: data.viceRector2 ?? '',
             viceRector3: data.viceRector3 ?? '',
-            logoInitials: data.logoInitials ?? 'ITN',
+            logoInitials: data.logoInitials ?? '',
+            logoUrl: data.logoUrl || null,
           };
           setProfile(loadedProfile);
           setEditFormData(loadedProfile);
@@ -158,7 +169,7 @@ export default function SuperAdminProfilInstitusiPage() {
             kopLine2: data.kopLine2 ?? '',
             kopContact: data.kopContact ?? '',
             pinFormat: data.pinFormat ?? '{KODE_PT}-{TAHUN}-{PRODI}-{NO_URUT}',
-            nomorSuratFormat: data.nomorSuratFormat ?? '{NO}/ITN-BAAK/{BULAN_ROMAWI}/{TAHUN}',
+            nomorSuratFormat: data.nomorSuratFormat ?? '{NO}/BAAK/{BULAN_ROMAWI}/{TAHUN}',
             nimFormat: data.nimFormat ?? '{ANGKATAN_2DIGIT}{KODE_PRODI_3DIGIT}{NO_URUT_4DIGIT}',
             doubleBorderKop: data.doubleBorderKop !== undefined ? Boolean(data.doubleBorderKop) : true,
           };
@@ -250,27 +261,62 @@ export default function SuperAdminProfilInstitusiPage() {
     }
   };
 
-  const handleSaveLogo = async (newInitials: string) => {
+  const openLogoModal = () => {
+    setLogoInitialsInput(profile?.logoInitials ?? '');
+    setLogoFile(null);
+    setLogoPreview(null);
+    setRemoveLogo(false);
+    setLogoError(null);
+    setIsLogoModalOpen(true);
+  };
+
+  const handleSaveLogo = async () => {
     if (!profile) return;
-    const updated = { ...profile, logoInitials: newInitials };
-    setProfile(updated);
-    setIsLogoModalOpen(false);
+    const initials = logoInitialsInput.trim().toUpperCase();
+    if (initials.length < 2 || initials.length > 4) {
+      setLogoError('Inisial harus 2-4 huruf.');
+      return;
+    }
 
     const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const { token } = getAuthSession();
+    const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    setLogoBusy(true);
+    setLogoError(null);
     try {
+      // 1. Unggah berkas logo (publik, karena tampil di website, portal, PMB, dst.)
+      let logoUrl: string | null | undefined = undefined; // undefined = tidak diubah
+      if (logoFile) {
+        const body = new FormData();
+        body.append('isPrivate', 'false');
+        body.append('file', logoFile);
+        const up = await fetch(`${apiBase}/storage/upload?folder=logo`, { method: 'POST', headers: authHeader, body });
+        const upJson = await up.json().catch(() => null);
+        const uploaded = upJson?.data?.data || upJson?.data;
+        if (!up.ok || !uploaded?.key) throw new Error(upJson?.message || 'Gagal mengunggah logo.');
+        // Penyimpanan lokal: path relatif agar tidak terikat host; cloud: URL publik penuh.
+        logoUrl = uploaded.driver === 'local' ? `/uploads/${uploaded.key}` : uploaded.url;
+      } else if (removeLogo) {
+        logoUrl = '';
+      }
+
+      // 2. Simpan inisial (dan alamat logo) ke profil institusi
       const res = await fetch(`${apiBase}/landing-page`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ logoInitials: newInitials }),
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({ logoInitials: initials, ...(logoUrl !== undefined ? { logoUrl } : {}) }),
       });
-      if (res.ok) {
-        setDbConnected(true);
-        showToast('Logo dan identitas visual kampus berhasil diperbarui!');
-      } else {
-        showToast('Logo berhasil diperbarui.');
-      }
-    } catch {
-      showToast('Logo tersimpan.');
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.message || 'Gagal menyimpan logo.');
+
+      setProfile({ ...profile, logoInitials: initials, ...(logoUrl !== undefined ? { logoUrl: logoUrl || null } : {}) });
+      setDbConnected(true);
+      setIsLogoModalOpen(false);
+      showToast('Logo dan identitas visual kampus berhasil diperbarui!');
+    } catch (err) {
+      setLogoError(err instanceof Error ? err.message : 'Gagal menyimpan logo.');
+    } finally {
+      setLogoBusy(false);
     }
   };
 
@@ -405,7 +451,7 @@ export default function SuperAdminProfilInstitusiPage() {
           {/* Action Buttons */}
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
             <button
-              onClick={() => setIsLogoModalOpen(true)}
+              onClick={openLogoModal}
               className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer shadow-xs"
             >
               <ImageIcon className="w-4 h-4 text-slate-500" />
@@ -438,11 +484,13 @@ export default function SuperAdminProfilInstitusiPage() {
             <div className="flex items-start sm:items-center gap-5">
               {/* Logo Badge */}
               <div className="relative group">
-                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-gradient-to-tr from-[#1E3A8A] via-blue-800 to-blue-600 border-2 border-[#D4A017] text-white flex items-center justify-center font-black text-2xl sm:text-3xl shadow-md shrink-0">
-                  {profile.logoInitials}
-                </div>
+                <CampusLogo
+                  url={profile.logoUrl}
+                  initials={profile.logoInitials}
+                  className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-gradient-to-tr from-[#1E3A8A] via-blue-800 to-blue-600 border-2 border-[#D4A017] text-white flex items-center justify-center font-black text-2xl sm:text-3xl shadow-md shrink-0"
+                />
                 <button
-                  onClick={() => setIsLogoModalOpen(true)}
+                  onClick={openLogoModal}
                   className="absolute inset-0 bg-slate-900/60 rounded-3xl text-white opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-all cursor-pointer text-[10px] font-bold"
                   title="Klik untuk ganti logo"
                 >
@@ -962,26 +1010,31 @@ export default function SuperAdminProfilInstitusiPage() {
         {/* Modal: Ganti Logo */}
         <Modal
           isOpen={isLogoModalOpen}
-          onClose={() => setIsLogoModalOpen(false)}
+          onClose={() => !logoBusy && setIsLogoModalOpen(false)}
           title="Ubah Logo & Inisial Kampus"
           maxWidth="md"
         >
-
+          {profile && (
+            <>
               <div className="space-y-4 text-center py-2">
-                <div className="w-24 h-24 mx-auto rounded-3xl bg-gradient-to-tr from-[#1E3A8A] to-blue-600 border-2 border-[#D4A017] text-white flex items-center justify-center font-black text-3xl shadow-lg">
-                  {profile.logoInitials}
-                </div>
+                <CampusLogo
+                  url={removeLogo ? null : logoPreview || profile.logoUrl}
+                  initials={logoInitialsInput.trim().toUpperCase() || profile.logoInitials}
+                  className="w-24 h-24 mx-auto rounded-3xl bg-gradient-to-tr from-[#1E3A8A] to-blue-600 border-2 border-[#D4A017] text-white flex items-center justify-center font-black text-3xl shadow-lg"
+                />
 
                 <div className="space-y-1 text-left">
                   <label className="text-xs font-bold text-slate-700">Inisial Lambang Kampus (2-4 Huruf)</label>
                   <input
                     type="text"
-                    defaultValue={profile.logoInitials}
+                    value={logoInitialsInput}
+                    onChange={(e) => setLogoInitialsInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
                     maxLength={4}
-                    id="logo-initials-input"
                     className="w-full px-3.5 py-2 text-center text-base font-black uppercase rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
                   />
-                  <p className="text-[11px] text-slate-500">Inisial ini akan ditampilkan di navbar, sidebar, kartu identitas, dan laporan resmi.</p>
+                  <p className="text-[11px] text-slate-500">
+                    Inisial ditampilkan sebagai lambang bila belum ada gambar logo, dan di kartu identitas serta laporan resmi.
+                  </p>
                 </div>
 
                 <CompressedFileUpload
@@ -989,29 +1042,51 @@ export default function SuperAdminProfilInstitusiPage() {
                   sublabel="Rasio 1:1. Gambar otomatis dioptimasi dan dikompresi agar loading halaman cepat."
                   accept="image/*"
                   maxSizeBytes={500 * 1024}
-                  onFileReady={() => {}}
+                  onFileReady={(file) => {
+                    setLogoFile(file);
+                    setRemoveLogo(false);
+                    setLogoPreview((prev) => {
+                      if (prev) URL.revokeObjectURL(prev);
+                      return URL.createObjectURL(file);
+                    });
+                  }}
+                  onFileRemoved={() => {
+                    setLogoFile(null);
+                    setLogoPreview(null);
+                  }}
                 />
+
+                {profile.logoUrl && !logoFile && (
+                  <button
+                    type="button"
+                    onClick={() => setRemoveLogo((v) => !v)}
+                    className={`text-xs font-semibold underline ${removeLogo ? 'text-slate-500' : 'text-rose-600'}`}
+                  >
+                    {removeLogo ? 'Batalkan penghapusan logo' : 'Hapus logo (kembali memakai inisial)'}
+                  </button>
+                )}
+
+                {logoError && <p className="text-xs font-semibold text-rose-600 text-left">{logoError}</p>}
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 mt-4">
                 <button
                   onClick={() => setIsLogoModalOpen(false)}
-                  className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
+                  disabled={logoBusy}
+                  className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl disabled:opacity-50"
                 >
                   Batal
                 </button>
                 <button
-                  onClick={() => {
-                    const el = document.getElementById('logo-initials-input') as HTMLInputElement;
-                    if (el && el.value.trim()) {
-                      handleSaveLogo(el.value.trim().toUpperCase());
-                    }
-                  }}
-                  className="px-4 py-1.5 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 rounded-xl shadow-xs"
+                  onClick={() => void handleSaveLogo()}
+                  disabled={logoBusy}
+                  className="px-4 py-1.5 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 rounded-xl shadow-xs disabled:opacity-60"
                 >
-                  Terapkan Logo
+                  {logoBusy ? 'Menyimpan…' : 'Terapkan Logo'}
                 </button>
               </div>
+            </>
+          )}
         </Modal>
 
         {/* Modal: Pengaturan Identitas Kampus */}

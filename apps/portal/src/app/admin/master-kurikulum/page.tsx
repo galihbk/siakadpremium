@@ -135,7 +135,7 @@ export default function AdminMasterKurikulumPage() {
     sksWajib: 120,
     sksPilihan: 24,
     curriculumType: 'Kurikulum OBE',
-    skRektor: 'SK Rektor No. 125/ITN/R/2024',
+    skRektor: 'SK Rektor No. 125/R/2024',
     status: 'Aktif',
     description: '',
   });
@@ -218,7 +218,7 @@ export default function AdminMasterKurikulumPage() {
       sksWajib: 120,
       sksPilihan: 24,
       curriculumType: 'Kurikulum OBE',
-      skRektor: 'SK Rektor No. 125/ITN/R/2024',
+      skRektor: 'SK Rektor No. 125/R/2024',
       status: 'Aktif',
       description: '',
     });
@@ -342,7 +342,7 @@ export default function AdminMasterKurikulumPage() {
               <span>Manajemen Kurikulum & Dokumen OBE</span>
             </h1>
             <p className="text-xs sm:text-sm text-slate-600 mt-1">
-              Penetapan struktur kurikulum berbasis capaian pembelajaran (CPL), SK Rektor, dan standar kelulusan SKS ITN.
+              Penetapan struktur kurikulum berbasis capaian pembelajaran (CPL), SK Rektor, dan standar kelulusan SKS.
             </p>
           </div>
 
@@ -744,7 +744,7 @@ export default function AdminMasterKurikulumPage() {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           title={editingCurriculum ? 'Edit Dokumen Kurikulum' : 'Tambah Kurikulum Baru'}
-          subtitle="Standar kurikulum pendidikan Institut Teknologi Nusantara"
+          subtitle="Standar kurikulum pendidikan kampus"
           icon={<FileText className="w-5 h-5" />}
           maxWidth="xl"
         >

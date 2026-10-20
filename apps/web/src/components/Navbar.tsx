@@ -1,5 +1,6 @@
 'use client';
 
+import { CampusLogo } from '@/components/CampusLogo';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Menu, X, Phone, Mail, UserCircle, ArrowRight, ChevronDown, ShieldCheck, LayoutGrid, FlaskConical } from 'lucide-react';
@@ -118,9 +119,7 @@ export function Navbar() {
             
             {/* Logo Kiri */}
             <Link href="/" className="flex items-center gap-2.5 sm:gap-3 group shrink-0">
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#1E3A8A] flex items-center justify-center text-white font-extrabold text-base sm:text-lg tracking-wider border-2 border-[#D4A017] shadow-xs group-hover:bg-[#172554] transition-colors shrink-0">
-                {profile.logoInitials}
-              </div>
+              <CampusLogo url={profile.logoUrl} initials={profile.logoInitials} className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#1E3A8A] flex items-center justify-center text-white font-extrabold text-base sm:text-lg tracking-wider border-2 border-[#D4A017] shadow-xs group-hover:bg-[#172554] transition-colors shrink-0" />
               <div className="flex flex-col">
                 <span className="font-extrabold text-sm sm:text-base tracking-tight text-[#1E3A8A] leading-tight whitespace-nowrap">
                   {profile.campusName.toUpperCase()}

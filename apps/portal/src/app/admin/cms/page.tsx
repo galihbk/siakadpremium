@@ -614,8 +614,8 @@ export default function SuperAdminCmsPage() {
                 <div className="p-4 border border-slate-200 rounded-xl hover:border-blue-300 transition-colors bg-slate-50/50 flex justify-between items-center">
                   <div>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">Prestasi</span>
-                    <h3 className="text-sm font-bold text-slate-900 mt-1">ITN Raih Juara 1 Kompetisi AI & Robotika Nasional 2026</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">Penulis: Humas ITN &bull; Status: Dipublikasikan &bull; Featured: Ya</p>
+                    <h3 className="text-sm font-bold text-slate-900 mt-1">Kampus Raih Juara 1 Kompetisi AI & Robotika Nasional 2026</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Penulis: Humas &bull; Status: Dipublikasikan &bull; Featured: Ya</p>
                   </div>
                   <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">Aktif</span>
                 </div>
@@ -624,7 +624,7 @@ export default function SuperAdminCmsPage() {
                   <div>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-800">Akademik</span>
                     <h3 className="text-sm font-bold text-slate-900 mt-1">Kuliah Umum Internasional: Kolaborasi Riset Cloud Computing dengan Silicon Valley</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">Penulis: Biro Kerjasama ITN &bull; Status: Dipublikasikan</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Penulis: Biro Kerjasama &bull; Status: Dipublikasikan</p>
                   </div>
                   <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">Aktif</span>
                 </div>
@@ -633,7 +633,7 @@ export default function SuperAdminCmsPage() {
                   <div>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">Beasiswa</span>
                     <h3 className="text-sm font-bold text-slate-900 mt-1">Sosialisasi Program Beasiswa Unggulan Cendekia Nusantara TA 2026/2027</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">Penulis: Panitia PMB ITN &bull; Status: Dipublikasikan</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Penulis: Panitia PMB &bull; Status: Dipublikasikan</p>
                   </div>
                   <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">Aktif</span>
                 </div>

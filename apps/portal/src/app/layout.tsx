@@ -1,5 +1,6 @@
 'use client';
 
+import { DocumentTitle } from '@/components/DocumentTitle';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { CopyrightBanner } from '@/components/CopyrightBanner';
@@ -26,15 +27,16 @@ export default function RootLayout({
   return (
     <html lang="id">
       <head>
-        <title>SIAKAD Premium Portal - Institut Teknologi Nusantara</title>
+        <title>SIAKAD Premium Portal</title>
         <meta
           name="description"
-          content="Portal Layanan Akademik Terpadu Mahasiswa, Dosen, dan Administrator BAAK Institut Teknologi Nusantara."
+          content="Portal Layanan Akademik Terpadu Mahasiswa, Dosen, dan Administrator BAAK."
         />
       </head>
       <body className="min-h-screen bg-slate-50 text-slate-900 antialiased">
         <CopyrightBanner />
         <AuthFetchInstaller />
+        <DocumentTitle />
         <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
       </body>
     </html>

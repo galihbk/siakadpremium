@@ -1,5 +1,6 @@
 'use client';
 
+import { useInstitution } from '@/lib/useInstitution';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
@@ -149,6 +150,7 @@ const FEEDER_ENTITY_SCHEMAS = [
 ];
 
 export default function LaporanDanPddiktiPage() {
+  const inst = useInstitution();
   const [activeTab, setActiveTab] = useState<'rekap' | 'validasi'>('rekap');
 
   // Loading & Connection state
@@ -575,7 +577,7 @@ export default function LaporanDanPddiktiPage() {
                   Periode Pelaporan: {activeYearInfo.name} ({activeYearInfo.code})
                 </h2>
                 <p className="text-xs text-blue-100 leading-relaxed">
-                  Institut Teknologi Nusantara (Kode PT: <strong>071089</strong>). Status semester saat ini adalah{' '}
+                  {inst.campusName}{inst.ptCode ? <> (Kode PT: <strong>{inst.ptCode}</strong>)</> : null}. Status semester saat ini adalah{' '}
                   <span className="font-semibold underline decoration-amber-400">{activeYearInfo.semester}</span>. Kelayakan data terdata mencapai{' '}
                   <strong className="text-amber-300 font-bold">{summaryMetrics.overallPercentage}%</strong>.
                 </p>
@@ -759,7 +761,7 @@ export default function LaporanDanPddiktiPage() {
                     Rekapitulasi Mahasiswa & Dosen Per Program Studi
                   </h3>
                   <p className="text-[11px] text-slate-400">
-                    Berdasarkan basis data akademik aktif Institut Teknologi Nusantara
+                    Berdasarkan basis data akademik aktif {inst.campusName}
                   </p>
                 </div>
 
@@ -1076,7 +1078,7 @@ export default function LaporanDanPddiktiPage() {
                   }`}
                 >
                   <FileText className="w-5 h-5 mx-auto mb-1 text-rose-600" />
-                  <span>PDF Resmi (Kop ITN)</span>
+                  <span>PDF Resmi (Kop Kampus)</span>
                 </button>
                 <button
                   type="button"

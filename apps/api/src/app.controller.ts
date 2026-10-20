@@ -24,6 +24,8 @@ export class AppController {
       pmbUrl: env('PUBLIC_PMB_URL'),
       p2mUrl: env('PUBLIC_P2M_URL'),
       p3mUrl: env('PUBLIC_P3M_URL'),
+      // Tombol "akun demo" di halaman login hanya tampil bila diaktifkan (PUBLIC_DEMO_ACCOUNTS=true) -- mati bila tidak diisi.
+      demoAccounts: process.env.PUBLIC_DEMO_ACCOUNTS?.trim().toLowerCase() === 'true',
     };
   }
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { CampusLogo } from '@/components/common/CampusLogo';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -10,7 +11,7 @@ import { Lock, Mail, ArrowRight, ArrowLeft, CheckCircle, Eye, EyeOff } from 'luc
 
 import { saveAuthSession, getAuthSession, getRoleRedirectPath } from '@/lib/auth';
 import { getApiBaseUrl } from '@/lib/api';
-import { useServiceUrl } from '@/lib/publicUrls';
+import { useServiceUrl, usePublicFlags } from '@/lib/publicUrls';
 import { getInstitutionProfile, FALLBACK_INSTITUTION_PROFILE, type InstitutionProfile } from '@/lib/institution';
 
 const loginSchema = z.object({
@@ -30,6 +31,7 @@ export default function LoginPage() {
   const apiBaseUrl = getApiBaseUrl();
 
   // Alamat website utama: dari konfigurasi server, atau diturunkan dari domain yang sedang dibuka (satu image untuk banyak kampus).
+  const flags = usePublicFlags();
   const webUrl = useServiceUrl('web', process.env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000');
 
   // Fallback-first: form login tetap tampil cepat walau fetch profil belum selesai
@@ -128,9 +130,7 @@ export default function LoginPage() {
 
         {/* Brand Logo & Header */}
         <div className="text-center">
-          <div className="mx-auto w-14 h-14 rounded-full bg-[#1E3A8A] border-2 border-[#D4A017] flex items-center justify-center text-white font-extrabold text-xl shadow-md">
-            {profile.logoInitials}
-          </div>
+          <CampusLogo url={profile.logoUrl} initials={profile.logoInitials} className="mx-auto w-14 h-14 rounded-full bg-[#1E3A8A] border-2 border-[#D4A017] flex items-center justify-center text-white font-extrabold text-xl shadow-md" />
           <h2 className="mt-4 text-2xl font-extrabold text-slate-900 tracking-tight">
             Portal SIAKAD Premium
           </h2>
@@ -217,124 +217,126 @@ export default function LoginPage() {
               )}
             </button>
 
-            {/* Quick Demo Credentials */}
-            <div className="pt-4 border-t border-slate-100">
-              <span className="block text-[11px] font-semibold text-slate-400 mb-2">
-                Pilih Akun Demo (Klik untuk isi cepat):
-              </span>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setValue('email', 'admin.pmb@itn.ac.id');
-                    setValue('password', 'Password123!');
-                  }}
-                  className="px-2.5 py-2 rounded-xl border border-amber-300 bg-amber-50/80 hover:bg-amber-100 text-amber-950 text-xs font-semibold text-left transition-all cursor-pointer"
-                >
-                  <span className="block font-bold">📋 Admin PMB</span>
-                  <span className="text-[10px] text-amber-700 font-normal">admin.pmb@itn.ac.id</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setValue('email', 'lp3m@itn.ac.id');
-                    setValue('password', 'Password123!');
-                  }}
-                  className="px-2.5 py-2 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 text-[#1E3A8A] text-xs font-semibold text-left transition-all cursor-pointer"
-                >
-                  <span className="block font-bold">🔬 Riset & LP3M</span>
-                  <span className="text-[10px] text-blue-700 font-normal">lp3m@itn.ac.id</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setValue('email', 'p2m@itn.ac.id');
-                    setValue('password', 'Password123!');
-                  }}
-                  className="px-2.5 py-2 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 text-[#1E3A8A] text-xs font-semibold text-left transition-all cursor-pointer"
-                >
-                  <span className="block font-bold">✅ Penjaminan Mutu (P2M)</span>
-                  <span className="text-[10px] text-blue-700 font-normal">p2m@itn.ac.id</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setValue('email', 'prodi@itn.ac.id');
-                    setValue('password', 'Password123!');
-                  }}
-                  className="px-2.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-900 text-xs font-semibold text-left transition-all cursor-pointer"
-                >
-                  <span className="block font-bold">🏫 Admin Prodi</span>
-                  <span className="text-[10px] text-indigo-700 font-normal">prodi@itn.ac.id</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setValue('email', 'sdm@itn.ac.id');
-                    setValue('password', 'Password123!');
-                  }}
-                  className="px-2.5 py-2 rounded-xl border border-teal-200 bg-teal-50/70 hover:bg-teal-100 text-teal-900 text-xs font-semibold text-left transition-all cursor-pointer"
-                >
-                  <span className="block font-bold">🧑‍💼 Biro SDM</span>
-                  <span className="text-[10px] text-teal-700 font-normal">sdm@itn.ac.id</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setValue('email', 'keuangan@itn.ac.id');
-                    setValue('password', 'Password123!');
-                  }}
-                  className="px-2.5 py-2 rounded-xl border border-amber-200 bg-amber-50/70 hover:bg-amber-100 text-amber-900 text-xs font-bold text-left transition-all cursor-pointer"
-                >
-                  <span className="block font-bold">💰 Biro Keuangan</span>
-                  <span className="text-[10px] text-amber-700 font-normal">keuangan@itn.ac.id</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setValue('email', 'admin@itn.ac.id');
-                    setValue('password', 'Password123!');
-                  }}
-                  className="px-2.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-blue-50 text-slate-800 text-xs font-semibold text-left transition-all cursor-pointer"
-                >
-                  <span className="block font-bold">🏛️ Admin BAAK</span>
-                  <span className="text-[10px] text-slate-500 font-normal">admin@itn.ac.id</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setValue('email', 'student@itn.ac.id');
-                    setValue('password', 'Password123!');
-                  }}
-                  className="px-2.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-blue-50 text-slate-800 text-xs font-semibold text-left transition-all cursor-pointer"
-                >
-                  <span className="block font-bold">🎓 Mahasiswa</span>
-                  <span className="text-[10px] text-slate-500 font-normal">student@itn.ac.id</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setValue('email', 'dosen@itn.ac.id');
-                    setValue('password', 'Password123!');
-                  }}
-                  className="px-2.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-blue-50 text-slate-800 text-xs font-semibold text-left transition-all cursor-pointer"
-                >
-                  <span className="block font-bold">👨‍🏫 Dosen</span>
-                  <span className="text-[10px] text-slate-500 font-normal">dosen@itn.ac.id</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setValue('email', 'superadmin@itn.ac.id');
-                    setValue('password', 'Password123!');
-                  }}
-                  className="px-2.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-blue-50 text-slate-800 text-xs font-semibold text-left transition-all cursor-pointer"
-                >
-                  <span className="block font-bold">⚡ Super Admin</span>
-                  <span className="text-[10px] text-slate-500 font-normal">superadmin@itn.ac.id</span>
-                </button>
+            {/* Akun demo: hanya tampil bila server mengaktifkan PUBLIC_DEMO_ACCOUNTS=true */}
+            {flags.demoAccounts && (
+              <div className="pt-4 border-t border-slate-100">
+                <span className="block text-[11px] font-semibold text-slate-400 mb-2">
+                  Pilih Akun Demo (Klik untuk isi cepat):
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setValue('email', 'admin.pmb@itn.ac.id');
+                      setValue('password', 'Password123!');
+                    }}
+                    className="px-2.5 py-2 rounded-xl border border-amber-300 bg-amber-50/80 hover:bg-amber-100 text-amber-950 text-xs font-semibold text-left transition-all cursor-pointer"
+                  >
+                    <span className="block font-bold">📋 Admin PMB</span>
+                    <span className="text-[10px] text-amber-700 font-normal">admin.pmb@itn.ac.id</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setValue('email', 'lp3m@itn.ac.id');
+                      setValue('password', 'Password123!');
+                    }}
+                    className="px-2.5 py-2 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 text-[#1E3A8A] text-xs font-semibold text-left transition-all cursor-pointer"
+                  >
+                    <span className="block font-bold">🔬 Riset & LP3M</span>
+                    <span className="text-[10px] text-blue-700 font-normal">lp3m@itn.ac.id</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setValue('email', 'p2m@itn.ac.id');
+                      setValue('password', 'Password123!');
+                    }}
+                    className="px-2.5 py-2 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 text-[#1E3A8A] text-xs font-semibold text-left transition-all cursor-pointer"
+                  >
+                    <span className="block font-bold">✅ Penjaminan Mutu (P2M)</span>
+                    <span className="text-[10px] text-blue-700 font-normal">p2m@itn.ac.id</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setValue('email', 'prodi@itn.ac.id');
+                      setValue('password', 'Password123!');
+                    }}
+                    className="px-2.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-900 text-xs font-semibold text-left transition-all cursor-pointer"
+                  >
+                    <span className="block font-bold">🏫 Admin Prodi</span>
+                    <span className="text-[10px] text-indigo-700 font-normal">prodi@itn.ac.id</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setValue('email', 'sdm@itn.ac.id');
+                      setValue('password', 'Password123!');
+                    }}
+                    className="px-2.5 py-2 rounded-xl border border-teal-200 bg-teal-50/70 hover:bg-teal-100 text-teal-900 text-xs font-semibold text-left transition-all cursor-pointer"
+                  >
+                    <span className="block font-bold">🧑‍💼 Biro SDM</span>
+                    <span className="text-[10px] text-teal-700 font-normal">sdm@itn.ac.id</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setValue('email', 'keuangan@itn.ac.id');
+                      setValue('password', 'Password123!');
+                    }}
+                    className="px-2.5 py-2 rounded-xl border border-amber-200 bg-amber-50/70 hover:bg-amber-100 text-amber-900 text-xs font-bold text-left transition-all cursor-pointer"
+                  >
+                    <span className="block font-bold">💰 Biro Keuangan</span>
+                    <span className="text-[10px] text-amber-700 font-normal">keuangan@itn.ac.id</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setValue('email', 'admin@itn.ac.id');
+                      setValue('password', 'Password123!');
+                    }}
+                    className="px-2.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-blue-50 text-slate-800 text-xs font-semibold text-left transition-all cursor-pointer"
+                  >
+                    <span className="block font-bold">🏛️ Admin BAAK</span>
+                    <span className="text-[10px] text-slate-500 font-normal">admin@itn.ac.id</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setValue('email', 'student@itn.ac.id');
+                      setValue('password', 'Password123!');
+                    }}
+                    className="px-2.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-blue-50 text-slate-800 text-xs font-semibold text-left transition-all cursor-pointer"
+                  >
+                    <span className="block font-bold">🎓 Mahasiswa</span>
+                    <span className="text-[10px] text-slate-500 font-normal">student@itn.ac.id</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setValue('email', 'dosen@itn.ac.id');
+                      setValue('password', 'Password123!');
+                    }}
+                    className="px-2.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-blue-50 text-slate-800 text-xs font-semibold text-left transition-all cursor-pointer"
+                  >
+                    <span className="block font-bold">👨‍🏫 Dosen</span>
+                    <span className="text-[10px] text-slate-500 font-normal">dosen@itn.ac.id</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setValue('email', 'superadmin@itn.ac.id');
+                      setValue('password', 'Password123!');
+                    }}
+                    className="px-2.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-blue-50 text-slate-800 text-xs font-semibold text-left transition-all cursor-pointer"
+                  >
+                    <span className="block font-bold">⚡ Super Admin</span>
+                    <span className="text-[10px] text-slate-500 font-normal">superadmin@itn.ac.id</span>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </form>
 
         </div>
@@ -342,7 +344,7 @@ export default function LoginPage() {
         {/* Security Note */}
         <div className="mt-6 text-center text-xs text-slate-500 flex items-center justify-center gap-1.5">
           <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-          <span>Koneksi aman terenkripsi SSL 256-bit &bull; SSO ITN</span>
+          <span>Koneksi aman terenkripsi SSL 256-bit &bull; SSO {profile.campusShortName}</span>
         </div>
 
         {/* PMB Register Shortcut */}

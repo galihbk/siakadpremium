@@ -833,7 +833,7 @@ export function PegawaiForm({ initial, shiftOptions, submitLabel = 'Simpan Data 
       </label>
       <input
         type="email"
-        placeholder="nama.pegawai@itn.ac.id"
+        placeholder="nama.pegawai@kampus.ac.id"
         value={formData.email}
         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
         className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#1E3A8A]"

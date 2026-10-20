@@ -921,7 +921,7 @@ export default function PmbAffiliatePage() {
                     type="text"
                     value={formData.partnerName}
                     onChange={(e) => setFormData({ ...formData, partnerName: e.target.value })}
-                    placeholder="Contoh: Ikatan Alumni ITN atau Bpk. Haryono"
+                    placeholder="Contoh: Ikatan Alumni atau Bpk. Haryono"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-hidden focus:border-[#1E3A8A] focus:ring-1 focus:ring-[#1E3A8A]"
                     required
                   />

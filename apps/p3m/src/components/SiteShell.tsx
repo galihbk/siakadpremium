@@ -4,7 +4,7 @@ import { SiteHeader } from '@/components/SiteHeader';
 import { NAV } from '@/lib/nav';
 
 interface Props {
-  campus: { campusName: string; campusShortName: string };
+  campus: { campusName: string; campusShortName: string; logoUrl?: string | null };
   portalUrl: string;
   error?: boolean;
   /** Judul halaman dalam (tanpa hero beranda). */
@@ -16,7 +16,7 @@ interface Props {
 export function SiteShell({ campus, portalUrl, error, heading, children }: Props) {
   return (
     <div className="min-h-screen flex flex-col">
-      <SiteHeader shortName={campus.campusShortName} campusName={campus.campusName} portalUrl={portalUrl} />
+      <SiteHeader shortName={campus.campusShortName} logoUrl={campus.logoUrl} campusName={campus.campusName} portalUrl={portalUrl} />
 
       <main className="flex-1">
         {heading && (

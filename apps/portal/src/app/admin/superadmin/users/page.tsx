@@ -596,7 +596,7 @@ export default function UserManagementPage() {
                 Manajemen Akun Pengguna
               </h1>
               <p className="text-sm text-slate-300 max-w-2xl leading-relaxed">
-                Kelola seluruh akun sivitas akademika ITN, penugasan hak akses role-based, pengaturan status login, dan
+                Kelola seluruh akun sivitas akademika, penugasan hak akses role-based, pengaturan status login, dan
                 kebijakan keamanan kata sandi secara terpusat.
               </p>
             </div>
@@ -1076,7 +1076,7 @@ export default function UserManagementPage() {
                                 NIDN: <span className="font-mono text-amber-700">{user.lecturerInfo.nidn}</span>
                               </div>
                               <div className="text-slate-500 text-[11px] truncate max-w-[180px]">
-                                {user.lecturerInfo.prodi || 'Dosen Tetap ITN'}
+                                {user.lecturerInfo.prodi || 'Dosen Tetap'}
                               </div>
                             </div>
                           ) : user.prodiInfo ? (
@@ -1409,7 +1409,7 @@ export default function UserManagementPage() {
                 required
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="cth. budi.santoso@itn.ac.id"
+                placeholder="cth. budi.santoso@kampus.ac.id"
                 className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
               />
               <p className="text-[11px] text-slate-400 mt-1">Email ini digunakan sebagai username login akun pengguna.</p>

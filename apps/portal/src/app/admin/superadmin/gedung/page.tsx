@@ -316,7 +316,7 @@ export default function SuperAdminGedungPage() {
               <span>Manajemen Gedung & Sarana Fisik Kampus</span>
             </h1>
             <p className="text-xs sm:text-sm text-slate-600 mt-1">
-              Infrastruktur gedung perkuliahan, dekanat fakultas, rektorat, dan pusat riset terpadu ITN.
+              Infrastruktur gedung perkuliahan, dekanat fakultas, rektorat, dan pusat riset terpadu kampus.
             </p>
           </div>
 
@@ -714,7 +714,7 @@ export default function SuperAdminGedungPage() {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           title={editingBuilding ? 'Edit Data Gedung Kampus' : 'Tambah Gedung Baru'}
-          subtitle="Infrastruktur fisik Institut Teknologi Nusantara"
+          subtitle="Infrastruktur fisik kampus"
           icon={<Building2 className="w-5 h-5" />}
           maxWidth="xl"
         >

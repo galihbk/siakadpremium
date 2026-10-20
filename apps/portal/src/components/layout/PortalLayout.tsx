@@ -1,5 +1,6 @@
 'use client';
 
+import { CampusLogo } from '@/components/common/CampusLogo';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -783,9 +784,9 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
 
   const defaultNameByRole =
     effectiveRole === 'student'
-      ? 'Mahasiswa ITN'
+      ? 'Mahasiswa'
       : effectiveRole === 'lecturer'
-        ? 'Dosen Pengajar ITN'
+        ? 'Dosen Pengajar'
         : effectiveRole === 'superadmin'
           ? 'Super Administrator'
           : effectiveRole === 'finance'
@@ -799,7 +800,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                   : effectiveRole === 'sdm'
                     ? 'Biro SDM & Kepegawaian'
                     : effectiveRole === 'pmb'
-                      ? 'Panitia PMB ITN'
+                      ? 'Panitia PMB'
                       : 'Administrator BAAK';
 
   const displayName = currentUser?.fullName || userName || defaultNameByRole;
@@ -875,9 +876,11 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
           {/* Logo & Platform Info */}
           <div className="p-5 border-b border-slate-800">
             <Link href="/" className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#1E3A8A] to-blue-600 border border-[#D4A017] flex items-center justify-center text-white font-black text-base shadow-sm">
-                ITN
-              </div>
+              <CampusLogo
+                url={institutionProfile.logoUrl}
+                initials={institutionProfile.logoInitials}
+                className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#1E3A8A] to-blue-600 border border-[#D4A017] flex items-center justify-center text-white font-black text-base shadow-sm shrink-0"
+              />
               <div>
                 <span className="text-sm font-extrabold text-white tracking-wide block">
                   SIAKAD PREMIUM

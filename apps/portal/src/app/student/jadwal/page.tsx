@@ -1,5 +1,6 @@
 'use client';
 
+import { useInstitution } from '@/lib/useInstitution';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
@@ -72,6 +73,7 @@ const toDecimalHours = (start: string, end: string) => {
 };
 
 export default function JadwalKuliahPage() {
+  const inst = useInstitution();
   const [jadwal, setJadwal] = useState<JadwalKuliahItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -140,7 +142,7 @@ export default function JadwalKuliahPage() {
   }, [scheduledOnly, selectedHari, searchQuery]);
 
   const handleExportICS = () => {
-    let icsContent = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//ITN Siakad Premium//Jadwal Kuliah//ID\nCALSCALE:GREGORIAN\nMETHOD:PUBLISH\nX-WR-CALNAME:Jadwal Kuliah ITN\n`;
+    let icsContent = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//SIAKAD Premium//Jadwal Kuliah//ID\nCALSCALE:GREGORIAN\nMETHOD:PUBLISH\nX-WR-CALNAME:Jadwal Kuliah\n`;
     const dayOffsets: Record<string, string> = { Senin: 'MO', Selasa: 'TU', Rabu: 'WE', Kamis: 'TH', Jumat: 'FR', Sabtu: 'SA' };
 
     scheduledOnly.forEach((item) => {
@@ -158,7 +160,7 @@ export default function JadwalKuliahPage() {
     const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
     const link = document.createElement('a');
     link.href = window.URL.createObjectURL(blob);
-    link.setAttribute('download', 'Jadwal_Kuliah_ITN.ics');
+    link.setAttribute('download', 'Jadwal_Kuliah.ics');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -166,7 +168,7 @@ export default function JadwalKuliahPage() {
 
   const handlePrint = () => window.print();
 
-  const studentName = currentUser?.fullName || 'Mahasiswa ITN';
+  const studentName = currentUser?.fullName || 'Mahasiswa';
   const displayNim = profile?.nim || 'Mahasiswa';
   const displayProdi = profile?.programStudi || 'Program Studi';
   const displayAdvisor = profile?.dosenPembimbingAkademik || 'Dosen Pembimbing Akademik';
@@ -365,7 +367,7 @@ export default function JadwalKuliahPage() {
         <div className="hidden print:block mb-6 border-b-2 border-slate-900 pb-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-bold uppercase tracking-wider text-slate-900">Institut Teknologi Nusantara</h2>
+              <h2 className="text-xl font-bold uppercase tracking-wider text-slate-900">{inst.campusName}</h2>
               <p className="text-xs text-slate-600">Biro Administrasi Akademik & Kemahasiswaan (BAAK)</p>
             </div>
             <div className="text-right">

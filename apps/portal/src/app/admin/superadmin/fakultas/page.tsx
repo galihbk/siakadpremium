@@ -372,7 +372,7 @@ export default function SuperAdminFakultasPage() {
               <span>Manajemen Fakultas</span>
             </h1>
             <p className="text-xs sm:text-sm text-slate-600 mt-1">
-              Struktur fakultas, dekanat, gedung perkuliahan, dan koordinasi program studi Institut Teknologi Nusantara.
+              Struktur fakultas, dekanat, gedung perkuliahan, dan koordinasi program studi.
             </p>
           </div>
 
@@ -806,7 +806,7 @@ export default function SuperAdminFakultasPage() {
           isOpen={isAddModalOpen}
           onClose={() => setIsAddModalOpen(false)}
           title={editingFaculty ? 'Edit Data Fakultas' : 'Tambah Fakultas Baru'}
-          subtitle="Master data struktur fakultas Institut Teknologi Nusantara"
+          subtitle="Master data struktur fakultas"
           icon={<Landmark className="w-5 h-5" />}
           maxWidth="xl"
         >

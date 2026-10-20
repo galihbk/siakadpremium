@@ -1,5 +1,7 @@
 'use client';
 
+import { useInstitution } from '@/lib/useInstitution';
+import { CampusLogo } from '@/components/common/CampusLogo';
 import React, { useState, useEffect, useMemo } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getAuthSession } from '@/lib/auth';
@@ -108,6 +110,7 @@ const mapInvoice = (t: any): Transaction => ({
 });
 
 export default function FinanceDashboardPage() {
+  const inst = useInstitution();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [budgetAllocation, setBudgetAllocation] = useState<BudgetExpenditure[]>([]);
@@ -273,7 +276,7 @@ export default function FinanceDashboardPage() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Laporan_Keuangan_ITN_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `Laporan_Keuangan_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -311,7 +314,7 @@ export default function FinanceDashboardPage() {
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-amber-300 text-xs font-semibold backdrop-blur-xs mb-3 border border-white/15">
                 <Landmark className="w-3.5 h-3.5" />
-                <span>Portal Resmi Biro Keuangan Institut Teknologi Nusantara</span>
+                <span>Portal Resmi Biro Keuangan {inst.campusName}</span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
                 Dashboard Keuangan & Perbendaharaan Kampus
@@ -448,7 +451,7 @@ export default function FinanceDashboardPage() {
                 </h2>
                 <div className="mt-1 flex items-center gap-1.5 text-xs font-medium text-blue-600">
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>{bankAccounts.length} Rekening Bank Resmi ITN</span>
+                  <span>{bankAccounts.length} Rekening Bank Resmi</span>
                 </div>
               </div>
             </div>
@@ -462,7 +465,7 @@ export default function FinanceDashboardPage() {
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Landmark className="w-4 h-4 text-[#1E3A8A]" />
-                <h3 className="font-bold text-slate-800 text-sm">Rekening Bank Resmi ITN</h3>
+                <h3 className="font-bold text-slate-800 text-sm">Rekening Bank Resmi</h3>
               </div>
               <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
                 Mitra H2H
@@ -751,12 +754,10 @@ export default function FinanceDashboardPage() {
             {/* Kwitansi Header */}
             <div className="bg-[#1E3A8A] text-white p-5 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center font-bold text-amber-300 border border-white/20">
-                  ITN
-                </div>
+                <CampusLogo url={inst.logoUrl} initials={inst.logoInitials} className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center font-bold text-amber-300 border border-white/20" />
                 <div>
                   <h4 className="font-bold text-sm leading-tight">BUKTI PEMBAYARAN KEUANGAN</h4>
-                  <p className="text-xs text-blue-200">Institut Teknologi Nusantara &bull; Biro Keuangan</p>
+                  <p className="text-xs text-blue-200">{inst.campusName} &bull; Biro Keuangan</p>
                 </div>
               </div>
               <button
@@ -804,7 +805,7 @@ export default function FinanceDashboardPage() {
                   </div>
                   <div className="flex justify-between text-slate-500 text-[11px]">
                     <span>Biaya Administrasi Bank</span>
-                    <span className="text-emerald-600 font-semibold">Gratis (Subsidi ITN)</span>
+                    <span className="text-emerald-600 font-semibold">Gratis (Subsidi Kampus)</span>
                   </div>
                   <div className="border-t border-slate-100 pt-2 flex justify-between font-bold text-slate-900 text-sm">
                     <span>Total Pembayaran</span>

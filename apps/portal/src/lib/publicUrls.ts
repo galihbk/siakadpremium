@@ -37,3 +37,21 @@ export function useServiceUrl(service: ServiceName, fallback = ''): string {
 
   return url;
 }
+
+export interface PublicFlags {
+  /** Tombol "akun demo" di halaman login (hanya untuk instance demo). */
+  demoAccounts: boolean;
+}
+
+/** Pengaturan tampilan dari server (GET /app-config); semua bernilai aman (mati) sampai dimuat. */
+export function usePublicFlags(): PublicFlags {
+  const [flags, setFlags] = useState<PublicFlags>({ demoAccounts: false });
+  useEffect(() => {
+    let alive = true;
+    loadConfig().then((cfg) => alive && setFlags({ demoAccounts: Boolean((cfg as { demoAccounts?: boolean }).demoAccounts) }));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return flags;
+}

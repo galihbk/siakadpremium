@@ -1,4 +1,6 @@
+import { CampusLogo } from '@/components/CampusLogo';
 import Link from 'next/link';
+import { getCampusServer } from '@/lib/campusServer';
 import { PmbNavbar } from '@/components/PmbNavbar';
 import {
   ArrowRight,
@@ -129,6 +131,7 @@ function formatRupiah(amount: number): string {
 }
 
 export default async function PmbPage() {
+  const campus = await getCampusServer();
   const batches = await getAdmissionBatches();
   const activeBatches = batches.filter((b) => b.status === 'OPEN');
   const activeBatch = activeBatches.find((b) => b.isDefault) || activeBatches[0] || batches[0];
@@ -154,11 +157,11 @@ export default async function PmbPage() {
                 </div>
 
                 <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-tight">
-                  Wujudkan Impian Insinyur & Talenta Digital di <span className="text-[#D4A017]">ITN</span>
+                  Wujudkan Impian Insinyur & Talenta Digital di <span className="text-[#D4A017]">{campus.short}</span>
                 </h1>
 
                 <p className="text-sm sm:text-base text-blue-100/90 leading-relaxed max-w-2xl">
-                  Raih masa depan gemilang di Institut Teknologi Nusantara. Didukung kurikulum berbasis industri 4.0, akreditasi Unggul, beasiswa kemitraan global, dan peluang kerja sebelum wisuda.
+                  Raih masa depan gemilang di {campus.name}. Didukung kurikulum berbasis industri 4.0, akreditasi Unggul, beasiswa kemitraan global, dan peluang kerja sebelum wisuda.
                 </p>
 
                 <div className="pt-3 flex flex-wrap items-center gap-3 sm:gap-4">
@@ -197,7 +200,7 @@ export default async function PmbPage() {
                         href="/downloads/brosur-pmb-s1.pdf"
                         target="_blank"
                         rel="noreferrer"
-                        download="Brosur-PMB-ITN-S1-2027.pdf"
+                        download="Brosur-PMB-S1-2027.pdf"
                         className="flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-[#1E3A8A] transition-colors"
                       >
                         <div className="flex items-center gap-2.5">
@@ -213,7 +216,7 @@ export default async function PmbPage() {
                         href="/downloads/brosur-pmb-s2.pdf"
                         target="_blank"
                         rel="noreferrer"
-                        download="Brosur-PMB-ITN-S2-2027.pdf"
+                        download="Brosur-PMB-S2-2027.pdf"
                         className="flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-amber-50 hover:text-amber-900 transition-colors"
                       >
                         <div className="flex items-center gap-2.5">
@@ -229,7 +232,7 @@ export default async function PmbPage() {
                         href="/downloads/brosur-pmb-s3.pdf"
                         target="_blank"
                         rel="noreferrer"
-                        download="Brosur-PMB-ITN-S3-2027.pdf"
+                        download="Brosur-PMB-S3-2027.pdf"
                         className="flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-purple-50 hover:text-purple-900 transition-colors"
                       >
                         <div className="flex items-center gap-2.5">
@@ -246,7 +249,7 @@ export default async function PmbPage() {
                         href="/downloads/brosur-pmb-2027.pdf"
                         target="_blank"
                         rel="noreferrer"
-                        download="Brosur-PMB-ITN-2027.pdf"
+                        download="Brosur-PMB-2027.pdf"
                         className="flex items-center justify-between px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
                       >
                         <span className="text-[11px]">Unduh Brosur Lengkap (Semua)</span>
@@ -353,7 +356,7 @@ export default async function PmbPage() {
                 Gelombang Pendaftaran Aktif
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 mt-2">
-                Pilih gelombang pendaftaran yang sedang dibuka saat ini dan daftarkan akun Anda segera untuk mengamankan kuota program studi impian di Institut Teknologi Nusantara.
+                Pilih gelombang pendaftaran yang sedang dibuka saat ini dan daftarkan akun Anda segera untuk mengamankan kuota program studi impian di {campus.name}.
               </p>
             </div>
 
@@ -611,7 +614,7 @@ export default async function PmbPage() {
                 Mudah & Transparan
               </span>
               <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">
-                5 Langkah Mudah Menjadi Mahasiswa ITN
+                5 Langkah Mudah Menjadi Mahasiswa {campus.short}
               </h2>
             </div>
 
@@ -646,11 +649,11 @@ export default async function PmbPage() {
             </div>
 
             <h2 className="text-2xl sm:text-4xl font-black tracking-tight">
-              Siap Menjadi Bagian dari Sivitas Akademika ITN?
+              Siap Menjadi Bagian dari Sivitas Akademika {campus.short}?
             </h2>
 
             <p className="text-sm sm:text-base text-blue-100/90 max-w-2xl mx-auto leading-relaxed">
-              Mulai langkah sukses Anda bersama ribuan mahasiswa ITN lainnya. Buat akun pendaftaran baru atau masuk ke akun portal Anda untuk memantau proses seleksi.
+              Mulai langkah sukses Anda bersama ribuan mahasiswa {campus.short} lainnya. Buat akun pendaftaran baru atau masuk ke akun portal Anda untuk memantau proses seleksi.
             </p>
 
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
@@ -686,7 +689,7 @@ export default async function PmbPage() {
                 Estimasi Biaya Kuliah & Uang Kuliah Tunggal (UKT)
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 mt-2">
-                ITN menerapkan sistem UKT berkeadilan tanpa pungutan liar uang gedung tersembunyi bagi jalur prestasi.
+                {campus.short} menerapkan sistem UKT berkeadilan tanpa pungutan liar uang gedung tersembunyi bagi jalur prestasi.
               </p>
             </div>
 
@@ -747,9 +750,9 @@ export default async function PmbPage() {
 
           <div className="space-y-3.5">
             {[
-              { q: 'Apakah lulusan SMK dapat mendaftar di program studi keteknikan ITN?', a: 'Sangat bisa. Lulusan SMK rumpun teknik maupun non-teknik memiliki peluang yang sama untuk diterima di seluruh prodi sarjana ITN dengan kurikulum matrikulasi dasar.' },
+              { q: `Apakah lulusan SMK dapat mendaftar di program studi keteknikan ${campus.short}?`, a: `Sangat bisa. Lulusan SMK rumpun teknik maupun non-teknik memiliki peluang yang sama untuk diterima di seluruh prodi sarjana ${campus.short} dengan kurikulum matrikulasi dasar.` },
               { q: 'Bagaimana mekanisme seleksi pendaftar baru?', a: 'Seleksi dilakukan secara administratif melalui verifikasi berkas dan kelayakan data pendaftar tanpa ujian tertulis/CBT yang rumit. Hasil seleksi diumumkan secara transparan di dashboard PMB Anda.' },
-              { q: 'Apakah ada keringanan atau skema cicilan pembayaran UKT?', a: 'Ya, ITN menyediakan fasilitas cicilan biaya UKT 3 tahap per semester tanpa bunga tambahan yang dapat diajukan melalui Biro Keuangan Kampus.' },
+              { q: 'Apakah ada keringanan atau skema cicilan pembayaran UKT?', a: `Ya, ${campus.short} menyediakan fasilitas cicilan biaya UKT 3 tahap per semester tanpa bunga tambahan yang dapat diajukan melalui Biro Keuangan Kampus.` },
             ].map((item, idx) => (
               <div key={idx} className="bg-white rounded-xl p-5 border border-slate-200 shadow-subtle text-xs">
                 <p className="font-bold text-slate-900 text-sm">{item.q}</p>
@@ -765,16 +768,14 @@ export default async function PmbPage() {
       <footer className="bg-[#0F172A] text-slate-400 text-xs py-10 border-t border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-4 text-center sm:text-left">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-[#1E3A8A] border border-[#D4A017] text-white flex items-center justify-center font-bold text-xs">
-              ITN
-            </div>
+            <CampusLogo url={campus.logoUrl} initials={campus.initials} className="w-8 h-8 rounded-full bg-[#1E3A8A] border border-[#D4A017] text-white flex items-center justify-center font-bold text-xs" />
             <div>
-              <p className="font-bold text-white text-sm">Panitia Penerimaan Mahasiswa Baru ITN</p>
-              <p className="text-slate-400 text-[11px]">Gedung Rektorat Lt. 1, Jl. Nusantara Raya No. 101, Jakarta Selatan</p>
+              <p className="font-bold text-white text-sm">Panitia Penerimaan Mahasiswa Baru {campus.short}</p>
+              <p className="text-slate-400 text-[11px]">{campus.address || ''}</p>
             </div>
           </div>
           <p className="text-slate-500 text-[11px]">
-            &copy; 2026 Institut Teknologi Nusantara. Hak Cipta Dilindungi Undang-Undang.
+            &copy; 2026 {campus.name}. Hak Cipta Dilindungi Undang-Undang.
           </p>
         </div>
       </footer>

@@ -101,7 +101,7 @@ export default function AdminDashboardPage() {
               Biro Administrasi Akademik & Kemahasiswaan (BAAK)
             </span>
             <h2 className="text-xl sm:text-2xl font-black tracking-tight">
-              Pusat Kendali Administrasi Akademik ITN
+              Pusat Kendali Administrasi Akademik
             </h2>
             <p className="text-xs sm:text-sm text-blue-200 mt-1">
               Monitoring Real-Time Civitas Akademika &amp; Registrasi Mahasiswa

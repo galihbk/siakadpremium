@@ -1,5 +1,6 @@
 'use client';
 
+import { CampusLogo } from '@/components/CampusLogo';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { MapPin, Phone, Mail, Globe } from 'lucide-react';
@@ -23,9 +24,7 @@ export function Footer() {
           <div className="lg:col-span-5 space-y-4">
             <div className="flex items-center gap-3">
               {/* Circular Logo ITN */}
-              <div className="w-12 h-12 rounded-full bg-[#1E3A8A] flex items-center justify-center text-white font-bold text-lg tracking-wider border-2 border-[#D4A017] shadow-sm">
-                {profile.logoInitials}
-              </div>
+              <CampusLogo url={profile.logoUrl} initials={profile.logoInitials} className="w-12 h-12 rounded-full bg-[#1E3A8A] flex items-center justify-center text-white font-bold text-lg tracking-wider border-2 border-[#D4A017] shadow-sm" />
               <div>
                 <h3 className="font-bold text-lg text-white tracking-tight leading-tight">
                   {profile.campusName.toUpperCase()}

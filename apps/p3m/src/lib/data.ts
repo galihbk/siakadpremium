@@ -70,8 +70,8 @@ const EMPTY: P3mLanding = {
 };
 
 const FALLBACK_CAMPUS: Campus = {
-  campusName: 'Institut Teknologi Nusantara',
-  campusShortName: 'ITN',
+  campusName: '',
+  campusShortName: '',
   contactAddress: '',
   contactPhone: '',
   contactEmail: '',
