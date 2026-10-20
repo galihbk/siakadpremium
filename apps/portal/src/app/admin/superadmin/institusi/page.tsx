@@ -1141,7 +1141,7 @@ export default function SuperAdminProfilInstitusiPage() {
 
                 <CompressedFileUpload
                   label="Unggah File Logo Kampus (.PNG / .JPG / .WEBP)"
-                  sublabel="Rasio 1:1. Gambar otomatis dioptimasi dan dikompresi agar loading halaman cepat."
+                  sublabel="Rasio 1:1."
                   accept="image/*"
                   maxSizeBytes={500 * 1024}
                   onFileReady={(file) => {

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, InternalServerErrorException, Logger } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { FeeRulesService } from '../finance/fee-rules.service';
@@ -66,6 +66,7 @@ export interface UpdateStudentDto {
 
 @Injectable()
 export class StudentsService {
+  private readonly logger = new Logger(StudentsService.name);
   constructor(
     private prisma: PrismaService,
     private feeRulesService: FeeRulesService,
@@ -948,14 +949,142 @@ export class StudentsService {
     return { semesters: semesters.reverse() };
   }
 
+  /**
+   * Daftar mahasiswa per halaman (pencarian, filter, urutan, dan penomoran halaman dikerjakan di database).
+   * Dipakai halaman Master Data Mahasiswa agar tetap cepat walau datanya belasan ribu baris.
+   */
+  async getStudentsPage(q: {
+    page?: string;
+    limit?: string;
+    search?: string;
+    studyProgramId?: string;
+    entryYear?: string;
+    status?: string;
+    sort?: string;
+    order?: string;
+  }) {
+    const page = Math.max(1, Number(q.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(q.limit) || 10));
+
+    const where: any = {};
+    if (q.studyProgramId) where.studyProgramId = q.studyProgramId;
+    if (q.entryYear && Number.isFinite(Number(q.entryYear))) where.entryYear = Number(q.entryYear);
+    if (q.status) where.status = q.status;
+    const term = q.search?.trim();
+    if (term) {
+      where.OR = [
+        { nim: { contains: term, mode: 'insensitive' } },
+        { user: { fullName: { contains: term, mode: 'insensitive' } } },
+        { user: { email: { contains: term, mode: 'insensitive' } } },
+        { studyProgram: { name: { contains: term, mode: 'insensitive' } } },
+      ];
+    }
+
+    const dir: 'asc' | 'desc' = q.order === 'desc' ? 'desc' : 'asc';
+    const orderBy: any =
+      q.sort === 'fullName' ? { user: { fullName: dir } }
+      : q.sort === 'studyProgram' ? { studyProgram: { name: dir } }
+      : q.sort === 'entryYear' ? { entryYear: dir }
+      : q.sort === 'status' ? { status: dir }
+      : { nim: dir };
+
+    try {
+      const [total, rows, statusGroups, yearGroups, gpa] = await Promise.all([
+        this.prisma.student.count({ where }),
+        this.prisma.student.findMany({
+          where,
+          orderBy: [orderBy, { id: 'asc' }],
+          skip: (page - 1) * limit,
+          take: limit,
+          include: {
+            user: { select: { fullName: true, email: true, isActive: true } },
+            studyProgram: { select: { name: true, faculty: { select: { name: true } } } },
+            advisorLecturer: { select: { user: { select: { fullName: true } } } },
+          },
+        }),
+        this.prisma.student.groupBy({ by: ['status'], _count: { _all: true } }),
+        this.prisma.student.groupBy({ by: ['entryYear'], _count: { _all: true } }),
+        this.prisma.courseEnrollment.aggregate({
+          where: { status: 'APPROVED', gradePoint: { not: null } },
+          _avg: { gradePoint: true },
+        }),
+      ]);
+
+      // IPK & SKS hanya dihitung untuk baris yang tampil di halaman ini
+      const ids = rows.map((r) => r.id);
+      const enrollments = ids.length
+        ? await this.prisma.courseEnrollment.findMany({
+            where: { studentId: { in: ids }, status: 'APPROVED' },
+            select: { studentId: true, gradePoint: true, course: { select: { sks: true, totalSks: true } } },
+          })
+        : [];
+      const byStudent = new Map<string, typeof enrollments>();
+      for (const e of enrollments) {
+        const arr = byStudent.get(e.studentId) ?? [];
+        arr.push(e);
+        byStudent.set(e.studentId, arr);
+      }
+
+      const items = rows.map((r) => {
+        const es = byStudent.get(r.id) ?? [];
+        const graded = es.filter((e) => e.gradePoint !== null);
+        const ipk = graded.length ? Math.round((graded.reduce((a, e) => a + (e.gradePoint || 0), 0) / graded.length) * 100) / 100 : 0;
+        const totalSks = es.reduce((a, e) => a + (e.course?.sks || e.course?.totalSks || 0), 0);
+        return {
+          id: r.id,
+          nim: r.nim,
+          studyProgramId: r.studyProgramId,
+          name: r.user.fullName,
+          email: r.user.email,
+          phone: r.phone || null,
+          address: r.address || null,
+          gender: r.gender,
+          studyProgram: r.studyProgram?.name || '-',
+          faculty: r.studyProgram?.faculty?.name || '-',
+          entryYear: r.entryYear,
+          currentSemester: r.currentSemester,
+          status: r.status,
+          ipk,
+          totalSks,
+          dosenPA: r.advisorLecturer?.user?.fullName || null,
+          isActive: r.user.isActive,
+        };
+      });
+
+      const count = (st: string) => statusGroups.find((g) => g.status === st)?._count._all ?? 0;
+      return {
+        items,
+        total,
+        page,
+        limit,
+        stats: {
+          active: count('ACTIVE'),
+          leave: count('LEAVE'),
+          graduated: count('GRADUATED'),
+          dropout: count('DROPOUT'),
+          all: statusGroups.reduce((a, g) => a + g._count._all, 0),
+          avgIpk: gpa._avg.gradePoint ? Math.round(gpa._avg.gradePoint * 100) / 100 : 0,
+        },
+        years: yearGroups.map((g) => g.entryYear).filter((y): y is number => typeof y === 'number').sort((a, b) => b - a),
+      };
+    } catch (e) {
+      this.logger.error(`getStudentsPage gagal: ${e instanceof Error ? e.message : e}`, e instanceof Error ? e.stack : undefined);
+      throw new InternalServerErrorException('Gagal memuat daftar mahasiswa dari database. Periksa log server API.');
+    }
+  }
+
   async getStudentsList() {
     try {
+      // Query dibuat ringan untuk ribuan mahasiswa: hanya kolom yang dipakai (tanpa memuat seluruh baris KRS + mata kuliah).
       const students = await this.prisma.student.findMany({
         include: {
-          user: true,
-          studyProgram: { include: { faculty: true } },
-          advisorLecturer: { include: { user: true } },
-          enrollments: { where: { status: 'APPROVED' }, include: { course: true } },
+          user: { select: { fullName: true, email: true, isActive: true } },
+          studyProgram: { select: { name: true, faculty: { select: { name: true } } } },
+          advisorLecturer: { select: { user: { select: { fullName: true } } } },
+          enrollments: {
+            where: { status: 'APPROVED' },
+            select: { gradePoint: true, course: { select: { sks: true, totalSks: true } } },
+          },
         },
         orderBy: { createdAt: 'desc' },
       });
@@ -1020,8 +1149,9 @@ export class StudentsService {
         };
       });
     } catch (e) {
-      console.warn('getStudentsList error:', e);
-      return [];
+      // Jangan menyamarkan kegagalan sebagai "tidak ada mahasiswa": laporkan sebagai error agar terlihat di layar & log.
+      this.logger.error(`getStudentsList gagal: ${e instanceof Error ? e.message : e}`, e instanceof Error ? e.stack : undefined);
+      throw new InternalServerErrorException('Gagal memuat daftar mahasiswa dari database. Periksa log server API.');
     }
   }
 }

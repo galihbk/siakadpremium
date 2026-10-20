@@ -958,7 +958,7 @@ export default function PmbDashboardPage() {
   // Upload Payment Proof modal/state
   const [selectedPayment, setSelectedPayment] = useState<AdmissionPaymentItem | null>(null);
   const [proofUrl, setProofUrl] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('Transfer Bank BNI');
+  const [bankAccountId, setBankAccountId] = useState('');
   const [isUploadingPayment, setIsUploadingPayment] = useState(false);
   const [previewModal, setPreviewModal] = useState<{ url: string; title: string } | null>(null);
   const [showPrintModal, setShowPrintModal] = useState(false);
@@ -1959,6 +1959,10 @@ export default function PmbDashboardPage() {
   // 3. Konfirmasi Upload Bukti Pembayaran
   const handleConfirmPayment = async () => {
     if (!selectedPayment) return;
+    if (!bankAccountId) {
+      alert('Pilih rekening bank kampus tempat Anda mengirim pembayaran.');
+      return;
+    }
     setIsUploadingPayment(true);
 
     try {
@@ -1966,8 +1970,8 @@ export default function PmbDashboardPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          paymentMethod,
-          proofUrl: proofUrl || 'bukti-transfer-valid.png',
+          bankAccountId,
+          proofUrl,
           notes: 'Konfirmasi bukti transfer dari portal pendaftar',
         }),
       });
@@ -1978,6 +1982,7 @@ export default function PmbDashboardPage() {
       }
 
       setSelectedPayment(null);
+      setBankAccountId('');
       setProofUrl('');
       // Refresh dashboard data
       fetchDashboardData();
@@ -2382,7 +2387,7 @@ export default function PmbDashboardPage() {
                 </div>
 
                 <button
-                  onClick={() => setSelectedPayment(regPayment)}
+                  onClick={() => { setBankAccountId(options.paymentAccounts.length === 1 ? options.paymentAccounts[0].id : ''); setSelectedPayment(regPayment); }}
                   className="px-4 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors shrink-0 shadow-xs cursor-pointer"
                 >
                   <Upload className="w-4 h-4" />
@@ -2440,7 +2445,7 @@ export default function PmbDashboardPage() {
                 </div>
 
                 <button
-                  onClick={() => setSelectedPayment(reRegPayment)}
+                  onClick={() => { setBankAccountId(options.paymentAccounts.length === 1 ? options.paymentAccounts[0].id : ''); setSelectedPayment(reRegPayment); }}
                   className="px-5 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors shrink-0 shadow-md cursor-pointer"
                 >
                   <CreditCard className="w-4 h-4" />
@@ -4237,24 +4242,41 @@ export default function PmbDashboardPage() {
                   <span className="text-lg font-black text-[#1E3A8A] font-mono block">
                     Rp{selectedPayment.amount.toLocaleString('id-ID')}
                   </span>
-                  <span className="text-[11px] text-slate-500 block">
-                    Tujuan: <PaymentAccountsInfo accounts={options.paymentAccounts} phone={campus.phone} />
-                  </span>
                 </div>
 
                 <div className="space-y-3 text-xs">
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Metode Pembayaran</label>
-                    <select
-                      value={paymentMethod}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]"
-                    >
-                      <option value="Transfer Bank BNI">Transfer Bank BNI (Virtual Account)</option>
-                      <option value="Transfer Bank Mandiri">Transfer Bank Mandiri</option>
-                      <option value="Transfer Bank BCA / Lainnya">Transfer Antar Bank (BCA/BRI/Lainnya)</option>
-                      <option value="Teller Bank / Kasir">Pembayaran Tunai di Kasir Kampus</option>
-                    </select>
+                    <label className="block font-bold text-slate-700 mb-1">Pilih rekening bank kampus tujuan transfer</label>
+                    {options.paymentAccounts.length === 0 ? (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">
+                        Rekening tujuan pembayaran belum diatur, jadi pembayaran belum bisa dikonfirmasi.
+                        {campus.phone ? ` Silakan hubungi panitia PMB (${campus.phone}).` : ' Silakan hubungi panitia PMB.'}
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {options.paymentAccounts.map((a) => (
+                          <label
+                            key={a.id}
+                            className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                              bankAccountId === a.id ? 'border-[#1E3A8A] bg-blue-50/70' : 'border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="pmb-bank-kampus"
+                              checked={bankAccountId === a.id}
+                              onChange={() => setBankAccountId(a.id)}
+                              className="mt-0.5 accent-[#1E3A8A]"
+                            />
+                            <span>
+                              <span className="block font-bold text-slate-900">{a.bankName}</span>
+                              <span className="block font-mono text-slate-800">{a.accountNumber}</span>
+                              <span className="block text-slate-500">a.n. {a.accountName}</span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -4281,7 +4303,7 @@ export default function PmbDashboardPage() {
                   <button
                     type="button"
                     onClick={handleConfirmPayment}
-                    disabled={isUploadingPayment || !proofUrl}
+                    disabled={isUploadingPayment || !proofUrl || !bankAccountId || options.paymentAccounts.length === 0}
                     className="px-4 py-2 rounded-lg bg-[#1E3A8A] hover:bg-blue-900 disabled:opacity-50 text-white text-xs font-bold cursor-pointer shadow-xs"
                   >
                     {isUploadingPayment ? 'Mengirim...' : 'Kirim Bukti Pembayaran'}

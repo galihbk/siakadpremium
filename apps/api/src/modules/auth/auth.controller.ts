@@ -54,6 +54,22 @@ export class AuthController {
     return this.authService.login(loginDto);
   }
 
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiOperation({ summary: 'Minta tautan atur ulang kata sandi (dikirim ke email akun)' })
+  async forgotPassword(@Body() body: { identifier?: string }) {
+    return this.authService.forgotPassword(body?.identifier ?? '');
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiOperation({ summary: 'Atur kata sandi baru memakai token dari email' })
+  async resetPassword(@Body() body: { token?: string; password?: string }) {
+    return this.authService.resetPassword(body?.token ?? '', body?.password ?? '');
+  }
+
   @Get('me')
   @ApiOperation({ summary: 'Mendapatkan profil pengguna yang sedang login' })
   @ApiResponse({ status: 200, description: 'Data profil pengguna berhasil dimuat' })

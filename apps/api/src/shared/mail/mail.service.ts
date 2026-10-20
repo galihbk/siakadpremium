@@ -7,7 +7,7 @@ export interface EmailQueueJob {
   fullName: string;
   verificationUrl?: string;
   resetUrl?: string;
-  type: 'VERIFICATION' | 'PASSWORD_RESET';
+  type: 'VERIFICATION' | 'PASSWORD_RESET' | 'PORTAL_RESET';
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
   attempts: number;
   maxAttempts: number;
@@ -105,6 +105,50 @@ export class MailService {
     return true;
   }
 
+  /** Email atur ulang kata sandi akun portal SIAKAD (mahasiswa, dosen, staf). */
+  async sendPortalPasswordResetEmail(to: string, fullName: string, resetUrl: string, campusName?: string): Promise<boolean> {
+    const job: EmailQueueJob & { campusName?: string } = {
+      id: `mail-portal-reset-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      to,
+      fullName,
+      resetUrl,
+      type: 'PORTAL_RESET',
+      status: 'PENDING',
+      attempts: 0,
+      maxAttempts: 3,
+      createdAt: new Date(),
+      campusName,
+    };
+    this.queue.push(job);
+    this.processQueue().catch((err) => this.logger.error('[MailQueue] Worker queue error:', err));
+    return true;
+  }
+
+  private async deliverPortalResetEmail(job: EmailQueueJob & { campusName?: string }): Promise<boolean> {
+    const brand = job.campusName || process.env.MAIL_FROM_NAME || 'SIAKAD Premium';
+    const fromAddress = process.env.MAIL_FROM_ADDRESS || process.env.MAIL_USERNAME || '';
+    const esc = (v: string) => v.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
+    const html = `<!DOCTYPE html><html lang="id"><body style="font-family:Arial,Helvetica,sans-serif;background:#f1f5f9;margin:0;padding:24px;color:#1e293b">
+<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:14px;padding:32px;border:1px solid #e2e8f0">
+<h2 style="margin:0 0 4px;color:#1E3A8A">${esc(brand)}</h2>
+<p style="margin:0 0 20px;color:#64748b;font-size:13px">Portal SIAKAD Premium</p>
+<p>Halo <strong>${esc(job.fullName)}</strong>,</p>
+<p>Kami menerima permintaan untuk mengatur ulang kata sandi akun portal Anda. Klik tombol di bawah untuk membuat kata sandi baru. Tautan berlaku <strong>1 jam</strong> dan hanya bisa dipakai sekali.</p>
+<p style="text-align:center;margin:28px 0"><a href="${job.resetUrl}" style="background:#1E3A8A;color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:bold;display:inline-block">Atur Ulang Kata Sandi</a></p>
+<p style="font-size:12px;color:#64748b">Jika tombol tidak berfungsi, salin tautan ini ke browser:<br><span style="word-break:break-all">${job.resetUrl}</span></p>
+<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0">
+<p style="font-size:12px;color:#94a3b8">Jika Anda tidak pernah meminta ini, abaikan email ini &mdash; kata sandi Anda tidak berubah.</p>
+</div></body></html>`;
+    const info = await this.transporter.sendMail({
+      from: `"${brand}" <${fromAddress}>`,
+      to: job.to,
+      subject: `Atur Ulang Kata Sandi Portal - ${brand}`,
+      html,
+    });
+    this.logger.log(`[MailQueue] SMTP delivered portal reset to ${job.to}, messageId: ${info.messageId}`);
+    return true;
+  }
+
   /**
    * Worker pemroses antrean email (FIFO) dengan mekanisme auto-retry
    */
@@ -123,7 +167,9 @@ export class MailService {
 
       try {
         let success = false;
-        if (job.type === 'PASSWORD_RESET') {
+        if (job.type === 'PORTAL_RESET') {
+          success = await this.deliverPortalResetEmail(job);
+        } else if (job.type === 'PASSWORD_RESET') {
           success = await this.deliverPasswordResetEmail(job);
         } else {
           success = await this.deliverVerificationEmail(job);

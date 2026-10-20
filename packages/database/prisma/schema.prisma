@@ -95,6 +95,7 @@ model User {
   landingPageArticles          LandingPageArticle[]
   editedLandingPageArticles    LandingPageArticle[]   @relation("ArticleEditor")
   uploadedFiles                UploadedFile[]
+  passwordResetTokens          PasswordResetToken[]
   updatedBankGatewaySettings   BankGatewaySetting[]
   updatedPddiktiSettings       PddiktiSetting[]
   salarySetting                SalarySetting?
@@ -2002,4 +2003,21 @@ model PmbChatMessage {
 
   @@index([threadId, createdAt])
   @@map("pmb_chat_messages")
+}
+
+
+/// Token pengaturan ulang kata sandi akun portal (mahasiswa, dosen, staf). Yang disimpan hanya HASH token;
+/// tautan di email membawa token aslinya. Sekali pakai dan kedaluwarsa.
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }

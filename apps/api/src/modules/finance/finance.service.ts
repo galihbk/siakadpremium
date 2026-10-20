@@ -596,12 +596,23 @@ export class FinanceService {
   async verifyTransaction(id: string) {
     const trx = await this.prisma.paymentInvoice.findUnique({ where: { id } });
     if (!trx) throw new NotFoundException(`Transaksi dengan ID "${id}" tidak ditemukan.`);
-    const receiptNo = `KWT/ITN/${new Date().getFullYear()}/${Date.now().toString().slice(-4)}`;
+    const receiptNo = `KWT/${new Date().getFullYear()}/${Date.now().toString().slice(-4)}`;
     const paidAt = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) + ', Kasir Diverifikasi';
     const updated = await this.prisma.paymentInvoice.update({ where: { id }, data: { status: 'LUNAS', receiptNo, paidAt } });
     await this.promoteKrsAfterPayment(trx.nim, trx.academicYear);
-    await this.prisma.systemAuditLog.create({ data: { action: 'FINANCE_VERIFY', detail: `Verifikasi ${trx.invoiceNo} (${trx.studentName}) Rp ${trx.amount}`, userEmail: 'keuangan@itn.ac.id' } }).catch(() => null);
+    await this.prisma.systemAuditLog.create({ data: { action: 'FINANCE_VERIFY', detail: `Verifikasi ${trx.invoiceNo} (${trx.studentName}) Rp ${trx.amount}`, userEmail: 'keuangan' } }).catch(() => null);
     return { success: true, message: `Pembayaran ${trx.studentName} berhasil diverifikasi LUNAS.`, data: { ...updated, status: 'LUNAS' } };
+  }
+
+  /** Tolak bukti transfer: tagihan kembali "belum bayar" supaya mahasiswa bisa mengunggah ulang. */
+  async rejectTransaction(id: string, reason?: string) {
+    const trx = await this.prisma.paymentInvoice.findUnique({ where: { id } });
+    if (!trx) throw new NotFoundException(`Transaksi dengan ID "${id}" tidak ditemukan.`);
+    if (trx.status === 'LUNAS') throw new BadRequestException('Tagihan ini sudah lunas dan tidak bisa ditolak.');
+    const note = reason?.trim() ? `Bukti ditolak Keuangan: ${reason.trim()}` : 'Bukti ditolak Keuangan: mohon unggah ulang bukti transfer yang valid.';
+    const updated = await this.prisma.paymentInvoice.update({ where: { id }, data: { status: 'TERTUNDA', notes: note } });
+    await this.prisma.systemAuditLog.create({ data: { action: 'FINANCE_REJECT', detail: `Tolak bukti ${trx.invoiceNo} (${trx.studentName})`, userEmail: 'keuangan' } }).catch(() => null);
+    return { success: true, message: 'Bukti pembayaran ditolak; mahasiswa diminta mengunggah ulang.', data: { ...updated, status: 'TERTUNDA' } };
   }
 
   async createInvoice(dto: any) {
@@ -654,7 +665,7 @@ export class FinanceService {
     return { mode, provider: mode === 'GATEWAY' ? setting!.provider : 'MANUAL', accounts };
   }
 
-  async submitStudentPayment(id: string, dto: { channel: string; proofUrl?: string }) {
+  async submitStudentPayment(id: string, dto: { channel: string; proofUrl?: string; bankAccountId?: string }) {
     const trx = await this.prisma.paymentInvoice.findUnique({ where: { id } });
     if (!trx) throw new NotFoundException(`Tagihan dengan ID "${id}" tidak ditemukan.`);
     if (trx.status === 'LUNAS') {
@@ -670,11 +681,22 @@ export class FinanceService {
       if (!dto.proofUrl) {
         throw new BadRequestException('Bukti transfer wajib diunggah untuk metode Transfer Bank Manual.');
       }
+      // Pembayar wajib menyebut rekening kampus tujuan transfer, agar Keuangan bisa mencocokkan dengan mutasi bank.
+      const activeCount = await this.prisma.financeBankAccount.count({ where: { isActive: true } });
+      if (activeCount === 0) {
+        throw new BadRequestException('Rekening tujuan pembayaran belum diatur. Silakan hubungi Biro Keuangan.');
+      }
+      const account = dto.bankAccountId
+        ? await this.prisma.financeBankAccount.findFirst({ where: { id: dto.bankAccountId, isActive: true } })
+        : null;
+      if (!account) {
+        throw new BadRequestException('Pilih rekening bank kampus tempat Anda mengirim pembayaran.');
+      }
       const updated = await this.prisma.paymentInvoice.update({
         where: { id },
         data: {
           status: 'MENUNGGU_VERIFIKASI',
-          paymentMethod: dto.channel,
+          paymentMethod: `Transfer ke ${account.bankName} ${account.accountNumber} a.n. ${account.accountName}`,
           notes: `Bukti transfer diunggah mahasiswa: ${dto.proofUrl}`,
         },
       });

@@ -74,7 +74,9 @@ export class StudentsController {
 
   @Get('list')
   @ApiOperation({ summary: 'Mendapatkan daftar semua mahasiswa dari database' })
-  async getStudentsList() {
+  async getStudentsList(@Query() query: Record<string, string>) {
+    // Dengan ?page= -> hasil per halaman (cepat untuk data besar); tanpa page -> seluruh daftar (ekspor/laporan).
+    if (query?.page) return this.studentsService.getStudentsPage(query);
     return this.studentsService.getStudentsList();
   }
 

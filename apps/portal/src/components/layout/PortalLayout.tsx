@@ -330,6 +330,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       items: [
         { name: 'Jadwal Ujian (UTS/UAS)', href: '/student/ujian', icon: CalendarDays },
         { name: 'Hasil Studi (KHS)', href: '/student/khs', icon: Award },
+        { name: 'Transkrip Sementara', href: '/student/transkrip', icon: ScrollText },
       ],
     },
     {

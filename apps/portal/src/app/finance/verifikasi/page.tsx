@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
-import { ShieldCheck, Check, X, Eye, RefreshCw, Database } from 'lucide-react';
+import { ShieldCheck, Check, X, Eye, RefreshCw } from 'lucide-react';
+import { Modal } from '@/components/ui/Modal';
 import { getApiBaseUrl } from '@/lib/api';
 
 interface Trx {
@@ -13,9 +14,29 @@ interface Trx {
   studyProgram: string;
   amount: number;
   paymentMethod: string;
+  paymentType?: string;
+  semester?: number;
+  academicYear?: string;
   paidAt?: string;
   notes?: string;
   status: string;
+}
+
+interface PmbPay {
+  id: string;
+  registrationNumber: string;
+  applicantName: string;
+  prodi: string;
+  type: 'REGISTRATION' | 'RE_REGISTRATION';
+  amount: number;
+  status: 'PENDING' | 'VERIFYING' | 'PAID';
+  proofUrl?: string | null;
+}
+
+/** Bukti transfer mahasiswa tersimpan di catatan tagihan: "Bukti transfer diunggah mahasiswa: <url>". */
+function proofFromNotes(notes?: string): string | null {
+  const m = notes?.match(/diunggah mahasiswa:\s*(\S+)/i);
+  return m ? m[1] : null;
 }
 
 const formatRp = (v: number) =>
@@ -26,6 +47,58 @@ export default function VerifikasiPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [tab, setTab] = useState<'mhs' | 'pmb'>('mhs');
+  const [pmbPays, setPmbPays] = useState<PmbPay[]>([]);
+  const [proofView, setProofView] = useState<{ url: string; title: string } | null>(null);
+
+  const fetchPmb = async () => {
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/admissions/admin/pmb/payments`, { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        const list = json?.data ?? json;
+        if (Array.isArray(list)) setPmbPays(list);
+      }
+    } catch {
+      // biarkan kosong
+    }
+  };
+
+  const pmbDecision = async (id: string, name: string, status: 'PAID' | 'PENDING') => {
+    setActionLoading(id);
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/admissions/admin/pmb/payments/${id}/verify`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, verifiedBy: 'Biro Keuangan' }),
+      });
+      if (!res.ok) throw new Error();
+      showToast(status === 'PAID' ? `Pembayaran PMB ${name} dinyatakan LUNAS.` : `Bukti PMB ${name} ditolak; pendaftar diminta mengunggah ulang.`);
+      await fetchPmb();
+    } catch {
+      showToast('Gagal memproses pembayaran PMB.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const rejectMhs = async (id: string, name: string) => {
+    setActionLoading(id);
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/finance/transactions/${id}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) throw new Error();
+      showToast(`Bukti ${name} ditolak; mahasiswa diminta mengunggah ulang.`);
+      await fetchVerifications();
+    } catch {
+      showToast('Gagal menolak bukti pembayaran.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const fetchVerifications = async () => {
     setLoading(true);
@@ -47,6 +120,7 @@ export default function VerifikasiPage() {
 
   useEffect(() => {
     fetchVerifications();
+    fetchPmb();
   }, []);
 
   const showToast = (m: string) => {
@@ -73,6 +147,7 @@ export default function VerifikasiPage() {
     }
   };
 
+  const pmbPending = pmbPays.filter((x) => x.status === 'VERIFYING');
   const pendingList = data.filter(
     (t) => t.status === 'MENUNGGU VERIFIKASI' || t.status === 'MENUNGGU_VERIFIKASI',
   );
@@ -89,11 +164,14 @@ export default function VerifikasiPage() {
             </div>
             <h1 className="text-xl sm:text-2xl font-black">Verifikasi Pembayaran</h1>
             <p className="text-xs sm:text-sm text-blue-200 mt-1">
-              Periksa dan setujui bukti konfirmasi pembayaran mahasiswa.
+              Periksa bukti transfer mahasiswa dan calon mahasiswa baru (PMB), lalu setujui atau tolak.
             </p>
           </div>
           <button
-            onClick={fetchVerifications}
+            onClick={() => {
+              fetchVerifications();
+              fetchPmb();
+            }}
             disabled={loading}
             className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-semibold text-white transition-colors border border-white/20"
           >
@@ -104,11 +182,74 @@ export default function VerifikasiPage() {
 
         {/* Content */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-4 sm:p-6 border-b border-slate-200 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-800">Menunggu Verifikasi ({pendingList.length})</h2>
+          <div className="px-4 sm:px-6 pt-3 border-b border-slate-200 flex items-center gap-1">
+            {([
+              ['mhs', `Pembayaran Mahasiswa (${pendingList.length})`],
+              ['pmb', `Pembayaran PMB (${pmbPending.length})`],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+                  tab === key ? 'border-[#1E3A8A] text-[#1E3A8A]' : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
-          <div className="divide-y divide-slate-100">
+          {tab === 'pmb' && (
+            <div className="divide-y divide-slate-100">
+              {pmbPending.length === 0 ? (
+                <div className="p-8 text-center text-slate-400">
+                  <ShieldCheck className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                  <p className="font-semibold text-slate-600">Tidak ada pembayaran PMB yang menunggu.</p>
+                </div>
+              ) : (
+                pmbPending.map((pp) => (
+                  <div key={pp.id} className="p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-700">MENUNGGU VERIFIKASI</span>
+                        <span className="text-xs font-mono font-bold text-slate-500">{pp.registrationNumber}</span>
+                      </div>
+                      <p className="text-sm font-bold text-slate-800">{pp.applicantName}</p>
+                      <p className="text-xs text-slate-500">
+                        {pp.prodi} &middot; {pp.type === 'REGISTRATION' ? 'Biaya Registrasi' : 'Biaya Daftar Ulang'}
+                      </p>
+                      <p className="text-sm font-black text-[#1E3A8A] mt-1">{formatRp(pp.amount)}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        disabled={!pp.proofUrl}
+                        onClick={() => pp.proofUrl && setProofView({ url: pp.proofUrl, title: `Bukti ${pp.applicantName}` })}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 disabled:opacity-40 cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5" /> Bukti
+                      </button>
+                      <button
+                        onClick={() => pmbDecision(pp.id, pp.applicantName, 'PENDING')}
+                        disabled={actionLoading === pp.id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg hover:bg-rose-100 disabled:opacity-50 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" /> Tolak
+                      </button>
+                      <button
+                        onClick={() => pmbDecision(pp.id, pp.applicantName, 'PAID')}
+                        disabled={actionLoading === pp.id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#1E3A8A] rounded-lg hover:bg-[#172554] disabled:opacity-50 cursor-pointer"
+                      >
+                        <Check className="w-3.5 h-3.5" /> Setujui Lunas
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          <div className={`divide-y divide-slate-100 ${tab === 'pmb' ? 'hidden' : ''}`}>
             {loading ? (
               <div className="p-8 text-center text-slate-400 flex items-center justify-center gap-2">
                 <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
@@ -136,21 +277,37 @@ export default function VerifikasiPage() {
                     <p className="text-xs text-slate-500">
                       {t.studyProgram} · {t.paymentMethod}
                     </p>
-                    {t.notes && <p className="text-xs text-slate-400 italic mt-0.5">Catatan: {t.notes}</p>}
+                    <p className="text-xs text-slate-700 mt-1">
+                      Pembayaran untuk: <strong>{t.paymentType || 'Tagihan'}</strong>
+                      {t.semester ? ` • Semester ${t.semester}` : ''}
+                      {t.academicYear ? ` • TA ${t.academicYear}` : ''}
+                    </p>
                     <p className="text-sm font-black text-[#1E3A8A] mt-1">{formatRp(t.amount)}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <button
-                      onClick={() => showToast(`Bukti transfer untuk ${t.invoiceNo} siap ditinjau.`)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+                      disabled={!proofFromNotes(t.notes)}
+                      onClick={() => {
+                        const u = proofFromNotes(t.notes);
+                        if (u) setProofView({ url: u, title: `Bukti ${t.invoiceNo}` });
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-40 cursor-pointer"
                     >
                       <Eye className="w-3.5 h-3.5" />
                       Bukti
                     </button>
                     <button
+                      onClick={() => rejectMhs(t.id, t.studentName)}
+                      disabled={actionLoading === t.id}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg hover:bg-rose-100 transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      Tolak
+                    </button>
+                    <button
                       onClick={() => approve(t.id, t.studentName)}
                       disabled={actionLoading === t.id}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#1E3A8A] rounded-lg hover:bg-[#172554] transition-colors disabled:opacity-50 cursor-pointer"
                     >
                       {actionLoading === t.id ? (
                         <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -165,6 +322,22 @@ export default function VerifikasiPage() {
             )}
           </div>
         </div>
+
+        <Modal isOpen={!!proofView} onClose={() => setProofView(null)} title={proofView?.title || 'Bukti Pembayaran'}>
+          {proofView && (
+            <div className="space-y-3">
+              {/\.pdf($|\?)/i.test(proofView.url) ? (
+                <iframe src={proofView.url} className="w-full h-[60vh] rounded-lg border border-slate-200" title="Bukti pembayaran" />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={proofView.url} alt="Bukti pembayaran" className="w-full max-h-[65vh] object-contain rounded-lg border border-slate-200" />
+              )}
+              <a href={proofView.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-[#1E3A8A] hover:underline">
+                Buka di tab baru
+              </a>
+            </div>
+          )}
+        </Modal>
 
         {toast && (
           <div className="fixed bottom-6 right-6 z-50 bg-emerald-600 text-white text-sm font-semibold px-5 py-3 rounded-xl shadow-lg flex items-center gap-2">

@@ -97,6 +97,8 @@ export class SaveApplicationDraftDto {
 
 export class UploadPaymentProofDto {
   @IsOptional() @IsString() paymentMethod?: string;
+  /** Rekening kampus tujuan transfer (wajib). */
+  @IsOptional() @IsString() bankAccountId?: string;
   @IsOptional() @IsString() proofUrl?: string;
   @IsOptional() @IsString() notes?: string;
 }

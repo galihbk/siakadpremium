@@ -203,6 +203,11 @@ export default function LoginPage() {
               {errors.password && (
                 <p className="mt-1 text-[11px] text-rose-600">{errors.password.message}</p>
               )}
+              <div className="mt-1.5 text-right">
+                <Link href="/lupa-kata-sandi" className="text-[11px] font-semibold text-[#1E3A8A] hover:underline">
+                  Lupa kata sandi?
+                </Link>
+              </div>
             </div>
 
             <button

@@ -1,6 +1,8 @@
 import { Injectable, UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { createHash, randomBytes } from 'crypto';
+import { MailService } from '../../shared/mail/mail.service';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { RedisService } from '../../shared/redis/redis.service';
 import { LoginDto } from './dto/login.dto';
@@ -12,7 +14,88 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private redis: RedisService,
+    private mail: MailService,
   ) {}
+
+  private static readonly RESET_TTL_MS = 60 * 60 * 1000; // 1 jam
+  private static readonly RESET_COOLDOWN_MS = 60 * 1000; // 1 menit antar permintaan per akun
+
+  /** Email bawaan yang dibuat sistem (bukan kotak surat sungguhan) tidak bisa menerima tautan reset. */
+  private isDeliverableEmail(email: string): boolean {
+    return !/\.(local|invalid)$/i.test(email);
+  }
+
+  /**
+   * Minta tautan atur ulang kata sandi. SELALU membalas sukses dengan pesan yang sama, ada atau tidaknya akun,
+   * supaya orang luar tidak bisa menebak NIM/email mana yang terdaftar.
+   */
+  async forgotPassword(identifier: string) {
+    const generic = {
+      success: true,
+      message: 'Jika akun ditemukan dan email-nya aktif, tautan atur ulang kata sandi telah dikirim. Periksa kotak masuk dan folder spam. Bila email Anda sudah tidak aktif, hubungi BAAK.',
+    };
+    const id = (identifier || '').trim();
+    if (!id) throw new BadRequestException('Isi NIM, NIDN, atau email Anda.');
+
+    try {
+      const user = await this.prisma.user.findFirst({
+        where: {
+          isActive: true,
+          OR: [
+            { email: { equals: id, mode: 'insensitive' } },
+            { student: { nim: id } },
+            { lecturer: { nidn: id } },
+          ],
+        },
+        select: { id: true, email: true, fullName: true },
+      });
+      if (!user || !this.isDeliverableEmail(user.email)) return generic;
+
+      const recent = await this.prisma.passwordResetToken.findFirst({
+        where: { userId: user.id, createdAt: { gt: new Date(Date.now() - AuthService.RESET_COOLDOWN_MS) } },
+      });
+      if (recent) return generic;
+
+      const token = randomBytes(32).toString('hex');
+      await this.prisma.passwordResetToken.create({
+        data: {
+          userId: user.id,
+          tokenHash: createHash('sha256').update(token).digest('hex'),
+          expiresAt: new Date(Date.now() + AuthService.RESET_TTL_MS),
+        },
+      });
+
+      // Alamat tautan diambil dari konfigurasi server (bukan dari permintaan) agar tidak bisa dibelokkan ke situs lain.
+      const base = (process.env.PUBLIC_PORTAL_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3002').replace(/\/+$/, '');
+      const setting = await this.prisma.landingPageSetting.findUnique({ where: { id: 'default-setting' }, select: { campusName: true } }).catch(() => null);
+      await this.mail.sendPortalPasswordResetEmail(user.email, user.fullName, `${base}/lupa-kata-sandi?token=${token}`, setting?.campusName || undefined);
+    } catch (err) {
+      // Kegagalan internal tidak boleh membocorkan apa pun ke pemohon.
+      // eslint-disable-next-line no-console
+      console.warn('forgotPassword gagal:', err instanceof Error ? err.message : err);
+    }
+    return generic;
+  }
+
+  /** Atur kata sandi baru memakai token dari email. Token sekali pakai & kedaluwarsa 1 jam. */
+  async resetPassword(token: string, newPassword: string) {
+    if (!token?.trim()) throw new BadRequestException('Tautan atur ulang tidak valid.');
+    if (!newPassword || newPassword.length < 8) throw new BadRequestException('Kata sandi baru minimal 8 karakter.');
+
+    const row = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash: createHash('sha256').update(token.trim()).digest('hex') },
+    });
+    if (!row || row.usedAt || row.expiresAt.getTime() < Date.now()) {
+      throw new BadRequestException('Tautan atur ulang tidak valid atau sudah kedaluwarsa. Silakan minta tautan baru.');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: row.userId }, data: { passwordHash } }),
+      this.prisma.passwordResetToken.updateMany({ where: { userId: row.userId, usedAt: null }, data: { usedAt: new Date() } }),
+    ]);
+    return { success: true, message: 'Kata sandi berhasil diubah. Silakan masuk dengan kata sandi baru.' };
+  }
 
   async login(loginDto: LoginDto): Promise<LoginResponse> {
     const { email, password } = loginDto;

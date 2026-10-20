@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import {
   CreditCard,
@@ -35,7 +36,6 @@ interface Tagihan {
   channel?: string;
 }
 
-const VA_NUMBER = '8277-0001-2311501001';
 
 export default function StudentKeuanganPage() {
   const [userName, setUserName] = useState('Mahasiswa');
@@ -46,6 +46,7 @@ export default function StudentKeuanganPage() {
   const [showPayModal, setShowPayModal] = useState(false);
   const [payChannel, setPayChannel] = useState('Transfer Bank Manual');
   const [paymentMode, setPaymentMode] = useState<'MANUAL' | 'GATEWAY'>('MANUAL');
+  const [bankAccountId, setBankAccountId] = useState('');
   const [payAccounts, setPayAccounts] = useState<Array<{ id: string; bankName: string; accountNumber: string; accountName: string }>>([]);
 
   useEffect(() => {
@@ -83,9 +84,9 @@ export default function StudentKeuanganPage() {
             id: t.id,
             invoiceNo: t.invoiceNo,
             jenis: t.paymentType,
-            semester: `Gasal ${t.academicYear || '2026/2027'}`,
+            semester: t.academicYear ? `TA ${t.academicYear}` : '-',
             jumlah: Number(t.amount),
-            dueDate: t.dueDate || '20 Sep 2026',
+            dueDate: t.dueDate || '-',
             status:
               t.status === 'LUNAS'
                 ? 'LUNAS'
@@ -128,12 +129,21 @@ export default function StudentKeuanganPage() {
 
   const handlePay = (t: Tagihan) => {
     setSelectedTagihan(t);
+    setBankAccountId(payAccounts.length === 1 ? payAccounts[0].id : '');
     setShowPayModal(true);
   };
 
   const handleConfirmPay = async () => {
     if (!selectedTagihan) return;
     const isManualTransfer = payChannel === 'Transfer Bank Manual';
+    if (isManualTransfer && payAccounts.length === 0) {
+      showToast('Rekening tujuan pembayaran belum diatur. Silakan hubungi Biro Keuangan.');
+      return;
+    }
+    if (isManualTransfer && !bankAccountId) {
+      showToast('Pilih rekening bank kampus tempat Anda mengirim pembayaran.');
+      return;
+    }
     if (isManualTransfer && !receiptFile) {
       showToast('Unggah bukti transfer terlebih dahulu untuk metode ini.');
       return;
@@ -163,7 +173,7 @@ export default function StudentKeuanganPage() {
       const res = await fetch(`${getApiBaseUrl()}/finance/transactions/${selectedTagihan.id}/submit-payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channel: payChannel, proofUrl }),
+        body: JSON.stringify({ channel: payChannel, proofUrl, bankAccountId: isManualTransfer ? bankAccountId : undefined }),
       });
       const json = await res.json().catch(() => null);
       if (res.ok) {
@@ -194,7 +204,7 @@ export default function StudentKeuanganPage() {
             </div>
             <h1 className="text-xl sm:text-2xl font-black tracking-tight">Tagihan &amp; Pembayaran</h1>
             <p className="text-xs sm:text-sm text-blue-200 mt-1">
-              Informasi tagihan perkuliahan, riwayat pembayaran, dan nomor Virtual Account terintegrasi
+              Informasi tagihan perkuliahan, dan riwayat pembayaran Anda
             </p>
           </div>
           <button
@@ -205,24 +215,6 @@ export default function StudentKeuanganPage() {
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             Segarkan
           </button>
-        </div>
-
-        {/* VA Info Card */}
-        <div className="bg-gradient-to-br from-slate-900 to-[#1E3A8A] rounded-2xl p-6 text-white shadow-md">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <p className="text-xs text-blue-200 uppercase tracking-widest font-semibold">Virtual Account Mahasiswa</p>
-              <p className="text-2xl sm:text-3xl font-mono font-black mt-1 tracking-wider text-[#D4A017]">{VA_NUMBER}</p>
-              <p className="text-xs text-slate-300 mt-1">Bank BNI · Pembayaran otomatis terverifikasi 24 jam</p>
-            </div>
-            <div className="text-right sm:border-l sm:border-white/20 sm:pl-6">
-              <p className="text-xs text-blue-200">Total Tunggakan Aktif</p>
-              <p className="text-2xl font-black text-white mt-0.5">{formatRupiah(totalTagihan)}</p>
-              <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-400 text-slate-900 mt-1">
-                {pendingCount} Tagihan Belum Dibayar
-              </span>
-            </div>
-          </div>
         </div>
 
         {/* Stats Row */}
@@ -242,7 +234,6 @@ export default function StudentKeuanganPage() {
             <p className={`text-xl font-black ${totalTagihan === 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
               {totalTagihan === 0 ? 'Bebas Tunggakan' : 'Ada Tagihan Aktif'}
             </p>
-            <p className="text-[11px] text-slate-400 mt-1">Batas KRS: 20 Sep 2026</p>
           </div>
         </div>
 
@@ -334,8 +325,8 @@ export default function StudentKeuanganPage() {
         </div>
 
         {/* Modal Bayar */}
-        {showPayModal && selectedTagihan && (
-          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        {showPayModal && selectedTagihan && createPortal(
+          <div className="fixed inset-0 z-[9999] bg-slate-900/60 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <h3 className="font-bold text-slate-800 text-base">Konfirmasi Pembayaran</h3>
@@ -359,10 +350,6 @@ export default function StudentKeuanganPage() {
                 <div className="flex justify-between">
                   <span className="text-slate-500">Nominal Tagihan</span>
                   <span className="font-black text-sm text-[#1E3A8A]">{formatRupiah(selectedTagihan.jumlah)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Nomor VA Mahasiswa</span>
-                  <span className="font-mono font-bold text-[#D4A017]">{VA_NUMBER}</span>
                 </div>
               </div>
 
@@ -388,16 +375,36 @@ export default function StudentKeuanganPage() {
               </div>
 
               {payChannel === 'Transfer Bank Manual' && (
-                <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3 text-xs space-y-1.5">
-                  <p className="font-bold text-slate-800">Transfer ke rekening berikut:</p>
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-slate-600">Pilih rekening bank kampus tujuan transfer</p>
                   {payAccounts.length === 0 ? (
-                    <p className="text-slate-600">Rekening tujuan belum diatur. Silakan hubungi Biro Keuangan.</p>
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                      Rekening tujuan pembayaran belum diatur, jadi pembayaran belum bisa dikonfirmasi. Silakan hubungi Biro Keuangan.
+                    </div>
                   ) : (
-                    payAccounts.map((a) => (
-                      <p key={a.id} className="text-slate-700">
-                        {a.bankName}: <span className="font-mono font-bold text-slate-900">{a.accountNumber}</span> a.n. {a.accountName}
-                      </p>
-                    ))
+                    <div className="space-y-1.5">
+                      {payAccounts.map((a) => (
+                        <label
+                          key={a.id}
+                          className={`flex items-start gap-3 rounded-xl border p-3 text-xs cursor-pointer transition-colors ${
+                            bankAccountId === a.id ? 'border-[#1E3A8A] bg-blue-50/70' : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="bank-kampus"
+                            checked={bankAccountId === a.id}
+                            onChange={() => setBankAccountId(a.id)}
+                            className="mt-0.5 accent-[#1E3A8A]"
+                          />
+                          <span>
+                            <span className="block font-bold text-slate-900">{a.bankName}</span>
+                            <span className="block font-mono text-slate-800">{a.accountNumber}</span>
+                            <span className="block text-slate-500">a.n. {a.accountName}</span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
                   )}
                   <p className="text-[11px] text-slate-500">Setelah transfer, unggah bukti di bawah. Pembayaran dinyatakan lunas setelah diverifikasi Biro Keuangan.</p>
                 </div>
@@ -407,7 +414,7 @@ export default function StudentKeuanganPage() {
                 <div className="pt-1">
                   <CompressedFileUpload
                     label="Unggah Struk / Bukti Transfer"
-                    sublabel="Otomatis dikompres agar file tidak terlalu besar (JPG/PNG/PDF)."
+                    sublabel="Format: JPG, PNG, atau PDF."
                     maxSizeBytes={800 * 1024}
                     onFileReady={(file) => setReceiptFile(file)}
                     onFileRemoved={() => setReceiptFile(null)}
@@ -424,7 +431,7 @@ export default function StudentKeuanganPage() {
                 </button>
                 <button
                   onClick={handleConfirmPay}
-                  disabled={paying}
+                  disabled={paying || (payChannel === 'Transfer Bank Manual' && payAccounts.length === 0)}
                   className="flex-1 py-2.5 bg-[#1E3A8A] text-white text-xs font-bold rounded-xl hover:bg-[#1e40af] transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
                 >
                   {paying ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
@@ -432,7 +439,8 @@ export default function StudentKeuanganPage() {
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body,
         )}
 
         {toast && (

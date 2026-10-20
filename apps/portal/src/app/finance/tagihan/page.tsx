@@ -16,13 +16,17 @@ interface StudentOption {
   currentSemester: number;
 }
 
-const INVOICE_TYPES = [
-  'SPP / UKT',
-  'Biaya Praktikum & Laboratorium',
-  'Biaya Wisuda & Yudisium',
-  'Perpanjangan Skripsi / TA',
-  'Lainnya',
-];
+interface FeeComponentOption {
+  id: string;
+  code: string;
+  name: string;
+  defaultAmount: number;
+  category: string;
+  isActive: boolean;
+}
+
+const CUSTOM_TYPE = '__custom__';
+const CATEGORY_LABEL: Record<string, string> = { SEMESTER: 'per semester', PER_SKS: 'per SKS', SEKALI_BAYAR: 'sekali bayar' };
 
 interface InvoiceItem {
   id: string;
@@ -50,17 +54,29 @@ export default function TagihanPage() {
   // Terbitkan tagihan manual
   const [createOpen, setCreateOpen] = useState(false);
   const [students, setStudents] = useState<StudentOption[]>([]);
+  const [components, setComponents] = useState<FeeComponentOption[]>([]);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ text: string; ok: boolean } | null>(null);
-  const [form, setForm] = useState({ nim: '', semester: 1, type: INVOICE_TYPES[0], customType: '', amount: 0, notes: '' });
+  const [form, setForm] = useState({ nim: '', semester: 1, type: '', customType: '', amount: 0, notes: '' });
   const showToast = (text: string, ok = true) => {
     setToast({ text, ok });
     setTimeout(() => setToast(null), 4500);
   };
 
   const openCreate = async () => {
-    setForm({ nim: '', semester: 1, type: INVOICE_TYPES[0], customType: '', amount: 0, notes: '' });
+    setForm({ nim: '', semester: 1, type: '', customType: '', amount: 0, notes: '' });
     setCreateOpen(true);
+    // Jenis tagihan = komponen biaya dari menu Aturan Biaya Perkuliahan (tarif dasar ikut terisi otomatis)
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/finance/fee-rules/components`);
+      if (res.ok) {
+        const json = await res.json();
+        const list = json?.data ?? json;
+        if (Array.isArray(list)) setComponents(list.filter((c: FeeComponentOption) => c.isActive !== false));
+      }
+    } catch {
+      // daftar komponen tidak termuat; pengguna masih bisa memakai "Lainnya"
+    }
     if (students.length === 0) {
       try {
         const res = await fetch(`${getApiBaseUrl()}/students/list`);
@@ -95,9 +111,10 @@ export default function TagihanPage() {
       showToast('Nominal tagihan harus lebih dari 0.', false);
       return;
     }
-    const paymentType = form.type === 'Lainnya' ? form.customType.trim() : form.type;
+    const comp = components.find((c) => c.id === form.type);
+    const paymentType = form.type === CUSTOM_TYPE ? form.customType.trim() : comp?.name || '';
     if (!paymentType) {
-      showToast('Isi jenis tagihan.', false);
+      showToast('Pilih jenis tagihan.', false);
       return;
     }
     setSaving(true);
@@ -319,14 +336,19 @@ export default function TagihanPage() {
               <label className="block text-slate-600 font-semibold mb-1">Jenis Tagihan</label>
               <select
                 value={form.type}
-                onChange={(e) => setForm({ ...form, type: e.target.value })}
+                onChange={(e) => {
+                  const c = components.find((x) => x.id === e.target.value);
+                  setForm({ ...form, type: e.target.value, amount: c ? c.defaultAmount : form.amount });
+                }}
                 className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] outline-hidden"
               >
-                {INVOICE_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
+                <option value="">-- Pilih komponen biaya --</option>
+                {components.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
                   </option>
                 ))}
+                <option value={CUSTOM_TYPE}>Lainnya (isi sendiri)</option>
               </select>
             </div>
             <div>
@@ -342,7 +364,7 @@ export default function TagihanPage() {
             </div>
           </div>
 
-          {form.type === 'Lainnya' && (
+          {form.type === CUSTOM_TYPE && (
             <div>
               <label className="block text-slate-600 font-semibold mb-1">Nama Tagihan *</label>
               <input
@@ -362,6 +384,14 @@ export default function TagihanPage() {
               onChange={(n) => setForm({ ...form, amount: n })}
               className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] outline-hidden"
             />
+            {(() => {
+              const c = components.find((x) => x.id === form.type);
+              return c ? (
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Tarif dasar komponen ini: Rp {c.defaultAmount.toLocaleString('id-ID')} ({CATEGORY_LABEL[c.category] || c.category}). Nominal bisa disesuaikan.
+                </p>
+              ) : null;
+            })()}
           </div>
 
           <div>

@@ -14,11 +14,9 @@ import {
   CheckCircle2,
   Clock,
   CreditCard,
-  FileCheck,
   GraduationCap,
   MapPin,
   Plus,
-  Printer,
   UserCheck,
 } from 'lucide-react';
 
@@ -41,6 +39,9 @@ export default function StudentDashboardPage() {
   const router = useRouter();
 
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [invoices, setInvoices] = useState<
+    Array<{ id: string; invoiceNo: string; paymentType: string; amount: number; dueDate?: string; status: string; academicYear?: string }>
+  >([]);
   const [studentData, setStudentData] = useState<StudentAcademicData>({
     currentSemester: 1,
     enrollments: [],
@@ -119,6 +120,27 @@ export default function StudentDashboardPage() {
     fetchMe();
   }, [router]);
 
+  // Tagihan mahasiswa (dari Biro Keuangan) -- dimuat setelah NIM diketahui
+  const nimForInvoices = studentData.nim;
+  useEffect(() => {
+    if (!nimForInvoices) return;
+    let live = true;
+    fetch(`${getApiBaseUrl()}/finance/invoices/student/${nimForInvoices}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        const list = json?.data ?? json;
+        if (live && Array.isArray(list)) setInvoices(list);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [nimForInvoices]);
+
+  const unpaidInvoices = invoices.filter((i) => i.status !== 'LUNAS');
+  const unpaidTotal = unpaidInvoices.reduce((a, i) => a + Number(i.amount || 0), 0);
+  const rupiah = (v: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v);
+
   const fullName = currentUser?.fullName || 'Mahasiswa';
   const firstName = fullName.trim().split(' ')[0] || 'Mahasiswa';
   const displayNim = studentData.nim ? `NIM: ${studentData.nim}` : 'Mahasiswa Aktif';
@@ -168,17 +190,22 @@ export default function StudentDashboardPage() {
   const tuitionPayment = studentData.payments.find(
     (p: any) => p.type === 'TUITION' && p.status === 'PAID'
   );
-  const isPaid = !!reRegPayment || !!tuitionPayment;
-  const paymentBadge = isPaid
-    ? reRegPayment
-      ? 'LUNAS (DAFTAR ULANG)'
-      : 'LUNAS (TERVERIFIKASI)'
-    : 'MENUNGGU TAGIHAN';
-  const paymentProofNo = isPaid
-    ? studentData.nim
-      ? `DU-${studentData.nim}`
-      : 'DU-VERIFIED'
-    : '-';
+  const hasUnpaid = unpaidInvoices.length > 0;
+  const isPaid = !hasUnpaid && (!!reRegPayment || !!tuitionPayment || invoices.some((i) => i.status === 'LUNAS'));
+  const paymentBadge = hasUnpaid
+    ? `${unpaidInvoices.length} TAGIHAN BELUM LUNAS`
+    : isPaid
+      ? reRegPayment
+        ? 'LUNAS (DAFTAR ULANG)'
+        : 'LUNAS (TERVERIFIKASI)'
+      : 'BELUM ADA TAGIHAN';
+  const paymentProofNo = hasUnpaid
+    ? unpaidInvoices[0].invoiceNo
+    : isPaid
+      ? studentData.nim
+        ? `DU-${studentData.nim}`
+        : 'DU-VERIFIED'
+      : '-';
 
   // KRS status: DRAFT (belum bayar UKT) -> SUBMITTED (menunggu ACC PA) -> APPROVED (disetujui)
   const hasKrs = enrollments.length > 0;
@@ -206,19 +233,6 @@ export default function StudentDashboardPage() {
             <p className="text-xs sm:text-sm text-blue-200 mt-1">
               Program Studi {displayProdi} &bull; {displayFaculty} &bull; Angkatan {displayAngkatan}
             </p>
-          </div>
-          <div className="flex gap-2.5">
-            <Link
-              href="/student/khs"
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-[#1E3A8A] text-xs font-bold rounded-xl shadow-xs hover:bg-blue-50 transition-colors"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Cetak KHS</span>
-            </Link>
-            <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#D4A017] text-slate-950 text-xs font-bold rounded-xl shadow-xs hover:bg-[#C59114] transition-colors">
-              <FileCheck className="w-3.5 h-3.5" />
-              <span>Unduh Kartu Ujian</span>
-            </button>
           </div>
         </div>
 
@@ -291,17 +305,71 @@ export default function StudentDashboardPage() {
               </div>
             </div>
             <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold ${
-              isPaid
-                ? 'bg-blue-50 text-[#1E3A8A] border border-blue-200'
-                : 'bg-slate-100 text-slate-600 border border-slate-200'
+              hasUnpaid
+                ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                : isPaid
+                  ? 'bg-blue-50 text-[#1E3A8A] border border-blue-200'
+                  : 'bg-slate-100 text-slate-600 border border-slate-200'
             }`}>
               <span>{paymentBadge}</span>
             </div>
             <p className="text-xs text-slate-500 mt-2">
-              Nomor Bukti: <strong className="text-slate-700">{paymentProofNo}</strong>
+              {hasUnpaid ? 'No. Tagihan: ' : 'Nomor Bukti: '}
+              <strong className="text-slate-700">{paymentProofNo}</strong>
             </p>
           </div>
         </div>
+
+        {/* Tagihan belum dibayar */}
+        {unpaidInvoices.length > 0 && (
+          <div className="bg-amber-50/70 rounded-2xl border border-amber-200 shadow-subtle overflow-hidden">
+            <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-200/70">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                  <CreditCard className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-amber-950">Tagihan Belum Dibayar</h3>
+                  <p className="text-xs text-amber-800 mt-0.5">
+                    {unpaidInvoices.length} tagihan &bull; total <strong>{rupiah(unpaidTotal)}</strong>
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/student/keuangan"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#1E3A8A] hover:bg-[#172554] text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+              >
+                Bayar Sekarang
+              </Link>
+            </div>
+            <ul className="divide-y divide-amber-200/60">
+              {unpaidInvoices.map((i) => {
+                const verifying = i.status === 'MENUNGGU VERIFIKASI' || i.status === 'MENUNGGU_VERIFIKASI';
+                return (
+                  <li key={i.id} className="px-5 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3 text-sm">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-slate-900 truncate">{i.paymentType}</p>
+                      <p className="text-[11px] text-slate-500 font-mono">
+                        {i.invoiceNo}
+                        {i.dueDate ? ` \u2022 Jatuh tempo ${i.dueDate}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-black text-slate-900">{rupiah(Number(i.amount))}</span>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          verifying ? 'bg-blue-100 text-blue-700' : 'bg-rose-100 text-rose-700'
+                        }`}
+                      >
+                        {verifying ? 'MENUNGGU VERIFIKASI' : 'BELUM BAYAR'}
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
 
         {/* KRS Table Section */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-subtle overflow-hidden">

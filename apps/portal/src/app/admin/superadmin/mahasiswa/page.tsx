@@ -1,8 +1,9 @@
 'use client';
 
+import { pageWindow } from '@/lib/pageWindow';
 import { confirmDialog } from '@/components/ui/ConfirmHost';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getApiBaseUrl } from '@/lib/api';
@@ -59,7 +60,11 @@ export interface StudentItem {
 export default function SuperAdminMahasiswaPage() {
   const router = useRouter();
   const [students, setStudents] = useState<StudentItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [stats, setStats] = useState({ active: 0, leave: 0, graduated: 0, dropout: 0, all: 0, avgIpk: 0 });
+  const [years, setYears] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterProdi, setFilterProdi] = useState('ALL');
   const [filterAngkatan, setFilterAngkatan] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
@@ -72,45 +77,83 @@ export default function SuperAdminMahasiswaPage() {
   };
   const [loadingDb, setLoadingDb] = useState(false);
 
+  // Urutan & halaman
+  type SortField = 'nim' | 'fullName' | 'studyProgram' | 'entryYear' | 'status';
+  const [sortField, setSortField] = useState<SortField>('nim');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Tunda pencarian 350 ms setelah berhenti mengetik agar tidak memanggil server di tiap huruf
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery), 350);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  // Setiap perubahan filter/urutan kembali ke halaman 1
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, filterProdi, filterAngkatan, filterStatus, sortField, sortOrder, itemsPerPage]);
+
+  const requestSeq = useRef(0);
+
   const fetchDbStudents = async () => {
+    const seq = ++requestSeq.current;
     setLoadingDb(true);
     try {
-      const res = await fetch(`${getApiBaseUrl()}/students/list`);
-      if (res.ok) {
-        const json = await res.json();
-        const rows = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : null;
-        if (rows) {
-          const mapped: StudentItem[] = rows.map((s: any) => ({
-            id: s.id,
-            studyProgramId: s.studyProgramId,
-            nim: s.nim,
-            fullName: s.name,
-            email: s.email,
-            phone: s.phone || '-',
-            gender: (s.gender as 'MALE' | 'FEMALE') || 'MALE',
-            studyProgram: s.studyProgram,
-            faculty: s.faculty,
-            entryYear: s.entryYear || 2024,
-            currentSemester: s.currentSemester || 1,
-            status: (s.status as 'ACTIVE' | 'LEAVE' | 'GRADUATED' | 'DROPOUT') || 'ACTIVE',
-            ipk: s.ipk || 0,
-            sksTotal: s.totalSks ?? 0,
-            dosenPA: s.dosenPA || 'Belum ditentukan',
-            address: s.address || '-',
-          }));
-          setStudents(mapped);
-        }
-      }
+      const params = new URLSearchParams({
+        page: String(currentPage),
+        limit: String(itemsPerPage),
+        sort: sortField,
+        order: sortOrder,
+      });
+      if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
+      if (filterProdi !== 'ALL') params.set('studyProgramId', filterProdi);
+      if (filterAngkatan !== 'ALL') params.set('entryYear', filterAngkatan);
+      if (filterStatus !== 'ALL') params.set('status', filterStatus);
+
+      const res = await fetch(`${getApiBaseUrl()}/students/list?${params.toString()}`);
+      if (seq !== requestSeq.current) return; // ada permintaan yang lebih baru; abaikan hasil ini
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const d = json?.data ?? json;
+      const mapped: StudentItem[] = (d.items || []).map((s: any) => ({
+        id: s.id,
+        studyProgramId: s.studyProgramId,
+        nim: s.nim,
+        fullName: s.name,
+        email: s.email,
+        phone: s.phone || '-',
+        gender: (s.gender as 'MALE' | 'FEMALE') || 'MALE',
+        studyProgram: s.studyProgram,
+        faculty: s.faculty,
+        entryYear: s.entryYear,
+        currentSemester: s.currentSemester || 1,
+        status: (s.status as 'ACTIVE' | 'LEAVE' | 'GRADUATED' | 'DROPOUT') || 'ACTIVE',
+        ipk: s.ipk || 0,
+        sksTotal: s.totalSks ?? 0,
+        dosenPA: s.dosenPA || 'Belum ditentukan',
+        address: s.address || '-',
+      }));
+      setStudents(mapped);
+      setTotal(d.total ?? 0);
+      if (d.stats) setStats(d.stats);
+      if (Array.isArray(d.years)) setYears(d.years);
     } catch (e) {
+      if (seq !== requestSeq.current) return;
       console.warn('Gagal memuat mahasiswa dari DB:', e);
       showToast('Gagal memuat data mahasiswa dari server.', false);
     } finally {
-      setLoadingDb(false);
+      if (seq === requestSeq.current) setLoadingDb(false);
     }
   };
 
   useEffect(() => {
     fetchDbStudents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, itemsPerPage, debouncedSearch, filterProdi, filterAngkatan, filterStatus, sortField, sortOrder]);
+
+  useEffect(() => {
     fetch(`${getApiBaseUrl()}/study-programs`)
       .then((r) => (r.ok ? r.json() : null))
       .then((json) => {
@@ -119,15 +162,6 @@ export default function SuperAdminMahasiswaPage() {
       })
       .catch(() => undefined);
   }, []);
-
-  // Sorting State
-  type SortField = 'nim' | 'fullName' | 'studyProgram' | 'entryYear' | 'ipk' | 'status';
-  const [sortField, setSortField] = useState<SortField>('nim');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-
-  // Pagination State
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -138,50 +172,11 @@ export default function SuperAdminMahasiswaPage() {
     }
   };
 
-  const filteredAndSortedStudents = useMemo(() => {
-    const filtered = students.filter((s) => {
-      if (filterProdi !== 'ALL' && s.studyProgram !== filterProdi) return false;
-      if (filterAngkatan !== 'ALL' && s.entryYear !== Number(filterAngkatan)) return false;
-      if (filterStatus !== 'ALL' && s.status !== filterStatus) return false;
-
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchName = s.fullName.toLowerCase().includes(q);
-        const matchNim = s.nim.includes(q);
-        const matchEmail = s.email.toLowerCase().includes(q);
-        const matchProdi = s.studyProgram.toLowerCase().includes(q);
-        return matchName || matchNim || matchEmail || matchProdi;
-      }
-      return true;
-    });
-
-    return filtered.sort((a, b) => {
-      let valA: any = a[sortField];
-      let valB: any = b[sortField];
-      if (typeof valA === 'string') {
-        valA = valA.toLowerCase();
-        valB = valB.toLowerCase();
-      }
-      if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
-      if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }, [students, searchQuery, filterProdi, filterAngkatan, filterStatus, sortField, sortOrder]);
-
-  // Reset page to 1 when filters or sorting change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, filterProdi, filterAngkatan, filterStatus, sortField, sortOrder, itemsPerPage]);
-
-  const totalItems = filteredAndSortedStudents.length;
+  const totalItems = total;
   const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
   const startIndex = totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
   const endIndex = Math.min(currentPage * itemsPerPage, totalItems);
-
-  const paginatedStudents = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredAndSortedStudents.slice(start, start + itemsPerPage);
-  }, [filteredAndSortedStudents, currentPage, itemsPerPage]);
+  const paginatedStudents = students;
 
   const BASE = '/admin/superadmin/mahasiswa';
   const openCreatePage = () => router.push(`${BASE}/baru`);
@@ -271,7 +266,7 @@ export default function SuperAdminMahasiswaPage() {
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-subtle">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Mahasiswa Aktif</span>
             <p className="text-2xl sm:text-3xl font-black text-[#1E3A8A] mt-1">
-              {students.filter((s) => s.status === 'ACTIVE').length}
+              {stats.active}
             </p>
             <span className="text-[11px] text-emerald-600 font-semibold mt-1 inline-block">Terdaftar di semester ini</span>
           </div>
@@ -279,7 +274,7 @@ export default function SuperAdminMahasiswaPage() {
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-subtle">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Cuti Kuliah</span>
             <p className="text-2xl sm:text-3xl font-black text-amber-700 mt-1">
-              {students.filter((s) => s.status === 'LEAVE').length}
+              {stats.leave}
             </p>
             <span className="text-[11px] text-slate-500 mt-1 inline-block">Dengan izin BAAK</span>
           </div>
@@ -287,7 +282,7 @@ export default function SuperAdminMahasiswaPage() {
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-subtle">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Lulus / Alumni</span>
             <p className="text-2xl sm:text-3xl font-black text-purple-700 mt-1">
-              {students.filter((s) => s.status === 'GRADUATED').length}
+              {stats.graduated}
             </p>
             <span className="text-[11px] text-slate-500 mt-1 inline-block">Memiliki ijazah & transkrip</span>
           </div>
@@ -295,7 +290,7 @@ export default function SuperAdminMahasiswaPage() {
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-subtle">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Rata-rata IPK</span>
             <p className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">
-              {(students.reduce((acc, curr) => acc + curr.ipk, 0) / students.length).toFixed(2)}
+              {stats.avgIpk ? stats.avgIpk.toFixed(2) : '-'}
             </p>
             <span className="text-[11px] text-blue-600 font-semibold mt-1 inline-block">Skala predikat Unggul</span>
           </div>
@@ -322,7 +317,7 @@ export default function SuperAdminMahasiswaPage() {
             >
               <option value="ALL">Semua Program Studi</option>
               {studyPrograms.map((p) => (
-                <option key={p.id} value={p.name}>
+                <option key={p.id} value={p.id}>
                   {p.name}
                 </option>
               ))}
@@ -334,9 +329,7 @@ export default function SuperAdminMahasiswaPage() {
               className="px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-medium focus:outline-none focus:border-[#1E3A8A]"
             >
               <option value="ALL">Semua Angkatan</option>
-              {Array.from(new Set(students.map((x) => x.entryYear)))
-                .sort((x, y) => y - x)
-                .map((y) => (
+              {years.map((y) => (
                   <option key={y} value={y}>
                     Angkatan {y}
                   </option>
@@ -415,19 +408,7 @@ export default function SuperAdminMahasiswaPage() {
                       )}
                     </div>
                   </th>
-                  <th
-                    onClick={() => handleSort('ipk')}
-                    className="px-5 py-3.5 text-center cursor-pointer hover:bg-slate-200/80 transition-colors select-none whitespace-nowrap"
-                  >
-                    <div className="inline-flex items-center justify-center gap-1">
-                      <span>IPK / SKS</span>
-                      {sortField === 'ipk' ? (
-                        sortOrder === 'asc' ? <ChevronUp className="w-3.5 h-3.5 text-[#1E3A8A]" /> : <ChevronDown className="w-3.5 h-3.5 text-[#1E3A8A]" />
-                      ) : (
-                        <ArrowUpDown className="w-3 h-3 opacity-30" />
-                      )}
-                    </div>
-                  </th>
+                  <th className="px-5 py-3.5 text-center whitespace-nowrap">IPK / SKS</th>
                   <th
                     onClick={() => handleSort('status')}
                     className="px-5 py-3.5 cursor-pointer hover:bg-slate-200/80 transition-colors select-none whitespace-nowrap"
@@ -540,7 +521,7 @@ export default function SuperAdminMahasiswaPage() {
               </button>
 
               <div className="flex items-center gap-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                {pageWindow(currentPage, totalPages).map((pageNum) => pageNum < 0 ? (<span key={pageNum} className="px-1 text-slate-300 text-xs">…</span>) : (
                   <button
                     key={pageNum}
                     onClick={() => setCurrentPage(pageNum)}

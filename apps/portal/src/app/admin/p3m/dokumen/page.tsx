@@ -740,7 +740,7 @@ export default function BankDokumenPage() {
 
                 <CompressedFileUpload
                   label="Berkas Dokumen Panduan / Borang"
-                  sublabel="Format: Dokumen PDF atau Gambar. Otomatis dikompresi agar ukuran file tetap ringan."
+                  sublabel="Format: Dokumen PDF atau Gambar."
                   accept=".pdf,application/pdf,image/*"
                   maxSizeBytes={1500 * 1024}
                   onFileReady={(file) => {

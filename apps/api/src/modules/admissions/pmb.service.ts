@@ -998,6 +998,19 @@ export class PmbService {
       throw new ForbiddenException('Tagihan ini bukan milik akun Anda.');
     }
 
+    // Wajib memilih rekening kampus tujuan transfer (untuk rekap manual Keuangan)
+    const activeAccounts = await this.prisma.financeBankAccount.count({ where: { isActive: true } });
+    if (activeAccounts === 0) {
+      throw new BadRequestException('Rekening tujuan pembayaran belum diatur. Silakan hubungi panitia PMB.');
+    }
+    const account = dto.bankAccountId
+      ? await this.prisma.financeBankAccount.findFirst({ where: { id: dto.bankAccountId, isActive: true } })
+      : null;
+    if (!account) {
+      throw new BadRequestException('Pilih rekening bank kampus tempat Anda mengirim pembayaran.');
+    }
+    const methodLabel = `Transfer ke ${account.bankName} ${account.accountNumber} a.n. ${account.accountName}`;
+
     let proofUrl = dto.proofUrl;
     if (proofUrl) {
       proofUrl = await this.processFileField(
@@ -1012,7 +1025,7 @@ export class PmbService {
       data: {
         status: 'VERIFYING',
         proofUrl: proofUrl || undefined,
-        paymentMethod: dto.paymentMethod || payment.paymentMethod,
+        paymentMethod: methodLabel,
         notes: dto.notes || undefined,
         paidAt: new Date(),
       },

@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { getAuthSession } from '@/lib/auth';
 import { getApiBaseUrl } from '@/lib/api';
+import { useInstitution } from '@/lib/useInstitution';
+import { downloadKrsPdf } from '@/lib/academicPdf';
 
 interface MataKuliah {
   id: string;
@@ -66,6 +68,8 @@ const formatRupiah = (v: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v);
 
 export default function StudentKRSPage() {
+  const inst = useInstitution();
+  const [pdfBusy, setPdfBusy] = useState(false);
   const [userName, setUserName] = useState('Mahasiswa');
   const [userId, setUserId] = useState('');
   const [courses, setCourses] = useState<MataKuliah[]>([]);
@@ -302,6 +306,59 @@ export default function StudentKRSPage() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasAutoExpanded, loading, semesterKeys.join(',')]);
+
+  const downloadKrs = async () => {
+    const picked = courses.filter((m) => selectedIds.includes(m.id));
+    if (picked.length === 0) {
+      showToast('Belum ada mata kuliah yang dipilih.', 'error');
+      return;
+    }
+    setPdfBusy(true);
+    try {
+      const { token, user } = getAuthSession();
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+      else if (user?.id) headers['x-user-id'] = user.id;
+      const res = await fetch(`${getApiBaseUrl()}/auth/me`, { headers });
+      const raw = res.ok ? await res.json() : null;
+      const d = raw?.data || raw;
+      const st = d?.student;
+
+      const status = picked.some((m) => m.status === 'DISETUJUI')
+        ? 'Disetujui Dosen PA'
+        : picked.some((m) => m.status === 'MENUNGGU')
+          ? 'Menunggu persetujuan Dosen PA'
+          : 'Belum diajukan';
+
+      await downloadKrsPdf({
+        inst,
+        student: {
+          name: d?.fullName || userName,
+          nim: st?.nim || '-',
+          prodi: st?.studyProgram?.name || '-',
+          faculty: st?.studyProgram?.faculty?.name || inst.campusName,
+          advisor: st?.advisorLecturer?.user?.fullName || '-',
+          id: st?.id,
+        },
+        periodLabel: inst.activeAcademicYear ? `Semester ${inst.activeSemester} ${inst.activeAcademicYear}` : 'Semester Berjalan',
+        statusLabel: status,
+        courses: picked.map((m) => ({
+          kode: m.kode,
+          nama: m.nama,
+          kelas: m.className,
+          sks: m.sks,
+          jadwal: m.hari && m.hari !== '-' ? `${m.hari}, ${m.jam}` : '-',
+          ruang: m.ruang,
+          dosen: m.dosen,
+        })),
+        filename: `KRS_${(st?.nim || 'mahasiswa').replace(/[^a-zA-Z0-9-_]+/g, '_')}.pdf`,
+      });
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Gagal membuat PDF KRS.', 'error');
+    } finally {
+      setPdfBusy(false);
+    }
+  };
 
   const toggleSemester = (semNum: number) => {
     setExpandedSemesters((prev) => {
@@ -556,6 +613,14 @@ export default function StudentKRSPage() {
                     ? 'Disetujui Dosen Pembimbing Akademik'
                     : 'Menunggu persetujuan Dosen Pembimbing Akademik'}
                 </p>
+                <button
+                  onClick={downloadKrs}
+                  disabled={pdfBusy}
+                  className="mt-3 w-full flex items-center justify-center gap-2 py-2 bg-[#1E3A8A] hover:bg-[#172554] text-white text-xs font-bold rounded-xl transition-colors disabled:opacity-60 cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  {pdfBusy ? 'Membuat PDF...' : 'Unduh KRS (PDF)'}
+                </button>
               </div>
             ) : hasDraftInvoice ? (
               <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">

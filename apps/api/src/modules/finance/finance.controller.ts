@@ -33,9 +33,15 @@ export class FinanceController {
     return await this.financeService.verifyTransaction(id);
   }
 
+  @Post('transactions/:id/reject')
+  @ApiOperation({ summary: 'Tolak bukti pembayaran manual (tagihan kembali berstatus belum bayar)' })
+  async rejectTransaction(@Param('id') id: string, @Body() body: { reason?: string }) {
+    return await this.financeService.rejectTransaction(id, body?.reason);
+  }
+
   @Post('transactions/:id/submit-payment')
   @ApiOperation({ summary: 'Mahasiswa mengirim pembayaran (kanal otomatis) atau mengunggah bukti transfer manual' })
-  async submitStudentPayment(@Param('id') id: string, @Body() body: { channel: string; proofUrl?: string }, @Req() req: any) {
+  async submitStudentPayment(@Param('id') id: string, @Body() body: { channel: string; proofUrl?: string; bankAccountId?: string }, @Req() req: any) {
     if (req.user?.role === 'STUDENT') await this.financeService.assertOwnInvoice(req.user, id);
     return await this.financeService.submitStudentPayment(id, body);
   }

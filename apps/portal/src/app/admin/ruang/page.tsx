@@ -1,5 +1,6 @@
 'use client';
 
+import { pageWindow } from '@/lib/pageWindow';
 import { confirmDialog } from '@/components/ui/ConfirmHost';
 
 import React, { useState, useMemo, useEffect, Suspense } from 'react';
@@ -766,7 +767,7 @@ function RuangContent() {
                   <span className="hidden sm:inline">Sebelumnya</span>
                 </button>
 
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                {pageWindow(currentPage, totalPages).map((page) => page < 0 ? (<span key={page} className="px-1 text-slate-300 text-xs">…</span>) : (
                   <button
                     key={page}
                     onClick={() => setCurrentPage(page)}

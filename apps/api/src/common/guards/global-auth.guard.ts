@@ -42,6 +42,7 @@ const PUBLIC_RULES: PublicRule[] = [
   { methods: ['POST'], path: /^\/admissions\/pmb\/chat\/visitor\/start$/ },
   { methods: ['GET'], path: /^\/admissions\/pmb\/chat\/status$/ },
   { methods: ['POST'], path: /^\/admissions\/(register|resend-verification|login|forgot-password|reset-password)$/ },
+  { methods: ['POST'], path: /^\/auth\/(forgot-password|reset-password)$/ },
   { methods: ['GET'], path: /^\/admissions\/(verify-email|batches|status\/[^/]+)$/ },
 ];
 

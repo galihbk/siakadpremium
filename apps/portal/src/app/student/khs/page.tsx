@@ -6,6 +6,7 @@ import { PortalLayout } from '@/components/layout/PortalLayout';
 import { SignatureBlock } from '@/components/common/SignatureBlock';
 import { getAuthSession, AuthUser } from '@/lib/auth';
 import { getApiBaseUrl } from '@/lib/api';
+import { downloadAcademicPdf } from '@/lib/academicPdf';
 import {
   Award,
   BookOpen,
@@ -126,8 +127,8 @@ export default function HasilStudiKHSPage() {
   const displayNim = studentProfile.nim || 'Mahasiswa';
   const displayProdi = studentProfile.studyProgram || 'Program Studi';
   const displayFaculty = studentProfile.faculty || inst.campusName;
-  const displayAdvisor = studentProfile.advisorName || 'Dr. Aris Sudrajat, S.Ds., M.Ds.';
-  const displayAdvisorNip = studentProfile.advisorNip || '198208152010121002';
+  const displayAdvisor = studentProfile.advisorName || '-';
+  const displayAdvisorNip = studentProfile.advisorNip || '-';
 
   // Daftar semester dari data nyata; bila mahasiswa belum punya KRS/nilai, tampilkan satu semester kosong.
   const activeArchive = useMemo<SemesterData[]>(() => {
@@ -217,13 +218,45 @@ export default function HasilStudiKHSPage() {
     return 'Perlu Perbaikan';
   };
 
-  const handlePrintKHS = () => {
-    window.print();
+  // Transkrip: seluruh semester yang sudah punya nilai, urut dari semester pertama
+  const transcriptSemesters = useMemo(
+    () => [...activeArchive].filter((x) => x.nilaiList.length > 0).sort((a, b) => a.semesterNumber - b.semesterNumber),
+    [activeArchive]
+  );
+  const latestSem = transcriptSemesters[transcriptSemesters.length - 1];
+
+  const [pdfBusy, setPdfBusy] = useState<'khs' | 'transcript' | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const safe = (v: string) => v.replace(/[^a-zA-Z0-9-_]+/g, '_');
+
+  const runPdf = async (kind: 'khs' | 'transcript') => {
+    setPdfBusy(kind);
+    setPdfError(null);
+    try {
+      await downloadAcademicPdf({
+        kind,
+        inst,
+        student: {
+          name: studentName,
+          nim: displayNim,
+          prodi: displayProdi,
+          faculty: displayFaculty,
+          advisor: displayAdvisor,
+          id: studentProfile.id,
+        },
+        semesters: kind === 'khs' ? [currentSem] : transcriptSemesters,
+        ips: calculatedIPS,
+        filename: kind === 'khs' ? `KHS_${safe(displayNim)}_${safe(currentSem.namaSemester)}.pdf` : `Transkrip_Sementara_${safe(displayNim)}.pdf`,
+      });
+    } catch (err) {
+      setPdfError(err instanceof Error ? err.message : 'Gagal membuat PDF. Silakan coba lagi.');
+    } finally {
+      setPdfBusy(null);
+    }
   };
 
-  const handleDownloadTranscript = () => {
-    window.print();
-  };
+  const handlePrintKHS = () => void runPdf('khs');
+  const handleDownloadTranscript = () => void runPdf('transcript');
 
   return (
     <PortalLayout
@@ -257,20 +290,26 @@ export default function HasilStudiKHSPage() {
           <div className="flex items-center gap-2.5 flex-wrap">
             <button
               onClick={handleDownloadTranscript}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl border border-white/20 transition-all cursor-pointer shadow-xs"
+              disabled={pdfBusy !== null || transcriptSemesters.length === 0}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl border border-white/20 transition-all cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Download className="w-3.5 h-3.5 text-[#D4A017]" />
-              <span>Unduh Transkrip Resmi</span>
+              <span>{pdfBusy === 'transcript' ? 'Membuat PDF...' : 'Unduh Transkrip Sementara'}</span>
             </button>
             <button
               onClick={handlePrintKHS}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#D4A017] hover:bg-[#C59114] text-slate-950 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs"
+              disabled={pdfBusy !== null || currentSem.nilaiList.length === 0}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#D4A017] hover:bg-[#C59114] text-slate-950 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span>Cetak KHS (PDF)</span>
+              <span>{pdfBusy === 'khs' ? 'Membuat PDF...' : 'Unduh KHS (PDF)'}</span>
             </button>
           </div>
         </div>
+
+        {pdfError && (
+          <div className="text-xs p-3 rounded-xl border bg-rose-50 border-rose-200 text-rose-800">{pdfError}</div>
+        )}
 
         {khsError && (
           <div className="text-xs p-3 rounded-xl border bg-rose-50 border-rose-200 text-rose-800 print:hidden">
@@ -706,6 +745,7 @@ export default function HasilStudiKHSPage() {
             })()}
           </div>
         </div>
+
 
       </div>
     </PortalLayout>

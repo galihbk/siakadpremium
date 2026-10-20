@@ -33,7 +33,7 @@ export interface CompressedFileUploadProps {
 
 export const CompressedFileUpload: React.FC<CompressedFileUploadProps> = ({
   label = 'Unggah Berkas',
-  sublabel = 'Format yang didukung: Gambar (JPG, PNG, WebP) atau Dokumen PDF. Otomatis dikompresi.',
+  sublabel = 'Format yang didukung: Gambar (JPG, PNG, WebP) atau Dokumen PDF.',
   accept = 'image/jpeg,image/png,image/webp,application/pdf',
   required = false,
   maxSizeBytes = 1024 * 1024, // 1 MB target
