@@ -1,5 +1,7 @@
 'use client';
 
+import { confirmDialog } from '@/components/ui/ConfirmHost';
+
 import React, { useState, useEffect } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getApiBaseUrl } from '@/lib/api';
@@ -140,7 +142,7 @@ export default function AdminSkalaNilaiPage() {
   };
 
   const handleDeleteRow = async (row: GradeScaleItem) => {
-    if (!confirm(`Hapus skala nilai "${row.letter}"?`)) return;
+    if (!(await confirmDialog(`Hapus skala nilai "${row.letter}"?`))) return;
     setSavingId(row.id);
     try {
       const res = await fetch(`${apiBase}/academic/grade-scale/${row.id}`, { method: 'DELETE' });
@@ -220,7 +222,7 @@ export default function AdminSkalaNilaiPage() {
   };
 
   const handleDeleteGroup = async (group: GradeScaleGroup) => {
-    if (!confirm(`Hapus skala nilai "${groupLabel(group)}"? Semua baris di dalamnya ikut terhapus.`)) return;
+    if (!(await confirmDialog(`Hapus skala nilai "${groupLabel(group)}"? Semua baris di dalamnya ikut terhapus.`))) return;
     setDeletingGroupId(group.id);
     try {
       const res = await fetch(`${apiBase}/academic/grade-scale/groups/${group.id}`, { method: 'DELETE' });

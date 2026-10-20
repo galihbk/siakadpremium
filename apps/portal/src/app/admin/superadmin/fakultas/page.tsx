@@ -40,7 +40,7 @@ interface Faculty {
   studyProgramsCount: number;
   studentsCount: number;
   lecturersCount: number;
-  accreditation: 'Unggul' | 'Baik Sekali' | 'Baik' | 'A' | 'B' | '';
+  accreditation: 'Unggul' | 'Baik Sekali' | 'Baik' | 'A' | 'B' | 'C' | 'Terakreditasi' | 'Terakreditasi Sementara' | 'Belum Terakreditasi' | '';
   skAkreditasi: string;
   establishedYear: number | null;
   description: string;
@@ -476,6 +476,10 @@ export default function SuperAdminFakultasPage() {
               <option value="Baik">Baik</option>
               <option value="A">A (Legacy)</option>
               <option value="B">B (Legacy)</option>
+              <option value="C">C (Legacy)</option>
+              <option value="Terakreditasi">Terakreditasi</option>
+              <option value="Terakreditasi Sementara">Terakreditasi Sementara</option>
+              <option value="Belum Terakreditasi">Belum Terakreditasi</option>
             </select>
           </div>
         </div>
@@ -836,6 +840,10 @@ export default function SuperAdminFakultasPage() {
                       <option value="Baik">Baik</option>
                       <option value="A">A (Legacy)</option>
                       <option value="B">B (Legacy)</option>
+                      <option value="C">C (Legacy)</option>
+                      <option value="Terakreditasi">Terakreditasi</option>
+                      <option value="Terakreditasi Sementara">Terakreditasi Sementara</option>
+                      <option value="Belum Terakreditasi">Belum Terakreditasi</option>
                     </select>
                   </div>
 

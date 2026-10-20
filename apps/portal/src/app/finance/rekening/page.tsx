@@ -1,4 +1,6 @@
 'use client';
+
+import { confirmDialog } from '@/components/ui/ConfirmHost';
 import React, { useCallback, useEffect, useState } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getApiBaseUrl } from '@/lib/api';
@@ -82,7 +84,7 @@ export default function RekeningPage() {
   };
 
   const remove = async (a: BankAccount) => {
-    if (!confirm(`Hapus rekening ${a.bankName} (${a.accountNumber})?`)) return;
+    if (!(await confirmDialog(`Hapus rekening ${a.bankName} (${a.accountNumber})?`))) return;
     try {
       const res = await fetch(`${getApiBaseUrl()}/finance/bank-accounts/${a.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

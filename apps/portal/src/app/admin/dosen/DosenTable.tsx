@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Search, Plus, RefreshCw, Loader2, Check, SlidersHorizontal, Users } from 'lucide-react';
 import { getApiBaseUrl } from '@/lib/api';
 import { useSortedPagination } from '@/lib/useSortedPagination';
@@ -37,16 +38,13 @@ const emptyAddForm = {
 };
 
 export function DosenTable({ initialLecturers }: { initialLecturers: LecturerData[] }) {
+  const router = useRouter();
   const [lecturers, setLecturers] = useState<LecturerData[]>(initialLecturers);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [prodiFilter, setProdiFilter] = useState('ALL');
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [studyPrograms, setStudyPrograms] = useState<{ id: string; name: string }[]>([]);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [addError, setAddError] = useState<string | null>(null);
-  const [addForm, setAddForm] = useState(emptyAddForm);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const fetchLecturers = async () => {
@@ -76,44 +74,6 @@ export function DosenTable({ initialLecturers }: { initialLecturers: LecturerDat
       .catch((e) => console.warn('Gagal memuat program studi:', e));
   }, []);
 
-  const openAddModal = () => {
-    setAddForm(emptyAddForm);
-    setAddError(null);
-    setIsAddModalOpen(true);
-  };
-
-  const handleAddLecturer = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!addForm.fullName.trim() || !addForm.nidn.trim() || !addForm.studyProgramId) {
-      setAddError('Nama lengkap, NIDN, dan program studi wajib diisi.');
-      return;
-    }
-    setIsSubmitting(true);
-    setAddError(null);
-    try {
-      const res = await fetch(`${getApiBaseUrl()}/lecturers`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fullName: addForm.fullName.trim(),
-          nidn: addForm.nidn.trim(),
-          nuptk: addForm.nuptk.trim() || undefined,
-          nip: addForm.nip.trim() || undefined,
-          studyProgramId: addForm.studyProgramId,
-          email: addForm.email.trim() || undefined,
-          phone: addForm.phone.trim() || undefined,
-        }),
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.message || 'Gagal menambahkan dosen.');
-      setIsAddModalOpen(false);
-      await fetchLecturers();
-    } catch (err: any) {
-      setAddError(err.message || 'Gagal menambahkan dosen.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const handleToggleActive = async (lecturer: LecturerData) => {
     const nextActive = !lecturer.isActive;
@@ -241,7 +201,7 @@ export function DosenTable({ initialLecturers }: { initialLecturers: LecturerDat
               Segarkan
             </button>
             <button
-              onClick={openAddModal}
+              onClick={() => router.push('/admin/dosen/baru')}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#1E3A8A] rounded-lg hover:bg-[#1e40af] transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -399,120 +359,6 @@ export function DosenTable({ initialLecturers }: { initialLecturers: LecturerDat
         </div>
       </Modal>
 
-      <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Tambah Dosen Baru">
-        <form onSubmit={handleAddLecturer} className="space-y-4">
-          {addError && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium">{addError}</div>
-          )}
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Nama Lengkap <span className="text-rose-500">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              value={addForm.fullName}
-              onChange={(e) => setAddForm({ ...addForm, fullName: e.target.value })}
-              className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                NIDN <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={addForm.nidn}
-                onChange={(e) => setAddForm({ ...addForm, nidn: e.target.value })}
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">NUPTK</label>
-              <input
-                type="text"
-                value={addForm.nuptk}
-                onChange={(e) => setAddForm({ ...addForm, nuptk: e.target.value })}
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Program Studi <span className="text-rose-500">*</span>
-            </label>
-            <SearchableSelect
-              value={addForm.studyProgramId}
-              onChange={(v) => setAddForm({ ...addForm, studyProgramId: v })}
-              placeholder="Pilih program studi..."
-              searchPlaceholder="Cari program studi..."
-              options={studyPrograms.map((p) => ({ value: p.id, label: p.name }))}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Email <span className="text-slate-400 font-normal">(opsional)</span>
-              </label>
-              <input
-                type="email"
-                placeholder="Default dari NIDN kalau kosong"
-                value={addForm.email}
-                onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                No. Telepon <span className="text-slate-400 font-normal">(opsional)</span>
-              </label>
-              <input
-                type="text"
-                value={addForm.phone}
-                onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-              />
-            </div>
-          </div>
-
-          <p className="text-[11px] text-slate-400">
-            Password awal otomatis: <span className="font-mono">Password123!</span> -- bisa diganti dosen setelah login pertama.
-          </p>
-
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => setIsAddModalOpen(false)}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
-            >
-              Batal
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-800 disabled:opacity-50 transition-all shadow-xs"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Menyimpan...</span>
-                </>
-              ) : (
-                <>
-                  <Check className="w-4 h-4" />
-                  <span>Simpan Dosen</span>
-                </>
-              )}
-            </button>
-          </div>
-        </form>
-      </Modal>
     </div>
   );
 }

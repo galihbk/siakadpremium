@@ -1,5 +1,7 @@
 'use client';
 
+import { confirmDialog } from '@/components/ui/ConfirmHost';
+
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { Search, Plus, RefreshCw, Loader2, Check, Trash2, ArrowLeft, FileText, ExternalLink } from 'lucide-react';
@@ -131,7 +133,7 @@ export function DokumenMutuTable({ initialDocuments }: { initialDocuments: Quali
   };
 
   const handleDelete = async (d: QualityDocumentData) => {
-    if (!confirm(`Hapus dokumen "${d.title}"? Tindakan ini tidak dapat dibatalkan.`)) return;
+    if (!(await confirmDialog(`Hapus dokumen "${d.title}"? Tindakan ini tidak dapat dibatalkan.`))) return;
     setIsDeleting(true);
     try {
       const res = await fetch(`${apiBase}/p2m/documents/${d.id}`, { method: 'DELETE' });

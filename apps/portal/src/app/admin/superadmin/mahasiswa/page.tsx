@@ -1,6 +1,9 @@
 'use client';
 
+import { confirmDialog } from '@/components/ui/ConfirmHost';
+
 import React, { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getApiBaseUrl } from '@/lib/api';
 import {
@@ -50,175 +53,23 @@ export interface StudentItem {
   sksTotal: number;
   dosenPA?: string;
   address?: string;
+  studyProgramId?: string;
 }
 
-const INITIAL_STUDENTS: StudentItem[] = [
-  {
-    id: 'std-1',
-    nim: '2311501001',
-    fullName: 'Muhammad Rizky Pratama',
-    email: 'mahasiswa@itn.ac.id',
-    phone: '081399887766',
-    gender: 'MALE',
-    studyProgram: 'Teknik Informatika (S1)',
-    faculty: 'Fakultas Ilmu Komputer',
-    entryYear: 2023,
-    currentSemester: 5,
-    status: 'ACTIVE',
-    ipk: 3.82,
-    sksTotal: 96,
-    dosenPA: 'Dr. Bayu Wicaksono, M.Kom.',
-    address: 'Jl. Melati Indah No. 14, Jakarta Selatan',
-  },
-  {
-    id: 'std-2',
-    nim: '2311501002',
-    fullName: 'Rina Salsabila',
-    email: 'student02@itn.ac.id',
-    phone: '081234567890',
-    gender: 'FEMALE',
-    studyProgram: 'Sistem Informasi (S1)',
-    faculty: 'Fakultas Ilmu Komputer',
-    entryYear: 2024,
-    currentSemester: 3,
-    status: 'ACTIVE',
-    ipk: 3.65,
-    sksTotal: 54,
-    dosenPA: 'Dr. Bayu Wicaksono, M.Kom.',
-    address: 'Jl. Cempaka Putih Tengah No. 22, Jakarta Pusat',
-  },
-  {
-    id: 'std-3',
-    nim: '2211502010',
-    fullName: 'Ahmad Faisal Pratama',
-    email: 'faisal.pratama@itn.ac.id',
-    phone: '081277665544',
-    gender: 'MALE',
-    studyProgram: 'Teknik Mesin (S1)',
-    faculty: 'Fakultas Teknik',
-    entryYear: 2022,
-    currentSemester: 7,
-    status: 'ACTIVE',
-    ipk: 3.45,
-    sksTotal: 130,
-    dosenPA: 'Prof. Dr. Ir. Hendra Gunawan, M.Eng.',
-    address: 'Jl. Raya Bogor KM 28, Cimanggis, Depok',
-  },
-  {
-    id: 'std-4',
-    nim: '2411503005',
-    fullName: 'Anisa Putri Maharani',
-    email: 'anisa.putri@itn.ac.id',
-    phone: '085711223344',
-    gender: 'FEMALE',
-    studyProgram: 'Bisnis Digital (S1)',
-    faculty: 'Fakultas Ekonomi & Bisnis',
-    entryYear: 2024,
-    currentSemester: 3,
-    status: 'ACTIVE',
-    ipk: 3.90,
-    sksTotal: 58,
-    dosenPA: 'Dr. Nurul Hidayati, S.E., M.M., Ak.',
-    address: 'Jl. Tebet Barat Dalam No. 8, Jakarta Selatan',
-  },
-  {
-    id: 'std-5',
-    nim: '2111501099',
-    fullName: 'Dimas Bagaskara',
-    email: 'dimas.bagas@itn.ac.id',
-    phone: '081955667788',
-    gender: 'MALE',
-    studyProgram: 'Teknik Informatika (S1)',
-    faculty: 'Fakultas Ilmu Komputer',
-    entryYear: 2021,
-    currentSemester: 9,
-    status: 'LEAVE',
-    ipk: 3.12,
-    sksTotal: 128,
-    dosenPA: 'Dr. Siti Rahmawati, S.T., M.Kom.',
-    address: 'Jl. Margonda Raya No. 100, Beji, Depok',
-  },
-  {
-    id: 'std-6',
-    nim: '2011501008',
-    fullName: 'Kevin Jonathan Wijaya',
-    email: 'kevin.jonathan@itn.ac.id',
-    phone: '081299881122',
-    gender: 'MALE',
-    studyProgram: 'Teknik Informatika (S1)',
-    faculty: 'Fakultas Ilmu Komputer',
-    entryYear: 2020,
-    currentSemester: 8,
-    status: 'GRADUATED',
-    ipk: 3.95,
-    sksTotal: 144,
-    dosenPA: 'Dr. Bayu Wicaksono, M.Kom.',
-    address: 'Jl. Kelapa Gading Boulevard Blok WA-2, Jakarta Utara',
-  },
-  {
-    id: 'std-7',
-    nim: '2411504012',
-    fullName: 'Dina Kusuma Wardani',
-    email: 'dina.kusuma@itn.ac.id',
-    phone: '087811993344',
-    gender: 'FEMALE',
-    studyProgram: 'Manajemen (S1)',
-    faculty: 'Fakultas Ekonomi & Bisnis',
-    entryYear: 2024,
-    currentSemester: 3,
-    status: 'ACTIVE',
-    ipk: 3.55,
-    sksTotal: 52,
-    dosenPA: 'Dr. Nurul Hidayati, S.E., M.M., Ak.',
-    address: 'Jl. Duren Sawit Baru No. 15, Jakarta Timur',
-  },
-  {
-    id: 'std-8',
-    nim: '2311502044',
-    fullName: 'Bagas Aditya Nugroho',
-    email: 'bagas.aditya@itn.ac.id',
-    phone: '082144332211',
-    gender: 'MALE',
-    studyProgram: 'Teknik Elektro (S1)',
-    faculty: 'Fakultas Teknik',
-    entryYear: 2023,
-    currentSemester: 5,
-    status: 'ACTIVE',
-    ipk: 3.30,
-    sksTotal: 92,
-    dosenPA: 'Dr. Ir. Budi Hartono, M.T.',
-    address: 'Jl. Fatmawati Raya No. 45, Cilandak, Jakarta Selatan',
-  },
-];
-
 export default function SuperAdminMahasiswaPage() {
-  const [students, setStudents] = useState<StudentItem[]>(INITIAL_STUDENTS);
+  const router = useRouter();
+  const [students, setStudents] = useState<StudentItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterProdi, setFilterProdi] = useState('ALL');
   const [filterAngkatan, setFilterAngkatan] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
 
-  // Modals
-  const [selectedStudent, setSelectedStudent] = useState<StudentItem | null>(null);
-  const [detailModalOpen, setDetailModalOpen] = useState(false);
-  const [formModalOpen, setFormModalOpen] = useState(false);
-  const [editingStudent, setEditingStudent] = useState<StudentItem | null>(null);
-
-  // Form State
-  const [formData, setFormData] = useState({
-    nim: '',
-    fullName: '',
-    email: '',
-    phone: '',
-    gender: 'MALE' as 'MALE' | 'FEMALE',
-    studyProgram: 'Teknik Informatika (S1)',
-    entryYear: 2024,
-    currentSemester: 1,
-    status: 'ACTIVE' as 'ACTIVE' | 'LEAVE' | 'GRADUATED' | 'DROPOUT',
-    dosenPA: 'Dr. Bayu Wicaksono, M.Kom.',
-    address: '',
-  });
-
+  const [studyPrograms, setStudyPrograms] = useState<Array<{ id: string; name: string }>>([]);
+  const [toast, setToast] = useState<{ text: string; ok: boolean } | null>(null);
+  const showToast = (text: string, ok = true) => {
+    setToast({ text, ok });
+    setTimeout(() => setToast(null), 4000);
+  };
   const [loadingDb, setLoadingDb] = useState(false);
 
   const fetchDbStudents = async () => {
@@ -227,9 +78,11 @@ export default function SuperAdminMahasiswaPage() {
       const res = await fetch(`${getApiBaseUrl()}/students/list`);
       if (res.ok) {
         const json = await res.json();
-        if (Array.isArray(json.data) && json.data.length > 0) {
-          const mapped: StudentItem[] = json.data.map((s: any) => ({
+        const rows = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : null;
+        if (rows) {
+          const mapped: StudentItem[] = rows.map((s: any) => ({
             id: s.id,
+            studyProgramId: s.studyProgramId,
             nim: s.nim,
             fullName: s.name,
             email: s.email,
@@ -250,6 +103,7 @@ export default function SuperAdminMahasiswaPage() {
       }
     } catch (e) {
       console.warn('Gagal memuat mahasiswa dari DB:', e);
+      showToast('Gagal memuat data mahasiswa dari server.', false);
     } finally {
       setLoadingDb(false);
     }
@@ -257,6 +111,13 @@ export default function SuperAdminMahasiswaPage() {
 
   useEffect(() => {
     fetchDbStudents();
+    fetch(`${getApiBaseUrl()}/study-programs`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        const list = json?.data ?? json;
+        if (Array.isArray(list)) setStudyPrograms(list.map((p: any) => ({ id: p.id, name: p.name })));
+      })
+      .catch(() => undefined);
   }, []);
 
   // Sorting State
@@ -279,7 +140,7 @@ export default function SuperAdminMahasiswaPage() {
 
   const filteredAndSortedStudents = useMemo(() => {
     const filtered = students.filter((s) => {
-      if (filterProdi !== 'ALL' && !s.studyProgram.includes(filterProdi)) return false;
+      if (filterProdi !== 'ALL' && s.studyProgram !== filterProdi) return false;
       if (filterAngkatan !== 'ALL' && s.entryYear !== Number(filterAngkatan)) return false;
       if (filterStatus !== 'ALL' && s.status !== filterStatus) return false;
 
@@ -322,82 +183,21 @@ export default function SuperAdminMahasiswaPage() {
     return filteredAndSortedStudents.slice(start, start + itemsPerPage);
   }, [filteredAndSortedStudents, currentPage, itemsPerPage]);
 
-  // Handle Save (Create / Update)
-  const handleSaveStudent = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.nim || !formData.fullName || !formData.email) {
-      alert('NIM, Nama Lengkap, dan Email wajib diisi.');
-      return;
+  const BASE = '/admin/superadmin/mahasiswa';
+  const openCreatePage = () => router.push(`${BASE}/baru`);
+  const openStudentPage = (student: StudentItem) => router.push(`${BASE}/${student.id}`);
+
+  const handleDeleteStudent = async (student: StudentItem) => {
+    if (!(await confirmDialog(`Hapus data mahasiswa ${student.fullName} (${student.nim})?`))) return;
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/students/${student.id}`, { method: 'DELETE' });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.message || 'Gagal menghapus mahasiswa.');
+      showToast(`Mahasiswa ${student.fullName} berhasil dihapus.`);
+      await fetchDbStudents();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Gagal menghapus mahasiswa.', false);
     }
-
-    if (editingStudent) {
-      setStudents((prev) =>
-        prev.map((s) =>
-          s.id === editingStudent.id
-            ? {
-                ...s,
-                ...formData,
-                faculty: formData.studyProgram.includes('Informatika') || formData.studyProgram.includes('Sistem') ? 'Fakultas Ilmu Komputer' : 'Fakultas Teknik',
-              }
-            : s,
-        ),
-      );
-      alert('Data mahasiswa berhasil diperbarui!');
-    } else {
-      const newStudent: StudentItem = {
-        id: `std-${Date.now()}`,
-        ...formData,
-        faculty: formData.studyProgram.includes('Informatika') || formData.studyProgram.includes('Sistem') ? 'Fakultas Ilmu Komputer' : 'Fakultas Teknik',
-        ipk: 0.0,
-        sksTotal: 0,
-      };
-      setStudents((prev) => [newStudent, ...prev]);
-      alert('Mahasiswa baru berhasil ditambahkan!');
-    }
-
-    setFormModalOpen(false);
-    setEditingStudent(null);
-  };
-
-  const openCreateModal = () => {
-    setEditingStudent(null);
-    setFormData({
-      nim: `241150${Math.floor(1000 + Math.random() * 9000)}`,
-      fullName: '',
-      email: '',
-      phone: '',
-      gender: 'MALE',
-      studyProgram: 'Teknik Informatika (S1)',
-      entryYear: 2024,
-      currentSemester: 1,
-      status: 'ACTIVE',
-      dosenPA: 'Dr. Bayu Wicaksono, M.Kom.',
-      address: '',
-    });
-    setFormModalOpen(true);
-  };
-
-  const openEditModal = (student: StudentItem) => {
-    setEditingStudent(student);
-    setFormData({
-      nim: student.nim,
-      fullName: student.fullName,
-      email: student.email,
-      phone: student.phone,
-      gender: student.gender,
-      studyProgram: student.studyProgram,
-      entryYear: student.entryYear,
-      currentSemester: student.currentSemester,
-      status: student.status,
-      dosenPA: student.dosenPA || '',
-      address: student.address || '',
-    });
-    setFormModalOpen(true);
-  };
-
-  const handleDeleteStudent = (student: StudentItem) => {
-    if (!confirm(`Hapus data mahasiswa ${student.fullName} (${student.nim})?`)) return;
-    setStudents((prev) => prev.filter((s) => s.id !== student.id));
   };
 
   const renderStatusBadge = (status: string) => {
@@ -450,7 +250,7 @@ export default function SuperAdminMahasiswaPage() {
               <span>Segarkan</span>
             </button>
             <button
-              onClick={openCreateModal}
+              onClick={openCreatePage}
               className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#1E3A8A] hover:bg-[#172554] text-white text-xs font-bold transition-all shadow-xs"
             >
               <Plus className="w-3.5 h-3.5 text-[#D4A017]" />
@@ -521,12 +321,11 @@ export default function SuperAdminMahasiswaPage() {
               className="px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-medium focus:outline-none focus:border-[#1E3A8A]"
             >
               <option value="ALL">Semua Program Studi</option>
-              <option value="Informatika">Teknik Informatika</option>
-              <option value="Sistem Informasi">Sistem Informasi</option>
-              <option value="Mesin">Teknik Mesin</option>
-              <option value="Elektro">Teknik Elektro</option>
-              <option value="Bisnis Digital">Bisnis Digital</option>
-              <option value="Manajemen">Manajemen</option>
+              {studyPrograms.map((p) => (
+                <option key={p.id} value={p.name}>
+                  {p.name}
+                </option>
+              ))}
             </select>
 
             <select
@@ -535,11 +334,13 @@ export default function SuperAdminMahasiswaPage() {
               className="px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-medium focus:outline-none focus:border-[#1E3A8A]"
             >
               <option value="ALL">Semua Angkatan</option>
-              <option value="2024">Angkatan 2024</option>
-              <option value="2023">Angkatan 2023</option>
-              <option value="2022">Angkatan 2022</option>
-              <option value="2021">Angkatan 2021</option>
-              <option value="2020">Angkatan 2020</option>
+              {Array.from(new Set(students.map((x) => x.entryYear)))
+                .sort((x, y) => y - x)
+                .map((y) => (
+                  <option key={y} value={y}>
+                    Angkatan {y}
+                  </option>
+                ))}
             </select>
 
             <select
@@ -551,6 +352,7 @@ export default function SuperAdminMahasiswaPage() {
               <option value="ACTIVE">Aktif</option>
               <option value="LEAVE">Cuti</option>
               <option value="GRADUATED">Lulus</option>
+              <option value="DROPOUT">Drop Out</option>
             </select>
           </div>
         </div>
@@ -676,17 +478,14 @@ export default function SuperAdminMahasiswaPage() {
                       <td className="px-5 py-3.5 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1">
                           <button
-                            onClick={() => {
-                              setSelectedStudent(s);
-                              setDetailModalOpen(true);
-                            }}
+                            onClick={() => openStudentPage(s)}
                             className="p-1.5 rounded-lg text-slate-500 hover:text-[#1E3A8A] hover:bg-slate-100"
                             title="Detail Mahasiswa"
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => openEditModal(s)}
+                            onClick={() => openStudentPage(s)}
                             className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50"
                             title="Edit Data"
                           >
@@ -769,205 +568,15 @@ export default function SuperAdminMahasiswaPage() {
         </div>
 
         {/* Modal Detail Mahasiswa */}
-        {detailModalOpen && selectedStudent && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-            <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div>
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#D4A017]">
-                    KARTU INDUK MAHASISWA
-                  </span>
-                  <h3 className="text-lg font-black text-slate-900">{selectedStudent.fullName}</h3>
-                  <p className="text-xs font-mono text-[#1E3A8A] font-bold">NIM: {selectedStudent.nim}</p>
-                </div>
-                <button
-                  onClick={() => setDetailModalOpen(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Program Studi:</span>
-                  <span className="font-bold text-slate-900">{selectedStudent.studyProgram}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Fakultas:</span>
-                  <span className="font-medium text-slate-800">{selectedStudent.faculty}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Dosen Pembimbing Akademik (PA):</span>
-                  <span className="font-bold text-[#1E3A8A]">{selectedStudent.dosenPA}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Indeks Prestasi Kumulatif (IPK):</span>
-                  <span className="font-black text-emerald-700">{selectedStudent.ipk.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Total SKS Lulus:</span>
-                  <span className="font-bold text-slate-900">{selectedStudent.sksTotal} SKS</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Status Perkuliahan:</span>
-                  <span>{renderStatusBadge(selectedStudent.status)}</span>
-                </div>
-              </div>
-
-              <div className="space-y-2 text-xs text-slate-600 pt-1">
-                <p><strong>Email:</strong> {selectedStudent.email}</p>
-                <p><strong>Nomor HP / WA:</strong> {selectedStudent.phone}</p>
-                <p><strong>Alamat Domisili:</strong> {selectedStudent.address || 'Belum diisi'}</p>
-              </div>
-
-              <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">
-                <button
-                  onClick={() => {
-                    setDetailModalOpen(false);
-                    openEditModal(selectedStudent);
-                  }}
-                  className="px-4 py-2 rounded-xl bg-[#1E3A8A] text-white text-xs font-bold hover:bg-[#172554]"
-                >
-                  Edit Data Mahasiswa
-                </button>
-                <button
-                  onClick={() => setDetailModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-50"
-                >
-                  Tutup
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal Tambah / Edit Mahasiswa */}
-        {formModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-            <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <h3 className="text-lg font-black text-slate-900">
-                  {editingStudent ? 'Edit Data Mahasiswa' : 'Tambah Mahasiswa Baru'}
-                </h3>
-                <button
-                  onClick={() => setFormModalOpen(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSaveStudent} className="space-y-3 text-xs">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">NIM *</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.nim}
-                      onChange={(e) => setFormData({ ...formData, nim: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Jenis Kelamin</label>
-                    <select
-                      value={formData.gender}
-                      onChange={(e) => setFormData({ ...formData, gender: e.target.value as any })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
-                    >
-                      <option value="MALE">Laki-laki</option>
-                      <option value="FEMALE">Perempuan</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Nama Lengkap Mahasiswa *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.fullName}
-                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Email Kampus *</label>
-                    <input
-                      type="email"
-                      required
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Nomor Telepon / WhatsApp</label>
-                    <input
-                      type="text"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Program Studi</label>
-                    <select
-                      value={formData.studyProgram}
-                      onChange={(e) => setFormData({ ...formData, studyProgram: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
-                    >
-                      <option value="Teknik Informatika (S1)">Teknik Informatika (S1)</option>
-                      <option value="Sistem Informasi (S1)">Sistem Informasi (S1)</option>
-                      <option value="Teknik Mesin (S1)">Teknik Mesin (S1)</option>
-                      <option value="Teknik Elektro (S1)">Teknik Elektro (S1)</option>
-                      <option value="Bisnis Digital (S1)">Bisnis Digital (S1)</option>
-                      <option value="Manajemen (S1)">Manajemen (S1)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Status Mahasiswa</label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
-                    >
-                      <option value="ACTIVE">Aktif</option>
-                      <option value="LEAVE">Cuti Kuliah</option>
-                      <option value="GRADUATED">Lulus / Alumni</option>
-                      <option value="DROPOUT">Drop Out</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setFormModalOpen(false)}
-                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 font-bold hover:bg-slate-50"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 rounded-xl bg-[#1E3A8A] text-white font-bold hover:bg-[#172554] shadow-xs"
-                  >
-                    Simpan Data
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
       </div>
+
+      {toast && (
+        <div
+          className={`fixed bottom-6 right-6 z-[60] max-w-sm px-4 py-3 rounded-xl text-sm font-semibold shadow-lg text-white ${toast.ok ? 'bg-emerald-600' : 'bg-rose-600'}`}
+        >
+          {toast.text}
+        </div>
+      )}
     </PortalLayout>
   );
 }

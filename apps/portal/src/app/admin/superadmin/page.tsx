@@ -173,6 +173,9 @@ export default function SuperAdminDashboardPage() {
                 activeCourses: d.krsStats.activeCourses ?? 0,
                 activeRooms: d.krsStats.activeRooms ?? 0,
                 avgGpa: d.krsStats.avgGpa ?? 0,
+                krsEndDate: d.krsStats.krsEndDate ?? null,
+                krsOpen: Boolean(d.krsStats.krsOpen),
+                hasActiveYear: Boolean(d.krsStats.hasActiveYear),
               });
             }
           }
@@ -672,8 +675,15 @@ export default function SuperAdminDashboardPage() {
             </div>
 
             <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px]">
-              <span className="text-slate-500">Batas KRS: 15 Sep 2026</span>
-              <span className="text-emerald-700 font-bold">Periode Berjalan</span>
+              <span className="text-slate-500">
+                Batas KRS:{' '}
+                {krsData.krsEndDate
+                  ? new Date(krsData.krsEndDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                  : '-'}
+              </span>
+              <span className={`font-bold ${krsData.krsOpen ? 'text-emerald-700' : 'text-slate-500'}`}>
+                {!krsData.hasActiveYear ? 'Belum ada tahun akademik aktif' : krsData.krsOpen ? 'Periode Berjalan' : 'KRS Ditutup'}
+              </span>
             </div>
           </div>
         </div>

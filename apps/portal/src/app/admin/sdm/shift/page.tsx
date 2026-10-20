@@ -1,4 +1,6 @@
 'use client';
+
+import { confirmDialog } from '@/components/ui/ConfirmHost';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { Modal } from '@/components/ui/Modal';
@@ -215,7 +217,7 @@ export default function PengaturanShiftPage() {
   };
 
   const handleDelete = async (s: ShiftItem) => {
-    if (!confirm(`Hapus shift "${s.name}"? Pegawai yang memakai shift ini akan kembali ke shift default.`)) return;
+    if (!(await confirmDialog(`Hapus shift "${s.name}"? Pegawai yang memakai shift ini akan kembali ke shift default.`))) return;
     try {
       const res = await fetch(`${getApiBaseUrl()}/shifts/${s.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

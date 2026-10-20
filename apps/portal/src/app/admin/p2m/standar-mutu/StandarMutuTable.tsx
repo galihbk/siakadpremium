@@ -1,5 +1,7 @@
 'use client';
 
+import { confirmDialog } from '@/components/ui/ConfirmHost';
+
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { Search, Plus, RefreshCw, Loader2, Check, Pencil, Trash2, SlidersHorizontal, X, ArrowLeft } from 'lucide-react';
@@ -125,7 +127,7 @@ export function StandarMutuTable({ initialStandards }: { initialStandards: Stand
   };
 
   const handleDelete = async (s: StandardData) => {
-    if (!confirm(`Hapus standar mutu "${s.name}" (${s.code})? Tindakan ini tidak dapat dibatalkan.`)) return;
+    if (!(await confirmDialog(`Hapus standar mutu "${s.name}" (${s.code})? Tindakan ini tidak dapat dibatalkan.`))) return;
     setIsDeleting(true);
     try {
       const res = await fetch(`${apiBase}/p2m/standards/${s.id}`, { method: 'DELETE' });

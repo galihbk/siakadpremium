@@ -1,5 +1,7 @@
 'use client';
 
+import { confirmDialog } from '@/components/ui/ConfirmHost';
+
 import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -299,7 +301,7 @@ function RuangContent() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (confirm(`Hapus ruangan "${name}"? Jadwal perkuliahan di ruang ini akan dibatalkan.`)) {
+    if ((await confirmDialog(`Hapus ruangan "${name}"? Jadwal perkuliahan di ruang ini akan dibatalkan.`))) {
       try {
         const res = await fetch(`${apiBase}/buildings/rooms/${id}`, {
           method: 'DELETE',

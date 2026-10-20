@@ -79,7 +79,7 @@ export interface AcademicRecap {
   averageGpa: number;
   lecturerCount: number;
   ratio: string;
-  accreditation: 'Unggul' | 'Baik Sekali' | 'A' | 'B';
+  accreditation: 'Unggul' | 'Baik Sekali' | 'Baik' | 'A' | 'B';
 }
 
 export interface DataAnomaly {

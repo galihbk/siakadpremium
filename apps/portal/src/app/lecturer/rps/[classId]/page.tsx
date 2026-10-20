@@ -1,5 +1,7 @@
 'use client';
 
+import { confirmDialog } from '@/components/ui/ConfirmHost';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { PortalLayout } from '@/components/layout/PortalLayout';
@@ -223,8 +225,8 @@ export default function LecturerRpsFormPage() {
     ]);
   };
 
-  const removeWeek = (idx: number) => {
-    if (!confirm('Hapus baris pertemuan ini?')) return;
+  const removeWeek = async (idx: number) => {
+    if (!(await confirmDialog('Hapus baris pertemuan ini?'))) return;
     setWeeks((prev) => prev.filter((_, i) => i !== idx));
   };
 

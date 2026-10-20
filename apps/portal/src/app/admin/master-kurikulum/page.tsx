@@ -1,5 +1,7 @@
 'use client';
 
+import { confirmDialog } from '@/components/ui/ConfirmHost';
+
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
@@ -292,7 +294,7 @@ export default function AdminMasterKurikulumPage() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (confirm(`Hapus dokumen kurikulum "${name}"? Seluruh sebaran mata kuliah terkait kurikulum ini akan diarsipkan.`)) {
+    if ((await confirmDialog(`Hapus dokumen kurikulum "${name}"? Seluruh sebaran mata kuliah terkait kurikulum ini akan diarsipkan.`))) {
       try {
         const res = await fetch(`${apiBase}/academic/curriculums/${id}`, {
           method: 'DELETE',

@@ -1,5 +1,7 @@
 'use client';
 
+import { confirmDialog } from '@/components/ui/ConfirmHost';
+
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
@@ -138,7 +140,7 @@ export default function BankDokumenPage() {
   };
 
   const handleDelete = async (id: string, title: string) => {
-    if (confirm(`Apakah Anda yakin ingin menghapus arsip dokumen: "${title}" dari database?`)) {
+    if ((await confirmDialog(`Apakah Anda yakin ingin menghapus arsip dokumen: "${title}" dari database?`))) {
       try {
         const res = await fetch(`${apiBase}/lp3m/documents/${id}`, { method: 'DELETE' });
         if (res.ok) {

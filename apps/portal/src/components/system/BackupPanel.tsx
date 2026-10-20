@@ -1,5 +1,7 @@
 'use client';
 
+import { confirmDialog } from '@/components/ui/ConfirmHost';
+
 import React, { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Database, Download, HardDriveDownload, RefreshCw, Trash2 } from 'lucide-react';
 import { getApiBaseUrl } from '@/lib/api';
@@ -98,7 +100,7 @@ export function BackupPanel() {
   };
 
   const remove = async (name: string) => {
-    if (!window.confirm(`Hapus berkas backup ${name}? Tindakan ini tidak dapat dibatalkan.`)) return;
+    if (!(await confirmDialog(`Hapus berkas backup ${name}? Tindakan ini tidak dapat dibatalkan.`))) return;
     setBusyName(name);
     try {
       const res = await fetch(`${getApiBaseUrl()}/backups/${encodeURIComponent(name)}`, { method: 'DELETE', headers: authHeaders() });

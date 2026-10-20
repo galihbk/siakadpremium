@@ -330,7 +330,7 @@ export default function SuperAdminNilaiPage() {
               </div>
             </div>
             <div className="mt-3 text-xs text-slate-500">
-              {summary?.activeSemesterName || 'Semester Gasal 2026/2027'}
+              {summary?.activeSemesterName || 'Belum ada tahun akademik aktif'}
             </div>
           </div>
 

@@ -1,4 +1,6 @@
 'use client';
+
+import { confirmDialog } from '@/components/ui/ConfirmHost';
 import React, { useCallback, useEffect, useState } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getApiBaseUrl } from '@/lib/api';
@@ -77,7 +79,7 @@ export default function AnggaranPage() {
   };
 
   const remove = async (d: BudgetItem) => {
-    if (!confirm(`Hapus kategori "${d.category}"?`)) return;
+    if (!(await confirmDialog(`Hapus kategori "${d.category}"?`))) return;
     try {
       const res = await fetch(`${getApiBaseUrl()}/finance/budget-items/${d.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

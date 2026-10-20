@@ -1,5 +1,7 @@
 'use client';
 
+import { confirmDialog } from '@/components/ui/ConfirmHost';
+
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
@@ -196,7 +198,7 @@ export default function AdminProdiMataKuliahPage() {
 
   const handleDeleteCourse = async (d: CourseData) => {
     if (!studyProgramId) return;
-    if (!confirm(`Hapus mata kuliah "${d.name}" (${d.code})? Tindakan ini tidak dapat dibatalkan.`)) return;
+    if (!(await confirmDialog(`Hapus mata kuliah "${d.name}" (${d.code})? Tindakan ini tidak dapat dibatalkan.`))) return;
     setIsDeleting(true);
     try {
       const res = await fetch(`${apiBase}/academic/courses/${d.id}`, { method: 'DELETE' });

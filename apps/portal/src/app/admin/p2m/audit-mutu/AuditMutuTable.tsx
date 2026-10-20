@@ -1,5 +1,7 @@
 'use client';
 
+import { confirmDialog } from '@/components/ui/ConfirmHost';
+
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Search, Plus, RefreshCw, Loader2, Check, Pencil, Trash2, SlidersHorizontal, X, ArrowLeft } from 'lucide-react';
@@ -159,7 +161,7 @@ export function AuditMutuTable({ initialAudits }: { initialAudits: AuditData[] }
   };
 
   const handleDelete = async (a: AuditData) => {
-    if (!confirm(`Hapus data audit mutu "${a.studyProgram}" (${new Date(a.auditDate).toLocaleDateString('id-ID')})? Tindakan ini tidak dapat dibatalkan.`))
+    if (!(await confirmDialog(`Hapus data audit mutu "${a.studyProgram}" (${new Date(a.auditDate).toLocaleDateString('id-ID')})? Tindakan ini tidak dapat dibatalkan.`)))
       return;
     setIsDeleting(true);
     try {

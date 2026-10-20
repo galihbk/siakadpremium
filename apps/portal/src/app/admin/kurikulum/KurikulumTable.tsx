@@ -1,5 +1,7 @@
 'use client';
 
+import { confirmDialog } from '@/components/ui/ConfirmHost';
+
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Search, Download, Plus, RefreshCw, Loader2, Check, Pencil, Trash2, SlidersHorizontal, X, BookOpen, ChevronDown } from 'lucide-react';
@@ -176,7 +178,7 @@ export function KurikulumTable({ initialCourses }: { initialCourses: CourseData[
   };
 
   const handleDeleteCourse = async (d: CourseData) => {
-    if (!confirm(`Hapus mata kuliah "${d.name}" (${d.code})? Tindakan ini tidak dapat dibatalkan.`)) return;
+    if (!(await confirmDialog(`Hapus mata kuliah "${d.name}" (${d.code})? Tindakan ini tidak dapat dibatalkan.`))) return;
     setIsDeleting(true);
     try {
       const res = await fetch(`${apiBase}/academic/courses/${d.id}`, { method: 'DELETE' });

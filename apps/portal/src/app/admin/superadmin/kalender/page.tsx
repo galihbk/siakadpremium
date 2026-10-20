@@ -1,5 +1,7 @@
 'use client';
 
+import { confirmDialog } from '@/components/ui/ConfirmHost';
+
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
@@ -43,6 +45,23 @@ interface CalendarEventItem {
   notes: string;
 }
 
+/** Status agenda dihitung dari tanggal hari ini terhadap rentang agenda (bukan teks tersimpan yang bisa basi). */
+function statusByDate(startDate: string, endDate: string): 'Berlangsung' | 'Akan Datang' | 'Selesai' {
+  const today = new Date().toISOString().slice(0, 10);
+  const end = (endDate || startDate).slice(0, 10);
+  if (today > end) return 'Selesai';
+  if (today < startDate.slice(0, 10)) return 'Akan Datang';
+  return 'Berlangsung';
+}
+
+function formatRange(startDate: string, endDate: string): string {
+  const fmt = (d: string, withYear: boolean) =>
+    new Date(d).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', ...(withYear ? { year: 'numeric' } : {}) });
+  const a = startDate.slice(0, 10);
+  const b = (endDate || startDate).slice(0, 10);
+  return a === b ? fmt(a, true) : `${fmt(a, false)} - ${fmt(b, true)}`;
+}
+
 export default function SuperAdminKalenderPage() {
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -51,6 +70,7 @@ export default function SuperAdminKalenderPage() {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [semesterTab, setSemesterTab] = useState<'Gasal' | 'Genap' | 'Pendek'>('Gasal');
+  const [activeYear, setActiveYear] = useState<{ name: string; semester: string; currentWeek: number; ready: boolean } | null>(null);
   const [categoryFilter, setCategoryFilter] = useState('Semua');
   const [statusFilter, setStatusFilter] = useState('Semua');
 
@@ -110,6 +130,21 @@ export default function SuperAdminKalenderPage() {
 
   useEffect(() => {
     loadCalendarEvents();
+    fetch(`${apiBase}/academic/active-year`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        const d = json?.data ?? json;
+        if (!d) return;
+        const ready = Boolean(d.code);
+        setActiveYear({
+          name: String(d.name || '').replace(/^Tahun Akademik\s+/i, ''),
+          semester: String(d.semester || '').replace(/\s*\(.*\)\s*$/, ''),
+          currentWeek: Number(d.currentWeek) || 0,
+          ready,
+        });
+      })
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Sorting & Pagination State
@@ -168,9 +203,9 @@ export default function SuperAdminKalenderPage() {
 
   const metrics = useMemo(() => {
     const totalAgenda = events.length;
-    const runningAgenda = events.filter((e) => e.status === 'Berlangsung').length;
-    const upcomingAgenda = events.filter((e) => e.status === 'Akan Datang').length;
-    const completedAgenda = events.filter((e) => e.status === 'Selesai').length;
+    const runningAgenda = events.filter((e) => statusByDate(e.startDate, e.endDate) === 'Berlangsung').length;
+    const upcomingAgenda = events.filter((e) => statusByDate(e.startDate, e.endDate) === 'Akan Datang').length;
+    const completedAgenda = events.filter((e) => statusByDate(e.startDate, e.endDate) === 'Selesai').length;
     return { totalAgenda, runningAgenda, upcomingAgenda, completedAgenda };
   }, [events]);
 
@@ -179,9 +214,9 @@ export default function SuperAdminKalenderPage() {
     setFormData({
       title: '',
       category: 'Perkuliahan',
-      startDate: '2026-09-01',
-      endDate: '2026-09-30',
-      academicYear: '2026/2027',
+      startDate: new Date().toISOString().slice(0, 10),
+      endDate: new Date().toISOString().slice(0, 10),
+      academicYear: activeYear?.ready ? activeYear.name : '',
       semester: semesterTab,
       target: 'Seluruh Mahasiswa & Dosen',
       status: 'Akan Datang',
@@ -246,7 +281,7 @@ export default function SuperAdminKalenderPage() {
   };
 
   const handleDelete = async (id: string, title: string) => {
-    if (confirm(`Hapus agenda "${title}" dari kalender akademik?`)) {
+    if ((await confirmDialog(`Hapus agenda "${title}" dari kalender akademik?`))) {
       try {
         const res = await fetch(`${apiBase}/academic/calendar-events/${id}`, {
           method: 'DELETE',
@@ -263,15 +298,26 @@ export default function SuperAdminKalenderPage() {
     }
   };
 
-  const milestones = [
-    { title: 'Pembayaran UKT', date: '1 - 20 Agt 2026', status: 'Selesai', color: 'bg-emerald-500' },
-    { title: 'Pengisian KRS', date: '15 - 31 Agt 2026', status: 'Selesai', color: 'bg-emerald-500' },
-    { title: 'Perkuliahan Bag. I', date: '1 Sep - 23 Okt 2026', status: 'Aktif', color: 'bg-[#1E3A8A] ring-4 ring-blue-100' },
-    { title: 'Ujian Tengah (UTS)', date: '26 Okt - 6 Nov 2026', status: 'Akan Datang', color: 'bg-slate-300' },
-    { title: 'Perkuliahan Bag. II', date: '9 Nov - 24 Des 2026', status: 'Akan Datang', color: 'bg-slate-300' },
-    { title: 'Ujian Akhir (UAS)', date: '4 - 16 Jan 2027', status: 'Akan Datang', color: 'bg-slate-300' },
-    { title: 'Yudisium & Wisuda', date: 'Februari 2027', status: 'Akan Datang', color: 'bg-slate-300' },
-  ];
+  // Alur tahapan dibentuk otomatis dari agenda bertanggal pada semester yang dipilih (urut tanggal mulai).
+  const milestones = useMemo(() => {
+    return events
+      .filter((e) => e.semester === semesterTab && (!activeYear?.ready || e.academicYear === activeYear.name))
+      .sort((x, y) => x.startDate.localeCompare(y.startDate))
+      .map((e) => {
+        const st = statusByDate(e.startDate, e.endDate);
+        return {
+          title: e.title,
+          date: formatRange(e.startDate, e.endDate),
+          status: st === 'Berlangsung' ? 'Aktif' : st,
+          color: st === 'Berlangsung' ? 'bg-[#1E3A8A] ring-4 ring-blue-100' : st === 'Selesai' ? 'bg-emerald-500' : 'bg-slate-300',
+        };
+      });
+  }, [events, semesterTab, activeYear]);
+
+  const weekBadge =
+    activeYear?.ready && activeYear.currentWeek > 0 && activeYear.semester.startsWith(semesterTab)
+      ? `Minggu Ke-${activeYear.currentWeek} Perkuliahan`
+      : null;
 
   return (
     <PortalLayout
@@ -332,10 +378,10 @@ export default function SuperAdminKalenderPage() {
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tahun Akademik Aktif</p>
-              <h3 className="text-xl font-black text-slate-900 mt-1">2026/2027 Gasal</h3>
+              <h3 className="text-xl font-black text-slate-900 mt-1">{activeYear?.ready ? `${activeYear.name} ${activeYear.semester}` : 'Belum ada'}</h3>
               <p className="text-xs text-emerald-600 font-semibold mt-0.5 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                Semester Sedang Berjalan
+                <span className={`w-1.5 h-1.5 rounded-full ${activeYear?.ready ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`}></span>
+                {activeYear?.ready ? 'Semester Sedang Berjalan' : 'Atur di menu Tahun Akademik'}
               </p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#1E3A8A] border border-blue-100 flex items-center justify-center font-bold text-lg">
@@ -347,7 +393,7 @@ export default function SuperAdminKalenderPage() {
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Agenda Berjalan</p>
               <h3 className="text-2xl font-black text-indigo-700 mt-1">{metrics.runningAgenda} Agenda</h3>
-              <p className="text-xs text-indigo-600 font-medium mt-0.5">Kuliah Bag. I & KPRS Online</p>
+              <p className="text-xs text-indigo-600 font-medium mt-0.5">Sedang berlangsung hari ini</p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-700 border border-indigo-100 flex items-center justify-center font-bold text-lg">
               <Clock className="w-6 h-6" />
@@ -358,7 +404,7 @@ export default function SuperAdminKalenderPage() {
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Agenda Akan Datang</p>
               <h3 className="text-2xl font-black text-amber-600 mt-1">{metrics.upcomingAgenda} Agenda</h3>
-              <p className="text-xs text-slate-500 mt-0.5">UTS & UAS Semester Gasal</p>
+              <p className="text-xs text-slate-500 mt-0.5">Belum dimulai</p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center font-bold text-lg">
               <CalendarDays className="w-6 h-6" />
@@ -369,7 +415,7 @@ export default function SuperAdminKalenderPage() {
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Agenda Selesai</p>
               <h3 className="text-2xl font-black text-emerald-700 mt-1">{metrics.completedAgenda} Agenda</h3>
-              <p className="text-xs text-emerald-600 font-medium mt-0.5">UKT & KRS telah tuntas 100%</p>
+              <p className="text-xs text-emerald-600 font-medium mt-0.5">Sudah terlewati</p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center justify-center font-bold text-lg">
               <CheckCircle2 className="w-6 h-6" />
@@ -383,17 +429,24 @@ export default function SuperAdminKalenderPage() {
             <div>
               <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                 <Flag className="w-4 h-4 text-[#1E3A8A]" />
-                Alur Tahapan Semester Gasal 2026/2027
+                Alur Tahapan Semester {semesterTab}{activeYear?.ready ? ` ${activeYear.name}` : ''}
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Progres siklus akademik semester berjalan dari pembayaran registrasi hingga yudisium kelulusan
+                Tahapan terbentuk otomatis dari agenda kalender pada semester ini, diurutkan menurut tanggal mulai
               </p>
             </div>
-            <span className="text-xs font-bold text-[#1E3A8A] bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
-              Minggu Ke-2 Perkuliahan
-            </span>
+            {weekBadge && (
+              <span className="text-xs font-bold text-[#1E3A8A] bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+                {weekBadge}
+              </span>
+            )}
           </div>
 
+          {milestones.length === 0 && (
+            <p className="text-xs text-slate-500 py-6 text-center">
+              Belum ada tahapan. Tambahkan agenda bertanggal lewat tombol <strong>Tambah Agenda Baru</strong> (mis. Pembayaran UKT, Pengisian KRS, Perkuliahan, UTS, UAS, Yudisium).
+            </p>
+          )}
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
             {milestones.map((m, idx) => (
               <div

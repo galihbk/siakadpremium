@@ -1,5 +1,6 @@
 'use client';
 
+import { CampusLogo } from '@/components/common/CampusLogo';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getAuthSession, AuthUser } from '@/lib/auth';
@@ -856,16 +857,23 @@ export default function LayananSuratPage() {
             </div>
 
             <div className="p-8 sm:p-12 overflow-y-auto bg-white font-serif text-slate-900 space-y-6 leading-relaxed">
-              <div className="border-b-2 border-slate-950 pb-4 text-center font-sans">
-                <h2 className="text-base sm:text-lg font-black tracking-wider uppercase text-slate-900">
-                  {institutionProfile.kopLine2}
-                </h2>
-                <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-                  Biro Administrasi Akademik dan Kemahasiswaan (BAAK)
-                </p>
-                <p className="text-[11px] text-slate-500 font-normal mt-0.5">
-                  {institutionProfile.kopContact}
-                </p>
+              <div className="border-b-2 border-slate-950 pb-4 font-sans flex items-center gap-4">
+                <CampusLogo
+                  url={institutionProfile.logoUrl}
+                  initials={institutionProfile.logoInitials}
+                  className="w-16 h-16 shrink-0 rounded-full bg-[#1E3A8A] text-white font-black text-base flex items-center justify-center"
+                />
+                <div className="flex-1 text-center pr-16">
+                  <h2 className="text-base sm:text-lg font-black tracking-wider uppercase text-slate-900">
+                    {institutionProfile.kopLine2}
+                  </h2>
+                  <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                    Biro Administrasi Akademik dan Kemahasiswaan (BAAK)
+                  </p>
+                  <p className="text-[11px] text-slate-500 font-normal mt-0.5">
+                    {institutionProfile.kopContact}
+                  </p>
+                </div>
               </div>
 
               <div className="text-center font-sans space-y-1">

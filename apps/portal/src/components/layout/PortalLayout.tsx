@@ -1056,17 +1056,19 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                 {roleLabel}
               </h1>
               <p className="text-xs text-slate-500 hidden sm:block">
-                {institutionProfile.campusName} &bull; TA {institutionProfile.activeAcademicYear}
+                {institutionProfile.campusName}{institutionProfile.activeAcademicYear ? ` \u2022 TA ${institutionProfile.activeAcademicYear}` : ''}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Periode Badge */}
-            <div className="hidden xl:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-[#1E3A8A] text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Semester {institutionProfile.activeSemester} {institutionProfile.activeAcademicYear}</span>
-            </div>
+            {institutionProfile.activeAcademicYear && (
+              <div className="hidden xl:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-[#1E3A8A] text-xs font-semibold">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Semester {institutionProfile.activeSemester} {institutionProfile.activeAcademicYear}</span>
+              </div>
+            )}
 
             {/* Notification */}
             <button className="p-2 text-slate-500 hover:text-[#1E3A8A] hover:bg-slate-100 rounded-xl relative transition-colors" title="Notifikasi">

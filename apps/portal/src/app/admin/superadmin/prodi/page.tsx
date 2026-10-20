@@ -1,5 +1,7 @@
 'use client';
 
+import { confirmDialog } from '@/components/ui/ConfirmHost';
+
 import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -49,7 +51,7 @@ interface StudyProgram {
   code: string;
   diktiCode: string;
   name: string;
-  degreeLevel: 'S1' | 'D4' | 'D3' | 'S2';
+  degreeLevel: 'S1' | 'D4' | 'D3' | 'S2' | 'S3';
   degreeTitle: string;
   facultyId: string;
   facultyCode: string;
@@ -58,9 +60,10 @@ interface StudyProgram {
   headNip: string;
   studentsCount: number;
   lecturersCount: number;
-  accreditation: 'Unggul' | 'Baik Sekali' | 'Baik' | 'A' | 'B';
+  accreditation: 'Unggul' | 'Baik Sekali' | 'Baik' | 'A' | 'B' | 'C' | 'Terakreditasi' | 'Terakreditasi Sementara' | 'Belum Terakreditasi';
   accreditationAgency: string;
   skAkreditasi: string;
+  accreditationValidUntil?: string;
   vision?: string | null;
   mission?: string | null;
   status: 'Aktif' | 'Nonaktif';
@@ -247,6 +250,7 @@ function ProdiContent() {
     accreditation: StudyProgram['accreditation'];
     accreditationAgency: string;
     skAkreditasi: string;
+    accreditationValidUntil: string;
     vision: string;
     mission: string;
   }>({
@@ -261,6 +265,7 @@ function ProdiContent() {
     accreditation: 'Unggul',
     accreditationAgency: 'LAM-INFOKOM',
     skAkreditasi: '',
+    accreditationValidUntil: '',
     vision: '',
     mission: '',
   });
@@ -348,6 +353,7 @@ function ProdiContent() {
       accreditation: 'Unggul',
       accreditationAgency: 'LAM-INFOKOM',
       skAkreditasi: '',
+      accreditationValidUntil: '',
       vision: '',
       mission: '',
     });
@@ -368,6 +374,7 @@ function ProdiContent() {
       accreditation: p.accreditation,
       accreditationAgency: p.accreditationAgency || '',
       skAkreditasi: p.skAkreditasi || '',
+      accreditationValidUntil: p.accreditationValidUntil || '',
       vision: p.vision || '',
       mission: p.mission || '',
     });
@@ -393,7 +400,8 @@ function ProdiContent() {
       lecturersCount: Number(formData.lecturersCount) || 0,
       accreditation: formData.accreditation,
       accreditationAgency: formData.accreditationAgency || 'BAN-PT',
-      skAkreditasi: formData.skAkreditasi || 'Dalam Proses',
+      skAkreditasi: formData.skAkreditasi,
+      accreditationValidUntil: formData.accreditationValidUntil,
       // dikirim apa adanya (termasuk kosong) agar visi/misi bisa dihapus
       vision: formData.vision,
       mission: formData.mission,
@@ -436,7 +444,7 @@ function ProdiContent() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (confirm(`Hapus Program Studi "${name}"?`)) {
+    if ((await confirmDialog(`Hapus Program Studi "${name}"?`))) {
       try {
         const res = await fetch(`${apiBase}/study-programs/${id}`, {
           method: 'DELETE',
@@ -485,7 +493,7 @@ function ProdiContent() {
               <span>Manajemen Program Studi (Prodi)</span>
             </h1>
             <p className="text-xs sm:text-sm text-slate-600 mt-1">
-              Daftar seluruh program studi S1, D4, dan D3 terakreditasi.
+              Daftar seluruh program studi (D3, D4, S1, S2, S3) beserta status akreditasinya.
             </p>
           </div>
 
@@ -699,6 +707,8 @@ function ProdiContent() {
               <option value="S1">Sarjana (S1)</option>
               <option value="D4">Sarjana Terapan (D4)</option>
               <option value="D3">Diploma Tiga (D3)</option>
+              <option value="S2">Magister (S2)</option>
+              <option value="S3">Doktor (S3)</option>
             </select>
 
             {/* Filter Akreditasi */}
@@ -713,6 +723,10 @@ function ProdiContent() {
               <option value="Baik">Baik</option>
               <option value="A">A (Legacy)</option>
               <option value="B">B (Legacy)</option>
+              <option value="C">C (Legacy)</option>
+              <option value="Terakreditasi">Terakreditasi</option>
+              <option value="Terakreditasi Sementara">Terakreditasi Sementara</option>
+              <option value="Belum Terakreditasi">Belum Terakreditasi</option>
             </select>
 
             {(facultyFilter !== 'Semua' || degreeFilter !== 'Semua' || accreditationFilter !== 'Semua') && (
@@ -909,7 +923,9 @@ function ProdiContent() {
                                 ? 'bg-blue-50 text-[#1E3A8A] border border-blue-200'
                                 : prog.degreeLevel === 'D4'
                                   ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                                  : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                  : prog.degreeLevel === 'S2' || prog.degreeLevel === 'S3'
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
                             }`}
                           >
                             {prog.degreeLevel}
@@ -959,7 +975,9 @@ function ProdiContent() {
                             className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
                               prog.accreditation === 'Unggul'
                                 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                                : 'bg-blue-100 text-[#1E3A8A] border border-blue-200'
+                                : prog.accreditation === 'Belum Terakreditasi'
+                                  ? 'bg-slate-100 text-slate-600 border border-slate-200'
+                                  : 'bg-blue-100 text-[#1E3A8A] border border-blue-200'
                             }`}
                           >
                             {prog.accreditation}
@@ -1105,6 +1123,8 @@ function ProdiContent() {
                       <option value="S1">Sarjana (S1)</option>
                       <option value="D4">Sarjana Terapan (D4)</option>
                       <option value="D3">Diploma Tiga (D3)</option>
+              <option value="S2">Magister (S2)</option>
+              <option value="S3">Doktor (S3)</option>
                     </select>
                   </div>
 
@@ -1155,6 +1175,10 @@ function ProdiContent() {
                       <option value="Baik">Baik</option>
                       <option value="A">A (Legacy)</option>
                       <option value="B">B (Legacy)</option>
+                      <option value="C">C (Legacy)</option>
+                      <option value="Terakreditasi">Terakreditasi</option>
+                      <option value="Terakreditasi Sementara">Terakreditasi Sementara</option>
+                      <option value="Belum Terakreditasi">Belum Terakreditasi</option>
                     </select>
                   </div>
 
@@ -1166,6 +1190,27 @@ function ProdiContent() {
                       value={formData.accreditationAgency}
                       onChange={(e) => setFormData({ ...formData, accreditationAgency: e.target.value })}
                       className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] font-bold"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700">Nomor SK Akreditasi (BAN-PT / LAM)</label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: 1234/SK/BAN-PT/Ak/S/XI/2024"
+                      value={formData.skAkreditasi}
+                      onChange={(e) => setFormData({ ...formData, skAkreditasi: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] font-semibold"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700">Masa Berlaku Akreditasi</label>
+                    <input
+                      type="date"
+                      value={formData.accreditationValidUntil}
+                      onChange={(e) => setFormData({ ...formData, accreditationValidUntil: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] font-semibold"
                     />
                   </div>
 

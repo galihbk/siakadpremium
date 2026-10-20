@@ -70,7 +70,7 @@ interface CampusProfile {
   academicEmail: string;
   phone: string;
   whatsapp: string;
-  accreditation: 'Unggul' | 'A' | 'Baik Sekali' | 'B';
+  accreditation: 'Unggul' | 'A' | 'Baik Sekali' | 'Baik' | 'B' | 'C' | 'Terakreditasi' | 'Terakreditasi Sementara' | 'Belum Terakreditasi';
   accreditationSk: string;
   accreditationValidUntil: string;
   ptStatus: string;
@@ -148,8 +148,8 @@ export default function SuperAdminProfilInstitusiPage() {
             ptCode: data.ptCode ?? '',
             establishmentYear: data.establishmentYear ? Number(data.establishmentYear) : 1993,
             establishmentSk: data.establishmentSk ?? '',
-            activeSemester: data.activeSemester ?? 'Semester Gasal',
-            activeAcademicYear: data.activeAcademicYear ?? '2026/2027',
+            activeSemester: data.activeSemester ?? '',
+            activeAcademicYear: data.activeAcademicYear ?? '',
             rector: data.rectorName ?? '',
             viceRector1: data.viceRector1 ?? '',
             viceRector2: data.viceRector2 ?? '',
@@ -230,8 +230,6 @@ export default function SuperAdminProfilInstitusiPage() {
         ptCode: editFormData.ptCode,
         establishmentYear: Number(editFormData.establishmentYear),
         establishmentSk: editFormData.establishmentSk,
-        activeSemester: editFormData.activeSemester,
-        activeAcademicYear: editFormData.activeAcademicYear,
         rectorName: editFormData.rector,
         viceRector1: editFormData.viceRector1,
         viceRector2: editFormData.viceRector2,
@@ -533,7 +531,7 @@ export default function SuperAdminProfilInstitusiPage() {
               <div className="flex items-center gap-2 mt-1">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="text-sm font-extrabold text-[#1E3A8A]">
-                  {profile.activeSemester} TA {profile.activeAcademicYear}
+                  {profile.activeAcademicYear ? `Semester ${profile.activeSemester} TA ${profile.activeAcademicYear}` : 'Belum ada tahun akademik aktif'}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3 text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-slate-200/60">
@@ -596,7 +594,7 @@ export default function SuperAdminProfilInstitusiPage() {
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Semester Aktif</p>
             <div className="flex items-center justify-between mt-1">
-              <span className="text-xs font-black text-[#1E3A8A]">{profile.activeSemester}</span>
+              <span className="text-xs font-black text-[#1E3A8A]">{profile.activeSemester ? `Semester ${profile.activeSemester}` : '-'}</span>
               <Clock className="w-4 h-4 text-blue-500" />
             </div>
           </div>
@@ -604,7 +602,7 @@ export default function SuperAdminProfilInstitusiPage() {
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tahun Akademik</p>
             <div className="flex items-center justify-between mt-1">
-              <span className="text-xs font-black text-slate-900 font-mono">{profile.activeAcademicYear}</span>
+              <span className="text-xs font-black text-slate-900 font-mono">{profile.activeAcademicYear || '-'}</span>
               <Calendar className="w-4 h-4 text-[#D4A017]" />
             </div>
           </div>
@@ -863,7 +861,12 @@ export default function SuperAdminProfilInstitusiPage() {
                       <option value="Unggul">Unggul</option>
                       <option value="A">A</option>
                       <option value="Baik Sekali">Baik Sekali</option>
+                      <option value="Baik">Baik</option>
                       <option value="B">B</option>
+                      <option value="C">C (Legacy)</option>
+                      <option value="Terakreditasi">Terakreditasi</option>
+                      <option value="Terakreditasi Sementara">Terakreditasi Sementara</option>
+                      <option value="Belum Terakreditasi">Belum Terakreditasi</option>
                     </select>
                   </div>
 
@@ -1314,16 +1317,25 @@ export default function SuperAdminProfilInstitusiPage() {
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
                     Pratinjau KOP Dokumen Resmi
                   </p>
-                  <div className="bg-white p-4 rounded-lg border border-slate-200 text-center font-serif space-y-0.5">
-                    <p className="text-[11px] font-bold text-slate-600 uppercase font-sans">
-                      {editIdentityData.kopLine1}
-                    </p>
-                    <p className="text-sm font-black text-slate-900 uppercase tracking-wider font-sans">
-                      {editIdentityData.kopLine2}
-                    </p>
-                    <p className="text-[10px] text-slate-500 font-sans">
-                      {editIdentityData.kopContact}
-                    </p>
+                  <div className="bg-white p-4 rounded-lg border border-slate-200 font-serif">
+                    <div className="flex items-center gap-3">
+                      <CampusLogo
+                        url={profile?.logoUrl}
+                        initials={profile?.logoInitials || ''}
+                        className="w-14 h-14 shrink-0 rounded-full bg-[#1E3A8A] text-white font-black text-sm flex items-center justify-center"
+                      />
+                      <div className="flex-1 text-center space-y-0.5 pr-14">
+                        <p className="text-[11px] font-bold text-slate-600 uppercase font-sans">
+                          {editIdentityData.kopLine1}
+                        </p>
+                        <p className="text-sm font-black text-slate-900 uppercase tracking-wider font-sans">
+                          {editIdentityData.kopLine2}
+                        </p>
+                        <p className="text-[10px] text-slate-500 font-sans">
+                          {editIdentityData.kopContact}
+                        </p>
+                      </div>
+                    </div>
                     <div
                       className={`pt-2 mt-2 ${
                         editIdentityData.doubleBorderKop

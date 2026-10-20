@@ -1,5 +1,7 @@
 'use client';
 
+import { confirmDialog } from '@/components/ui/ConfirmHost';
+
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
@@ -234,7 +236,7 @@ export default function LecturerP3mPage() {
 
   // Delete Handler
   const handleDeleteReport = async (item: P3mReportItem) => {
-    if (!confirm(`Apakah Anda yakin ingin menghapus data laporan "${item.title}"?`)) return;
+    if (!(await confirmDialog(`Apakah Anda yakin ingin menghapus data laporan "${item.title}"?`))) return;
 
     try {
       const res = await fetch(`${apiBase}/lecturers/p3m/${item.id}`, {

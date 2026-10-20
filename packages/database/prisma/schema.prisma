@@ -111,37 +111,37 @@ model User {
 /// Jabatan struktural (mis. Kepala Bagian, Dekan, Kaprodi) dan jabatan fungsional (mis. Lektor Kepala,
 /// Pranata Komputer) disimpan terpisah.
 model EmployeeProfile {
-  id                 String   @id @default(uuid())
-  userId             String   @unique
-  nip                String?
-  nidn               String?
-  gender             String?
-  category           String?
-  employmentStatus   String?
-  department         String?
-  structuralPosition String?
-  functionalPosition String?
-  education          String?
-  phone              String?
-  joinDate           String?
+  id                   String   @id @default(uuid())
+  userId               String   @unique
+  nip                  String?
+  nidn                 String?
+  gender               String?
+  category             String?
+  employmentStatus     String?
+  department           String?
+  structuralPosition   String?
+  functionalPosition   String?
+  education            String?
+  phone                String?
+  joinDate             String?
   // Khusus pegawai outsourcing: perusahaan penyedia tenaga kerja (vendor).
-  vendorName         String?
+  vendorName           String?
   // Email kontak pegawai non-dosen (yang tidak punya akun login).
-  contactEmail       String?
+  contactEmail         String?
   // Alamat domisili
-  streetAddress      String?
-  rtRw               String?
-  kelurahan          String?
-  kecamatan          String?
-  city               String?
-  province           String?
-  postalCode         String?
+  streetAddress        String?
+  rtRw                 String?
+  kelurahan            String?
+  kecamatan            String?
+  city                 String?
+  province             String?
+  postalCode           String?
   // Riwayat pendidikan terakhir
   educationInstitution String?
   educationMajor       String?
   graduationYear       String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -293,23 +293,24 @@ model Faculty {
 }
 
 model StudyProgram {
-  id                  String      @id @default(uuid())
-  facultyId           String
-  code                String      @unique
-  diktiCode           String?
-  name                String
-  degreeLevel         DegreeLevel @default(S1)
-  degreeTitle         String?
-  accreditation       String      @default("Unggul")
-  accreditationAgency String?     @default("BAN-PT / LAM")
-  skAkreditasi        String?
-  vision              String?     @db.Text
-  mission             String?     @db.Text
-  status              String      @default("Aktif")
-  studentsCount       Int         @default(0)
-  lecturersCount      Int         @default(0)
-  createdAt           DateTime    @default(now())
-  updatedAt           DateTime    @updatedAt
+  id                      String      @id @default(uuid())
+  facultyId               String
+  code                    String      @unique
+  diktiCode               String?
+  name                    String
+  degreeLevel             DegreeLevel @default(S1)
+  degreeTitle             String?
+  accreditation           String      @default("Unggul")
+  accreditationAgency     String?     @default("BAN-PT / LAM")
+  skAkreditasi            String?
+  accreditationValidUntil String?
+  vision                  String?     @db.Text
+  mission                 String?     @db.Text
+  status                  String      @default("Aktif")
+  studentsCount           Int         @default(0)
+  lecturersCount          Int         @default(0)
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
 
   faculty               Faculty                @relation(fields: [facultyId], references: [id], onDelete: Cascade)
   students              Student[]
@@ -1241,8 +1242,8 @@ model Room {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  building      Building      @relation(fields: [buildingId], references: [id], onDelete: Cascade)
-  courseClasses CourseClass[]
+  building        Building      @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  courseClasses   CourseClass[]
   practiceClasses CourseClass[] @relation("PracticeRoom")
 
   examSchedules ExamSchedule[]

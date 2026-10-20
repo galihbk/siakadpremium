@@ -6,6 +6,13 @@ function semesterTypeLabel(type: string): string {
   return type === 'ODD' ? 'Gasal' : type === 'EVEN' ? 'Genap' : 'Pendek';
 }
 
+/** Minggu perkuliahan ke-N sejak tanggal mulai semester (minimal 1); null bila belum dimulai atau sudah berakhir. */
+function lectureWeek(start: Date, end: Date): number | null {
+  const now = Date.now();
+  if (now < start.getTime() || now > end.getTime()) return null;
+  return Math.floor((now - start.getTime()) / (7 * 24 * 3600 * 1000)) + 1;
+}
+
 function semesterTypeFromLabel(label: string): 'ODD' | 'EVEN' | 'SHORT' {
   return label === 'Genap' ? 'EVEN' : label === 'Pendek' ? 'SHORT' : 'ODD';
 }
@@ -87,7 +94,7 @@ export class AcademicService {
         studyProgramsCount,
         studentsCount,
         lecturersCount,
-        accreditation: isUnggul ? 'Unggul' : 'Baik Sekali',
+        accreditation: isUnggul ? 'Unggul' : f.studyPrograms.find((p) => p.accreditation)?.accreditation || '-',
       };
     });
 
@@ -176,7 +183,15 @@ export class AcademicService {
     const totalDosen = totalDosenDb;
     const totalPegawai = totalPegawaiDb;
 
-    const semesterName = activeSem ? `${activeSem.name} ${semesterTypeLabel(activeSem.semesterType)}` : '2026/2027 Gasal';
+    const semesterName = activeSem ? `${activeSem.name} ${semesterTypeLabel(activeSem.semesterType)}` : 'Belum ada';
+    const week = activeSem ? lectureWeek(activeSem.startDate, activeSem.endDate) : null;
+    const semesterSubtitle = !activeSem
+      ? 'Belum ada tahun akademik aktif'
+      : week
+        ? `Minggu Perkuliahan ke-${week}`
+        : new Date() < activeSem.startDate
+          ? 'Perkuliahan belum dimulai'
+          : 'Perkuliahan telah berakhir';
 
     // Filter active faculties that have programs or are primary entries
     const cleanFaculties = facultiesWithProdi.filter(
@@ -194,8 +209,8 @@ export class AcademicService {
       },
       {
         title: 'Total Program Studi',
-        value: String(totalProdiCount || 12),
-        subtitle: `${totalProdiCount || 12} Program Studi S1, D4 & D3`,
+        value: String(totalProdiCount),
+        subtitle: `${totalProdiCount} Program Studi S1, D4 & D3`,
         rawCount: totalProdiCount,
       },
       {
@@ -219,9 +234,9 @@ export class AcademicService {
       {
         title: 'Semester Aktif',
         value: semesterName,
-        subtitle: 'Minggu Perkuliahan ke-4',
+        subtitle: semesterSubtitle,
         isBadge: true,
-        badgeText: 'Aktif',
+        badgeText: activeSem ? 'Aktif' : 'Belum diatur',
       },
     ];
 
@@ -244,7 +259,7 @@ export class AcademicService {
         studyProgramsCount: prodisCount,
         studentsCount: studentsSum,
         lecturersCount: lecturersSum,
-        accreditation: isUnggul ? 'Unggul' : 'Baik Sekali',
+        accreditation: isUnggul ? 'Unggul' : f.studyPrograms.find((p) => p.accreditation)?.accreditation || '-',
       };
     });
 
@@ -418,6 +433,9 @@ export class AcademicService {
         activeCourses: activeCoursesCount,
         activeRooms: totalRoomsCount,
         avgGpa,
+        krsEndDate: activeSem?.krsEndDate ? activeSem.krsEndDate.toISOString() : null,
+        krsOpen: activeSem ? computeIsKrsOpen(activeSem) : false,
+        hasActiveYear: Boolean(activeSem),
       },
     };
   }
@@ -433,17 +451,18 @@ export class AcademicService {
         semester: `${semesterTypeLabel(activeYear.semesterType)} (Aktif)`,
         krsPeriod: `${activeYear.krsStartDate?.toISOString().slice(0, 10) || '-'} - ${activeYear.krsEndDate?.toISOString().slice(0, 10) || '-'}`,
         status: 'Sedang Berlangsung',
-        currentWeek: 4,
+        currentWeek: lectureWeek(activeYear.startDate, activeYear.endDate) ?? 0,
       };
     }
 
+    // Belum ada tahun akademik aktif di database: jangan menampilkan data karangan.
     return {
-      code: '20261',
-      name: 'Tahun Akademik 2026/2027',
-      semester: 'Gasal (Ganjil)',
-      krsPeriod: '15 Agustus 2026 - 31 Agustus 2026',
-      status: 'Sedang Berlangsung',
-      currentWeek: 4,
+      code: '',
+      name: 'Belum ada tahun akademik aktif',
+      semester: '-',
+      krsPeriod: '-',
+      status: 'Belum diatur',
+      currentWeek: 0,
     };
   }
 
@@ -824,13 +843,15 @@ export class AcademicService {
   }
 
   async createCalendarEvent(data: any) {
+    // Tanpa tahun akademik di isian, pakai tahun akademik aktif dari database (bukan angka tetap).
+    const activeYear = data.academicYear ? null : await this.prisma.academicYear.findFirst({ where: { isActive: true } });
     return this.prisma.calendarEvent.create({
       data: {
         title: data.title.trim(),
         category: data.category,
         startDate: data.startDate,
         endDate: data.endDate,
-        academicYear: data.academicYear || '2026/2027',
+        academicYear: data.academicYear || activeYear?.name || '',
         semester: data.semester || 'Gasal',
         target: data.target?.trim() || 'Seluruh Sivitas Akademika',
         status: data.status || 'Akan Datang',

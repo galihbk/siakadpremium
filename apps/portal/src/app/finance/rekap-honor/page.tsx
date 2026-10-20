@@ -1,4 +1,6 @@
 'use client';
+
+import { confirmDialog } from '@/components/ui/ConfirmHost';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getApiBaseUrl } from '@/lib/api';
@@ -100,7 +102,7 @@ export default function RekapHonorPage() {
   const years = Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i);
 
   const handleMarkPaid = async (row: HonorRow) => {
-    if (!confirm(`Tandai honor ${row.fullName} untuk ${MONTH_NAMES[month - 1]} ${year} sebagai sudah dibayar?\n\nAngka saat ini akan dibekukan -- perubahan data SKS/tarif setelah ini tidak akan mengubah nominal yang sudah ditandai dibayar.`)) {
+    if (!(await confirmDialog(`Tandai honor ${row.fullName} untuk ${MONTH_NAMES[month - 1]} ${year} sebagai sudah dibayar?\n\nAngka saat ini akan dibekukan -- perubahan data SKS/tarif setelah ini tidak akan mengubah nominal yang sudah ditandai dibayar.`))) {
       return;
     }
     setTogglingUserId(row.userId);
@@ -121,7 +123,7 @@ export default function RekapHonorPage() {
   };
 
   const handleUnmarkPaid = async (row: HonorRow) => {
-    if (!confirm(`Batalkan status sudah dibayar untuk ${row.fullName} di periode ${MONTH_NAMES[month - 1]} ${year}? Nominal akan kembali dihitung live.`)) {
+    if (!(await confirmDialog(`Batalkan status sudah dibayar untuk ${row.fullName} di periode ${MONTH_NAMES[month - 1]} ${year}? Nominal akan kembali dihitung live.`))) {
       return;
     }
     setTogglingUserId(row.userId);

@@ -1,5 +1,7 @@
 'use client';
 
+import { confirmDialog } from '@/components/ui/ConfirmHost';
+
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Search, Plus, RefreshCw, Pencil, Trash2, Megaphone } from 'lucide-react';
@@ -66,7 +68,7 @@ export function BeritaTable({ basePath = '/admin/berita' }: { basePath?: string 
   };
 
   const handleDelete = async (a: ArticleData) => {
-    if (!confirm(`Hapus berita "${a.title}"? Tindakan ini tidak dapat dibatalkan.`)) return;
+    if (!(await confirmDialog(`Hapus berita "${a.title}"? Tindakan ini tidak dapat dibatalkan.`))) return;
     setIsDeleting(true);
     try {
       const res = await fetch(`${apiBase}/landing-page/articles/${a.id}`, { method: 'DELETE', headers: authHeaders() });

@@ -15,7 +15,12 @@ export function CampusLogo({
 }) {
   if (url) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={url} alt={initials} className={`${className} object-contain bg-white p-0.5`} />;
+    // Gambar logo tampil apa adanya: hanya ukuran yang dipakai; bingkai/latar/sudut/bayangan khusus inisial dibuang.
+    const size = className
+      .split(/\s+/)
+      .filter((c) => /^([a-z]+:)?(w|h|min-w|min-h|max-w|max-h)-/.test(c) || c === 'shrink-0')
+      .join(' ');
+    return <img src={url} alt={initials} className={`${size} object-contain`} />;
   }
   return <div className={className}>{initials}</div>;
 }

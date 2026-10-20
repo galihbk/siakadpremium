@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { FeeRulesService } from '../finance/fee-rules.service';
@@ -571,7 +571,7 @@ export class StudentsService {
       throw new BadRequestException('Program studi tidak ditemukan.');
     }
 
-    const email = dto.email?.trim() || `${nim}@mahasiswa.itn.ac.id`;
+    const email = dto.email?.trim() || `${nim}@mahasiswa.local`;
     const existingUser = await this.prisma.user.findUnique({ where: { email } });
     if (existingUser) {
       throw new BadRequestException(`Email "${email}" sudah terdaftar dalam sistem.`);
@@ -664,6 +664,28 @@ export class StudentsService {
     }
 
     return this.findOne(id);
+  }
+
+  /** Menghapus mahasiswa beserta akun loginnya. Ditolak bila sudah punya riwayat akademik/keuangan (ubah statusnya saja). */
+  async remove(id: string) {
+    const student = await this.prisma.student.findUnique({ where: { id } });
+    if (!student) {
+      throw new NotFoundException(`Mahasiswa dengan ID "${id}" tidak ditemukan.`);
+    }
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.student.delete({ where: { id } });
+        await tx.user.delete({ where: { id: student.userId } });
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2003' || err?.code === 'P2014') {
+        throw new ConflictException(
+          'Mahasiswa ini sudah memiliki data KRS, nilai, atau tagihan sehingga tidak bisa dihapus. Ubah statusnya menjadi Cuti, Lulus, atau Drop Out.',
+        );
+      }
+      throw err;
+    }
+    return { deleted: true };
   }
 
   /** Jumlah mahasiswa bimbingan AKTIF per dosen PA -- mahasiswa cuti/lulus/DO/pindah tidak dihitung. */
@@ -947,6 +969,7 @@ export class StudentsService {
         return {
           id: s.id,
           nim: s.nim,
+          studyProgramId: s.studyProgramId,
           hasFeederId: Boolean(s.feederId),
           name: s.user.fullName,
           email: s.user.email,

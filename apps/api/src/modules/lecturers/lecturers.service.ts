@@ -369,6 +369,16 @@ export class LecturersService {
       throw new BadRequestException(`Email "${dto.email}" sudah terdaftar dalam sistem.`);
     }
 
+    if (!dto.nidn?.trim() && !dto.nuptk?.trim()) {
+      throw new BadRequestException('Isi NIDN atau NUPTK (salah satu wajib).');
+    }
+    if (dto.nuptk?.trim()) {
+      const existingNuptk = await this.prisma.lecturer.findFirst({ where: { nuptk: dto.nuptk.trim() } });
+      if (existingNuptk) {
+        throw new BadRequestException(`NUPTK "${dto.nuptk}" sudah terdaftar.`);
+      }
+    }
+
     // Check if NIDN already exists
     if (dto.nidn) {
       const existingNidn = await this.prisma.lecturer.findUnique({ where: { nidn: dto.nidn } });
@@ -377,7 +387,8 @@ export class LecturersService {
       }
     }
 
-    const password = dto.password || 'Password123!';
+    // Kata sandi awal = NIDN/NUPTK dosen itu sendiri (bukan sandi tetap yang sama untuk semua akun).
+    const password = dto.password || (dto.nidn || dto.nuptk || '').trim();
     const passwordHash = await bcrypt.hash(password, 10);
 
     // Resolve studyProgramId
@@ -403,7 +414,7 @@ export class LecturersService {
       data: {
         userId: user.id,
         studyProgramId,
-        nidn: dto.nidn || `04${Date.now().toString().slice(-8)}`,
+        nidn: dto.nidn?.trim() || null,
         nuptk: dto.nuptk || null,
         nip: dto.nip || null,
         titlePrefix: dto.titlePrefix || null,

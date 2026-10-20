@@ -1,5 +1,6 @@
 'use client';
 
+import { ConfirmHost } from '@/components/ui/ConfirmHost';
 import { DocumentTitle } from '@/components/DocumentTitle';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -37,6 +38,7 @@ export default function RootLayout({
         <CopyrightBanner />
         <AuthFetchInstaller />
         <DocumentTitle />
+        <ConfirmHost />
         <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
       </body>
     </html>

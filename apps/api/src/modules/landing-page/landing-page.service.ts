@@ -95,7 +95,10 @@ export class LandingPageService {
         where: { id: 'default-setting' },
       });
       if (dbSettings) {
-        return dbSettings;
+        // Semester & tahun akademik aktif bersumber dari tabel Tahun Akademik (bukan isian profil).
+        const active = await this.prisma.academicYear.findFirst({ where: { isActive: true } });
+        const label = active ? (active.semesterType === 'ODD' ? 'Gasal' : active.semesterType === 'EVEN' ? 'Genap' : 'Pendek') : '';
+        return { ...dbSettings, activeAcademicYear: active?.name ?? '', activeSemester: label };
       }
     } catch {
       // Fallback to memory

@@ -1,5 +1,7 @@
 'use client';
 
+import { confirmDialog } from '@/components/ui/ConfirmHost';
+
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
@@ -267,7 +269,7 @@ export default function AdminGedungPage() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (confirm(`Hapus data gedung "${name}"? Seluruh data terkait gedung ini akan disesuaikan.`)) {
+    if ((await confirmDialog(`Hapus data gedung "${name}"? Seluruh data terkait gedung ini akan disesuaikan.`))) {
       try {
         const res = await fetch(`${apiBase}/buildings/${id}`, {
           method: 'DELETE',

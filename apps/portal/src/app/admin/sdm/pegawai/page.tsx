@@ -1,5 +1,7 @@
 'use client';
 
+import { confirmDialog } from '@/components/ui/ConfirmHost';
+
 import { useInstitution } from '@/lib/useInstitution';
 import { CampusLogo } from '@/components/common/CampusLogo';
 import React, { useState, useMemo, useEffect } from 'react';
@@ -195,7 +197,7 @@ export default function SdmPegawaiPage() {
   }, [employees]);
 
   const handleDelete = async (id: string, name: string) => {
-    if (confirm(`Apakah Anda yakin ingin menghapus data pegawai "${name}" dari database?`)) {
+    if ((await confirmDialog(`Apakah Anda yakin ingin menghapus data pegawai "${name}" dari database?`))) {
       try {
         const res = await fetch(`${apiBase}/employees/${id}`, {
           method: 'DELETE',

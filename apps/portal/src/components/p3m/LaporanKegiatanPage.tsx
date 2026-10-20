@@ -1,5 +1,7 @@
 'use client';
 
+import { confirmDialog } from '@/components/ui/ConfirmHost';
+
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
@@ -197,7 +199,7 @@ export function LaporanKegiatanPage({ config }: { config: LaporanConfig }) {
   };
 
   const remove = async (item: LaporanItem) => {
-    if (!confirm(`Hapus laporan "${item.title}"?`)) return;
+    if (!(await confirmDialog(`Hapus laporan "${item.title}"?`))) return;
     try {
       const res = await fetch(`${apiBase}/lp3m/research/${item.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

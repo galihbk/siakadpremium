@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
@@ -73,6 +74,7 @@ export interface FacultyOption {
 }
 
 export default function SuperAdminDosenPage() {
+  const router = useRouter();
   const [lecturers, setLecturers] = useState<LecturerItem[]>([]);
   const [studyPrograms, setStudyPrograms] = useState<StudyProgramOption[]>([]);
   const [faculties, setFaculties] = useState<FacultyOption[]>([]);
@@ -509,10 +511,10 @@ export default function SuperAdminDosenPage() {
               <ChevronRight className="w-3.5 h-3.5" />
               <span>Pengguna</span>
               <ChevronRight className="w-3.5 h-3.5" />
-              <span className="text-emerald-700">Dosen</span>
+              <span className="text-blue-700">Dosen</span>
             </div>
             <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-slate-900 flex items-center gap-3">
-              <span className="p-2.5 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white shadow-lg shadow-emerald-500/20">
+              <span className="p-2.5 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white shadow-lg shadow-blue-500/20">
                 <GraduationCap className="w-6 h-6" />
               </span>
               Manajemen Akun Dosen
@@ -524,10 +526,10 @@ export default function SuperAdminDosenPage() {
 
           <div className="flex items-center gap-3 self-start md:self-auto">
             <button
-              onClick={openAddModal}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-sm font-semibold shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all duration-200 transform hover:-translate-y-0.5 active:translate-y-0"
+              onClick={() => router.push('/admin/superadmin/dosen/baru')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1E3A8A] hover:bg-[#172554] text-white text-sm font-semibold shadow-sm transition-all duration-200 transform hover:-translate-y-0.5 active:translate-y-0"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4 text-[#D4A017]" />
               <span>Buat Akun Dosen</span>
             </button>
           </div>
@@ -535,33 +537,33 @@ export default function SuperAdminDosenPage() {
 
         {/* Metric Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="relative overflow-hidden p-5 rounded-2xl bg-white border border-slate-200 shadow-sm backdrop-blur-sm group hover:border-emerald-300 transition-all">
+          <div className="relative overflow-hidden p-5 rounded-2xl bg-white border border-slate-200 shadow-sm backdrop-blur-sm group hover:border-blue-300 transition-all">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Akun Dosen</p>
                 <h3 className="text-2xl font-bold text-slate-900 mt-1.5">{stats.total}</h3>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 group-hover:scale-110 transition-transform">
+              <div className="w-12 h-12 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 group-hover:scale-110 transition-transform">
                 <GraduationCap className="w-6 h-6" />
               </div>
             </div>
             <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
-              <span className="text-emerald-700 font-medium">Terdaftar</span> di sistem informasi akademik
+              <span className="text-blue-700 font-medium">Terdaftar</span> di sistem informasi akademik
             </div>
           </div>
 
-          <div className="relative overflow-hidden p-5 rounded-2xl bg-white border border-slate-200 shadow-sm backdrop-blur-sm group hover:border-teal-300 transition-all">
+          <div className="relative overflow-hidden p-5 rounded-2xl bg-white border border-slate-200 shadow-sm backdrop-blur-sm group hover:border-indigo-300 transition-all">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Dosen Aktif</p>
                 <h3 className="text-2xl font-bold text-slate-900 mt-1.5">{stats.active}</h3>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-700 group-hover:scale-110 transition-transform">
+              <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-700 group-hover:scale-110 transition-transform">
                 <UserCheck className="w-6 h-6" />
               </div>
             </div>
             <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
-              <span className="text-teal-700 font-medium">
+              <span className="text-indigo-700 font-medium">
                 {stats.total ? Math.round((stats.active / stats.total) * 100) : 0}%
               </span>{' '}
               memiliki status login aktif
@@ -613,7 +615,7 @@ export default function SuperAdminDosenPage() {
                   setSearchQuery(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="w-full pl-10 pr-4 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                className="w-full pl-10 pr-4 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
               />
             </div>
 
@@ -624,7 +626,7 @@ export default function SuperAdminDosenPage() {
                 setProdiFilter(e.target.value);
                 setCurrentPage(1);
               }}
-              className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             >
               {prodiFilterOptions.map((opt) => (
                 <option key={opt} value={opt}>
@@ -640,7 +642,7 @@ export default function SuperAdminDosenPage() {
                 setStatusFilter(e.target.value as any);
                 setCurrentPage(1);
               }}
-              className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             >
               <option value="Semua">Semua Status Akun</option>
               <option value="Aktif">Status Aktif</option>
@@ -654,7 +656,7 @@ export default function SuperAdminDosenPage() {
                 setAdvisorFilter(e.target.value as any);
                 setCurrentPage(1);
               }}
-              className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             >
               <option value="Semua">Semua Peran</option>
               <option value="PA">Dosen Pembimbing (PA)</option>
@@ -696,7 +698,7 @@ export default function SuperAdminDosenPage() {
         {/* Content Section (Loading or Table / Grid) */}
         {isLoading ? (
           <div className="p-16 flex flex-col items-center justify-center rounded-2xl bg-slate-50 border border-slate-200 text-slate-400">
-            <Loader2 className="w-8 h-8 animate-spin text-emerald-700 mb-3" />
+            <Loader2 className="w-8 h-8 animate-spin text-blue-700 mb-3" />
             <p className="text-sm font-medium">Memuat data akun dosen...</p>
           </div>
         ) : filteredLecturers.length === 0 ? (
@@ -772,11 +774,11 @@ export default function SuperAdminDosenPage() {
                         {/* Name & Titles */}
                         <td className="py-3.5 px-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-100 to-teal-100 border border-emerald-300 flex items-center justify-center font-bold text-emerald-700 text-xs shrink-0 shadow-inner">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-100 to-indigo-100 border border-blue-300 flex items-center justify-center font-bold text-blue-700 text-xs shrink-0 shadow-inner">
                               {initials}
                             </div>
                             <div>
-                              <div className="font-medium text-slate-900 group-hover:text-emerald-800 transition-colors">
+                              <div className="font-medium text-slate-900 group-hover:text-blue-800 transition-colors">
                                 {lec.fullName}
                               </div>
                               <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
@@ -788,7 +790,7 @@ export default function SuperAdminDosenPage() {
 
                         {/* NIDN & NIP */}
                         <td className="py-3.5 px-4 whitespace-nowrap">
-                          <div className="font-mono text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block">
+                          <div className="font-mono text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 inline-block">
                             NIDN: {lec.nidn}
                           </div>
                           {lec.nip && (
@@ -815,7 +817,7 @@ export default function SuperAdminDosenPage() {
                             <span>{lec.email}</span>
                           </div>
                           <div className="text-xs text-slate-500 mt-0.5">
-                            Role: <span className="text-emerald-700/90 font-mono">LECTURER</span>
+                            Role: <span className="text-blue-700/90 font-mono">LECTURER</span>
                           </div>
                         </td>
 
@@ -853,7 +855,7 @@ export default function SuperAdminDosenPage() {
                             {/* View Credentials */}
                             <button
                               onClick={() => setViewingCredential(lec)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-blue-700 hover:bg-blue-50 transition-colors"
                               title="Lihat Kredensial & Profil"
                             >
                               <IdCard className="w-4 h-4" />
@@ -971,20 +973,20 @@ export default function SuperAdminDosenPage() {
               return (
                 <div
                   key={lec.id}
-                  className="p-5 rounded-2xl bg-white border border-slate-200 hover:border-emerald-300 transition-all duration-200 flex flex-col justify-between group shadow-sm"
+                  className="p-5 rounded-2xl bg-white border border-slate-200 hover:border-blue-300 transition-all duration-200 flex flex-col justify-between group shadow-sm"
                 >
                   <div>
                     {/* Header */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-emerald-100 to-teal-100 border border-emerald-300 flex items-center justify-center font-bold text-emerald-700 text-sm shrink-0">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-100 to-indigo-100 border border-blue-300 flex items-center justify-center font-bold text-blue-700 text-sm shrink-0">
                           {initials}
                         </div>
                         <div>
-                          <h4 className="font-semibold text-slate-900 text-sm group-hover:text-emerald-800 transition-colors leading-snug">
+                          <h4 className="font-semibold text-slate-900 text-sm group-hover:text-blue-800 transition-colors leading-snug">
                             {lec.fullName}
                           </h4>
-                          <span className="text-xs text-emerald-700 font-mono font-medium">
+                          <span className="text-xs text-blue-700 font-mono font-medium">
                             NIDN: {lec.nidn}
                           </span>
                         </div>
@@ -1036,7 +1038,7 @@ export default function SuperAdminDosenPage() {
                   <div className="mt-5 pt-3 border-t border-slate-200 flex items-center justify-between">
                     <button
                       onClick={() => setViewingCredential(lec)}
-                      className="text-xs font-medium text-emerald-700 hover:text-emerald-800 flex items-center gap-1"
+                      className="text-xs font-medium text-blue-700 hover:text-blue-800 flex items-center gap-1"
                     >
                       <IdCard className="w-3.5 h-3.5" />
                       Kredensial
@@ -1098,8 +1100,8 @@ export default function SuperAdminDosenPage() {
           title="Buat Akun Dosen Baru"
         >
           <form onSubmit={handleCreateLecturer} className="space-y-4">
-            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-start gap-2.5">
-              <Sparkles className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+            <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-800 flex items-start gap-2.5">
+              <Sparkles className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
               <span>
                 Akun dosen yang dibuat akan langsung memiliki hak akses portal sebagai <strong>LECTURER</strong> dan dapat login menggunakan alamat email serta kata sandi yang Anda tentukan di bawah.
               </span>
@@ -1116,7 +1118,7 @@ export default function SuperAdminDosenPage() {
                   placeholder="Contoh: Dr., Prof. Dr., Ir."
                   value={formData.titlePrefix}
                   onChange={(e) => setFormData({ ...formData, titlePrefix: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
@@ -1130,7 +1132,7 @@ export default function SuperAdminDosenPage() {
                   placeholder="Contoh: M.Kom., S.T., M.T., Ph.D."
                   value={formData.titleSuffix}
                   onChange={(e) => setFormData({ ...formData, titleSuffix: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                 />
               </div>
             </div>
@@ -1146,7 +1148,7 @@ export default function SuperAdminDosenPage() {
                 placeholder="Masukkan nama lengkap tanpa gelar"
                 value={formData.fullName}
                 onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+                className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500"
               />
             </div>
 
@@ -1162,7 +1164,7 @@ export default function SuperAdminDosenPage() {
                   placeholder="Contoh: 0412088501 (10 digit)"
                   value={formData.nidn}
                   onChange={(e) => setFormData({ ...formData, nidn: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 font-mono"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-mono"
                 />
               </div>
 
@@ -1176,7 +1178,7 @@ export default function SuperAdminDosenPage() {
                   placeholder="Contoh: 19850812 201012 1 003"
                   value={formData.nip}
                   onChange={(e) => setFormData({ ...formData, nip: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 font-mono"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-mono"
                 />
               </div>
             </div>
@@ -1190,7 +1192,7 @@ export default function SuperAdminDosenPage() {
                 required
                 value={formData.studyProgramId}
                 onChange={(e) => setFormData({ ...formData, studyProgramId: e.target.value })}
-                className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 focus:outline-none focus:border-emerald-500"
+                className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 focus:outline-none focus:border-blue-500"
               >
                 <option value="">Pilih Program Studi</option>
                 {studyPrograms.map((prodi) => (
@@ -1213,7 +1215,7 @@ export default function SuperAdminDosenPage() {
                   placeholder="nama.dosen@kampus.ac.id"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 font-mono"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-mono"
                 />
               </div>
 
@@ -1227,7 +1229,7 @@ export default function SuperAdminDosenPage() {
                   required
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 focus:outline-none focus:border-emerald-500 font-mono"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 focus:outline-none focus:border-blue-500 font-mono"
                 />
                 <p className="text-[11px] text-slate-500 mt-1">Dosen dapat mengubah kata sandi ini setelah berhasil masuk.</p>
               </div>
@@ -1243,7 +1245,7 @@ export default function SuperAdminDosenPage() {
                 placeholder="Contoh: 0812-3456-7890"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+                className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500"
               />
             </div>
 
@@ -1254,7 +1256,7 @@ export default function SuperAdminDosenPage() {
                 id="isAcademicAdvisor"
                 checked={formData.isAcademicAdvisor}
                 onChange={(e) => setFormData({ ...formData, isAcademicAdvisor: e.target.checked })}
-                className="w-4 h-4 rounded text-emerald-500 bg-white border-slate-300 focus:ring-emerald-500 focus:ring-offset-white"
+                className="w-4 h-4 rounded text-blue-500 bg-white border-slate-300 focus:ring-blue-500 focus:ring-offset-white"
               />
               <label htmlFor="isAcademicAdvisor" className="text-xs text-slate-700 cursor-pointer">
                 <strong>Tetapkan sebagai Pembimbing Akademik (Dosen PA)</strong>
@@ -1275,7 +1277,7 @@ export default function SuperAdminDosenPage() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex items-center gap-2 px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-semibold shadow-lg shadow-emerald-500/20 transition-all"
+                className="flex items-center gap-2 px-5 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white text-xs font-semibold shadow-lg shadow-blue-500/20 transition-all"
               >
                 {isSubmitting ? (
                   <>
@@ -1309,7 +1311,7 @@ export default function SuperAdminDosenPage() {
                   type="text"
                   value={formData.titlePrefix}
                   onChange={(e) => setFormData({ ...formData, titlePrefix: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 focus:outline-none focus:border-emerald-500"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 focus:outline-none focus:border-blue-500"
                 />
               </div>
               <div>
@@ -1318,7 +1320,7 @@ export default function SuperAdminDosenPage() {
                   type="text"
                   value={formData.titleSuffix}
                   onChange={(e) => setFormData({ ...formData, titleSuffix: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 focus:outline-none focus:border-emerald-500"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 focus:outline-none focus:border-blue-500"
                 />
               </div>
             </div>
@@ -1332,7 +1334,7 @@ export default function SuperAdminDosenPage() {
                 required
                 value={formData.fullName}
                 onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 focus:outline-none focus:border-emerald-500"
+                className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 focus:outline-none focus:border-blue-500"
               />
             </div>
 
@@ -1346,7 +1348,7 @@ export default function SuperAdminDosenPage() {
                   required
                   value={formData.nidn}
                   onChange={(e) => setFormData({ ...formData, nidn: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 font-mono focus:outline-none focus:border-emerald-500"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 font-mono focus:outline-none focus:border-blue-500"
                 />
               </div>
               <div>
@@ -1355,7 +1357,7 @@ export default function SuperAdminDosenPage() {
                   type="text"
                   value={formData.nip}
                   onChange={(e) => setFormData({ ...formData, nip: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 font-mono focus:outline-none focus:border-emerald-500"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 font-mono focus:outline-none focus:border-blue-500"
                 />
               </div>
             </div>
@@ -1365,7 +1367,7 @@ export default function SuperAdminDosenPage() {
               <select
                 value={formData.studyProgramId}
                 onChange={(e) => setFormData({ ...formData, studyProgramId: e.target.value })}
-                className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 focus:outline-none focus:border-emerald-500"
+                className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 focus:outline-none focus:border-blue-500"
               >
                 <option value="">Pilih Program Studi</option>
                 {studyPrograms.map((prodi) => (
@@ -1386,7 +1388,7 @@ export default function SuperAdminDosenPage() {
                   required
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 font-mono focus:outline-none focus:border-emerald-500"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 font-mono focus:outline-none focus:border-blue-500"
                 />
               </div>
               <div>
@@ -1395,7 +1397,7 @@ export default function SuperAdminDosenPage() {
                   type="text"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 focus:outline-none focus:border-emerald-500"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 focus:outline-none focus:border-blue-500"
                 />
               </div>
             </div>
@@ -1408,7 +1410,7 @@ export default function SuperAdminDosenPage() {
                   id="editIsAcademicAdvisor"
                   checked={formData.isAcademicAdvisor}
                   onChange={(e) => setFormData({ ...formData, isAcademicAdvisor: e.target.checked })}
-                  className="w-4 h-4 rounded text-emerald-500 bg-white border-slate-300"
+                  className="w-4 h-4 rounded text-blue-500 bg-white border-slate-300"
                 />
                 <label htmlFor="editIsAcademicAdvisor" className="text-xs text-slate-700 cursor-pointer">
                   Tetapkan sebagai Pembimbing Akademik (Dosen PA)
@@ -1421,7 +1423,7 @@ export default function SuperAdminDosenPage() {
                   id="editIsActive"
                   checked={formData.isActive}
                   onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                  className="w-4 h-4 rounded text-emerald-500 bg-white border-slate-300"
+                  className="w-4 h-4 rounded text-blue-500 bg-white border-slate-300"
                 />
                 <label htmlFor="editIsActive" className="text-xs text-slate-700 cursor-pointer">
                   Status Akun Aktif (Dapat Login ke Portal)
@@ -1534,11 +1536,11 @@ export default function SuperAdminDosenPage() {
           {viewingCredential && (
             <div className="space-y-5">
               {/* Card Badge */}
-              <div className="relative overflow-hidden p-6 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-300 shadow-2xl">
+              <div className="relative overflow-hidden p-6 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-300 shadow-2xl">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 p-0.5 shadow-lg">
-                      <div className="w-full h-full rounded-[14px] bg-white flex items-center justify-center font-bold text-emerald-700 text-base">
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-500 to-indigo-400 p-0.5 shadow-lg">
+                      <div className="w-full h-full rounded-[14px] bg-white flex items-center justify-center font-bold text-blue-700 text-base">
                         {viewingCredential.fullName
                           .replace(/Dr\.|Prof\.|Ir\.|M\.Kom|S\.T|M\.T|S\.Kom|M\.Sc|M\.Eng|M\.M|Ak\.|S\.E\./gi, '')
                           .trim()
@@ -1554,7 +1556,7 @@ export default function SuperAdminDosenPage() {
                       <h3 className="text-base font-bold text-slate-900 leading-tight">
                         {viewingCredential.fullName}
                       </h3>
-                      <p className="text-xs text-emerald-700 font-mono mt-0.5">
+                      <p className="text-xs text-blue-700 font-mono mt-0.5">
                         NIDN: {viewingCredential.nidn}
                       </p>
                       {viewingCredential.nip && (
@@ -1624,7 +1626,7 @@ export default function SuperAdminDosenPage() {
                     title="Salin Email"
                   >
                     {copiedField === 'email' ? (
-                      <Check className="w-4 h-4 text-emerald-700" />
+                      <Check className="w-4 h-4 text-blue-700" />
                     ) : (
                       <Copy className="w-4 h-4" />
                     )}
@@ -1647,7 +1649,7 @@ export default function SuperAdminDosenPage() {
                     title="Salin Tautan"
                   >
                     {copiedField === 'url' ? (
-                      <Check className="w-4 h-4 text-emerald-700" />
+                      <Check className="w-4 h-4 text-blue-700" />
                     ) : (
                       <Copy className="w-4 h-4" />
                     )}

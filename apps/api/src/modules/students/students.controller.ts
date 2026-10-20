@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, Query, Req, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req, UnauthorizedException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
 import { StudentsService, CreateStudentDto, UpdateStudentDto } from './students.service';
@@ -100,5 +100,11 @@ export class StudentsController {
   @ApiOperation({ summary: 'Memperbarui data satu mahasiswa berdasarkan ID' })
   async update(@Param('id') id: string, @Body() dto: UpdateStudentDto) {
     return this.studentsService.update(id, dto);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Menghapus mahasiswa beserta akunnya (ditolak bila sudah punya riwayat akademik/keuangan)' })
+  async remove(@Param('id') id: string) {
+    return this.studentsService.remove(id);
   }
 }
