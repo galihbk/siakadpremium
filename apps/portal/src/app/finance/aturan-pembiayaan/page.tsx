@@ -1,5 +1,6 @@
 'use client';
 
+import { RupiahInput } from '@/components/ui/RupiahInput';
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { PortalLayout } from '@/components/layout/PortalLayout';
@@ -56,6 +57,9 @@ export default function AdminAturanPembiayaanPage() {
   const [tracks, setTracks] = useState<AdmissionTrackItem[]>([]);
   const [classes, setClasses] = useState<AdmissionClassItem[]>([]);
   const [batches, setBatches] = useState<AdmissionBatchItem[]>([]);
+  const [academicYearNames, setAcademicYearNames] = useState<string[]>([]);
+  const yearOptions = (extra: string[] = []) =>
+    Array.from(new Set([...academicYearNames, ...extra.filter(Boolean)])).sort().reverse();
   const [studyPrograms, setStudyPrograms] = useState<Array<{ id: string; name: string; code: string }>>([]);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -159,6 +163,7 @@ export default function AdminAturanPembiayaanPage() {
         classRes,
         batchRes,
         prodiRes,
+        yearsRes,
       ] = await Promise.all([
         fetch(`${apiBase}/finance/fee-rules/rules`, { cache: 'no-store' }),
         fetch(`${apiBase}/finance/fee-rules/components`, { cache: 'no-store' }),
@@ -168,6 +173,7 @@ export default function AdminAturanPembiayaanPage() {
         fetch(`${apiBase}/admissions/admin/pmb/classes`, { cache: 'no-store' }),
         fetch(`${apiBase}/admissions/admin/pmb/waves`, { cache: 'no-store' }),
         fetch(`${apiBase}/study-programs`, { cache: 'no-store' }),
+        fetch(`${apiBase}/academic/years`, { cache: 'no-store' }),
       ]);
 
       if (rulesRes.ok) {
@@ -197,6 +203,12 @@ export default function AdminAturanPembiayaanPage() {
       if (batchRes.ok) {
         const json = await batchRes.json();
         setBatches(json.data || json || []);
+      }
+      if (yearsRes.ok) {
+        const json = await yearsRes.json();
+        const list = json.data || json || [];
+        // Ganjil & genap berbagi nama tahun akademik yang sama -> ambil nama uniknya saja
+        setAcademicYearNames(Array.from(new Set((list as Array<{ name?: string }>).map((y) => y.name || '').filter(Boolean))));
       }
       if (prodiRes.ok) {
         const json = await prodiRes.json();
@@ -699,7 +711,7 @@ export default function AdminAturanPembiayaanPage() {
               {activeTab === 'components' && (
                 <button
                   onClick={() => openCompModal()}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white text-sm font-semibold transition shadow-md shadow-amber-900/30"
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1E3A8A] hover:bg-[#172554] text-white text-sm font-semibold transition shadow-sm"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Tambah Komponen</span>
@@ -810,8 +822,11 @@ export default function AdminAturanPembiayaanPage() {
                   className="text-sm px-3 py-1.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 >
                   <option value="ALL">Semua Periode</option>
-                  <option value="2026/2027">2026/2027</option>
-                  <option value="2027/2028">2027/2028</option>
+                  {yearOptions(rules.map((r) => r.academicYear || '')).map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -848,17 +863,6 @@ export default function AdminAturanPembiayaanPage() {
                               <h3 className="font-bold text-slate-900 text-base">{rule.name}</h3>
                               <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-semibold">
                                 {rule.code}
-                              </span>
-                              <span
-                                className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${
-                                  rule.priority >= 80
-                                    ? 'bg-purple-100 text-purple-700 border border-purple-200'
-                                    : rule.priority >= 60
-                                      ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                                      : 'bg-slate-100 text-slate-700 border border-slate-200'
-                                }`}
-                              >
-                                Prioritas: {rule.priority}
                               </span>
                               <span
                                 className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${
@@ -1287,12 +1291,12 @@ export default function AdminAturanPembiayaanPage() {
                     </select>
                   </div>
 
+
                   <div>
                     <label className="text-xs font-semibold text-slate-700 block mb-1">
                       6. Tahun Akademik:
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={simForm.academicYear}
                       onChange={(e) => {
                         const next = { ...simForm, academicYear: e.target.value };
@@ -1300,7 +1304,13 @@ export default function AdminAturanPembiayaanPage() {
                         executeSimulation(next);
                       }}
                       className="w-full text-xs p-2.5 rounded-lg border border-slate-300 bg-white"
-                    />
+                    >
+                      {yearOptions([simForm.academicYear]).map((y) => (
+                        <option key={y} value={y}>
+                          {y}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
@@ -1334,7 +1344,7 @@ export default function AdminAturanPembiayaanPage() {
                             {simResult.matchedRule.code}
                           </span>
                           <span className="text-xs text-slate-500 font-medium">
-                            Prioritas: <strong>{simResult.matchedRule.priority}</strong> &bull; Skor Spesifisitas:{' '}
+                            Skor Spesifisitas:{' '}
                             <strong>{simResult.matchedRule.specificity}</strong>
                           </span>
                         </div>
@@ -1555,7 +1565,7 @@ export default function AdminAturanPembiayaanPage() {
                 {/* Informasi Aturan */}
                 <div className="space-y-3">
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide">
-                    1. Identitas Aturan & Prioritas
+                    1. Identitas Aturan
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
@@ -1582,36 +1592,23 @@ export default function AdminAturanPembiayaanPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <div>
-                      <label className="text-xs font-semibold text-slate-700 block mb-1">
-                        Prioritas Evaluasi *
-                      </label>
-                      <input
-                        type="number"
-                        required
-                        min="1"
-                        max="100"
-                        value={ruleFormData.priority}
-                        onChange={(e) =>
-                          setRuleFormData({ ...ruleFormData, priority: parseInt(e.target.value) || 10 })
-                        }
-                        className="w-full text-xs p-2.5 rounded-lg border border-slate-300"
-                      />
-                      <span className="text-[10px] text-slate-400">Angka lebih tinggi = lebih diprioritaskan</span>
-                    </div>
-
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
                       <label className="text-xs font-semibold text-slate-700 block mb-1">
                         Tahun Akademik (Opsional)
                       </label>
-                      <input
-                        type="text"
-                        placeholder="Kosongkan jika semua tahun"
+                      <select
                         value={ruleFormData.academicYear}
                         onChange={(e) => setRuleFormData({ ...ruleFormData, academicYear: e.target.value })}
-                        className="w-full text-xs p-2.5 rounded-lg border border-slate-300"
-                      />
+                        className="w-full text-xs p-2.5 rounded-lg border border-slate-300 bg-white"
+                      >
+                        <option value="">-- Berlaku untuk Semua Tahun --</option>
+                        {yearOptions([ruleFormData.academicYear]).map((y) => (
+                          <option key={y} value={y}>
+                            {y}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
                     <div>
@@ -1915,12 +1912,12 @@ export default function AdminAturanPembiayaanPage() {
         {compModalOpen && createPortal(
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl overflow-hidden">
-              <div className="p-5 bg-gradient-to-r from-amber-700 to-amber-900 text-white flex items-center justify-between">
+              <div className="p-5 bg-gradient-to-r from-[#1E3A8A] to-[#172554] text-white flex items-center justify-between">
                 <div>
                   <h3 className="font-bold text-base">
                     {editingComp ? 'Edit Komponen Biaya' : 'Tambah Komponen Biaya Baru'}
                   </h3>
-                  <p className="text-xs text-amber-200 mt-0.5">Master komponen biaya dinamis dalam database.</p>
+                  <p className="text-xs text-blue-200 mt-0.5">Master komponen biaya dinamis dalam database.</p>
                 </div>
                 <button
                   onClick={() => setCompModalOpen(false)}
@@ -1958,14 +1955,10 @@ export default function AdminAturanPembiayaanPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-semibold text-slate-700 block mb-1">Tarif Dasar (Rp) *</label>
-                    <input
-                      type="number"
+                    <RupiahInput
                       required
-                      min="0"
                       value={compFormData.defaultAmount}
-                      onChange={(e) =>
-                        setCompFormData({ ...compFormData, defaultAmount: parseFloat(e.target.value) || 0 })
-                      }
+                      onChange={(n) => setCompFormData({ ...compFormData, defaultAmount: n })}
                       className="w-full text-xs p-2.5 rounded-lg border border-slate-300 font-mono"
                     />
                   </div>
@@ -2024,7 +2017,7 @@ export default function AdminAturanPembiayaanPage() {
                     <button
                       type="submit"
                       disabled={isSavingComp}
-                      className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/30 disabled:opacity-50"
+                      className="px-5 py-2 rounded-xl bg-[#1E3A8A] hover:bg-[#172554] text-white text-xs font-bold shadow-sm disabled:opacity-50"
                     >
                       {isSavingComp ? 'Menyimpan...' : 'Simpan Komponen'}
                     </button>

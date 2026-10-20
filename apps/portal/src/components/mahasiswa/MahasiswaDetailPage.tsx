@@ -1,5 +1,6 @@
 'use client';
 
+import { KelurahanField } from '@/components/common/KelurahanField';
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -241,6 +242,8 @@ const WIZARD_STEPS = [
   { key: 'sekolah', title: 'Sekolah', desc: 'Asal Sekolah' },
   { key: 'ortu', title: 'Orang Tua', desc: 'Data Ayah, Ibu & Wali' },
 ] as const;
+
+const RELIGION_OPTIONS = ['Islam', 'Kristen Protestan', 'Katolik', 'Hindu', 'Buddha', 'Konghucu'];
 
 export function MahasiswaDetailPage({
   id,
@@ -824,7 +827,12 @@ export function MahasiswaDetailPage({
                           </select>
                         </EditField>
                         <EditField label="Agama">
-                          <input className={inputCls} value={editForm.religion} onChange={(e) => setEditForm({ ...editForm, religion: e.target.value })} />
+                          <select className={inputCls} value={editForm.religion} onChange={(e) => setEditForm({ ...editForm, religion: e.target.value })}>
+                            <option value="">-- Pilih --</option>
+                            {(editForm.religion && !RELIGION_OPTIONS.includes(editForm.religion) ? [editForm.religion, ...RELIGION_OPTIONS] : RELIGION_OPTIONS).map((r) => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                          </select>
                         </EditField>
                       </div>
                     ) : (
@@ -908,18 +916,13 @@ export function MahasiswaDetailPage({
                             </select>
                           </EditField>
                           <EditField label="Kelurahan/Desa">
-                            <input
-                              className={inputCls}
-                              list="mhs-kelurahan-suggestions"
+                            <KelurahanField
                               value={editForm.kelurahan}
-                              placeholder={isLoadingVillages ? 'Memuat saran...' : 'Ketik manual kalau tidak ada di saran'}
-                              onChange={(e) => setEditForm({ ...editForm, kelurahan: e.target.value })}
+                              villages={villageOptions.map((v) => formatRegionName(v.name))}
+                              loading={isLoadingVillages}
+                              inputClassName={inputCls}
+                              onChange={(v) => setEditForm({ ...editForm, kelurahan: v })}
                             />
-                            <datalist id="mhs-kelurahan-suggestions">
-                              {villageOptions.map((v) => (
-                                <option key={v.id} value={formatRegionName(v.name)} />
-                              ))}
-                            </datalist>
                           </EditField>
                         </div>
                         <div className="grid grid-cols-1 gap-y-1">

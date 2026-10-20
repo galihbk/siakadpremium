@@ -77,8 +77,14 @@ export default function LoginPage() {
         }),
       });
 
-      const resData = await res.json();
+      const resData = await res.json().catch(() => ({} as any));
 
+      if (res.status === 429) {
+        // Batas percobaan masuk terlampaui: tampilkan berapa lama harus menunggu.
+        const secs = Number(resData?.retryAfter) || Number(res.headers.get('Retry-After')) || 0;
+        const wait = secs > 0 ? (secs < 60 ? `${secs} detik` : `${Math.ceil(secs / 60)} menit`) : 'beberapa saat';
+        throw new Error(`Terlalu banyak percobaan masuk. Silakan coba lagi dalam ${wait}.`);
+      }
       if (!res.ok || !resData?.data) {
         throw new Error(resData?.message || 'Email atau password yang Anda masukkan salah.');
       }

@@ -1058,9 +1058,11 @@ model LandingPageSetting {
   contactWhatsapp String @default("+62 812-3456-7890")
 
   // Media Sosial
-  socialInstagram String? @default("https://instagram.com/itn_official")
-  socialYoutube   String? @default("https://youtube.com/@itnofficial")
-  socialLinkedin  String? @default("https://linkedin.com/school/itn-official")
+  socialFacebook  String?
+  socialTwitter   String?
+  socialInstagram String?
+  socialYoutube   String?
+  socialLinkedin  String?
 
   // Identitas & Legalitas Institusi
   foundationName          String @default("Yayasan Pendidikan Teknologi Nusantara Mandiri")

@@ -120,6 +120,16 @@ export class UpdateLandingPageDto {
   @IsString()
   contactWhatsapp?: string;
 
+  @ApiPropertyOptional({ example: 'https://facebook.com/namakampus' })
+  @IsOptional()
+  @IsString()
+  socialFacebook?: string;
+
+  @ApiPropertyOptional({ example: 'https://x.com/namakampus' })
+  @IsOptional()
+  @IsString()
+  socialTwitter?: string;
+
   @ApiPropertyOptional({ example: 'https://instagram.com/itn_official' })
   @IsOptional()
   @IsString()

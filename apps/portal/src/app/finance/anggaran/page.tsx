@@ -1,5 +1,6 @@
 'use client';
 
+import { RupiahInput } from '@/components/ui/RupiahInput';
 import { confirmDialog } from '@/components/ui/ConfirmHost';
 import React, { useCallback, useEffect, useState } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
@@ -177,11 +178,11 @@ export default function AnggaranPage() {
               <input required placeholder="Nama Kategori *" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className={inputCls} />
               <label className="block text-slate-600 font-semibold">
                 Alokasi (Rp)
-                <input type="number" min={0} value={form.allocated} onChange={(e) => setForm({ ...form, allocated: Number(e.target.value) })} className={`${inputCls} mt-1`} />
+                <RupiahInput value={form.allocated} onChange={(n) => setForm({ ...form, allocated: n })} className={`${inputCls} mt-1`} />
               </label>
               <label className="block text-slate-600 font-semibold">
                 Realisasi (Rp)
-                <input type="number" min={0} value={form.spent} onChange={(e) => setForm({ ...form, spent: Number(e.target.value) })} className={`${inputCls} mt-1`} />
+                <RupiahInput value={form.spent} onChange={(n) => setForm({ ...form, spent: n })} className={`${inputCls} mt-1`} />
               </label>
             </div>
             <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">

@@ -44,7 +44,23 @@ export default function StudentKeuanganPage() {
   const [loading, setLoading] = useState(true);
   const [selectedTagihan, setSelectedTagihan] = useState<Tagihan | null>(null);
   const [showPayModal, setShowPayModal] = useState(false);
-  const [payChannel, setPayChannel] = useState('VA BNI');
+  const [payChannel, setPayChannel] = useState('Transfer Bank Manual');
+  const [paymentMode, setPaymentMode] = useState<'MANUAL' | 'GATEWAY'>('MANUAL');
+  const [payAccounts, setPayAccounts] = useState<Array<{ id: string; bankName: string; accountNumber: string; accountName: string }>>([]);
+
+  useEffect(() => {
+    const { token } = getAuthSession();
+    fetch(`${getApiBaseUrl()}/finance/payment-mode`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        const d = json?.data ?? json;
+        if (!d) return;
+        setPaymentMode(d.mode === 'GATEWAY' ? 'GATEWAY' : 'MANUAL');
+        setPayAccounts(Array.isArray(d.accounts) ? d.accounts : []);
+        if (d.mode !== 'GATEWAY') setPayChannel('Transfer Bank Manual');
+      })
+      .catch(() => undefined);
+  }, []);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [paying, setPaying] = useState(false);
@@ -352,18 +368,40 @@ export default function StudentKeuanganPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">Metode Pembayaran</label>
-                <select
-                  value={payChannel}
-                  onChange={(e) => setPayChannel(e.target.value)}
-                  className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                >
-                  <option value="VA BNI (Host to Host)">BNI Virtual Account (Otomatis)</option>
-                  <option value="Mandiri Bill Payment">Bank Mandiri Bill Payment</option>
-                  <option value="BRIVA BRI">Bank BRI BRIVA</option>
-                  <option value="QRIS Dinamis">QRIS Dinamis Nasional</option>
-                  <option value="Transfer Bank Manual">Transfer Bank Manual (Upload Bukti)</option>
-                </select>
+                {paymentMode === 'MANUAL' ? (
+                  <div className="text-xs border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50 font-semibold text-slate-700">
+                    Transfer Bank &mdash; konfirmasi manual (unggah bukti transfer)
+                  </div>
+                ) : (
+                  <select
+                    value={payChannel}
+                    onChange={(e) => setPayChannel(e.target.value)}
+                    className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  >
+                    <option value="VA BNI (Host to Host)">BNI Virtual Account (Otomatis)</option>
+                    <option value="Mandiri Bill Payment">Bank Mandiri Bill Payment</option>
+                    <option value="BRIVA BRI">Bank BRI BRIVA</option>
+                    <option value="QRIS Dinamis">QRIS Dinamis Nasional</option>
+                    <option value="Transfer Bank Manual">Transfer Bank Manual (Upload Bukti)</option>
+                  </select>
+                )}
               </div>
+
+              {payChannel === 'Transfer Bank Manual' && (
+                <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3 text-xs space-y-1.5">
+                  <p className="font-bold text-slate-800">Transfer ke rekening berikut:</p>
+                  {payAccounts.length === 0 ? (
+                    <p className="text-slate-600">Rekening tujuan belum diatur. Silakan hubungi Biro Keuangan.</p>
+                  ) : (
+                    payAccounts.map((a) => (
+                      <p key={a.id} className="text-slate-700">
+                        {a.bankName}: <span className="font-mono font-bold text-slate-900">{a.accountNumber}</span> a.n. {a.accountName}
+                      </p>
+                    ))
+                  )}
+                  <p className="text-[11px] text-slate-500">Setelah transfer, unggah bukti di bawah. Pembayaran dinyatakan lunas setelah diverifikasi Biro Keuangan.</p>
+                </div>
+              )}
 
               {payChannel === 'Transfer Bank Manual' && (
                 <div className="pt-1">

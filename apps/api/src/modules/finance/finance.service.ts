@@ -490,12 +490,19 @@ export class FinanceService {
   }
 
   private pickBank(dto: any) {
+    const bankName = String(dto.bankName ?? '').trim();
+    const accountNumber = String(dto.accountNumber ?? '').trim();
+    const accountName = String(dto.accountName ?? '').trim();
+    if (!bankName || !accountNumber || !accountName) {
+      throw new BadRequestException('Nama bank, nomor rekening, dan atas nama wajib diisi.');
+    }
     return {
-      bankName: String(dto.bankName ?? '').trim(),
-      description: dto.description || null,
-      accountNumber: String(dto.accountNumber ?? '').trim(),
-      accountName: String(dto.accountName ?? '').trim(),
-      balance: Number(dto.balance) || 0,
+      bankName,
+      description: dto.description ? String(dto.description).trim() || null : null,
+      accountNumber,
+      accountName,
+      // Saldo hanya diubah bila dikirim (pengaturan pembayaran tidak mengirim saldo -> saldo lama tetap).
+      ...(dto.balance !== undefined ? { balance: Number(dto.balance) || 0 } : {}),
       ...(dto.isActive !== undefined ? { isActive: !!dto.isActive } : {}),
     };
   }
@@ -598,31 +605,65 @@ export class FinanceService {
   }
 
   async createInvoice(dto: any) {
-    const invoiceNo = `INV/${new Date().getFullYear()}/GSL/${Math.floor(10000 + Math.random() * 90000)}`;
+    if (!dto.nim || !dto.studentName) {
+      throw new BadRequestException('NIM dan nama mahasiswa wajib diisi.');
+    }
+    const amount = Number(dto.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException('Nominal tagihan harus lebih dari 0.');
+    }
+    // Tahun akademik & jatuh tempo mengikuti data sungguhan, bukan nilai tetap.
+    const activeYear = await this.prisma.academicYear.findFirst({ where: { isActive: true } });
+    const academicYear = dto.academicYear || activeYear?.name || '';
+    const fmt = (d: Date) => d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+    const dueDate = dto.dueDate || fmt(new Date(Date.now() + 14 * 24 * 3600 * 1000));
+
+    const invoiceNo = `INV/${new Date().getFullYear()}/${Math.floor(10000 + Math.random() * 90000)}`;
     const dbStatus = dto.status === 'LUNAS' ? 'LUNAS' : dto.status === 'MENUNGGU VERIFIKASI' ? 'MENUNGGU_VERIFIKASI' : 'TERTUNDA';
     const newTrx = await this.prisma.paymentInvoice.create({
       data: {
-        invoiceNo, nim: dto.nim, studentName: dto.studentName, studyProgram: dto.studyProgram || 'Teknik Informatika',
-        semester: dto.semester ? Number(dto.semester) : 1, paymentType: dto.paymentType || 'UKT / SPP Gasal 2026/2027',
-        amount: Number(dto.amount), paymentMethod: dto.paymentMethod || 'BNI Virtual Account',
+        invoiceNo, nim: dto.nim, studentName: dto.studentName, studyProgram: dto.studyProgram || '-',
+        semester: dto.semester ? Number(dto.semester) : 1, paymentType: dto.paymentType || 'SPP / UKT',
+        amount, paymentMethod: dto.paymentMethod || 'Belum dipilih',
         paidAt: dto.status === 'LUNAS' ? new Date().toLocaleDateString('id-ID') : null,
         status: dbStatus as any,
-        receiptNo: dto.status === 'LUNAS' ? `KWT/ITN/${new Date().getFullYear()}/${Date.now().toString().slice(-4)}` : null,
+        receiptNo: dto.status === 'LUNAS' ? `KWT/${new Date().getFullYear()}/${Date.now().toString().slice(-4)}` : null,
         notes: dto.notes || 'Tagihan baru diterbitkan oleh Biro Keuangan',
-        dueDate: dto.dueDate || '20 Sep 2026', academicYear: dto.academicYear || '2026/2027',
+        dueDate, academicYear,
       },
     });
-    await this.prisma.systemAuditLog.create({ data: { action: 'FINANCE_INVOICE_CREATE', detail: `Invoice ${invoiceNo} untuk ${dto.studentName}`, userEmail: 'keuangan@itn.ac.id' } }).catch(() => null);
+    await this.prisma.systemAuditLog.create({ data: { action: 'FINANCE_INVOICE_CREATE', detail: `Invoice ${invoiceNo} untuk ${dto.studentName}`, userEmail: 'keuangan' } }).catch(() => null);
     return { success: true, message: `Tagihan berhasil dibuat.`, data: newTrx };
   }
 
   private static readonly MANUAL_TRANSFER_CHANNEL = 'Transfer Bank Manual';
+
+  /**
+   * Metode konfirmasi pembayaran yang berlaku. Selama integrasi payment gateway belum aktif (provider MANUAL atau
+   * dinonaktifkan), SEMUA pembayaran dikonfirmasi manual: mahasiswa/calon mahasiswa unggah bukti transfer, lalu
+   * admin keuangan memverifikasi. Rekening tujuan = rekening aktif di menu Rekening Bank & Kas (tanpa saldo).
+   */
+  async getPaymentMode() {
+    const setting = await this.prisma.bankGatewaySetting.findUnique({ where: { id: 'default-bank-setting' } }).catch(() => null);
+    const mode = setting && setting.isActive && setting.provider !== 'MANUAL' ? 'GATEWAY' : 'MANUAL';
+    const accounts = await this.prisma.financeBankAccount.findMany({
+      where: { isActive: true },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, bankName: true, accountNumber: true, accountName: true, description: true },
+    });
+    return { mode, provider: mode === 'GATEWAY' ? setting!.provider : 'MANUAL', accounts };
+  }
 
   async submitStudentPayment(id: string, dto: { channel: string; proofUrl?: string }) {
     const trx = await this.prisma.paymentInvoice.findUnique({ where: { id } });
     if (!trx) throw new NotFoundException(`Tagihan dengan ID "${id}" tidak ditemukan.`);
     if (trx.status === 'LUNAS') {
       return { success: true, message: 'Tagihan ini sudah lunas.', data: { ...trx, status: 'LUNAS' } };
+    }
+
+    const { mode } = await this.getPaymentMode();
+    if (mode === 'MANUAL' && dto.channel !== FinanceService.MANUAL_TRANSFER_CHANNEL) {
+      throw new BadRequestException('Pembayaran saat ini dikonfirmasi manual. Lakukan transfer lalu unggah bukti transfer.');
     }
 
     if (dto.channel === FinanceService.MANUAL_TRANSFER_CHANNEL) {

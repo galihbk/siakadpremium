@@ -1,5 +1,6 @@
 'use client';
 
+import { RupiahInput } from '@/components/ui/RupiahInput';
 import { useInstitution } from '@/lib/useInstitution';
 import { CampusLogo } from '@/components/common/CampusLogo';
 import React, { useState, useEffect, useMemo } from 'react';
@@ -1011,12 +1012,10 @@ export default function FinanceDashboardPage() {
                 </div>
                 <div>
                   <label className="block text-slate-600 font-semibold mb-1">Nominal (Rp) *</label>
-                  <input
-                    type="number"
-                    step={50000}
+                  <RupiahInput
                     required
                     value={newInvoice.amount}
-                    onChange={(e) => setNewInvoice({ ...newInvoice, amount: Number(e.target.value) })}
+                    onChange={(n) => setNewInvoice({ ...newInvoice, amount: n })}
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] outline-hidden"
                   />
                 </div>

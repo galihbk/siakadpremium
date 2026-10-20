@@ -35,10 +35,24 @@ export class AllExceptionsFilter implements ExceptionFilter {
       this.logger.error(`Unhandled Exception: ${exception.message}`, exception.stack);
     }
 
+    // Terlalu banyak permintaan (rate limit): beri tahu pengguna berapa lama harus menunggu.
+    let retryAfter: number | undefined;
+    if (status === HttpStatus.TOO_MANY_REQUESTS) {
+      const header = Number(response.getHeader('Retry-After'));
+      retryAfter = Number.isFinite(header) && header > 0 ? Math.ceil(header) : undefined;
+      const wait = retryAfter
+        ? retryAfter < 60
+          ? `${retryAfter} detik`
+          : `${Math.ceil(retryAfter / 60)} menit`
+        : 'beberapa saat';
+      message = `Terlalu banyak percobaan. Silakan coba lagi dalam ${wait}.`;
+    }
+
     response.status(status).json({
       success: false,
       statusCode: status,
       message,
+      ...(retryAfter ? { retryAfter } : {}),
       error: errorDetails,
       path: request.url,
       timestamp: new Date().toISOString(),

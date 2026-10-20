@@ -13,6 +13,8 @@ export interface InstitutionProfile {
   contactPhone: string;
   contactEmail: string;
   contactWhatsapp: string;
+  socialFacebook: string | null;
+  socialTwitter: string | null;
   socialInstagram: string | null;
   socialYoutube: string | null;
   socialLinkedin: string | null;
@@ -56,6 +58,8 @@ export const FALLBACK_INSTITUTION_PROFILE: InstitutionProfile = {
   contactPhone: '',
   contactEmail: '',
   contactWhatsapp: '',
+  socialFacebook: null,
+  socialTwitter: null,
   socialInstagram: null,
   socialYoutube: null,
   socialLinkedin: null,

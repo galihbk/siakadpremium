@@ -18,9 +18,9 @@ export function CampusLogo({
     // Gambar logo tampil apa adanya: hanya ukuran yang dipakai; bingkai/latar/sudut/bayangan khusus inisial dibuang.
     const size = className
       .split(/\s+/)
-      .filter((c) => /^([a-z]+:)?(w|h|min-w|min-h|max-w|max-h)-/.test(c) || c === 'shrink-0')
+      .filter((c) => /^([a-z]+:)?(w|h|min-w|min-h|max-w|max-h)-/.test(c) || c === 'shrink-0' || c === 'mx-auto')
       .join(' ');
-    return <img src={url} alt={initials} className={`${size} object-contain`} />;
+    return <img src={url} alt={initials} className={`${size} ${size.includes('mx-auto') ? 'block' : ''} object-contain`} />;
   }
   return <div className={className}>{initials}</div>;
 }

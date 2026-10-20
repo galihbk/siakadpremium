@@ -4,6 +4,25 @@ import React, { useState, useEffect } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { FileText, Search, Download, Plus, AlertTriangle, RefreshCw, Database } from 'lucide-react';
 import { getApiBaseUrl } from '@/lib/api';
+import { Modal } from '@/components/ui/Modal';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { RupiahInput } from '@/components/ui/RupiahInput';
+
+interface StudentOption {
+  id: string;
+  nim: string;
+  name: string;
+  studyProgram: string;
+  currentSemester: number;
+}
+
+const INVOICE_TYPES = [
+  'SPP / UKT',
+  'Biaya Praktikum & Laboratorium',
+  'Biaya Wisuda & Yudisium',
+  'Perpanjangan Skripsi / TA',
+  'Lainnya',
+];
 
 interface InvoiceItem {
   id: string;
@@ -27,6 +46,87 @@ export default function TagihanPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('ALL');
+
+  // Terbitkan tagihan manual
+  const [createOpen, setCreateOpen] = useState(false);
+  const [students, setStudents] = useState<StudentOption[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ text: string; ok: boolean } | null>(null);
+  const [form, setForm] = useState({ nim: '', semester: 1, type: INVOICE_TYPES[0], customType: '', amount: 0, notes: '' });
+  const showToast = (text: string, ok = true) => {
+    setToast({ text, ok });
+    setTimeout(() => setToast(null), 4500);
+  };
+
+  const openCreate = async () => {
+    setForm({ nim: '', semester: 1, type: INVOICE_TYPES[0], customType: '', amount: 0, notes: '' });
+    setCreateOpen(true);
+    if (students.length === 0) {
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/students/list`);
+        if (res.ok) {
+          const json = await res.json();
+          const rows = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
+          setStudents(
+            rows.map((r: any) => ({
+              id: r.id,
+              nim: r.nim,
+              name: r.name,
+              studyProgram: r.studyProgram,
+              currentSemester: r.currentSemester || 1,
+            })),
+          );
+        }
+      } catch {
+        showToast('Gagal memuat daftar mahasiswa.', false);
+      }
+    }
+  };
+
+  const selectedStudent = students.find((x) => x.nim === form.nim);
+
+  const submitCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStudent) {
+      showToast('Pilih mahasiswa terlebih dahulu.', false);
+      return;
+    }
+    if (form.amount <= 0) {
+      showToast('Nominal tagihan harus lebih dari 0.', false);
+      return;
+    }
+    const paymentType = form.type === 'Lainnya' ? form.customType.trim() : form.type;
+    if (!paymentType) {
+      showToast('Isi jenis tagihan.', false);
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/finance/invoices`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nim: selectedStudent.nim,
+          studentName: selectedStudent.name,
+          studyProgram: selectedStudent.studyProgram,
+          semester: Number(form.semester),
+          paymentType,
+          amount: form.amount,
+          notes: form.notes,
+        }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(Array.isArray(json?.message) ? json.message.join(', ') : json?.message || 'Gagal menerbitkan tagihan.');
+      const invoiceNo = json?.data?.data?.invoiceNo ?? json?.data?.invoiceNo ?? '';
+      showToast(`Tagihan ${invoiceNo} untuk ${selectedStudent.name} berhasil diterbitkan.`.replace('  ', ' '));
+      setCreateOpen(false);
+      await fetchInvoices();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Gagal menerbitkan tagihan.', false);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const fetchInvoices = async () => {
     setLoading(true);
@@ -119,7 +219,10 @@ export default function TagihanPage() {
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
                 Refresh
               </button>
-              <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#1E3A8A] rounded-lg hover:bg-[#1e40af] transition-colors">
+              <button
+                onClick={openCreate}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#1E3A8A] rounded-lg hover:bg-[#1e40af] transition-colors"
+              >
                 <Plus className="w-3.5 h-3.5" />
                 Buat Tagihan
               </button>
@@ -193,6 +296,105 @@ export default function TagihanPage() {
           </div>
         </div>
       </div>
+
+      <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title="Buat Tagihan Mahasiswa">
+        <form onSubmit={submitCreate} className="space-y-4 text-xs">
+          <div>
+            <label className="block text-slate-600 font-semibold mb-1">Mahasiswa *</label>
+            <SearchableSelect
+              value={form.nim}
+              onChange={(nim) => {
+                const st = students.find((x) => x.nim === nim);
+                setForm({ ...form, nim, semester: st?.currentSemester ?? form.semester });
+              }}
+              options={students.map((x) => ({ value: x.nim, label: `${x.nim} - ${x.name}`, keywords: x.studyProgram }))}
+              placeholder={students.length === 0 ? 'Belum ada data mahasiswa' : 'Cari NIM atau nama mahasiswa...'}
+              searchPlaceholder="Ketik NIM atau nama..."
+            />
+            {selectedStudent && <p className="mt-1 text-[11px] text-slate-500">{selectedStudent.studyProgram}</p>}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-600 font-semibold mb-1">Jenis Tagihan</label>
+              <select
+                value={form.type}
+                onChange={(e) => setForm({ ...form, type: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] outline-hidden"
+              >
+                {INVOICE_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-slate-600 font-semibold mb-1">Semester</label>
+              <input
+                type="number"
+                min={1}
+                max={14}
+                value={form.semester}
+                onChange={(e) => setForm({ ...form, semester: Number(e.target.value) })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] outline-hidden"
+              />
+            </div>
+          </div>
+
+          {form.type === 'Lainnya' && (
+            <div>
+              <label className="block text-slate-600 font-semibold mb-1">Nama Tagihan *</label>
+              <input
+                value={form.customType}
+                onChange={(e) => setForm({ ...form, customType: e.target.value })}
+                placeholder="Contoh: Denda keterlambatan KRS"
+                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] outline-hidden"
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="block text-slate-600 font-semibold mb-1">Nominal *</label>
+            <RupiahInput
+              required
+              value={form.amount}
+              onChange={(n) => setForm({ ...form, amount: n })}
+              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] outline-hidden"
+            />
+          </div>
+
+          <div>
+            <label className="block text-slate-600 font-semibold mb-1">Catatan / Keterangan</label>
+            <textarea
+              rows={2}
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              placeholder="Catatan tambahan untuk mahasiswa..."
+              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] outline-hidden"
+            />
+          </div>
+
+          <p className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-600 text-[11px]">
+            Nomor invoice dibuat otomatis dan tagihan langsung muncul di akun mahasiswa.
+          </p>
+
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2">
+            <button type="button" onClick={() => setCreateOpen(false)} className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer">
+              Batal
+            </button>
+            <button type="submit" disabled={saving} className="px-4 py-2 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-[#172554] rounded-xl disabled:opacity-60 cursor-pointer">
+              {saving ? 'Menerbitkan...' : 'Terbitkan Tagihan'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-[60] max-w-sm px-4 py-3 rounded-xl text-sm font-semibold shadow-lg text-white ${toast.ok ? 'bg-emerald-600' : 'bg-rose-600'}`}>
+          {toast.text}
+        </div>
+      )}
     </PortalLayout>
   );
 }

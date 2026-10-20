@@ -1,5 +1,6 @@
 'use client';
 
+import { KelurahanField } from '@/components/common/KelurahanField';
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -114,23 +115,6 @@ const FUNCTIONAL_POSITION_OPTIONS = [
 ];
 
 const LAST_EDUCATION_OPTIONS = ['SMA/SMK Sederajat', 'D3', 'D4/S1', 'S2', 'S3'];
-
-const EXPERTISE_OPTIONS = [
-  'Pendidikan Guru Sekolah Dasar',
-  'Pendidikan Ilmu Pengetahuan Alam',
-  'Pendidikan Ekonomi',
-  'Pedagogi',
-  'Manajemen Pendidikan',
-  'Teknologi Pendidikan',
-  'Bimbingan dan Konseling',
-  'Bahasa dan Sastra Indonesia',
-  'Bahasa Inggris',
-  'Matematika',
-  'Teknik Informatika/Ilmu Komputer',
-  'Hukum',
-  'Ekonomi dan Bisnis',
-  'Psikologi',
-];
 
 /** Select dengan value lama tetap muncul sebagai opsi kalau tidak ada di daftar standar -- supaya data lama yang teksnya bebas tidak hilang begitu diubah jadi dropdown. */
 function PresetSelect({
@@ -381,6 +365,8 @@ const WIZARD_STEPS = [
  * Halaman detail/ubah/tambah dosen. Dipakai portal BAAK dan Super Admin.
  * `id === 'baru'` = mode tambah dosen (formulir bertahap, akun login dibuat otomatis).
  */
+const RELIGION_OPTIONS = ['Islam', 'Kristen Protestan', 'Katolik', 'Hindu', 'Buddha', 'Konghucu'];
+
 export function DosenDetailPage({
   id,
   role,
@@ -985,7 +971,12 @@ export function DosenDetailPage({
                           </select>
                         </EditField>
                         <EditField icon={IdCard} label="Agama">
-                          <input className={inputCls} value={editForm.religion} onChange={(e) => setEditForm({ ...editForm, religion: e.target.value })} />
+                          <select className={inputCls} value={editForm.religion} onChange={(e) => setEditForm({ ...editForm, religion: e.target.value })}>
+                            <option value="">-- Pilih --</option>
+                            {(editForm.religion && !RELIGION_OPTIONS.includes(editForm.religion) ? [editForm.religion, ...RELIGION_OPTIONS] : RELIGION_OPTIONS).map((r) => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                          </select>
                         </EditField>
                       </div>
                     ) : (
@@ -1077,21 +1068,16 @@ export function DosenDetailPage({
                             </select>
                           </EditField>
                           <EditField icon={MapPin} label="Kelurahan/Desa">
-                            <input
-                              className={inputCls}
-                              list="kelurahan-suggestions"
+                            <KelurahanField
                               value={editForm.kelurahan}
-                              placeholder={isLoadingVillages ? 'Memuat saran...' : 'Ketik manual kalau tidak ada di saran'}
-                              onChange={(e) => {
+                              villages={villageOptions.map((v) => formatRegionName(v.name))}
+                              loading={isLoadingVillages}
+                              inputClassName={inputCls}
+                              onChange={(v) => {
                                 setSelectedVillageId('');
-                                setEditForm({ ...editForm, kelurahan: e.target.value });
+                                setEditForm({ ...editForm, kelurahan: v });
                               }}
                             />
-                            <datalist id="kelurahan-suggestions">
-                              {villageOptions.map((v) => (
-                                <option key={v.id} value={formatRegionName(v.name)} />
-                              ))}
-                            </datalist>
                           </EditField>
                         </div>
                         <div className="grid grid-cols-1 gap-y-1">
@@ -1172,11 +1158,11 @@ export function DosenDetailPage({
                         />
                       </EditField>
                       <EditField icon={GraduationCap} label="Bidang Keahlian">
-                        <PresetSelect
+                        <input
                           className={inputCls}
-                          options={EXPERTISE_OPTIONS}
                           value={editForm.expertise}
-                          onChange={(v) => setEditForm({ ...editForm, expertise: v })}
+                          placeholder="Ketik bidang keahlian/keilmuan"
+                          onChange={(e) => setEditForm({ ...editForm, expertise: e.target.value })}
                         />
                       </EditField>
                       <EditField icon={CheckCircle2} label="Dosen Pembimbing Akademik (PA)">

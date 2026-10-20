@@ -174,7 +174,12 @@ export default function StudentKRSPage() {
         const res = await fetch(`${getApiBaseUrl()}/academic/krs-status`);
         if (res.ok) {
           const json = await res.json();
-          setKrsPeriodOpen(json?.isKrsOpen !== false);
+          // Respons API dibungkus { data: ... }; dulu hanya dibaca di level atas sehingga selalu dianggap terbuka.
+          const status = json?.data ?? json;
+          setKrsPeriodOpen(status?.isKrsOpen === true);
+        } else {
+          // Tidak ada tahun akademik aktif (404) atau ditolak: anggap KRS belum dibuka.
+          setKrsPeriodOpen(false);
         }
       } catch {
         // gagal cek status -- biarkan default terbuka, backend tetap validasi saat submit

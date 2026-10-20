@@ -77,9 +77,9 @@ const DEFAULT_DATA: LandingPageData = {
   contactPhone: '(021) 7890-1234',
   contactEmail: 'info@itn.ac.id',
   contactWhatsapp: '+62 812-3456-7890',
-  socialInstagram: 'https://instagram.com/itn_official',
-  socialYoutube: 'https://youtube.com/@itnofficial',
-  socialLinkedin: 'https://linkedin.com/school/itn-official',
+  socialInstagram: '',
+  socialYoutube: '',
+  socialLinkedin: '',
 };
 
 export default function SuperAdminCmsPage() {

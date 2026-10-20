@@ -139,6 +139,12 @@ export class FinanceController {
     return await this.financeService.upsertPayrollSetting(userId, body);
   }
 
+  @Get('payment-mode')
+  @ApiOperation({ summary: 'Metode konfirmasi pembayaran yang berlaku (manual / gateway) + rekening tujuan' })
+  async getPaymentMode() {
+    return await this.financeService.getPaymentMode();
+  }
+
   @Get('bank-accounts')
   async getBankAccounts() {
     return await this.financeService.getBankAccounts();

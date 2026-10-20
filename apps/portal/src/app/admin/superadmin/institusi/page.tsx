@@ -70,6 +70,11 @@ interface CampusProfile {
   academicEmail: string;
   phone: string;
   whatsapp: string;
+  socialFacebook: string;
+  socialTwitter: string;
+  socialInstagram: string;
+  socialYoutube: string;
+  socialLinkedin: string;
   accreditation: 'Unggul' | 'A' | 'Baik Sekali' | 'Baik' | 'B' | 'C' | 'Terakreditasi' | 'Terakreditasi Sementara' | 'Belum Terakreditasi';
   accreditationSk: string;
   accreditationValidUntil: string;
@@ -140,6 +145,11 @@ export default function SuperAdminProfilInstitusiPage() {
             academicEmail: data.academicEmail ?? '',
             phone: data.contactPhone ?? '',
             whatsapp: data.contactWhatsapp ?? '',
+            socialFacebook: data.socialFacebook ?? '',
+            socialTwitter: data.socialTwitter ?? '',
+            socialInstagram: data.socialInstagram ?? '',
+            socialYoutube: data.socialYoutube ?? '',
+            socialLinkedin: data.socialLinkedin ?? '',
             accreditation: data.accreditation ?? 'Unggul',
             accreditationSk: data.accreditationSk ?? '',
             accreditationValidUntil: data.accreditationValidUntil ?? '',
@@ -222,6 +232,11 @@ export default function SuperAdminProfilInstitusiPage() {
         academicEmail: editFormData.academicEmail,
         contactPhone: editFormData.phone,
         contactWhatsapp: editFormData.whatsapp,
+        socialFacebook: editFormData.socialFacebook,
+        socialTwitter: editFormData.socialTwitter,
+        socialInstagram: editFormData.socialInstagram,
+        socialYoutube: editFormData.socialYoutube,
+        socialLinkedin: editFormData.socialLinkedin,
         accreditation: editFormData.accreditation,
         accreditationSk: editFormData.accreditationSk,
         accreditationValidUntil: editFormData.accreditationValidUntil,
@@ -780,6 +795,28 @@ export default function SuperAdminProfilInstitusiPage() {
                   </span>
                   <span className="font-semibold text-emerald-700">{profile.whatsapp}</span>
                 </div>
+
+                <div className="flex items-start justify-between gap-3 py-1.5 border-t border-slate-100 mt-1">
+                  <span className="text-slate-500">Media Sosial:</span>
+                  <span className="font-semibold text-slate-900 text-right text-[11px] space-y-0.5">
+                    {[
+                      ['Facebook', profile.socialFacebook],
+                      ['X', profile.socialTwitter],
+                      ['Instagram', profile.socialInstagram],
+                      ['YouTube', profile.socialYoutube],
+                      ['LinkedIn', profile.socialLinkedin],
+                    ]
+                      .filter(([, url]) => url)
+                      .map(([name, url]) => (
+                        <a key={name} href={url} target="_blank" rel="noopener noreferrer" className="block text-[#1E3A8A] hover:underline">
+                          {name}
+                        </a>
+                      ))}
+                    {![profile.socialFacebook, profile.socialTwitter, profile.socialInstagram, profile.socialYoutube, profile.socialLinkedin].some(Boolean) && (
+                      <span className="text-slate-400 font-normal">Belum diisi</span>
+                    )}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -977,6 +1014,66 @@ export default function SuperAdminProfilInstitusiPage() {
                       type="text"
                       value={editFormData.whatsapp}
                       onChange={(e) => setEditFormData({ ...editFormData, whatsapp: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2 pt-2 border-t border-slate-100">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Media Sosial (tampil di footer website)</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Kosongkan kolom yang tidak dipakai; ikonnya tidak akan tampil di website.</p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700">Facebook</label>
+                    <input
+                      type="url"
+                      value={editFormData.socialFacebook}
+                      placeholder="https://facebook.com/namakampus"
+                      onChange={(e) => setEditFormData({ ...editFormData, socialFacebook: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700">X (Twitter)</label>
+                    <input
+                      type="url"
+                      value={editFormData.socialTwitter}
+                      placeholder="https://x.com/namakampus"
+                      onChange={(e) => setEditFormData({ ...editFormData, socialTwitter: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700">Instagram</label>
+                    <input
+                      type="url"
+                      value={editFormData.socialInstagram}
+                      placeholder="https://instagram.com/namakampus"
+                      onChange={(e) => setEditFormData({ ...editFormData, socialInstagram: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700">YouTube</label>
+                    <input
+                      type="url"
+                      value={editFormData.socialYoutube}
+                      placeholder="https://youtube.com/@namakampus"
+                      onChange={(e) => setEditFormData({ ...editFormData, socialYoutube: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700">LinkedIn</label>
+                    <input
+                      type="url"
+                      value={editFormData.socialLinkedin}
+                      placeholder="https://linkedin.com/school/namakampus"
+                      onChange={(e) => setEditFormData({ ...editFormData, socialLinkedin: e.target.value })}
                       className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
                     />
                   </div>

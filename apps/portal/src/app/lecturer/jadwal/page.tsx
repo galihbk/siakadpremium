@@ -117,7 +117,7 @@ export default function LecturerJadwalPage() {
     const taught = schedules.filter((s) => !s.practiceOnly);
     const totalClasses = taught.length;
     const totalSks = taught.reduce((acc, s) => acc + (s.sks || 0), 0);
-    const totalStudents = taught.reduce((acc, s) => acc + (s.enrolledCount || 30), 0);
+    const totalStudents = taught.reduce((acc, s) => acc + (s.enrolledCount || 0), 0);
     return { totalClasses, totalSks, totalStudents };
   }, [schedules]);
 
@@ -331,7 +331,7 @@ export default function LecturerJadwalPage() {
                         <Users className="w-3.5 h-3.5 text-slate-400" /> Mahasiswa Terdaftar
                       </span>
                       <strong className="text-slate-800 font-bold block">
-                        {sch.enrolledCount || 35} <span className="text-slate-500 font-normal">/ {sch.quota || 40} Mahasiswa</span>
+                        {sch.enrolledCount ?? 0} <span className="text-slate-500 font-normal">/ {sch.quota || 40} Mahasiswa</span>
                       </strong>
                     </div>
                   </div>

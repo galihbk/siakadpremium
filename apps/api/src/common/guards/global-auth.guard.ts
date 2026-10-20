@@ -80,6 +80,7 @@ const ROLE_RULES: RoleRule[] = [
   { path: /^\/lecturers\/(employment-status|[^/]+\/employment-status)$/, roles: ['SDM'] },
 
   // ---- Keuangan (mahasiswa hanya: tagihan miliknya & kirim bukti bayar -- kepemilikan dicek di controller)
+  { path: /^\/finance\/payment-mode$/, roles: ['STUDENT', 'ADMIN_KEUANGAN'] },
   { path: /^\/finance\/invoices\/student\/[^/]+$/, roles: ['STUDENT', 'ADMIN_KEUANGAN'] },
   { methods: ['POST'], path: /^\/finance\/transactions\/[^/]+\/submit-payment$/, roles: ['STUDENT', 'ADMIN_KEUANGAN'] },
   { path: /^\/finance(\/|$)/, roles: ['ADMIN_KEUANGAN'] },

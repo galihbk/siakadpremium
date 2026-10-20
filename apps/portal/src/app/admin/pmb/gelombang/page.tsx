@@ -1,5 +1,6 @@
 'use client';
 
+import { RupiahInput } from '@/components/ui/RupiahInput';
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
@@ -809,19 +810,13 @@ export default function PmbGelombangPage() {
                     <label className="block font-bold text-amber-900 mb-1">
                       Biaya Formulir Registrasi (Rp) <span className="text-rose-500">*</span>
                     </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-amber-700 text-xs">Rp</span>
-                      <input
-                        type="number"
-                        value={formData.registrationFee}
-                        onChange={(e) => setFormData({ ...formData, registrationFee: Number(e.target.value) })}
-                        min={0}
-                        step={10000}
-                        placeholder="250000"
-                        className="w-full pl-10 pr-3 py-2 rounded-xl border border-amber-300 bg-white font-mono font-bold text-slate-900 focus:outline-hidden focus:border-[#1E3A8A] focus:ring-1 focus:ring-[#1E3A8A]"
-                        required
-                      />
-                    </div>
+                    <RupiahInput
+                      value={formData.registrationFee}
+                      onChange={(n) => setFormData({ ...formData, registrationFee: n })}
+                      placeholder="250.000"
+                      className="w-full pr-3 py-2 rounded-xl border border-amber-300 bg-white font-mono font-bold text-slate-900 focus:outline-hidden focus:border-[#1E3A8A] focus:ring-1 focus:ring-[#1E3A8A]"
+                      required
+                    />
                     <span className="text-[10px] text-amber-700/80 block mt-1">
                       Tarif: Rp {Number(formData.registrationFee || 0).toLocaleString('id-ID')} (dibayar saat buat akun)
                     </span>

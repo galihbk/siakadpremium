@@ -1,5 +1,6 @@
 'use client';
 
+import { RupiahInput } from '@/components/ui/RupiahInput';
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
@@ -304,15 +305,10 @@ export default function AdminPmbBiayaPage() {
               <label className="block text-xs font-bold text-slate-700 mb-1">
                 Biaya Registrasi (Rp)
               </label>
-              <input
-                type="number"
+              <RupiahInput
                 value={feeConfig.registrationFee}
-                onChange={(e) =>
-                  setFeeConfig({ ...feeConfig, registrationFee: Number(e.target.value) })
-                }
-                placeholder="250000"
-                step={25000}
-                min={0}
+                onChange={(n) => setFeeConfig({ ...feeConfig, registrationFee: n })}
+                placeholder="250.000"
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono font-bold text-slate-900 text-xs focus:outline-hidden focus:border-[#1E3A8A]"
                 required
               />
@@ -325,15 +321,10 @@ export default function AdminPmbBiayaPage() {
               <label className="block text-xs font-bold text-slate-700 mb-1">
                 Biaya Daftar Ulang (Rp)
               </label>
-              <input
-                type="number"
+              <RupiahInput
                 value={feeConfig.reRegistrationFee}
-                onChange={(e) =>
-                  setFeeConfig({ ...feeConfig, reRegistrationFee: Number(e.target.value) })
-                }
-                placeholder="7300000"
-                step={50000}
-                min={0}
+                onChange={(n) => setFeeConfig({ ...feeConfig, reRegistrationFee: n })}
+                placeholder="7.300.000"
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono font-bold text-[#1E3A8A] text-xs focus:outline-hidden focus:border-[#1E3A8A]"
                 required
               />
