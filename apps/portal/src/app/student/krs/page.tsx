@@ -37,6 +37,8 @@ interface MataKuliah {
   hari: string;
   jam: string;
   ruang: string;
+  /** Sesi praktikum kelas yang sama -- otomatis ikut saat kelas ini diambil. */
+  praktikum?: { hari: string; jam: string; ruang: string; dosen: string } | null;
   quota: number;
   enrolledCount: number;
   isFull: boolean;
@@ -94,6 +96,7 @@ export default function StudentKRSPage() {
       hari: c.hari || '-',
       jam: c.jam || '-',
       ruang: c.ruang || '-',
+      praktikum: c.praktikum || null,
       quota: c.quota ?? 40,
       enrolledCount: c.enrolledCount ?? 0,
       isFull: Boolean(c.isFull),
@@ -463,7 +466,12 @@ export default function StudentKRSPage() {
                                 </div>
                                 <p className="text-[11px] text-slate-500 mt-0.5">{mk.dosen}</p>
                                 {mk.hari !== '-' && (
-                                  <p className="text-[11px] text-slate-400">{mk.hari} · {mk.jam}</p>
+                                  <p className="text-[11px] text-slate-400">{mk.hari} · {mk.jam}{mk.praktikum ? ' (Teori)' : ''}</p>
+                                )}
+                                {mk.praktikum && (
+                                  <p className="text-[11px] text-indigo-600 font-medium">
+                                    + Praktikum: {mk.praktikum.hari} · {mk.praktikum.jam} · {mk.praktikum.ruang}
+                                  </p>
                                 )}
                               </button>
                             );

@@ -48,6 +48,10 @@ export interface TeachingClassItem {
   lecturerNidn: string;
   enrolledCount: number;
   quota: number;
+  /** true bila dosen ini hanya mengampu sesi praktikum kelas (bukan pengampu kelas). */
+  practiceOnly?: boolean;
+  practiceMine?: boolean;
+  practice?: { day: string; timeSlot: string; roomName: string; buildingName: string; lecturerName: string } | null;
 }
 
 const DAYS = ['Semua Hari', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -67,7 +71,7 @@ export default function LecturerJadwalPage() {
     const fetchSchedules = async () => {
       setIsLoading(true);
       try {
-        const res = await fetch(`${apiBase}/lecturers/schedules`, { headers: authHeaders() });
+        const res = await fetch(`${apiBase}/lecturers/schedules?includePractice=1`, { headers: authHeaders() });
         if (res.ok) {
           const json = await res.json();
           setSchedules(json.data || []);
@@ -82,24 +86,46 @@ export default function LecturerJadwalPage() {
     fetchSchedules();
   }, []);
 
-  const filteredSchedules = useMemo(() => {
-    if (selectedDay === 'Semua Hari') return schedules;
-    return schedules.filter((s) => s.day.toLowerCase() === selectedDay.toLowerCase());
-  }, [schedules, selectedDay]);
+  // Satu kelas bisa menghasilkan dua sesi: teori (jika dosen ini pengampu kelas) dan praktikum (jika dosen ini pengampunya).
+  const sessions = useMemo(() => {
+    const out: (TeachingClassItem & { sesi: 'Teori' | 'Praktikum'; key: string })[] = [];
+    for (const c of schedules) {
+      if (!c.practiceOnly) out.push({ ...c, sesi: 'Teori', key: c.id });
+      if (c.practiceMine && c.practice) {
+        out.push({
+          ...c,
+          sesi: 'Praktikum',
+          key: `${c.id}-praktikum`,
+          day: c.practice.day,
+          timeSlot: c.practice.timeSlot,
+          roomName: c.practice.roomName,
+          buildingName: c.practice.buildingName,
+          lecturerName: c.practice.lecturerName,
+        });
+      }
+    }
+    return out;
+  }, [schedules]);
 
-  // Statistics
+  const filteredSchedules = useMemo(() => {
+    if (selectedDay === 'Semua Hari') return sessions;
+    return sessions.filter((s) => s.day.toLowerCase() === selectedDay.toLowerCase());
+  }, [sessions, selectedDay]);
+
+  // Statistics (per kelas yang diampu -- sesi praktikum tidak dihitung dobel)
   const stats = useMemo(() => {
-    const totalClasses = schedules.length;
-    const totalSks = schedules.reduce((acc, s) => acc + (s.sks || 0), 0);
-    const totalStudents = schedules.reduce((acc, s) => acc + (s.enrolledCount || 30), 0);
+    const taught = schedules.filter((s) => !s.practiceOnly);
+    const totalClasses = taught.length;
+    const totalSks = taught.reduce((acc, s) => acc + (s.sks || 0), 0);
+    const totalStudents = taught.reduce((acc, s) => acc + (s.enrolledCount || 30), 0);
     return { totalClasses, totalSks, totalStudents };
   }, [schedules]);
 
   // Export iCal (.ics)
   const handleExportIcs = () => {
     let ics = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//ITN Siakad Premium//Jadwal Mengajar Dosen//ID\nCALSCALE:GREGORIAN\nMETHOD:PUBLISH\nX-WR-CALNAME:Jadwal Mengajar Dosen ITN\n`;
-    schedules.forEach((item) => {
-      ics += `BEGIN:VEVENT\nSUMMARY:${item.courseName} (${item.className})\nDESCRIPTION:Mata Kuliah: ${item.courseName}\\nKelas: ${item.className}\\nSKS: ${item.sks}\\nRuang: ${item.roomName}\nLOCATION:${item.roomName}\nSTATUS:CONFIRMED\nEND:VEVENT\n`;
+    sessions.forEach((item) => {
+      ics += `BEGIN:VEVENT\nSUMMARY:${item.courseName} (${item.className})${item.sesi === 'Praktikum' ? ' - Praktikum' : ''}\nDESCRIPTION:Mata Kuliah: ${item.courseName}\\nKelas: ${item.className}\\nSKS: ${item.sks}\\nRuang: ${item.roomName}\nLOCATION:${item.roomName}\nSTATUS:CONFIRMED\nEND:VEVENT\n`;
     });
     ics += `END:VCALENDAR`;
 
@@ -254,7 +280,7 @@ export default function LecturerJadwalPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {filteredSchedules.map((sch) => (
               <div
-                key={sch.id}
+                key={sch.key}
                 className="p-6 rounded-2xl bg-white border border-slate-200 hover:border-[#1E3A8A]/50 transition-all flex flex-col justify-between group shadow-subtle"
               >
                 <div className="space-y-4">
@@ -265,6 +291,9 @@ export default function LecturerJadwalPage() {
                         <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-[#1E3A8A] border border-blue-200">
                           {sch.className}
                         </span>
+                        {sch.sesi === 'Praktikum' && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-100 text-indigo-700 border border-indigo-200">PRAKTIKUM</span>
+                        )}
                         <span className="text-xs font-mono font-semibold text-slate-500">{sch.courseCode}</span>
                         <span className="text-slate-300">&bull;</span>
                         <span className="text-xs font-bold text-slate-600">{sch.sks} SKS</span>
@@ -280,6 +309,13 @@ export default function LecturerJadwalPage() {
                       <span className="text-xs font-mono font-semibold text-slate-700">{sch.timeSlot}</span>
                     </div>
                   </div>
+
+                  {sch.sesi === 'Teori' && sch.practice && (
+                    <p className="text-[11px] text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-1.5">
+                      Praktikum kelas ini: {sch.practice.day}, {sch.practice.timeSlot} &bull; {sch.practice.roomName}
+                      {sch.practice.lecturerName !== sch.lecturerName ? ` • ${sch.practice.lecturerName}` : ''}
+                    </p>
+                  )}
 
                   {/* Room & Students info */}
                   <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-2 gap-3 text-xs">
@@ -307,6 +343,7 @@ export default function LecturerJadwalPage() {
                     <CalendarDays className="w-3.5 h-3.5 text-slate-400" /> TA 2026/2027 Gasal
                   </span>
 
+                  {sch.sesi === 'Teori' ? (
                   <div className="flex items-center gap-2">
                     <Link
                       href={`/lecturer/absensi/${sch.id}`}
@@ -330,6 +367,9 @@ export default function LecturerJadwalPage() {
                       <span>Nilai</span>
                     </Link>
                   </div>
+                  ) : (
+                    <span className="text-[11px] text-slate-400">Presensi & nilai diinput oleh dosen pengampu kelas</span>
+                  )}
                 </div>
               </div>
             ))}

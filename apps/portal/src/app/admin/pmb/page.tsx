@@ -61,19 +61,8 @@ export default function AdminPmbDashboardPage() {
   // Modals
   const [selectedApplicant, setSelectedApplicant] = useState<AdmissionApplicantItem | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
-  const [addModalOpen, setAddModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // New Applicant Form State
-  const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
-    highSchool: '',
-    chosenStudyProgram: 'Teknik Informatika (S1)',
-    jalurPendaftaran: 'Jalur Reguler',
-    notes: '',
-  });
 
   // Edit / Status Update State
   const [statusUpdateApplicant, setStatusUpdateApplicant] = useState<AdmissionApplicantItem | null>(null);
@@ -189,70 +178,6 @@ export default function AdminPmbDashboardPage() {
   }, [applicants, activeTab, filterStatus, filterProdi, filterJalur, searchQuery]);
 
   // Handle Add New Applicant directly into database
-  const handleCreateApplicant = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.fullName || !formData.email || !formData.phone) {
-      setDialogState({
-        isOpen: true,
-        title: 'Formulir Belum Lengkap',
-        message: 'Nama lengkap, email, dan nomor HP wajib diisi.',
-        type: 'warning',
-        isAlert: true,
-        confirmText: 'Mengerti',
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const { user: authUser } = getAuthSession();
-      const res = await fetch(`${apiBase}/admissions/applicants`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          verifiedBy: authUser?.fullName || 'Panitia PMB ITN',
-        }),
-      });
-
-      if (!res.ok) {
-        const errJson = await res.json();
-        throw new Error(errJson.message || 'Gagal menambahkan pendaftar ke database.');
-      }
-
-      setAddModalOpen(false);
-      setFormData({
-        fullName: '',
-        email: '',
-        phone: '',
-        highSchool: '',
-        chosenStudyProgram: 'Teknik Informatika (S1)',
-        jalurPendaftaran: 'Jalur Reguler',
-        notes: '',
-      });
-      await fetchData();
-      setDialogState({
-        isOpen: true,
-        title: 'Pendaftar Berhasil Didaftarkan',
-        message: 'Calon mahasiswa baru berhasil disimpan ke dalam sistem PMB.',
-        type: 'success',
-        isAlert: true,
-        confirmText: 'Selesai',
-      });
-    } catch (err: any) {
-      setDialogState({
-        isOpen: true,
-        title: 'Gagal Menyimpan Data',
-        message: err.message || 'Terjadi kesalahan sistem saat menyimpan data.',
-        type: 'danger',
-        isAlert: true,
-        confirmText: 'Tutup',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   // Open Status Update Modal
   const openStatusModal = (app: AdmissionApplicantItem) => {
     setStatusUpdateApplicant(app);
@@ -530,13 +455,13 @@ export default function AdminPmbDashboardPage() {
               <span>{isRefreshing ? 'Sinkronisasi...' : 'Segarkan Data'}</span>
             </button>
 
-            <button
-              onClick={() => setAddModalOpen(true)}
+            <Link
+              href="/admin/pmb/pendaftar/baru"
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1E3A8A] hover:bg-[#172554] text-white text-xs font-bold transition-all shadow-xs"
             >
               <Plus className="w-3.5 h-3.5 text-[#D4A017]" />
               <span>Tambah Calon Mahasiswa</span>
-            </button>
+            </Link>
 
             <button
               onClick={() => window.print()}
@@ -1194,140 +1119,6 @@ export default function AdminPmbDashboardPage() {
                   Tutup
                 </button>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* MODAL 2: TAMBAH CALON MAHASISWA SECARA MANUAL KE DATABASE                 */}
-        {/* ========================================================================= */}
-        {addModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs !m-0">
-            <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div>
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#1E3A8A]">
-                    Formulir Pendaftaran BAAK PMB
-                  </span>
-                  <h3 className="text-lg font-black text-slate-900">
-                    Tambah Calon Mahasiswa Baru
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setAddModalOpen(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleCreateApplicant} className="space-y-3 text-xs">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Nama Lengkap Siswa *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Contoh: Muhammad Kevin Alamsyah"
-                    value={formData.fullName}
-                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Email Aktif *</label>
-                    <input
-                      type="email"
-                      required
-                      placeholder="kevin@gmail.com"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Nomor WhatsApp / HP *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="081234567890"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A]"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Asal Sekolah (SMA / SMK / MA)</label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: SMAN 28 Jakarta Selatan"
-                    value={formData.highSchool}
-                    onChange={(e) => setFormData({ ...formData, highSchool: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Pilihan Program Studi</label>
-                    <select
-                      value={formData.chosenStudyProgram}
-                      onChange={(e) => setFormData({ ...formData, chosenStudyProgram: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A] bg-white"
-                    >
-                      <option value="Teknik Informatika (S1)">Teknik Informatika (S1)</option>
-                      <option value="Sistem Informasi (S1)">Sistem Informasi (S1)</option>
-                      <option value="Teknik Mesin (S1)">Teknik Mesin (S1)</option>
-                      <option value="Teknik Elektro (S1)">Teknik Elektro (S1)</option>
-                      <option value="Teknik Sipil (S1)">Teknik Sipil (S1)</option>
-                      <option value="Teknik Industri (S1)">Teknik Industri (S1)</option>
-                      <option value="Bisnis Digital (S1)">Bisnis Digital (S1)</option>
-                      <option value="Manajemen (S1)">Manajemen (S1)</option>
-                      <option value="Akuntansi (S1)">Akuntansi (S1)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Jalur Pendaftaran</label>
-                    <select
-                      value={formData.jalurPendaftaran}
-                      onChange={(e) => setFormData({ ...formData, jalurPendaftaran: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A] bg-white"
-                    >
-                      <option value="Jalur Prestasi Akademik (Bebas Tes)">Jalur Prestasi Akademik (Bebas Tes)</option>
-                      <option value="Jalur Nilai Rapor & Portofolio">Jalur Nilai Rapor & Portofolio</option>
-                      <option value="Jalur Reguler">Jalur Reguler</option>
-                      <option value="KIP-K & Beasiswa Nusantara">KIP-K & Beasiswa Nusantara</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setAddModalOpen(false)}
-                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 font-bold hover:bg-slate-50 transition-all"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="px-5 py-2 rounded-xl bg-[#1E3A8A] hover:bg-[#172554] text-white font-bold transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    {isSubmitting ? (
-                      <span>Menyimpan ke DB...</span>
-                    ) : (
-                      <>
-                        <Check className="w-4 h-4 text-[#D4A017]" />
-                        <span>Simpan Data</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
             </div>
           </div>
         )}

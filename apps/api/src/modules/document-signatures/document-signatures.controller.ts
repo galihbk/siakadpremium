@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Put, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { DocumentSignaturesService, SignerRole } from './document-signatures.service';
 
@@ -19,13 +19,12 @@ export class DocumentSignaturesController {
     return this.service.getRules();
   }
 
-  @Post('rules')
-  @ApiOperation({ summary: 'Menyimpan/memperbarui aturan tanda tangan sebuah jenis dokumen (Super Admin)' })
-  upsertRule(
+  @Put('rules/:documentCode')
+  @ApiOperation({ summary: 'Mengubah penandatangan sebuah jenis dokumen (Super Admin). Jenis dokumen sendiri ditetapkan pengembang.' })
+  updateRule(
+    @Param('documentCode') documentCode: string,
     @Body()
     body: {
-      documentCode: string;
-      documentLabel: string;
       signer1Role: SignerRole;
       signer1Label?: string;
       signer2Role?: SignerRole | null;
@@ -33,13 +32,7 @@ export class DocumentSignaturesController {
       notes?: string;
     },
   ) {
-    return this.service.upsertRule(body);
-  }
-
-  @Delete('rules/:documentCode')
-  @ApiOperation({ summary: 'Menghapus aturan tanda tangan sebuah jenis dokumen (Super Admin)' })
-  deleteRule(@Param('documentCode') documentCode: string) {
-    return this.service.deleteRule(documentCode);
+    return this.service.updateRule(documentCode, body);
   }
 
   @Get('resolve')

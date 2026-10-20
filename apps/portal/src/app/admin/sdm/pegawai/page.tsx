@@ -5,6 +5,12 @@ import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { Modal } from '@/components/ui/Modal';
 import {
+  departmentOptions,
+  categoryOptions,
+  employmentStatusOptions,
+  type PegawaiItem,
+} from '@/components/sdm/PegawaiForm';
+import {
   Briefcase,
   Users,
   UserCheck,
@@ -41,58 +47,6 @@ import {
   Clock,
 } from 'lucide-react';
 
-export interface PegawaiItem {
-  id: string;
-  nip: string;
-  nidn?: string;
-  fullName: string;
-  titlePrefix?: string;
-  titleSuffix?: string;
-  gender: 'Laki-laki' | 'Perempuan';
-  category: 'Tenaga Kependidikan' | 'Dosen Tetap' | 'Dosen Luar Biasa' | 'Laboran & IT' | 'Staf Layanan & Umum';
-  employmentStatus: 'PNS / ASN' | 'Tetap Yayasan' | 'Kontrak (PKWT)' | 'Honorer';
-  department: string;
-  position: string;
-  email: string;
-  phone: string;
-  education: 'D3' | 'S1' | 'S2' | 'S3' | 'Profesi';
-  joinDate: string;
-  status: 'Aktif' | 'Cuti' | 'Pensiun' | 'Tugas Belajar';
-  avatarUrl?: string;
-  shiftId?: string | null;
-  shiftName?: string | null;
-}
-
-const departmentOptions = [
-  'Semua Unit',
-  'Biro Administrasi Akademik & Kemahasiswaan (BAAK)',
-  'Biro Administrasi Keuangan (BAK)',
-  'Direktorat Sistem Teknologi Informasi (DSTI)',
-  'Fakultas Teknik',
-  'Fakultas Ilmu Komputer',
-  'Fakultas Ekonomi & Bisnis',
-  'Lembaga Penelitian & Pengabdian Masyarakat (LPPM)',
-  'Biro Urusan Rumah Tangga & Sarpras (URT)',
-  'Perpustakaan Pusat & Arsip',
-];
-
-const categoryOptions = [
-  'Semua Kategori',
-  'Tenaga Kependidikan',
-  'Dosen Tetap',
-  'Dosen Luar Biasa',
-  'Laboran & IT',
-  'Staf Layanan & Umum',
-];
-
-const employmentStatusOptions = [
-  'Semua Status',
-  'PNS / ASN',
-  'Tetap Yayasan',
-  'Kontrak (PKWT)',
-  'Honorer',
-];
-
 export default function SdmPegawaiPage() {
   const [employees, setEmployees] = useState<PegawaiItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -104,9 +58,7 @@ export default function SdmPegawaiPage() {
   const [statusFilter, setStatusFilter] = useState<string>('Semua');
 
   // Modals
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-  const [editingPegawai, setEditingPegawai] = useState<PegawaiItem | null>(null);
   const [selectedIdCard, setSelectedIdCard] = useState<PegawaiItem | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -132,42 +84,6 @@ export default function SdmPegawaiPage() {
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-
-  // Form State
-  const [formData, setFormData] = useState<Omit<PegawaiItem, 'id'>>({
-    nip: '',
-    nidn: '',
-    fullName: '',
-    titlePrefix: '',
-    titleSuffix: '',
-    gender: 'Laki-laki',
-    category: 'Tenaga Kependidikan',
-    employmentStatus: 'Tetap Yayasan',
-    department: 'Biro Administrasi Akademik & Kemahasiswaan (BAAK)',
-    position: '',
-    email: '',
-    phone: '',
-    education: 'S1',
-    joinDate: new Date().toISOString().split('T')[0],
-    status: 'Aktif',
-    shiftId: '',
-  });
-
-  // Daftar shift untuk dipilih saat tambah/edit pegawai
-  const [shiftOptions, setShiftOptions] = useState<{ id: string; name: string; isDefault: boolean }[]>([]);
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(`${apiBase}/shifts`);
-        if (res.ok) {
-          const json = await res.json();
-          setShiftOptions(json.data ?? json ?? []);
-        }
-      } catch (err) {
-        console.warn('Gagal memuat daftar shift:', err);
-      }
-    })();
-  }, [apiBase]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -232,8 +148,10 @@ export default function SdmPegawaiPage() {
         fullDisplayName.includes(searchQuery.toLowerCase()) ||
         (emp.nip && emp.nip.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (emp.nidn && emp.nidn.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (emp.nuptk && emp.nuptk.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (emp.email && emp.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (emp.position && emp.position.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (emp.structuralPosition && emp.structuralPosition.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (emp.functionalPosition && emp.functionalPosition.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (emp.department && emp.department.toLowerCase().includes(searchQuery.toLowerCase()));
 
       const matchCategory = categoryFilter === 'Semua Kategori' || emp.category === categoryFilter;
@@ -266,94 +184,12 @@ export default function SdmPegawaiPage() {
   const stats = useMemo(() => {
     const total = employees.length;
     const dosenCount = employees.filter((e) => e.category?.includes('Dosen')).length;
-    const tendikCount = employees.filter((e) => e.category === 'Tenaga Kependidikan' || e.category === 'Laboran & IT' || e.category === 'Staf Layanan & Umum').length;
+    const tendikCount = employees.filter((e) => !e.category?.includes('Dosen')).length;
     const pnsCount = employees.filter((e) => e.employmentStatus === 'PNS / ASN').length;
     const tetapCount = employees.filter((e) => e.employmentStatus === 'Tetap Yayasan').length;
     const aktifCount = employees.filter((e) => e.status === 'Aktif').length;
     return { total, dosenCount, tendikCount, pnsCount, tetapCount, aktifCount };
   }, [employees]);
-
-  // Open modal handler
-  const handleOpenAddModal = () => {
-    setEditingPegawai(null);
-    setFormData({
-      nip: '',
-      nidn: '',
-      fullName: '',
-      titlePrefix: '',
-      titleSuffix: '',
-      gender: 'Laki-laki',
-      category: 'Tenaga Kependidikan',
-      employmentStatus: 'Tetap Yayasan',
-      department: 'Biro Administrasi Akademik & Kemahasiswaan (BAAK)',
-      position: '',
-      email: '',
-      phone: '',
-      education: 'S1',
-      joinDate: new Date().toISOString().split('T')[0],
-      status: 'Aktif',
-      shiftId: '',
-    });
-    setIsAddModalOpen(true);
-  };
-
-  const handleOpenEditModal = (emp: PegawaiItem) => {
-    setEditingPegawai(emp);
-    setFormData({
-      nip: emp.nip,
-      nidn: emp.nidn || '',
-      fullName: emp.fullName,
-      titlePrefix: emp.titlePrefix || '',
-      titleSuffix: emp.titleSuffix || '',
-      gender: emp.gender,
-      category: emp.category,
-      employmentStatus: emp.employmentStatus,
-      department: emp.department,
-      position: emp.position,
-      email: emp.email,
-      phone: emp.phone,
-      education: emp.education,
-      joinDate: emp.joinDate,
-      status: emp.status,
-      shiftId: emp.shiftId || '',
-    });
-    setIsAddModalOpen(true);
-  };
-
-  const handleSavePegawai = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.fullName || !formData.nip || !formData.position || !formData.email) {
-      alert('Mohon lengkapi NIP, Nama Lengkap, Jabatan, dan Email Pegawai!');
-      return;
-    }
-
-    try {
-      if (editingPegawai) {
-        const res = await fetch(`${apiBase}/employees/${editingPegawai.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData),
-        });
-        if (res.ok) {
-          showToast(`Data pegawai "${formData.fullName}" berhasil diperbarui di database.`);
-        }
-      } else {
-        const res = await fetch(`${apiBase}/employees`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData),
-        });
-        if (res.ok) {
-          showToast(`Pegawai baru "${formData.fullName}" berhasil disimpan ke database.`);
-        }
-      }
-    } catch (err) {
-      console.warn('Gagal menyimpan ke database:', err);
-    }
-
-    await loadEmployeesFromDB();
-    setIsAddModalOpen(false);
-  };
 
   const handleDelete = async (id: string, name: string) => {
     if (confirm(`Apakah Anda yakin ingin menghapus data pegawai "${name}" dari database?`)) {
@@ -396,6 +232,7 @@ export default function SdmPegawaiPage() {
     const headers = [
       'NIP',
       'NIDN',
+      'NUPTK',
       'Nama Lengkap',
       'Gelar Depan',
       'Gelar Belakang',
@@ -403,7 +240,8 @@ export default function SdmPegawaiPage() {
       'Kategori',
       'Status Kepegawaian',
       'Unit Kerja',
-      'Jabatan',
+      'Jabatan Struktural',
+      'Jabatan Fungsional',
       'Pendidikan',
       'Email',
       'No. Telepon',
@@ -413,6 +251,7 @@ export default function SdmPegawaiPage() {
     const rows = filteredEmployees.map((e) => [
       `"${e.nip}"`,
       `"${e.nidn || '-'}"`,
+      `"${e.nuptk || '-'}"`,
       `"${e.fullName}"`,
       `"${e.titlePrefix || '-'}"`,
       `"${e.titleSuffix || '-'}"`,
@@ -420,7 +259,8 @@ export default function SdmPegawaiPage() {
       `"${e.category}"`,
       `"${e.employmentStatus}"`,
       `"${e.department}"`,
-      `"${e.position}"`,
+      `"${e.structuralPosition || '-'}"`,
+      `"${e.functionalPosition || '-'}"`,
       `"${e.education}"`,
       `"${e.email}"`,
       `"${e.phone}"`,
@@ -500,13 +340,13 @@ export default function SdmPegawaiPage() {
               <Printer className="w-4 h-4 text-slate-500" />
               <span>Cetak Laporan</span>
             </button>
-            <button
-              onClick={handleOpenAddModal}
+            <Link
+              href="/admin/sdm/pegawai/baru"
               className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-gradient-to-r from-[#1E3A8A] to-blue-700 hover:from-blue-900 hover:to-blue-800 rounded-xl shadow-sm shadow-blue-900/20 transition-all active:scale-[0.98]"
             >
               <Plus className="w-4 h-4" />
               <span>Tambah Pegawai Baru</span>
-            </button>
+            </Link>
           </div>
         </div>
 
@@ -537,7 +377,7 @@ export default function SdmPegawaiPage() {
               <span className="text-2xl font-black text-slate-900">{stats.tendikCount}</span>
               <span className="text-xs text-amber-600 font-medium">Staf & Tendik</span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">BAAK, Keuangan, Laboran, & Fasilitas</p>
+            <p className="text-[11px] text-slate-400 mt-1">BAAK, Keuangan, Laboran, IT, & Fasilitas</p>
           </div>
 
           <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200/90 shadow-xs hover:border-blue-300 transition-all">
@@ -582,7 +422,7 @@ export default function SdmPegawaiPage() {
                   setSearchQuery(e.target.value);
                   setCurrentPage(1);
                 }}
-                placeholder="Cari berdasarkan NIP, NIDN, Nama, Jabatan, Unit, atau Email..."
+                placeholder="Cari berdasarkan NIP, NIDN/NUPTK, Nama, Jabatan, Unit, atau Email..."
                 className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] transition-all placeholder:text-slate-400"
               />
               {searchQuery && (
@@ -768,24 +608,31 @@ export default function SdmPegawaiPage() {
                       </div>
                     </th>
 
-                    <th
-                      onClick={() => handleSort('position')}
-                      className="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors group"
-                      title="Klik untuk mengurutkan jabatan"
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span>Jabatan & Unit Kerja</span>
-                        {sortField === 'position' ? (
-                          sortOrder === 'asc' ? (
-                            <ArrowUp className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                    {([
+                      ['department', 'Unit Kerja'],
+                      ['structuralPosition', 'Jabatan Struktural'],
+                      ['functionalPosition', 'Jabatan Fungsional'],
+                    ] as const).map(([field, label]) => (
+                      <th
+                        key={field}
+                        onClick={() => handleSort(field)}
+                        className="py-3.5 px-4 cursor-pointer hover:bg-slate-100 transition-colors group"
+                        title={`Klik untuk mengurutkan ${label.toLowerCase()}`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span>{label}</span>
+                          {sortField === field ? (
+                            sortOrder === 'asc' ? (
+                              <ArrowUp className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                            ) : (
+                              <ArrowDown className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                            )
                           ) : (
-                            <ArrowDown className="w-3.5 h-3.5 text-[#1E3A8A]" />
-                          )
-                        ) : (
-                          <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 opacity-40 group-hover:opacity-100" />
-                        )}
-                      </div>
-                    </th>
+                            <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 opacity-40 group-hover:opacity-100" />
+                          )}
+                        </div>
+                      </th>
+                    ))}
 
                     <th
                       onClick={() => handleSort('category')}
@@ -852,7 +699,7 @@ export default function SdmPegawaiPage() {
                 <tbody className="divide-y divide-slate-100">
                   {paginatedEmployees.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-12 text-slate-500">
+                      <td colSpan={9} className="text-center py-12 text-slate-500">
                         <Briefcase className="w-10 h-10 text-slate-300 mx-auto mb-2" />
                         <p className="font-semibold text-sm">Tidak ada data pegawai yang sesuai</p>
                         <p className="text-xs text-slate-400 mt-0.5">
@@ -901,25 +748,47 @@ export default function SdmPegawaiPage() {
                                       NIDN: {emp.nidn}
                                     </span>
                                   )}
+                                  {emp.nuptk && (
+                                    <span className="font-mono text-[10px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
+                                      NUPTK: {emp.nuptk}
+                                    </span>
+                                  )}
                                   <span className="text-[10px] text-slate-400">({emp.gender})</span>
                                 </div>
                               </div>
                             </div>
                           </td>
 
-                          {/* Jabatan & Unit Kerja */}
+                          {/* Unit Kerja */}
                           <td className="py-4 px-4">
-                            <div className="font-semibold text-slate-800 text-xs">{emp.position}</div>
-                            <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                              <Building2 className="w-3 h-3 text-slate-400 shrink-0" />
-                              <span className="truncate max-w-xs" title={emp.department}>
-                                {emp.department}
-                              </span>
+                            <div className="text-xs text-slate-700 flex items-start gap-1.5">
+                              <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                              <span className="max-w-[16rem]">{emp.department}</span>
                             </div>
                             {emp.shiftName && (
                               <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-indigo-600">
                                 <Clock className="w-2.5 h-2.5" /> {emp.shiftName}
                               </span>
+                            )}
+                          </td>
+
+                          {/* Jabatan Struktural */}
+                          <td className="py-4 px-4">
+                            {emp.structuralPosition ? (
+                              <span className="font-semibold text-slate-800 text-xs">{emp.structuralPosition}</span>
+                            ) : (
+                              <span className="text-xs text-slate-300">-</span>
+                            )}
+                          </td>
+
+                          {/* Jabatan Fungsional */}
+                          <td className="py-4 px-4">
+                            {emp.functionalPosition ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                {emp.functionalPosition}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-slate-300">-</span>
                             )}
                           </td>
 
@@ -929,8 +798,8 @@ export default function SdmPegawaiPage() {
                               className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                                 emp.category.includes('Dosen')
                                   ? 'bg-purple-50 text-purple-700 border-purple-200'
-                                  : emp.category === 'Laboran & IT'
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : emp.category !== 'Tenaga Kependidikan'
+                                  ? 'bg-slate-100 text-slate-700 border-slate-300'
                                   : 'bg-blue-50 text-blue-700 border-blue-200'
                               }`}
                             >
@@ -946,23 +815,32 @@ export default function SdmPegawaiPage() {
                                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                   : emp.employmentStatus === 'Tetap Yayasan'
                                   ? 'bg-sky-50 text-sky-700 border-sky-200'
+                                  : emp.employmentStatus === 'Outsourcing (Alih Daya)'
+                                  ? 'bg-slate-100 text-slate-700 border-slate-300'
                                   : 'bg-amber-50 text-amber-700 border-amber-200'
                               }`}
                             >
                               {emp.employmentStatus}
                             </span>
+                            {emp.vendorName && <div className="text-[10px] text-slate-500 mt-1 max-w-[10rem] mx-auto truncate" title={emp.vendorName}>{emp.vendorName}</div>}
                           </td>
 
                           {/* Kontak */}
                           <td className="py-4 px-4 text-center">
                             <div className="flex flex-col items-center gap-0.5">
-                              <a
-                                href={`mailto:${emp.email}`}
-                                className="text-[11px] text-blue-600 hover:underline flex items-center gap-1"
-                              >
-                                <Mail className="w-3 h-3 text-slate-400" />
-                                {emp.email}
-                              </a>
+                              {emp.email ? (
+                                <a
+                                  href={`mailto:${emp.email}`}
+                                  className="text-[11px] text-blue-600 hover:underline flex items-center gap-1"
+                                >
+                                  <Mail className="w-3 h-3 text-slate-400" />
+                                  {emp.email}
+                                </a>
+                              ) : (
+                                <span className="text-[11px] text-slate-300 flex items-center gap-1">
+                                  <Mail className="w-3 h-3" /> -
+                                </span>
+                              )}
                               <span className="text-[10px] text-slate-400 flex items-center gap-1 font-mono">
                                 <Phone className="w-2.5 h-2.5 text-slate-400" />
                                 {emp.phone}
@@ -1003,13 +881,13 @@ export default function SdmPegawaiPage() {
                               >
                                 <IdCard className="w-4 h-4" />
                               </button>
-                              <button
-                                onClick={() => handleOpenEditModal(emp)}
+                              <Link href={`/admin/sdm/pegawai/${emp.id}/edit`}
+                                
                                 className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition-colors"
                                 title="Edit Biodata Pegawai"
                               >
                                 <Edit3 className="w-4 h-4" />
-                              </button>
+                              </Link>
                               <button
                                 onClick={() => handleDelete(emp.id, emp.fullName)}
                                 className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
@@ -1142,9 +1020,19 @@ export default function SdmPegawaiPage() {
                             <span className="font-mono font-bold text-purple-700 text-[11px]">{emp.nidn}</span>
                           </div>
                         )}
+                        {emp.nuptk && (
+                          <div className="flex items-center justify-between text-slate-500">
+                            <span>NUPTK</span>
+                            <span className="font-mono font-bold text-purple-700 text-[11px]">{emp.nuptk}</span>
+                          </div>
+                        )}
                         <div className="flex items-start justify-between text-slate-500 gap-2">
-                          <span>Jabatan</span>
-                          <span className="font-semibold text-slate-800 text-right">{emp.position}</span>
+                          <span>Jabatan Struktural</span>
+                          <span className="font-semibold text-slate-800 text-right">{emp.structuralPosition || '-'}</span>
+                        </div>
+                        <div className="flex items-start justify-between text-slate-500 gap-2">
+                          <span>Jabatan Fungsional</span>
+                          <span className="font-semibold text-slate-800 text-right">{emp.functionalPosition || '-'}</span>
                         </div>
                         <div className="flex items-start justify-between text-slate-500 gap-2">
                           <span>Unit Kerja</span>
@@ -1180,13 +1068,13 @@ export default function SdmPegawaiPage() {
                         >
                           <IdCard className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => handleOpenEditModal(emp)}
+                        <Link href={`/admin/sdm/pegawai/${emp.id}/edit`}
+                          
                           className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition-colors"
                           title="Edit"
                         >
                           <Edit3 className="w-4 h-4" />
-                        </button>
+                        </Link>
                         <button
                           onClick={() => handleDelete(emp.id, emp.fullName)}
                           className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
@@ -1226,280 +1114,6 @@ export default function SdmPegawaiPage() {
             </div>
           </div>
         )}
-
-        {/* Modal: Tambah / Edit Pegawai */}
-        <Modal
-          isOpen={isAddModalOpen}
-          onClose={() => setIsAddModalOpen(false)}
-          title={editingPegawai ? 'Edit Data Pegawai' : 'Tambah Pegawai Baru'}
-          subtitle="Lengkapi data profil kepegawaian, jabatan, status keaktifan, dan unit kerja penempatan."
-          icon={<Briefcase className="w-5 h-5" />}
-          maxWidth="2xl"
-        >
-          <form onSubmit={handleSavePegawai} className="space-y-4 text-xs">
-            {/* Seksi 1: Data Identitas Utama */}
-            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
-              <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-                <UserCheck className="w-4 h-4 text-[#1E3A8A]" />
-                <span>Identitas & Data Pribadi</span>
-              </h4>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    NIP Pegawai <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Contoh: 19850315 201001 1 002"
-                    value={formData.nip}
-                    onChange={(e) => setFormData({ ...formData, nip: e.target.value })}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#1E3A8A]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    NIDN (Khusus Dosen)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: 0015038501"
-                    value={formData.nidn || ''}
-                    onChange={(e) => setFormData({ ...formData, nidn: e.target.value })}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#1E3A8A]"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div className="sm:col-span-1">
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Gelar Depan</label>
-                  <input
-                    type="text"
-                    placeholder="Dr. / Prof."
-                    value={formData.titlePrefix || ''}
-                    onChange={(e) => setFormData({ ...formData, titlePrefix: e.target.value })}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#1E3A8A]"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Nama Lengkap (Tanpa Gelar) <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Contoh: Hendra Gunawan"
-                    value={formData.fullName}
-                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#1E3A8A]"
-                  />
-                </div>
-                <div className="sm:col-span-1">
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Gelar Belakang</label>
-                  <input
-                    type="text"
-                    placeholder="M.Kom. / S.T."
-                    value={formData.titleSuffix || ''}
-                    onChange={(e) => setFormData({ ...formData, titleSuffix: e.target.value })}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#1E3A8A]"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Jenis Kelamin</label>
-                  <select
-                    value={formData.gender}
-                    onChange={(e) => setFormData({ ...formData, gender: e.target.value as any })}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#1E3A8A]"
-                  >
-                    <option value="Laki-laki">Laki-laki</option>
-                    <option value="Perempuan">Perempuan</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Pendidikan Terakhir</label>
-                  <select
-                    value={formData.education}
-                    onChange={(e) => setFormData({ ...formData, education: e.target.value as any })}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#1E3A8A]"
-                  >
-                    <option value="D3">Diploma 3 (D3)</option>
-                    <option value="S1">Sarjana (S1)</option>
-                    <option value="Profesi">Profesi / Spesialis</option>
-                    <option value="S2">Magister (S2)</option>
-                    <option value="S3">Doktor (S3)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Seksi 2: Jabatan & Unit Kerja */}
-            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
-              <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-                <Briefcase className="w-4 h-4 text-[#1E3A8A]" />
-                <span>Jabatan & Penempatan Institusi</span>
-              </h4>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Kategori Pegawai</label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#1E3A8A]"
-                  >
-                    <option value="Tenaga Kependidikan">Tenaga Kependidikan (Tendik)</option>
-                    <option value="Dosen Tetap">Dosen Tetap</option>
-                    <option value="Dosen Luar Biasa">Dosen Luar Biasa</option>
-                    <option value="Laboran & IT">Laboran & Tim IT</option>
-                    <option value="Staf Layanan & Umum">Staf Layanan & Umum</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Status Kepegawaian</label>
-                  <select
-                    value={formData.employmentStatus}
-                    onChange={(e) => setFormData({ ...formData, employmentStatus: e.target.value as any })}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#1E3A8A]"
-                  >
-                    <option value="PNS / ASN">PNS / ASN</option>
-                    <option value="Tetap Yayasan">Pegawai Tetap Yayasan</option>
-                    <option value="Kontrak (PKWT)">Kontrak Waktu Tertentu (PKWT)</option>
-                    <option value="Honorer">Honorer / Part-Time</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Unit Kerja / Biro / Fakultas</label>
-                  <select
-                    value={formData.department}
-                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#1E3A8A]"
-                  >
-                    {departmentOptions.filter((d) => d !== 'Semua Unit').map((dept) => (
-                      <option key={dept} value={dept}>
-                        {dept}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Jabatan Struktural / Fungsional <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Contoh: Kepala Bagian BAAK / Lektor Kepala"
-                    value={formData.position}
-                    onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#1E3A8A]"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Tanggal Mulai Bekerja (TMT)</label>
-                  <input
-                    type="date"
-                    value={formData.joinDate}
-                    onChange={(e) => setFormData({ ...formData, joinDate: e.target.value })}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#1E3A8A]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Status Keaktifan</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#1E3A8A]"
-                  >
-                    <option value="Aktif">Aktif Bekerja</option>
-                    <option value="Cuti">Cuti</option>
-                    <option value="Tugas Belajar">Tugas Belajar</option>
-                    <option value="Pensiun">Pensiun</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Shift Jam Kerja</label>
-                <select
-                  value={formData.shiftId || ''}
-                  onChange={(e) => setFormData({ ...formData, shiftId: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#1E3A8A]"
-                >
-                  <option value="">Ikut Shift Default</option>
-                  {shiftOptions.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                      {s.isDefault ? ' (Default)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Seksi 3: Kontak & Komunikasi */}
-            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
-              <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-                <Mail className="w-4 h-4 text-[#1E3A8A]" />
-                <span>Kontak & Akses Akun</span>
-              </h4>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Email Resmi Kampus <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="nama.pegawai@itn.ac.id"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#1E3A8A]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Nomor WhatsApp / Ponsel</label>
-                  <input
-                    type="tel"
-                    placeholder="0812-xxxx-xxxx"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#1E3A8A]"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
-              <button
-                type="button"
-                onClick={() => setIsAddModalOpen(false)}
-                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                className="px-5 py-2 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-900 rounded-xl shadow-xs transition-all"
-              >
-                Simpan Data Pegawai
-              </button>
-            </div>
-          </form>
-        </Modal>
 
         {/* Modal: Kartu Pegawai Digital (ID Card) */}
         {selectedIdCard && (

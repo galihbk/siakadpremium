@@ -7,6 +7,15 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      customers:
+        description: "Kampus yang di-deploy: 'auto' (sesuai aturan di deploy/customers.json) atau daftar nama dipisah koma, mis. kampus-a,kampus-b"
+        required: false
+        default: 'auto'
+      tag:
+        description: 'Tag image yang di-deploy (kosong = commit yang dipilih). Mis. v1.0.0 untuk mengunci/mengembalikan versi.'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -49,6 +58,7 @@ jobs:
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=sha,prefix=
+            type=ref,event=tag
 
       - name: Build and Push API Docker Image
         uses: docker/build-push-action@v5
@@ -95,6 +105,7 @@ jobs:
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=sha,prefix=
+            type=ref,event=tag
 
       - name: Build and Push Web Docker Image
         uses: docker/build-push-action@v5
@@ -144,6 +155,7 @@ jobs:
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=sha,prefix=
+            type=ref,event=tag
 
       - name: Build and Push PMB Docker Image
         uses: docker/build-push-action@v5
@@ -193,6 +205,7 @@ jobs:
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=sha,prefix=
+            type=ref,event=tag
 
       - name: Build and Push P2M Docker Image
         uses: docker/build-push-action@v5
@@ -242,6 +255,7 @@ jobs:
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=sha,prefix=
+            type=ref,event=tag
 
       - name: Build and Push P3M Docker Image
         uses: docker/build-push-action@v5
@@ -291,6 +305,7 @@ jobs:
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=sha,prefix=
+            type=ref,event=tag
 
       - name: Build and Push Portal Docker Image
         uses: docker/build-push-action@v5
@@ -393,3 +408,155 @@ jobs:
           curl -f http://localhost:3101/api/v1/health || echo "API server responding..."
           curl -f http://localhost:3102/login || echo "Portal server responding..."
           echo "✅ SIAKAD Premium live deployment completed successfully on server!"
+
+  # ----------------------------------------------------------------------------
+  # Job 6: Susun daftar kampus yang akan di-deploy (dari deploy/customers.json)
+  #   - push ke main       -> kampus dengan "track": "main"    (selalu versi terbaru)
+  #   - push tag v*        -> kampus dengan "track": "release" (hanya saat ada rilis bertag)
+  #   - jalankan manual    -> kampus yang disebut di input "customers"
+  # ----------------------------------------------------------------------------
+  plan-customers:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      count: ${{ steps.plan.outputs.count }}
+      imageTag: ${{ steps.plan.outputs.imageTag }}
+    steps:
+      - name: Checkout daftar kampus
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: deploy
+          sparse-checkout-cone-mode: true
+
+      - name: Tentukan kampus & tag image
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_CUSTOMERS: ${{ github.event.inputs.customers }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${GITHUB_SHA::7}"
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            IMAGE_TAG="${INPUT_TAG:-$SHORT_SHA}"
+            SEL="${INPUT_CUSTOMERS:-auto}"
+          elif [ "$REF_TYPE" = "tag" ]; then
+            IMAGE_TAG="$REF_NAME"
+            SEL="auto"
+          else
+            IMAGE_TAG="$SHORT_SHA"
+            SEL="auto"
+          fi
+
+          if [ "$SEL" = "auto" ]; then
+            if [ "$REF_TYPE" = "tag" ]; then TRACK="release"; else TRACK="main"; fi
+            M=$(jq -c --arg t "$TRACK" '[.customers[] | select((.autoDeploy // false) == true and (.track // "main") == $t)]' deploy/customers.json)
+          else
+            M=$(jq -c --arg s "$SEL" '[.customers[] | select(.name as $n | ($s | split(",") | map(gsub(" "; "")) | index($n)) != null)]' deploy/customers.json)
+          fi
+          M=$(jq -c 'map(. + {appDir: (.appDir // "/srv/siakad"), runner: (.runner // "")})' <<<"$M")
+
+          echo "imageTag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "matrix=$M" >> "$GITHUB_OUTPUT"
+          echo "count=$(jq 'length' <<<"$M")" >> "$GITHUB_OUTPUT"
+          echo "Tag image: $IMAGE_TAG"
+          echo "Kampus yang di-deploy: $(jq -r 'map(.name) | join(", ")' <<<"$M")"
+
+  # ----------------------------------------------------------------------------
+  # Job 7: Deploy ke server tiap kampus (paralel, satu kampus gagal tidak menghentikan yang lain)
+  #   Mode SSH    : runner GitHub masuk ke server kampus lewat SSH (server harus bisa dijangkau dari internet).
+  #   Mode runner : bila "runner" diisi, job dijalankan oleh self-hosted runner di server kampus itu (tanpa SSH).
+  # Rahasia (SSH_HOST, SSH_USER, SSH_KEY, ...) disimpan per kampus di GitHub Environment bernama sama.
+  # ----------------------------------------------------------------------------
+  deploy-customers:
+    needs: [plan-customers, build-api, build-web, build-pmb, build-p2m, build-p3m, build-portal]
+    if: ${{ needs.plan-customers.outputs.count != '0' }}
+    name: Deploy ${{ matrix.name }}
+    runs-on: ${{ matrix.runner != '' && fromJSON(format('["self-hosted","{0}"]', matrix.runner)) || 'ubuntu-latest' }}
+    environment: ${{ matrix.environment }}
+    concurrency:
+      group: deploy-${{ matrix.name }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include: ${{ fromJSON(needs.plan-customers.outputs.matrix) }}
+    env:
+      IMAGE_TAG: ${{ needs.plan-customers.outputs.imageTag }}
+      APP_DIR: ${{ matrix.appDir }}
+    steps:
+      - name: Checkout berkas deploy
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            docker-compose.prod.yml
+            .env.prod.example
+            docker/postgres/init.sql
+            deploy/remote-deploy.sh
+
+      - name: Pemilik image (huruf kecil)
+        run: echo "IMAGE_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
+      # ----- Mode runner: dijalankan langsung di server kampus -----
+      - name: Deploy (runner di server kampus)
+        if: ${{ matrix.runner != '' }}
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$APP_DIR/docker/postgres"
+          cp docker-compose.prod.yml "$APP_DIR/docker-compose.prod.yml"
+          cp .env.prod.example "$APP_DIR/.env.prod.example"
+          cp docker/postgres/init.sql "$APP_DIR/docker/postgres/init.sql"
+          bash deploy/remote-deploy.sh
+
+      # ----- Mode SSH: runner GitHub masuk ke server kampus -----
+      - name: Siapkan SSH
+        if: ${{ matrix.runner == '' }}
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SSH_HOST" ] || [ -z "$SSH_KEY" ]; then
+            echo "Secret SSH_HOST / SSH_KEY belum diisi di Environment '${{ matrix.environment }}'"
+            exit 1
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -p "${SSH_PORT:-22}" -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          fi
+
+      - name: Deploy (SSH)
+        if: ${{ matrix.runner == '' }}
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          SSH="ssh -i $HOME/.ssh/deploy_key -p ${SSH_PORT:-22} -o BatchMode=yes $SSH_USER@$SSH_HOST"
+          SCP="scp -i $HOME/.ssh/deploy_key -P ${SSH_PORT:-22} -o BatchMode=yes"
+          $SSH "mkdir -p '$APP_DIR/docker/postgres'"
+          $SCP docker-compose.prod.yml "$SSH_USER@$SSH_HOST:$APP_DIR/docker-compose.prod.yml"
+          $SCP .env.prod.example "$SSH_USER@$SSH_HOST:$APP_DIR/.env.prod.example"
+          $SCP docker/postgres/init.sql "$SSH_USER@$SSH_HOST:$APP_DIR/docker/postgres/init.sql"
+          # Token dikirim lewat stdin (bukan argumen) supaya tidak terlihat di daftar proses server.
+          {
+            printf 'export APP_DIR=%q IMAGE_TAG=%q IMAGE_OWNER=%q GHCR_USER=%q GHCR_TOKEN=%q\n' \
+              "$APP_DIR" "$IMAGE_TAG" "$IMAGE_OWNER" "$GHCR_USER" "$GHCR_TOKEN"
+            cat deploy/remote-deploy.sh
+          } | $SSH 'bash -s'

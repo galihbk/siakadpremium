@@ -46,7 +46,7 @@ export interface PegawaiItem {
   titlePrefix?: string;
   titleSuffix?: string;
   gender: 'Laki-laki' | 'Perempuan';
-  category: 'Tenaga Kependidikan' | 'Dosen Tetap' | 'Dosen Luar Biasa' | 'Laboran & IT' | 'Staf Layanan & Umum';
+  category: 'Dosen Tetap' | 'Dosen Luar Biasa' | 'Tenaga Kependidikan';
   employmentStatus: 'PNS / ASN' | 'Tetap Yayasan' | 'Kontrak (PKWT)' | 'Honorer';
   department: string;
   position: string;
@@ -76,8 +76,6 @@ const categoryOptions = [
   'Tenaga Kependidikan',
   'Dosen Tetap',
   'Dosen Luar Biasa',
-  'Laboran & IT',
-  'Staf Layanan & Umum',
 ];
 
 const employmentStatusOptions = [
@@ -228,7 +226,7 @@ export default function SuperAdminPegawaiPage() {
   const stats = useMemo(() => {
     const total = employees.length;
     const dosenCount = employees.filter((e) => e.category?.includes('Dosen')).length;
-    const tendikCount = employees.filter((e) => e.category === 'Tenaga Kependidikan' || e.category === 'Laboran & IT' || e.category === 'Staf Layanan & Umum').length;
+    const tendikCount = employees.filter((e) => !e.category?.includes('Dosen')).length;
     const pnsCount = employees.filter((e) => e.employmentStatus === 'PNS / ASN').length;
     const tetapCount = employees.filter((e) => e.employmentStatus === 'Tetap Yayasan').length;
     const aktifCount = employees.filter((e) => e.status === 'Aktif').length;
@@ -831,8 +829,6 @@ export default function SuperAdminPegawaiPage() {
                               className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                                 emp.category.includes('Dosen')
                                   ? 'bg-purple-50 text-purple-700 border-purple-200'
-                                  : emp.category === 'Laboran & IT'
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                   : 'bg-blue-50 text-blue-700 border-blue-200'
                               }`}
                             >
@@ -1228,8 +1224,6 @@ export default function SuperAdminPegawaiPage() {
                     <option value="Tenaga Kependidikan">Tenaga Kependidikan (Tendik)</option>
                     <option value="Dosen Tetap">Dosen Tetap</option>
                     <option value="Dosen Luar Biasa">Dosen Luar Biasa</option>
-                    <option value="Laboran & IT">Laboran & Tim IT</option>
-                    <option value="Staf Layanan & Umum">Staf Layanan & Umum</option>
                   </select>
                 </div>
 

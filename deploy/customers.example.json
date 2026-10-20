@@ -1,0 +1,26 @@
+{
+  "customers": [
+    {
+      "name": "kampus-a",
+      "environment": "kampus-a",
+      "appDir": "/srv/siakad",
+      "autoDeploy": true,
+      "track": "main"
+    },
+    {
+      "name": "kampus-b",
+      "environment": "kampus-b",
+      "appDir": "/srv/siakad",
+      "autoDeploy": true,
+      "track": "release",
+      "runner": "kampus-b"
+    },
+    {
+      "name": "demo-kudus",
+      "environment": "demo-kudus",
+      "appDir": "/srv/siakad-kudus",
+      "autoDeploy": true,
+      "track": "main"
+    }
+  ]
+}

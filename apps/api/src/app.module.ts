@@ -1,11 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { ProxyThrottlerGuard } from './common/guards/proxy-throttler.guard';
 import { JwtModule } from '@nestjs/jwt';
 import { GlobalAuthGuard } from './common/guards/global-auth.guard';
 import { PrismaModule } from './shared/prisma/prisma.module';
 import { RedisModule } from './shared/redis/redis.module';
+import { BootstrapModule } from './shared/bootstrap/bootstrap.module';
 import { MailModule } from './shared/mail/mail.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { FacultiesModule } from './modules/faculties/faculties.module';
@@ -34,6 +36,7 @@ import { GraduationModule } from './modules/graduation/graduation.module';
 import { ExamsModule } from './modules/exams/exams.module';
 import { ProdiModule } from './modules/prodi/prodi.module';
 import { BackupsModule } from './modules/backups/backups.module';
+import { ObeIntegrationModule } from './modules/obe-integration/obe-integration.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -62,6 +65,7 @@ import { AppService } from './app.service';
     ]),
     PrismaModule,
     RedisModule,
+    BootstrapModule,
     MailModule,
     AuthModule,
     FacultiesModule,
@@ -90,11 +94,12 @@ import { AppService } from './app.service';
     ExamsModule,
     ProdiModule,
     BackupsModule,
+    ObeIntegrationModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: ProxyThrottlerGuard },
     // Semua endpoint wajib login kecuali yang terdaftar publik (lihat global-auth.guard.ts).
     { provide: APP_GUARD, useClass: GlobalAuthGuard },
   ],

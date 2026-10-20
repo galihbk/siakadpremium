@@ -1,5 +1,6 @@
 'use client';
 
+import { PmbUrl } from '@/components/PmbUrl';
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -1205,7 +1206,7 @@ export default function PendaftarDetailPage() {
                   Kampus Utama: Jl. Boulevard Teknologi No. 1, Menteng, Jakarta Pusat • Telp: (021) 7890-1234
                 </p>
                 <p style={{ margin: '1px 0 0 0', fontSize: '8.5px', color: '#64748b' }}>
-                  Laman Resmi: https://pmb.siakadpremium.ac.id • Surel: pmb@itn.ac.id • WhatsApp: 0812-7643-8553
+                  Laman Resmi: <PmbUrl /> • Surel: pmb@itn.ac.id • WhatsApp: 0812-7643-8553
                 </p>
               </div>
 
@@ -1376,7 +1377,7 @@ export default function PendaftarDetailPage() {
               <strong>PETUNJUK BAGI CALON MAHASISWA:</strong>
               <ol style={{ margin: '4px 0 0 0', paddingLeft: '16px' }}>
                 <li>Simpan Kartu Tanda Bukti Pendaftaran ini sebagai bukti sah pendaftaran mahasiswa baru Institut Teknologi Nusantara.</li>
-                <li>Pantau pengumuman verifikasi berkas dan kelulusan seleksi secara berkala melalui portal PMB resmi di <strong>https://pmb.siakadpremium.ac.id</strong>.</li>
+                <li>Pantau pengumuman verifikasi berkas dan kelulusan seleksi secara berkala melalui portal PMB resmi di <strong><PmbUrl /></strong>.</li>
                 <li>Bila dinyatakan diterima, segera lakukan proses registrasi ulang dan pembayaran biaya pendidikan untuk penerbitan NIM.</li>
               </ol>
             </div>

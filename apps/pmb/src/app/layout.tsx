@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { CopyrightBanner } from '@/components/CopyrightBanner';
 import { AuthFetchInstaller } from '@/components/AuthFetchInstaller';
+import { ChatWidget } from '@/components/ChatWidget';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -20,6 +21,7 @@ export default function RootLayout({
         <CopyrightBanner />
         <AuthFetchInstaller />
         {children}
+        <ChatWidget />
       </body>
     </html>
   );

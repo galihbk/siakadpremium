@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: siakad-postgres-prod
+    container_name: ${INSTANCE_NAME:-siakad}-postgres-prod
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-siakad}
@@ -22,7 +22,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: siakad-redis-prod
+    container_name: ${INSTANCE_NAME:-siakad}-redis-prod
     restart: always
     command: redis-server --appendonly yes
     expose:
@@ -38,9 +38,9 @@ services:
       - siakad-network
 
   api:
-    image: ghcr.io/${IMAGE_OWNER:-galihbk}/siakad-api:latest
+    image: ghcr.io/${IMAGE_OWNER:-galihbk}/siakad-api:${IMAGE_TAG:-latest}
     pull_policy: always
-    container_name: siakad-api-prod
+    container_name: ${INSTANCE_NAME:-siakad}-api-prod
     restart: always
     ports:
       - '${SIAKAD_API_PORT:-3101}:3001'
@@ -59,9 +59,9 @@ services:
       - siakad-network
 
   web:
-    image: ghcr.io/${IMAGE_OWNER:-galihbk}/siakad-web:latest
+    image: ghcr.io/${IMAGE_OWNER:-galihbk}/siakad-web:${IMAGE_TAG:-latest}
     pull_policy: always
-    container_name: siakad-web-prod
+    container_name: ${INSTANCE_NAME:-siakad}-web-prod
     restart: always
     ports:
       - '${SIAKAD_WEB_PORT:-3100}:3000'
@@ -76,9 +76,9 @@ services:
       - siakad-network
 
   pmb:
-    image: ghcr.io/${IMAGE_OWNER:-galihbk}/siakad-pmb:latest
+    image: ghcr.io/${IMAGE_OWNER:-galihbk}/siakad-pmb:${IMAGE_TAG:-latest}
     pull_policy: always
-    container_name: siakad-pmb-prod
+    container_name: ${INSTANCE_NAME:-siakad}-pmb-prod
     restart: always
     ports:
       - '${SIAKAD_PMB_PORT:-3103}:3004'
@@ -93,9 +93,9 @@ services:
       - siakad-network
 
   p2m:
-    image: ghcr.io/${IMAGE_OWNER:-galihbk}/siakad-p2m:latest
+    image: ghcr.io/${IMAGE_OWNER:-galihbk}/siakad-p2m:${IMAGE_TAG:-latest}
     pull_policy: always
-    container_name: siakad-p2m-prod
+    container_name: ${INSTANCE_NAME:-siakad}-p2m-prod
     restart: always
     ports:
       - '${SIAKAD_P2M_PORT:-3104}:3005'
@@ -110,9 +110,9 @@ services:
       - siakad-network
 
   p3m:
-    image: ghcr.io/${IMAGE_OWNER:-galihbk}/siakad-p3m:latest
+    image: ghcr.io/${IMAGE_OWNER:-galihbk}/siakad-p3m:${IMAGE_TAG:-latest}
     pull_policy: always
-    container_name: siakad-p3m-prod
+    container_name: ${INSTANCE_NAME:-siakad}-p3m-prod
     restart: always
     ports:
       - '${SIAKAD_P3M_PORT:-3105}:3006'
@@ -127,9 +127,9 @@ services:
       - siakad-network
 
   portal:
-    image: ghcr.io/${IMAGE_OWNER:-galihbk}/siakad-portal:latest
+    image: ghcr.io/${IMAGE_OWNER:-galihbk}/siakad-portal:${IMAGE_TAG:-latest}
     pull_policy: always
-    container_name: siakad-portal-prod
+    container_name: ${INSTANCE_NAME:-siakad}-portal-prod
     restart: always
     ports:
       - '${SIAKAD_PORTAL_PORT:-3102}:3002'
@@ -145,15 +145,15 @@ services:
 
 volumes:
   postgres_data:
-    name: siakad_postgres_prod_data
+    name: ${INSTANCE_NAME:-siakad}_postgres_prod_data
   redis_data:
-    name: siakad_redis_prod_data
+    name: ${INSTANCE_NAME:-siakad}_redis_prod_data
   api_uploads:
-    name: siakad_api_prod_uploads
+    name: ${INSTANCE_NAME:-siakad}_api_prod_uploads
   api_backups:
-    name: siakad_api_prod_backups
+    name: ${INSTANCE_NAME:-siakad}_api_prod_backups
 
 networks:
   siakad-network:
-    name: siakad_prod_network
+    name: ${INSTANCE_NAME:-siakad}_prod_network
     driver: bridge

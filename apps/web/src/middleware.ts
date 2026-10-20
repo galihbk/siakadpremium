@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 function isPortalHost(host: string) {
-  return host.startsWith('portal.') || host.startsWith('portalsiakadpremium');
+  return host.startsWith('portal.') || host.startsWith('portal-') || host.startsWith('portalsiakadpremium');
 }
 
 /** Host lokal/IP (dev) tidak punya subdomain -- jangan dipaksa pindah. */
@@ -21,6 +21,15 @@ function isLocalHost(host: string) {
  */
 function resolvePmbHost(host: string): string | null {
   if (isLocalHost(host)) return null;
+  // Alamat PMB eksplisit dari konfigurasi server (mis. https://pmb-kudus.contoh.com) selalu didahulukan.
+  const explicit = process.env.PUBLIC_PMB_URL?.trim();
+  if (explicit) {
+    try {
+      return new URL(explicit).host;
+    } catch {
+      /* abaikan, pakai penurunan dari host */
+    }
+  }
   const withoutPort = host.split(':')[0];
   const parts = withoutPort.split('.');
   if (parts.length < 2) return null;

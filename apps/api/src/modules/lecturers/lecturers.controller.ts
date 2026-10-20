@@ -41,9 +41,9 @@ export class LecturersController {
 
   @Get('schedules')
   @ApiOperation({ summary: 'Mendapatkan jadwal mengajar dosen aktif semester ini' })
-  async getTeachingSchedule(@Req() req: any, @Query('academicYearId') academicYearId?: string) {
+  async getTeachingSchedule(@Req() req: any, @Query('academicYearId') academicYearId?: string, @Query('includePractice') includePractice?: string) {
     const lecturerId = await this.extractLecturerId(req);
-    return this.lecturersService.getTeachingSchedule(lecturerId, academicYearId);
+    return this.lecturersService.getTeachingSchedule(lecturerId, academicYearId, includePractice === '1' || includePractice === 'true');
   }
 
   @Get('academic-years')

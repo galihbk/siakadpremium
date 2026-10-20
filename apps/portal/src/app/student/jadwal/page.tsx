@@ -31,6 +31,8 @@ interface JadwalKuliahItem {
   name: string;
   sks: number;
   kelas: string;
+  /** Kelas dengan praktikum tampil sebagai dua baris: sesi teori dan sesi praktikum. */
+  sesi?: 'Teori' | 'Praktikum';
   isFlexibleSchedule: boolean;
   hari: string | null;
   jamMulai: string | null;
@@ -169,11 +171,13 @@ export default function JadwalKuliahPage() {
   const displayProdi = profile?.programStudi || 'Program Studi';
   const displayAdvisor = profile?.dosenPembimbingAkademik || 'Dosen Pembimbing Akademik';
 
+  // SKS & jumlah mata kuliah dihitung per kelas (baris sesi praktikum tidak dihitung dobel)
+  const classRows = jadwal.filter((j) => j.sesi !== 'Praktikum');
   const hasEnrollments = jadwal.length > 0;
-  const totalSks = jadwal.reduce((a, j) => a + j.sks, 0);
+  const totalSks = classRows.reduce((a, j) => a + j.sks, 0);
   const uniqueDays = new Set(scheduledOnly.map((j) => j.hari)).size;
   const totalJamPerMinggu = scheduledOnly.reduce((a, j) => a + (j.jamMulai && j.jamSelesai ? toDecimalHours(j.jamMulai, j.jamSelesai) : 0), 0);
-  const withAttendance = jadwal.filter((j) => j.kehadiranPercent !== null);
+  const withAttendance = classRows.filter((j) => j.kehadiranPercent !== null);
   const avgKehadiran =
     withAttendance.length > 0 ? Math.round(withAttendance.reduce((a, j) => a + (j.kehadiranPercent || 0), 0) / withAttendance.length) : null;
 
@@ -243,7 +247,7 @@ export default function JadwalKuliahPage() {
             <div>
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Total SKS Aktif</span>
               <p className="text-2xl font-black text-[#1E3A8A] mt-1">{totalSks} SKS</p>
-              <p className="text-xs text-slate-500 mt-0.5">{jadwal.length} Mata Kuliah Terdaftar</p>
+              <p className="text-xs text-slate-500 mt-0.5">{classRows.length} Mata Kuliah Terdaftar</p>
             </div>
             <div className="w-12 h-12 rounded-xl bg-blue-50 text-[#1E3A8A] flex items-center justify-center font-bold">
               <BookOpen className="w-6 h-6" />
@@ -442,7 +446,10 @@ export default function JadwalKuliahPage() {
                   <div className="p-5 pb-3">
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <span className="text-xs font-mono font-bold text-[#1E3A8A] bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">{item.code}</span>
-                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">{item.sks} SKS</span>
+                      <span className="flex items-center gap-1.5">
+                        {item.sesi === 'Praktikum' && <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-700 border border-indigo-200">PRAKTIKUM</span>}
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">{item.sks} SKS</span>
+                      </span>
                     </div>
 
                     <h3 className="text-base font-bold text-slate-900 group-hover:text-[#1E3A8A] transition-colors line-clamp-2">{item.name}</h3>
@@ -517,7 +524,10 @@ export default function JadwalKuliahPage() {
                           </div>
                         </td>
                         <td className="py-4 px-4 font-mono font-bold text-[#1E3A8A]">{item.code}</td>
-                        <td className="py-4 px-4 font-medium text-slate-900">{item.name}</td>
+                        <td className="py-4 px-4 font-medium text-slate-900">
+                          {item.name}
+                          {item.sesi === 'Praktikum' && <span className="ml-2 text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 border border-indigo-200">PRAKTIKUM</span>}
+                        </td>
                         <td className="py-4 px-4 text-center font-bold">{item.sks}</td>
                         <td className="py-4 px-4 text-slate-700">
                           <p className="font-medium text-slate-900">{item.dosen}</p>

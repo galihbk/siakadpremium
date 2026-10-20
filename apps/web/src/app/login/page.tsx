@@ -1,30 +1,15 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useServiceUrl } from '@/lib/publicUrls';
 
 export default function LoginPage() {
+  const portalUrl = useServiceUrl('portal', '');
+
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const hostname = window.location.hostname;
-      const protocol = window.location.protocol;
-      let target = 'http://localhost:3002/login';
-
-      if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        target = 'http://localhost:3002/login';
-      } else if (hostname === 'siakadpremium.ac.id' || hostname.endsWith('.siakadpremium.ac.id')) {
-        target = 'http://portal.siakadpremium.ac.id/login';
-      } else if (hostname === 'galihjp.com' || hostname.endsWith('.galihjp.com')) {
-        target = 'https://portal.galihjp.com/login';
-      } else if (process.env.NEXT_PUBLIC_PORTAL_URL) {
-        target = `${process.env.NEXT_PUBLIC_PORTAL_URL}/login`;
-      } else {
-        const rootDomain = hostname.split('.').slice(-2).join('.');
-        target = `${protocol}//portal.${rootDomain}/login`;
-      }
-
-      window.location.replace(target);
-    }
-  }, []);
+    // tunggu alamat portal terhitung (dari konfigurasi server atau domain yang sedang dibuka)
+    if (portalUrl) window.location.replace(`${portalUrl}/login`);
+  }, [portalUrl]);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 text-center font-sans">

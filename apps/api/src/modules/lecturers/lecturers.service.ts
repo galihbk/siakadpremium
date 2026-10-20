@@ -618,7 +618,7 @@ export class LecturersService {
     }));
   }
 
-  async getTeachingSchedule(lecturerId: string | undefined, academicYearId?: string) {
+  async getTeachingSchedule(lecturerId: string | undefined, academicYearId?: string, includePractice = false) {
     if (!lecturerId) return [];
 
     const activeYear = academicYearId
@@ -626,12 +626,15 @@ export class LecturersService {
       : await this.prisma.academicYear.findFirst({ where: { isActive: true } });
     const classes = await this.prisma.courseClass.findMany({
       where: {
-        lecturerId,
+        // dosen pengampu kelas, atau dosen/asisten yang mengampu sesi praktikumnya
+        OR: includePractice ? [{ lecturerId }, { practiceLecturerId: lecturerId }] : [{ lecturerId }],
         ...(activeYear ? { academicYearId: activeYear.id } : {}),
       },
       include: {
         course: { include: { studyProgram: true } },
         room: { include: { building: true } },
+        practiceRoom: { include: { building: true } },
+        practiceLecturer: { include: { user: true } },
         lecturer: { include: { user: true } },
         academicYear: true,
         _count: { select: { enrollments: { where: { status: { not: 'REJECTED' } } } } },
@@ -639,24 +642,43 @@ export class LecturersService {
       orderBy: [{ day: 'asc' }, { startTime: 'asc' }],
     });
 
-    return classes.map((cc) => ({
-      id: cc.id,
-      courseCode: cc.course.code,
-      courseName: cc.course.name,
-      className: cc.className,
-      sks: cc.course.sks || cc.course.totalSks || 3,
-      studyProgramName: cc.course.studyProgram?.name || cc.course.studyProgramName || '-',
-      semester: cc.course.semester,
-      academicYear: cc.academicYear?.name || '-',
-      day: cc.day,
-      timeSlot: `${cc.startTime} - ${cc.endTime} WIB`,
-      roomName: cc.room?.name || '-',
-      buildingName: cc.room?.building?.name || '',
-      lecturerName: cc.lecturer?.user?.fullName || '-',
-      lecturerNidn: cc.lecturer?.nidn || '-',
-      enrolledCount: cc._count?.enrollments || 0,
-      quota: cc.quota,
-    }));
+    // Satu baris per kelas (tetap sama bagi halaman absensi/kontrak/RPS/dashboard). Sesi praktikum disertakan sebagai
+    // objek `practice`; `practiceMine` = dosen ini yang mengampu sesi praktikumnya, `practiceOnly` = dosen ini
+    // hanya mengampu praktikum (bukan pengampu kelas) -- baris seperti itu hanya dikembalikan bila includePractice.
+    return classes.map((cc) => {
+      const practiceOwner = cc.practiceLecturerId || cc.lecturerId;
+      const hasPractice = Boolean(cc.practiceDay && cc.practiceStartTime && cc.practiceEndTime);
+      const pl = cc.practiceLecturer || cc.lecturer;
+      return {
+        id: cc.id,
+        courseCode: cc.course.code,
+        courseName: cc.course.name,
+        className: cc.className,
+        sks: cc.course.sks || cc.course.totalSks || 3,
+        studyProgramName: cc.course.studyProgram?.name || cc.course.studyProgramName || '-',
+        semester: cc.course.semester,
+        academicYear: cc.academicYear?.name || '-',
+        day: cc.day,
+        timeSlot: `${cc.startTime} - ${cc.endTime} WIB`,
+        roomName: cc.room?.name || '-',
+        buildingName: cc.room?.building?.name || '',
+        lecturerName: cc.lecturer?.user?.fullName || '-',
+        lecturerNidn: cc.lecturer?.nidn || '-',
+        enrolledCount: cc._count?.enrollments || 0,
+        quota: cc.quota,
+        practiceOnly: cc.lecturerId !== lecturerId,
+        practiceMine: hasPractice && practiceOwner === lecturerId,
+        practice: hasPractice
+          ? {
+              day: cc.practiceDay,
+              timeSlot: `${cc.practiceStartTime} - ${cc.practiceEndTime} WIB`,
+              roomName: cc.practiceRoom?.name || '-',
+              buildingName: cc.practiceRoom?.building?.name || '',
+              lecturerName: pl?.user?.fullName || '-',
+            }
+          : null,
+      };
+    });
   }
 
   private async assertClassOwnedByLecturer(classId: string, lecturerId: string | undefined) {

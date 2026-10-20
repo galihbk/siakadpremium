@@ -499,7 +499,7 @@ function LupaKataSandiContent() {
                   <input
                     type="text"
                     required
-                    placeholder="Contoh: PMB20270001 atau email@anda.com"
+                    placeholder="nama@email.com"
                     value={identifier}
                     onChange={(e) => handleIdentifierChange(e.target.value)}
                     maxLength={100}

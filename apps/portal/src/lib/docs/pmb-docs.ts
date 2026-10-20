@@ -31,6 +31,7 @@ export const PMB_DOCS: DocSection[] = [
           ['Pengaturan PMB', 'Gelombang Pendaftaran, Jalur/Jenis/Kelas.'],
           ['Proses Seleksi', 'Data Calon Mahasiswa, Verifikasi Berkas, Kelulusan & Registrasi.'],
           ['Keuangan & Kemitraan', 'Pembayaran & Keuangan, Data Affiliate.'],
+          ['Komunikasi', 'Live Chat dengan pendaftar.'],
           ['Laporan', 'Rekapitulasi PMB.'],
           ['Informasi', 'Berita & Pengumuman.'],
         ],
@@ -138,6 +139,31 @@ export const PMB_DOCS: DocSection[] = [
           'Tambah Mitra Affiliate (pemberi referral) dan pantau pendaftar yang masuk lewat kode mereka.',
           'Verifikasi/proses registrasi ulang referral dan Ekspor CSV untuk rekap.',
         ],
+      },
+    ],
+  },
+  {
+    id: 'live-chat',
+    group: 'Komunikasi',
+    title: 'Live Chat Pendaftar',
+    summary: 'Membalas pertanyaan calon mahasiswa secara langsung.',
+    blocks: [
+      {
+        t: 'p',
+        text: 'Tombol "Live Chat" muncul di pojok kanan bawah semua halaman portal pmb. (beranda, login, dasbor). Pendaftar yang sudah login langsung mengobrol; pengunjung yang belum punya akun mengisi nama, email/WhatsApp, dan pesan pertama lebih dulu (ditandai "Tamu" di sisi panitia). Pesan masuk ke menu Komunikasi → Live Chat, dan lencana emas pada menu menunjukkan jumlah pesan yang belum dibaca.',
+      },
+      {
+        t: 'ol',
+        items: [
+          'Buka Live Chat. Daftar percakapan di kiri diurutkan dari pesan terbaru; saring dengan Belum dibaca, Terbuka, atau Ditutup, atau cari nama, email, atau nomor WhatsApp.',
+          'Klik satu percakapan untuk membaca riwayatnya dan membalas (Enter untuk kirim, Shift+Enter baris baru; maksimal 1.000 karakter).',
+          'Gunakan filter Tamu untuk melihat pengunjung yang belum mendaftar. Tutup percakapan bila pertanyaan sudah selesai. Bila pendaftar mengirim pesan lagi, percakapan terbuka kembali otomatis.',
+        ],
+      },
+      {
+        t: 'note',
+        kind: 'info',
+        text: 'Halaman memperbarui diri otomatis (sekitar 3 detik saat percakapan dibuka). Pendaftar dan tamu hanya melihat nama "Panitia PMB"; nama akun petugas yang membalas hanya tampil di sisi panitia dan tercatat di database. Percakapan tamu tidak otomatis tergabung dengan akun yang dibuat kemudian; gunakan kontak yang tertera untuk menyambungkannya. Chat tamu dibatasi 5 percakapan baru per jam per alamat, kolom jebakan bot, dan 200 pesan per percakapan.',
       },
     ],
   },

@@ -1,5 +1,7 @@
 'use client';
 
+import { PmbUrl } from '@/components/PmbUrl';
+import { useServiceUrl } from '@/lib/publicUrls';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
@@ -360,7 +362,7 @@ function BuktiPendaftaranDocument({
             Kampus Utama: Jl. Boulevard Teknologi No. 1, Menteng, Jakarta Pusat 10310 • Telp: (021) 7890-1234
           </p>
           <p className="text-[8px] sm:text-[8.5px] text-slate-500 leading-tight">
-            Laman Resmi: https://pmb.siakadpremium.ac.id • Surel: pmb@itn.ac.id • WhatsApp PMB: 0812-7643-8553
+            Laman Resmi: <PmbUrl /> • Surel: pmb@itn.ac.id • WhatsApp PMB: 0812-7643-8553
           </p>
         </div>
         <div className="w-16 shrink-0 flex items-center justify-center">
@@ -659,7 +661,7 @@ function BuktiPendaftaranDocument({
             Cetak dan simpan kartu bukti pendaftaran ini dengan baik. Dokumen ini wajib dilampirkan atau ditunjukkan saat verifikasi fisik berkas serta proses registrasi ulang.
           </li>
           <li>
-            Pantau hasil seleksi kelulusan dan tahapan registrasi secara berkala melalui portal resmi di <strong>https://pmb.siakadpremium.ac.id</strong>.
+            Pantau hasil seleksi kelulusan dan tahapan registrasi secara berkala melalui portal resmi di <strong><PmbUrl /></strong>.
           </li>
           <li>
             Layanan Bantuan & Informasi Resmi Helpdesk PMB: WhatsApp Hotline <strong>0812-7643-8553</strong> atau Surel <strong>pmb@itn.ac.id</strong>.
@@ -956,26 +958,9 @@ export default function PmbDashboardPage() {
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [portalLoginUrl, setPortalLoginUrl] = useState('http://portal.siakadpremium.ac.id/login');
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const hostname = window.location.hostname;
-      const protocol = window.location.protocol;
-      if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        setPortalLoginUrl('http://localhost:3002/login');
-      } else if (hostname === 'siakadpremium.ac.id' || hostname.endsWith('.siakadpremium.ac.id')) {
-        setPortalLoginUrl('http://portal.siakadpremium.ac.id/login');
-      } else if (hostname === 'galihjp.com' || hostname.endsWith('.galihjp.com')) {
-        setPortalLoginUrl('https://portal.galihjp.com/login');
-      } else if (process.env.NEXT_PUBLIC_PORTAL_URL) {
-        setPortalLoginUrl(`${process.env.NEXT_PUBLIC_PORTAL_URL}/login`);
-      } else {
-        const rootDomain = hostname.split('.').slice(-2).join('.');
-        setPortalLoginUrl(`${protocol}//portal.${rootDomain}/login`);
-      }
-    }
-  }, []);
+  // Alamat portal civitas: dari konfigurasi server atau diturunkan dari domain yang sedang dibuka.
+  const portalBaseUrl = useServiceUrl('portal', '');
+  const portalLoginUrl = portalBaseUrl ? `${portalBaseUrl}/login` : '#';
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -4489,7 +4474,7 @@ export default function PmbDashboardPage() {
 
       {/* Floating Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-[#0F172A] text-white px-5 py-3.5 rounded-2xl shadow-2xl border border-blue-500/30 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-5 print:hidden">
+        <div className="fixed bottom-24 right-6 z-50 bg-[#0F172A] text-white px-5 py-3.5 rounded-2xl shadow-2xl border border-blue-500/30 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-5 print:hidden">
           <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
           <span className="text-sm font-medium">{toastMessage}</span>
         </div>

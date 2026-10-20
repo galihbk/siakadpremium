@@ -762,7 +762,7 @@ export const SUPERADMIN_DOCS: DocSection[] = [
         t: 'table',
         head: ['Subdomain', 'Isi', 'Sumber data'],
         rows: [
-          ['pmb.', 'Pendaftaran akun, verifikasi email, login, dasbor seleksi pendaftar', 'Modul PMB; link lama /pmb, /daftar, /register di domain utama dialihkan permanen (308) ke sini'],
+          ['pmb.', 'Pendaftaran akun, verifikasi email, login, dasbor seleksi pendaftar, dan live chat dengan panitia', 'Modul PMB; link lama /pmb, /daftar, /register di domain utama dialihkan permanen (308) ke sini'],
           ['p2m.', 'Siklus PPEPP, standar mutu aktif per kategori, ringkasan dan jadwal audit, pustaka dokumen publik', 'GET /p2m/public/landing'],
           ['p3m.', 'Statistik, sebaran bidang fokus, penelitian dan pengabdian terverifikasi (filter jenis/tahun), HAKI tersertifikasi, dokumen publik', 'GET /lp3m/public/landing'],
         ],
@@ -953,8 +953,9 @@ export const SUPERADMIN_DOCS: DocSection[] = [
         t: 'ul',
         items: [
           'Autentikasi memakai JWT; endpoint login dibatasi 10 percobaan per menit dan seluruh API dibatasi 120 permintaan per menit per alamat.',
-          'Penjaga global (GlobalAuthGuard): SEMUA endpoint wajib membawa token yang valid kecuali daftar publik di apps/api/src/common/guards/global-auth.guard.ts (situs publik, login, berkas bertanda tangan, serta pendaftaran/login/opsi PMB). Tambahkan ke daftar itu hanya bila memang untuk publik.',
+          'Penjaga global (GlobalAuthGuard): SEMUA endpoint wajib membawa token yang valid kecuali daftar publik di apps/api/src/common/guards/global-auth.guard.ts (situs publik, login, berkas bertanda tangan, serta pendaftaran/login/opsi PMB dan memulai live chat tamu). Tambahkan ke daftar itu hanya bila memang untuk publik.',
           'Pembatasan peran pada kelompok sensitif: /users dan pengelolaan aturan tanda tangan (Super Admin); /employees dan /shifts (SDM); /finance (Keuangan, kecuali tagihan/transaksi yang juga diakses mahasiswa); /admissions (Panitia PMB/BAAK); /lp3m dan /p2m (unit masing-masing). Mengubah fakultas/program studi hanya Super Admin.',
+          'Pembatasan laju (rate limit) dihitung per alamat klien sungguhan (header Cloudflare/X-Forwarded-For), bukan alamat proxy, sehingga pengguna tidak saling memblokir. Live chat tamu: 5 percakapan baru per jam per alamat, kolom honeypot, dan token tamu (PMB_VISITOR, 7 hari) yang hanya sah untuk endpoint chat.',
           'Pendaftar PMB memakai JWT sungguhan (peran PMB_APPLICANT, berlaku 7 hari) yang hanya sah untuk /admissions/pmb/*; identitas pendaftar selalu dari token dan tagihan hanya bisa dibayar oleh pemiliknya. Token lama berbentuk pmb_token_... tidak berlaku lagi (pendaftar perlu login ulang sekali).',
           'Mahasiswa hanya dapat melihat tagihannya sendiri dan mengirim bukti bayar untuk tagihannya; dosen hanya dapat melihat dan mengisi nilai kelas yang ia ampu; pengunci nilai semester hanya BAAK.',
           'Portal menyisipkan token otomatis pada setiap panggilan ke /api/v1; halaman yang dulu mengambil data di server kini mengambilnya di browser dengan token.',

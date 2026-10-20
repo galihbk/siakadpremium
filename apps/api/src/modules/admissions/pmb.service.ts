@@ -277,13 +277,15 @@ export class PmbService {
    * Login Calon Mahasiswa (Email atau WhatsApp)
    */
   async loginAccount(dto: LoginPmbAccountDto) {
-    const identifier = dto.identifier.trim();
-    const isEmail = identifier.includes('@');
+    const identifier = String(dto.identifier ?? '').trim();
+    // Login PMB hanya memakai email (bukan nomor registrasi / WhatsApp).
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(identifier)) {
+      throw new BadRequestException('Masuk menggunakan alamat email yang Anda daftarkan.');
+    }
+    const isEmail = true;
 
     const account = await this.prisma.pmbAccount.findFirst({
-      where: isEmail
-        ? { email: { equals: identifier, mode: 'insensitive' } }
-        : { whatsapp: identifier },
+      where: { email: { equals: identifier, mode: 'insensitive' } },
       include: {
         applications: {
           orderBy: { createdAt: 'desc' },
@@ -327,7 +329,7 @@ export class PmbService {
         }
       }
 
-      throw new UnauthorizedException('Email, Nomor Registrasi, atau Nomor WhatsApp tidak terdaftar di sistem PMB.');
+      throw new UnauthorizedException('Email tidak terdaftar di sistem PMB.');
     }
 
     const isValidPassword = await bcrypt.compare(dto.password, account.passwordHash);
@@ -898,6 +900,78 @@ export class PmbService {
       },
       application: finalApp,
     };
+  }
+
+  /**
+   * Panitia mendaftarkan calon mahasiswa (mis. walk-in di BAAK) memakai formulir yang sama dengan PMB online.
+   * Membuat akun PMB (email terverifikasi, kata sandi sementara) lalu mengirim pendaftaran lewat
+   * jalur yang sama dengan pendaftar mandiri, sehingga muncul di daftar pendaftar dan alur verifikasi.
+   */
+  async adminCreateApplication(
+    body: Record<string, any>,
+    staff?: { fullName?: string },
+  ) {
+    const fullName = String(body.fullName ?? '').trim();
+    const email = String(body.email ?? '').trim().toLowerCase();
+    const whatsapp = String(body.phone ?? body.whatsapp ?? '').trim();
+    if (fullName.length < 2) throw new BadRequestException('Nama lengkap wajib diisi.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) throw new BadRequestException('Email pendaftar tidak valid.');
+    if (!/^(\+?62|0)8\d{7,12}$/.test(whatsapp.replace(/[\s-]/g, ''))) {
+      throw new BadRequestException('Nomor WhatsApp pendaftar tidak valid (contoh 081234567890).');
+    }
+    if (body.nik && !/^\d{16}$/.test(String(body.nik))) throw new BadRequestException('NIK harus 16 digit angka.');
+
+    const [dupAccount, dupLegacy] = await Promise.all([
+      this.prisma.pmbAccount.findUnique({ where: { email } }),
+      this.prisma.admissionApplicant.findFirst({ where: { email: { equals: email, mode: 'insensitive' } } }),
+    ]);
+    if (dupAccount || dupLegacy) {
+      throw new ConflictException(`Email ${email} sudah terdaftar di sistem PMB.`);
+    }
+
+    // Kata sandi sementara acak; ditampilkan sekali ke panitia untuk diserahkan ke pendaftar.
+    const temporaryPassword = crypto.randomBytes(5).toString('hex');
+    const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+    const account = await this.prisma.pmbAccount.create({
+      data: { fullName, email, whatsapp, passwordHash, isEmailVerified: true },
+    });
+
+    try {
+      const dto: any = { ...body, fullName, email, phone: whatsapp };
+      // simpan sebagai draf dulu agar berkas (base64) diunggah ke penyimpanan, lalu kirim dengan URL berkasnya
+      const draft: any = await this.saveDraft(account.id, dto);
+      for (const f of ['fileKtp', 'fileKk', 'fileIjazah', 'fileFoto', 'fileKip', 'fileTambahan']) {
+        dto[f] = draft.application?.[f] || undefined;
+      }
+      const result: any = await this.submitApplication(account.id, dto);
+      const app = result.application;
+
+      // Pendaftar membayar langsung di loket: tandai tagihan registrasi lunas
+      if (body.paidOnSite && !body.isKip) {
+        await this.prisma.admissionPayment.updateMany({
+          where: { applicationId: app.id, type: 'REGISTRATION', status: 'PENDING' },
+          data: {
+            status: 'PAID',
+            paidAt: new Date(),
+            paymentMethod: 'Bayar langsung di loket PMB',
+            notes: `Dicatat oleh panitia${staff?.fullName ? ` (${staff.fullName})` : ''}`,
+          },
+        });
+      }
+
+      return {
+        success: true,
+        message: `Calon mahasiswa berhasil didaftarkan. Nomor Pendaftaran: ${app.registrationNumber}`,
+        applicationId: app.id,
+        registrationNumber: app.registrationNumber,
+        email,
+        temporaryPassword,
+      };
+    } catch (err) {
+      // batalkan akun yang baru dibuat bila pendaftaran gagal agar email tidak "terpakai"
+      await this.prisma.pmbAccount.delete({ where: { id: account.id } }).catch(() => undefined);
+      throw err;
+    }
   }
 
   /**

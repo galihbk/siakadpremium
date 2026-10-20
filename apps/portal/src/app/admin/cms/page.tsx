@@ -1,5 +1,6 @@
 'use client';
 
+import { useServiceUrl } from '@/lib/publicUrls';
 import { useState, useEffect } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getAuthSession } from '@/lib/auth';
@@ -90,7 +91,7 @@ export default function SuperAdminCmsPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-  const webBaseUrl = process.env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000';
+  const webBaseUrl = useServiceUrl('web', process.env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000');
 
   useEffect(() => {
     async function loadData() {

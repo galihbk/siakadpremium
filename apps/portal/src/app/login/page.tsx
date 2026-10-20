@@ -10,6 +10,7 @@ import { Lock, Mail, ArrowRight, ArrowLeft, CheckCircle, Eye, EyeOff } from 'luc
 
 import { saveAuthSession, getAuthSession, getRoleRedirectPath } from '@/lib/auth';
 import { getApiBaseUrl } from '@/lib/api';
+import { useServiceUrl } from '@/lib/publicUrls';
 import { getInstitutionProfile, FALLBACK_INSTITUTION_PROFILE, type InstitutionProfile } from '@/lib/institution';
 
 const loginSchema = z.object({
@@ -27,6 +28,9 @@ export default function LoginPage() {
   const [profile, setProfile] = useState<InstitutionProfile>(FALLBACK_INSTITUTION_PROFILE);
 
   const apiBaseUrl = getApiBaseUrl();
+
+  // Alamat website utama: dari konfigurasi server, atau diturunkan dari domain yang sedang dibuka (satu image untuk banyak kampus).
+  const webUrl = useServiceUrl('web', process.env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000');
 
   // Fallback-first: form login tetap tampil cepat walau fetch profil belum selesai
   useEffect(() => {
@@ -114,7 +118,7 @@ export default function LoginPage() {
         {/* Back Link */}
         <div className="mb-6 flex justify-center">
           <a
-            href={process.env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000'}
+            href={webUrl}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1E3A8A] hover:underline"
           >
             <ArrowLeft className="w-3.5 h-3.5" />

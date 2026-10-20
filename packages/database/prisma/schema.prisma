@@ -102,8 +102,50 @@ model User {
   dailyAttendances             DailyAttendance[]
   updatedTransportRateSettings TransportRateSetting[]
   honorPayments                HonorPayment[]
+  employeeProfile              EmployeeProfile?
 
   @@map("users")
+}
+
+/// Profil kepegawaian yang diisi Biro SDM (menimpa nilai bawaan yang diturunkan dari role/dosen).
+/// Jabatan struktural (mis. Kepala Bagian, Dekan, Kaprodi) dan jabatan fungsional (mis. Lektor Kepala,
+/// Pranata Komputer) disimpan terpisah.
+model EmployeeProfile {
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  nip                String?
+  nidn               String?
+  gender             String?
+  category           String?
+  employmentStatus   String?
+  department         String?
+  structuralPosition String?
+  functionalPosition String?
+  education          String?
+  phone              String?
+  joinDate           String?
+  // Khusus pegawai outsourcing: perusahaan penyedia tenaga kerja (vendor).
+  vendorName         String?
+  // Email kontak pegawai non-dosen (yang tidak punya akun login).
+  contactEmail       String?
+  // Alamat domisili
+  streetAddress      String?
+  rtRw               String?
+  kelurahan          String?
+  kecamatan          String?
+  city               String?
+  province           String?
+  postalCode         String?
+  // Riwayat pendidikan terakhir
+  educationInstitution String?
+  educationMajor       String?
+  graduationYear       String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("employee_profiles")
 }
 
 model SalarySetting {
@@ -357,6 +399,7 @@ model Lecturer {
   studyProgram           StudyProgram        @relation(fields: [studyProgramId], references: [id], onDelete: Restrict)
   advisedStudents        Student[]           @relation("AcademicAdvisor")
   courseClasses          CourseClass[]
+  practiceClasses        CourseClass[]       @relation("PracticeLecturer")
   thesisAsSupervisor1    ThesisSupervision[] @relation("ThesisSupervisor1")
   thesisAsSupervisor2    ThesisSupervision[] @relation("ThesisSupervisor2")
   structuralFaculty      Faculty?            @relation("FacultyDekan", fields: [structuralFacultyId], references: [id], onDelete: SetNull)
@@ -560,6 +603,14 @@ model CourseClass {
   endTime            String    @default("10:30")
   roomId             String?
   lecturerId         String?
+  // Sesi praktikum kelas yang sama (mata kuliah dengan SKS praktik): satu kelas = satu sesi teori + satu sesi
+  // praktikum. Mahasiswa yang mengambil kelas ini otomatis mengikuti keduanya. Kosong = belum dijadwalkan.
+  // practiceLecturerId kosong berarti sesi praktikum diampu dosen kelas yang sama.
+  practiceDay        String?
+  practiceStartTime  String?
+  practiceEndTime    String?
+  practiceRoomId     String?
+  practiceLecturerId String?
   quota              Int       @default(40)
   status             String    @default("Berjalan")
   createdAt          DateTime  @default(now())
@@ -569,6 +620,8 @@ model CourseClass {
   academicYear       AcademicYear        @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
   room               Room?               @relation(fields: [roomId], references: [id], onDelete: SetNull)
   lecturer           Lecturer?           @relation(fields: [lecturerId], references: [id], onDelete: SetNull)
+  practiceRoom       Room?               @relation("PracticeRoom", fields: [practiceRoomId], references: [id], onDelete: SetNull)
+  practiceLecturer   Lecturer?           @relation("PracticeLecturer", fields: [practiceLecturerId], references: [id], onDelete: SetNull)
   enrollments        CourseEnrollment[]
   attendanceSessions AttendanceSession[]
   contract           CourseContract?
@@ -725,6 +778,7 @@ model PmbAccount {
   updatedAt       DateTime @updatedAt
 
   applications AdmissionApplication[]
+  chatThread   PmbChatThread?
 
   @@map("pmb_accounts")
 }
@@ -1189,6 +1243,7 @@ model Room {
 
   building      Building      @relation(fields: [buildingId], references: [id], onDelete: Cascade)
   courseClasses CourseClass[]
+  practiceClasses CourseClass[] @relation("PracticeRoom")
 
   examSchedules ExamSchedule[]
 
@@ -1891,4 +1946,57 @@ model UploadedFile {
 
   @@index([uploadedById])
   @@map("uploaded_files")
+}
+
+/// Pengaturan jam operasional live chat PMB (satu baris). mode: AUTO (ikuti jadwal) | OPEN (paksa buka) | CLOSED (paksa tutup).
+/// schedule: [{ day: 0-6 (0 = Minggu), open: boolean, from: "08:00", to: "16:00" }] dalam waktu WIB.
+model PmbChatSetting {
+  id                   String   @id @default("default")
+  mode                 String   @default("AUTO")
+  schedule             Json
+  offlineMessage       String   @default("Saat ini di luar jam operasional. Tinggalkan pesan, panitia akan membalas pada jam kerja.") @db.Text
+  allowOfflineMessages Boolean  @default(true)
+  updatedAt            DateTime @updatedAt
+
+  @@map("pmb_chat_settings")
+}
+
+/// Live chat PMB: satu percakapan per akun pendaftar, dibalas panitia PMB dari portal.
+model PmbChatThread {
+  id              String   @id @default(uuid())
+  // Percakapan milik akun pendaftar (accountId) ATAU pengunjung anonim yang memulai chat dari
+  // beranda PMB (visitorKey + nama & kontak yang ia isi). Tepat salah satu terisi.
+  accountId       String?  @unique
+  visitorKey      String?  @unique
+  visitorName     String?
+  visitorContact  String?
+  status          String   @default("OPEN") // OPEN | CLOSED
+  lastMessageAt   DateTime @default(now())
+  // Jumlah pesan yang belum dibaca masing-masing pihak (diset 0 saat pihak itu membuka percakapan).
+  applicantUnread Int      @default(0)
+  staffUnread     Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  account  PmbAccount?      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  messages PmbChatMessage[]
+
+  @@index([lastMessageAt])
+  @@map("pmb_chat_threads")
+}
+
+model PmbChatMessage {
+  id           String   @id @default(uuid())
+  threadId     String
+  sender       String // APPLICANT | STAFF
+  // Untuk pesan staf: akun panitia yang membalas (pencatatan internal; pendaftar hanya melihat "Panitia PMB").
+  senderUserId String?
+  senderName   String
+  body         String   @db.Text
+  createdAt    DateTime @default(now())
+
+  thread PmbChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+  @@map("pmb_chat_messages")
 }

@@ -14,6 +14,7 @@ interface PublicRule {
  */
 const PUBLIC_RULES: PublicRule[] = [
   { methods: ['GET'], path: /^\/(health)?$/ },
+  { methods: ['GET'], path: /^\/app-config$/ },
   { methods: ['POST'], path: /^\/auth\/login$/ },
 
   // Situs publik (web, p2m, p3m)
@@ -28,12 +29,18 @@ const PUBLIC_RULES: PublicRule[] = [
   { methods: ['GET'], path: /^\/(p2m|lp3m)\/public\/landing$/ },
   { methods: ['POST'], path: /^\/(p2m|lp3m)\/documents\/[^/]+\/download$/ },
 
+  // Integrasi sistem OBE: server-ke-server, dijaga API key (OBE_API_KEY) oleh ObeApiKeyGuard di controller-nya,
+  // bukan JWT pengguna. Hanya baca (GET).
+  { methods: ['GET'], path: /^\/integrations\/obe\/[a-z-]+$/ },
+
   // Berkas privat: diakses lewat URL bertanda tangan (HMAC) yang diperiksa di controller-nya
   { methods: ['GET'], path: /^\/storage\/private$/ },
 
   // PMB: pendaftaran, login, dan opsi formulir terbuka. Data/aksi pendaftar (me, draft, submit, bayar)
   // memakai JWT pendaftar (peran PMB_APPLICANT) -- lihat ROLE_RULES.
   { methods: '*', path: /^\/admissions\/pmb\/(register|login|options|schools)$/ },
+  { methods: ['POST'], path: /^\/admissions\/pmb\/chat\/visitor\/start$/ },
+  { methods: ['GET'], path: /^\/admissions\/pmb\/chat\/status$/ },
   { methods: ['POST'], path: /^\/admissions\/(register|resend-verification|login|forgot-password|reset-password)$/ },
   { methods: ['GET'], path: /^\/admissions\/(verify-email|batches|status\/[^/]+)$/ },
 ];
@@ -78,7 +85,10 @@ const ROLE_RULES: RoleRule[] = [
   { path: /^\/finance(\/|$)/, roles: ['ADMIN_KEUANGAN'] },
 
   // ---- PMB, LP3M, P2M
+  { path: /^\/admissions\/pmb\/(chat|chat\/read)$/, roles: ['PMB_APPLICANT', 'PMB_VISITOR'] },
   { path: /^\/admissions\/pmb\/(me|draft|submit|payments\/[^/]+\/pay)$/, roles: ['PMB_APPLICANT'] },
+  { path: /^\/admissions\/admin\/pmb\/chat(\/|$)/, roles: ['ADMIN_PMB', 'ADMIN_BAAK', 'STAFF'] },
+  { methods: ['POST'], path: /^\/admissions\/admin\/pmb\/applications$/, roles: ['ADMIN_PMB', 'ADMIN_BAAK', 'STAFF'] },
   { path: /^\/admissions\/admin\//, roles: ['ADMIN_PMB', 'ADMIN_BAAK', 'ADMIN_KEUANGAN', 'STAFF'] },
   { path: /^\/admissions(\/|$)/, roles: PMB_STAFF },
   { path: /^\/lp3m(\/|$)/, roles: ['LP3M', 'ADMIN_LP3M', 'LECTURER'] },
@@ -138,6 +148,11 @@ export class GlobalAuthGuard implements CanActivate {
 
     if (!payload) {
       throw new UnauthorizedException('Anda harus login untuk mengakses sumber daya ini.');
+    }
+
+    // Token pengunjung (tamu) hanya berlaku untuk live chat -- tidak untuk data pendaftar maupun sistem lain.
+    if (payload.role === 'PMB_VISITOR' && !/^\/admissions\/pmb\/chat(\/read)?$/.test(path)) {
+      throw new ForbiddenException('Token tamu hanya berlaku untuk live chat PMB.');
     }
 
     // Token pendaftar PMB hanya berlaku untuk jalur pendaftar -- tidak boleh menjangkau data sistem lain.

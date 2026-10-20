@@ -1,0 +1,12 @@
+{
+  "customers": [
+    {
+      "name": "demo-kudus",
+      "environment": "demo-kudus",
+      "appDir": "/srv/projects/siakad-kudus",
+      "autoDeploy": false,
+      "track": "main",
+      "runner": "self-hosted"
+    }
+  ]
+}

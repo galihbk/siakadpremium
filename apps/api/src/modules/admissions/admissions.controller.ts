@@ -287,6 +287,12 @@ export class AdmissionsController {
     return this.pmbService.getAdminApplications(query);
   }
 
+  @Post('admin/pmb/applications')
+  @ApiOperation({ summary: 'Panitia mendaftarkan calon mahasiswa (walk-in) dengan formulir lengkap seperti PMB online' })
+  async adminPmbCreateApplication(@Body() body: any, @Req() req: any) {
+    return this.pmbService.adminCreateApplication(body ?? {}, req.user);
+  }
+
   @Get('admin/pmb/applications/:id')
   @ApiOperation({ summary: 'Detail Lengkap Pendaftar PMB untuk Admin' })
   async adminPmbApplicationDetail(@Param('id') id: string) {

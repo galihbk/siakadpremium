@@ -221,21 +221,22 @@ export default function PmbLoginPage() {
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Nomor Registrasi PMB, Email, atau WhatsApp <span className="text-red-600">*</span>
+                    Email <span className="text-red-600">*</span>
                   </label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input
-                      type="text"
+                      type="email"
                       required
+                      autoComplete="email"
                       value={identifier}
                       onChange={(e) => setIdentifier(e.target.value)}
-                      placeholder="Contoh: net.galih7@gmail.com, PMB20270001, atau 08123456789"
+                      placeholder="nama@email.com"
                       className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-[#1E3A8A] focus:ring-1 focus:ring-[#1E3A8A] transition-colors"
                     />
                   </div>
                   <span className="text-[11px] text-slate-400 mt-1 block">
-                    Gunakan email aktif, nomor pendaftaran resmi (PMB2027xxxx), atau WhatsApp yang Anda gunakan saat mendaftar.
+                    Gunakan email yang Anda daftarkan saat membuat akun PMB.
                   </span>
                 </div>
 

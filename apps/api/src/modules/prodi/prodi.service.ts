@@ -261,6 +261,9 @@ export class ProdiService {
           day: true,
           startTime: true,
           endTime: true,
+          practiceDay: true,
+          practiceStartTime: true,
+          practiceEndTime: true,
           isFlexibleSchedule: true,
           quota: true,
           course: { select: { code: true, name: true, sks: true, semester: true } },
@@ -284,7 +287,9 @@ export class ProdiService {
         semester: c.course?.semester ?? null,
         className: c.className,
         lecturer: this.lecturerName(c.lecturer),
-        schedule: c.isFlexibleSchedule ? 'Tanpa jadwal tetap' : `${c.day}, ${c.startTime}-${c.endTime}`,
+        schedule: c.isFlexibleSchedule
+          ? 'Tanpa jadwal tetap'
+          : `${c.day}, ${c.startTime}-${c.endTime}${c.practiceDay && c.practiceStartTime ? ` + Praktikum ${c.practiceDay}, ${c.practiceStartTime}-${c.practiceEndTime}` : ''}`,
         room: c.room?.name ?? null,
         quota: c.quota,
         enrolled: c._count.enrollments,

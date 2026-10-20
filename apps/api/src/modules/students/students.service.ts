@@ -191,6 +191,8 @@ export class StudentsService {
           course: true,
           lecturer: { include: { user: true } },
           room: true,
+          practiceRoom: true,
+          practiceLecturer: { include: { user: true } },
           _count: { select: { enrollments: { where: { status: { not: 'REJECTED' } } } } },
         },
         orderBy: [{ course: { semester: 'asc' } }, { course: { code: 'asc' } }, { className: 'asc' }],
@@ -224,6 +226,16 @@ export class StudentsService {
           hari: cc.isFlexibleSchedule ? 'Fleksibel' : cc.day,
           jam: cc.isFlexibleSchedule ? 'Bimbingan Mandiri' : `${cc.startTime}-${cc.endTime}`,
           ruang: cc.isFlexibleSchedule ? '-' : cc.room?.name || '-',
+          // Sesi praktikum kelas yang sama: otomatis ikut saat kelas ini diambil
+          praktikum:
+            !cc.isFlexibleSchedule && cc.practiceDay && cc.practiceStartTime && cc.practiceEndTime
+              ? {
+                  hari: cc.practiceDay,
+                  jam: `${cc.practiceStartTime}-${cc.practiceEndTime}`,
+                  ruang: cc.practiceRoom?.name || '-',
+                  dosen: cc.practiceLecturer?.user?.fullName || cc.lecturer?.user?.fullName || '-',
+                }
+              : null,
           quota: cc.quota,
           enrolledCount,
           isFull: enrolledCount >= cc.quota,
@@ -256,6 +268,8 @@ export class StudentsService {
           include: {
             room: true,
             lecturer: { include: { user: true } },
+            practiceRoom: true,
+            practiceLecturer: { include: { user: true } },
             attendanceSessions: { include: { records: { where: { studentId: student.id } } } },
           },
         },
@@ -264,20 +278,21 @@ export class StudentsService {
 
     return enrollments
       .filter((e) => e.courseClass)
-      .map((e) => {
+      .flatMap((e) => {
         const cc = e.courseClass!;
         const sessions = cc.attendanceSessions;
         const totalSessions = sessions.length;
         const hadirCount = sessions.filter((s) => s.records[0]?.status === 'HADIR').length;
         const kehadiranPercent = totalSessions > 0 ? Math.round((hadirCount / totalSessions) * 100) : null;
 
-        return {
+        const base = {
           id: e.id,
           classId: cc.id,
           code: e.course.code,
           name: e.course.name,
           sks: e.course.sks || e.course.totalSks || 3,
           kelas: cc.className,
+          sesi: 'Teori' as 'Teori' | 'Praktikum',
           isFlexibleSchedule: cc.isFlexibleSchedule,
           hari: cc.isFlexibleSchedule ? null : cc.day,
           jamMulai: cc.isFlexibleSchedule ? null : cc.startTime,
@@ -293,6 +308,27 @@ export class StudentsService {
           pertemuanHadir: hadirCount,
           kehadiranPercent,
         };
+
+        // Kelas dengan sesi praktikum: mahasiswa otomatis mengikuti keduanya, jadi tampil sebagai dua baris jadwal.
+        const rows = [base];
+        if (!cc.isFlexibleSchedule && cc.practiceDay && cc.practiceStartTime && cc.practiceEndTime) {
+          const pl = cc.practiceLecturer || cc.lecturer;
+          rows.push({
+            ...base,
+            id: `${e.id}-praktikum`,
+            sesi: 'Praktikum',
+            hari: cc.practiceDay,
+            jamMulai: cc.practiceStartTime,
+            jamSelesai: cc.practiceEndTime,
+            ruang: cc.practiceRoom?.name || '-',
+            gedung: cc.practiceRoom?.buildingName || '-',
+            dosen: pl
+              ? `${pl.titlePrefix ? pl.titlePrefix + ' ' : ''}${pl.user.fullName}${pl.titleSuffix ? ', ' + pl.titleSuffix : ''}`
+              : 'Belum ditentukan',
+            dosenEmail: pl?.user?.email || null,
+          });
+        }
+        return rows;
       });
   }
 
@@ -327,18 +363,29 @@ export class StudentsService {
       const [h, m] = t.split(':').map(Number);
       return (h || 0) * 60 + (m || 0);
     };
+    // Tiap kelas bisa punya sesi teori dan sesi praktikum; semuanya dibandingkan.
+    const sessionsOf = (c: (typeof classes)[number]) => {
+      const list = [{ label: 'teori', day: c.day, start: c.startTime, end: c.endTime }];
+      if (c.practiceDay && c.practiceStartTime && c.practiceEndTime) {
+        list.push({ label: 'praktikum', day: c.practiceDay, start: c.practiceStartTime, end: c.practiceEndTime });
+      }
+      return list;
+    };
     for (let i = 0; i < classes.length; i++) {
       for (let j = i + 1; j < classes.length; j++) {
         const a = classes[i];
         const b = classes[j];
         // Kelas tanpa jadwal tetap (Skripsi/KKN/KP dst.) tidak punya jam nyata untuk dibandingkan.
         if (a.isFlexibleSchedule || b.isFlexibleSchedule) continue;
-        if (a.day.toLowerCase() !== b.day.toLowerCase()) continue;
-        const overlaps = toMinutes(a.startTime) < toMinutes(b.endTime) && toMinutes(b.startTime) < toMinutes(a.endTime);
-        if (overlaps) {
-          throw new BadRequestException(
-            `Jadwal bentrok: ${a.course.code} (Kelas ${a.className}, ${a.startTime}-${a.endTime}) bertabrakan dengan ${b.course.code} (Kelas ${b.className}, ${b.startTime}-${b.endTime}) pada hari ${a.day}.`,
-          );
+        for (const sa of sessionsOf(a)) {
+          for (const sb of sessionsOf(b)) {
+            if (sa.day.toLowerCase() !== sb.day.toLowerCase()) continue;
+            if (toMinutes(sa.start) < toMinutes(sb.end) && toMinutes(sb.start) < toMinutes(sa.end)) {
+              throw new BadRequestException(
+                `Jadwal bentrok: ${a.course.code} (Kelas ${a.className}, ${sa.label} ${sa.start}-${sa.end}) bertabrakan dengan ${b.course.code} (Kelas ${b.className}, ${sb.label} ${sb.start}-${sb.end}) pada hari ${sa.day}.`,
+              );
+            }
+          }
         }
       }
     }

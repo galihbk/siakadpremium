@@ -32,11 +32,29 @@ import {
   Users,
 } from 'lucide-react';
 
+export interface PracticeSlot {
+  day: string;
+  startTime: string;
+  endTime: string;
+  timeSlot: string;
+  roomId: string | null;
+  roomCode: string;
+  roomName: string;
+  buildingName: string;
+  lecturerId: string | null;
+  lecturerName: string;
+  sameLecturer: boolean;
+}
+
 export interface ScheduleItem {
   id: string;
   courseCode: string;
   courseName: string;
   sks: number;
+  sksTeori?: number;
+  sksPraktik?: number;
+  /** Sesi praktikum kelas yang sama (null = belum dijadwalkan / MK tanpa praktikum). */
+  practice?: PracticeSlot | null;
   className: string;
   isFlexibleSchedule: boolean;
   day: string | null;
@@ -62,6 +80,23 @@ export interface ScheduleItem {
 }
 
 const DAYS_ORDER = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+const toMin = (t: string) => {
+  const [h, m] = (t || '0:0').split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+const minutesBetween = (a: string, b: string) => Math.max(0, toMin(b) - toMin(a));
+
+/** Satu baris jadwal di tampilan mingguan: sesi teori atau sesi praktikum sebuah kelas. */
+interface WeeklyEntry {
+  key: string;
+  sch: ScheduleItem;
+  kind: 'Teori' | 'Praktikum';
+  day: string;
+  timeSlot: string;
+  roomName: string;
+  lecturerName: string;
+}
 
 export default function AdminJadwalPage() {
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
@@ -112,6 +147,12 @@ export default function AdminJadwalPage() {
     studyProgramName: '',
     semester: 1,
     quota: 40,
+    practiceDay: '',
+    practiceStartTime: '',
+    practiceEndTime: '',
+    practiceRoomId: '',
+    practiceRoomCode: '',
+    practiceLecturerId: '',
   });
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
@@ -290,6 +331,12 @@ export default function AdminJadwalPage() {
       studyProgramName: prodis[0]?.name || '',
       semester: 1,
       quota: 40,
+      practiceDay: '',
+      practiceStartTime: '',
+      practiceEndTime: '',
+      practiceRoomId: '',
+      practiceRoomCode: '',
+      practiceLecturerId: '',
     });
   };
 
@@ -332,6 +379,12 @@ export default function AdminJadwalPage() {
       studyProgramName: sch.studyProgramName,
       semester: sch.semester,
       quota: sch.quota,
+      practiceDay: sch.practice?.day ?? '',
+      practiceStartTime: sch.practice?.startTime ?? '',
+      practiceEndTime: sch.practice?.endTime ?? '',
+      practiceRoomId: sch.practice?.roomId ?? '',
+      practiceRoomCode: sch.practice?.roomCode && sch.practice.roomCode !== '-' ? sch.practice.roomCode : '',
+      practiceLecturerId: sch.practice && !sch.practice.sameLecturer ? sch.practice.lecturerId ?? '' : '',
     });
   };
 
@@ -401,6 +454,107 @@ export default function AdminJadwalPage() {
     const uniqueLecturers = new Set(filteredSchedules.map((s) => s.lecturerNidn)).size;
     return { totalClasses, totalSks, uniqueRooms, uniqueLecturers };
   }, [filteredSchedules]);
+
+  /** Isian sesi praktikum -- hanya untuk kelas dari mata kuliah yang punya SKS praktik. */
+  const renderPracticeFields = (sksTeori: number, sksPraktik: number, totalSks: number) => {
+    const hasSlot = Boolean(formData.practiceDay);
+    const teoriMin = minutesBetween(formData.startTime, formData.endTime);
+    const prakMin = hasSlot ? minutesBetween(formData.practiceStartTime, formData.practiceEndTime) : 0;
+    const expected = totalSks * 50; // 1 SKS = 50 menit tatap muka
+    const total = teoriMin + prakMin;
+    const input =
+      'w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white';
+    return (
+      <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black text-indigo-900">Sesi Praktikum</p>
+            <p className="text-[11px] text-indigo-800/80 mt-0.5 leading-relaxed">
+              Mata kuliah ini {sksTeori} SKS teori + {sksPraktik} SKS praktik. Mahasiswa yang mengambil kelas ini otomatis mengikuti sesi teori <b>dan</b> praktikum.
+              Waktu tatap muka 1 SKS = 50 menit, total <b>{expected} menit</b> per minggu.
+            </p>
+          </div>
+          <label className="flex items-center gap-1.5 text-[11px] font-semibold text-indigo-900 shrink-0 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={hasSlot}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  practiceDay: e.target.checked ? formData.day || 'Senin' : '',
+                  practiceStartTime: e.target.checked ? formData.practiceStartTime || formData.endTime : '',
+                  practiceEndTime: e.target.checked ? formData.practiceEndTime || '' : '',
+                  ...(e.target.checked ? {} : { practiceRoomId: '', practiceRoomCode: '', practiceLecturerId: '' }),
+                })
+              }
+              className="cursor-pointer"
+            />
+            Jadwalkan
+          </label>
+        </div>
+
+        {hasSlot && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Hari Praktikum</label>
+                <select value={formData.practiceDay} onChange={(e) => setFormData({ ...formData, practiceDay: e.target.value })} className={input}>
+                  {DAYS_ORDER.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Jam Mulai</label>
+                <input type="time" required value={formData.practiceStartTime} onChange={(e) => setFormData({ ...formData, practiceStartTime: e.target.value })} className={input} />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Jam Selesai</label>
+                <input type="time" required value={formData.practiceEndTime} onChange={(e) => setFormData({ ...formData, practiceEndTime: e.target.value })} className={input} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Ruang / Laboratorium Praktikum</label>
+                <SearchableSelect
+                  value={formData.practiceRoomCode}
+                  onChange={(code) => {
+                    const sel = rooms.find((r) => r.code === code);
+                    setFormData({ ...formData, practiceRoomId: sel?.id ?? '', practiceRoomCode: sel?.code ?? '' });
+                  }}
+                  emptyLabel="Belum ditentukan"
+                  placeholder="Belum ditentukan"
+                  searchPlaceholder="Cari ruang atau laboratorium..."
+                  options={rooms.map((r) => ({ value: r.code, label: `${r.name} (${r.buildingName} - ${r.type || 'Ruang'})` }))}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Dosen / Asisten Praktikum</label>
+                <SearchableSelect
+                  value={formData.practiceLecturerId}
+                  onChange={(id) => setFormData({ ...formData, practiceLecturerId: id })}
+                  emptyLabel="Sama dengan dosen pengampu kelas"
+                  placeholder="Sama dengan dosen pengampu kelas"
+                  searchPlaceholder="Cari nama atau NIDN dosen..."
+                  options={lecturers.map((l) => ({ value: l.id, label: `${l.fullName} (NIDN: ${l.nidn})` }))}
+                />
+              </div>
+            </div>
+
+            <p className={`text-[11px] rounded-lg px-3 py-2 border ${total === expected ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+              Teori {teoriMin} menit + Praktikum {prakMin} menit = <b>{total} menit</b>
+              {total === expected ? ` — sesuai ${totalSks} SKS.` : ` — ${totalSks} SKS idealnya ${expected} menit. Tetap bisa disimpan bila memang disengaja.`}
+            </p>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  const courseOfForm = courses.find((c) => c.code === formData.courseCode);
 
   return (
     <PortalLayout role="admin" userName="Admin BAAK" userIdText="Biro Administrasi Akademik & Kemahasiswaan" activeMenuHref="/admin/jadwal">
@@ -649,6 +803,16 @@ export default function AdminJadwalPage() {
                           {sch.isFlexibleSchedule ? 'Fleksibel' : sch.day}
                         </div>
                         <div className="text-[11px] text-slate-400 font-mono mt-0.5">{sch.timeSlot}</div>
+                        {sch.practice && (
+                          <div className="mt-1.5 pt-1.5 border-t border-dashed border-slate-200">
+                            <div className="font-bold text-indigo-700 flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                              {sch.practice.day}
+                              <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-indigo-50 border border-indigo-100">PRAKTIKUM</span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 font-mono mt-0.5">{sch.practice.timeSlot}</div>
+                          </div>
+                        )}
                       </td>
 
                       <td className="px-4 py-3.5">
@@ -656,10 +820,18 @@ export default function AdminJadwalPage() {
                         <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
                           <span className="font-mono text-[#1E3A8A] font-semibold">{sch.courseCode}</span>
                           <span>&bull;</span>
-                          <span>{sch.sks} SKS</span>
+                          <span>
+                            {sch.sks} SKS
+                            {Number(sch.sksPraktik) > 0 ? ` (${sch.sksTeori} teori + ${sch.sksPraktik} praktik)` : ''}
+                          </span>
                           <span>&bull;</span>
                           <span>{sch.studyProgramName}</span>
                         </div>
+                        {Number(sch.sksPraktik) > 0 && !sch.practice && !sch.isFlexibleSchedule && (
+                          <span className="inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200">
+                            Jadwal praktikum belum diatur
+                          </span>
+                        )}
                       </td>
 
                       <td className="px-4 py-3.5 whitespace-nowrap">
@@ -670,11 +842,22 @@ export default function AdminJadwalPage() {
                       <td className="px-4 py-3.5">
                         <div className="text-xs font-semibold text-slate-800">{sch.lecturerName}</div>
                         <div className="text-[11px] text-slate-400 font-mono">NIDN: {sch.lecturerNidn}</div>
+                        {sch.practice && !sch.practice.sameLecturer && (
+                          <div className="mt-1.5 pt-1.5 border-t border-dashed border-slate-200 text-[11px] text-indigo-700">
+                            <span className="font-semibold">Praktikum:</span> {sch.practice.lecturerName}
+                          </div>
+                        )}
                       </td>
 
                       <td className="px-4 py-3.5 whitespace-nowrap">
                         <div className="text-xs text-slate-800 font-semibold">{sch.roomName}</div>
                         <div className="text-[11px] text-slate-400 truncate max-w-xs">{sch.buildingName}</div>
+                        {sch.practice && (
+                          <div className="mt-1.5 pt-1.5 border-t border-dashed border-slate-200">
+                            <div className="text-xs text-indigo-700 font-semibold">{sch.practice.roomName}</div>
+                            <div className="text-[11px] text-slate-400 truncate max-w-xs">{sch.practice.buildingName}</div>
+                          </div>
+                        )}
                       </td>
 
                       <td className="px-4 py-3.5 text-center whitespace-nowrap">
@@ -712,7 +895,15 @@ export default function AdminJadwalPage() {
           /* Weekly View */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {DAYS_ORDER.map((day) => {
-              const daySchedules = filteredSchedules.filter((s) => s.day === day);
+              // satu kelas bisa muncul dua kali: sesi teori di harinya dan sesi praktikum di harinya
+              const daySchedules: WeeklyEntry[] = filteredSchedules.flatMap((s) => {
+                const out: WeeklyEntry[] = [];
+                if (s.day === day) out.push({ key: s.id, sch: s, kind: 'Teori', day, timeSlot: s.timeSlot, roomName: s.roomName, lecturerName: s.lecturerName });
+                if (s.practice && s.practice.day === day) {
+                  out.push({ key: `${s.id}-p`, sch: s, kind: 'Praktikum', day, timeSlot: s.practice.timeSlot, roomName: s.practice.roomName, lecturerName: s.practice.lecturerName });
+                }
+                return out;
+              });
               return (
                 <div key={day} className="rounded-2xl border border-slate-200 bg-white shadow-xs p-4 flex flex-col space-y-3">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -720,20 +911,25 @@ export default function AdminJadwalPage() {
                       <Calendar className="w-4 h-4 text-[#1E3A8A]" />
                       {day}
                     </h3>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-semibold">{daySchedules.length} Kelas</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-semibold">{daySchedules.length} Sesi</span>
                   </div>
 
                   {daySchedules.length === 0 ? (
                     <div className="py-8 text-center text-xs text-slate-400">Tidak ada jadwal di hari {day}</div>
                   ) : (
                     <div className="space-y-3">
-                      {daySchedules.map((s) => (
-                        <div key={s.id} className="p-3.5 rounded-xl bg-slate-50/70 border border-slate-100 hover:border-blue-200 transition-all space-y-2 group">
+                      {daySchedules.map((entry) => {
+                        const s = entry.sch;
+                        return (
+                        <div key={entry.key} className={`p-3.5 rounded-xl border hover:border-blue-200 transition-all space-y-2 group ${entry.kind === 'Praktikum' ? 'bg-indigo-50/50 border-indigo-100' : 'bg-slate-50/70 border-slate-100'}`}>
                           <div className="flex items-start justify-between gap-2">
                             <div>
                               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-50 text-[#1E3A8A] border border-blue-100">
                                 {s.className} &bull; {s.sks} SKS
                               </span>
+                              {entry.kind === 'Praktikum' && (
+                                <span className="ml-1.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 border border-indigo-200">PRAKTIKUM</span>
+                              )}
                               <h4 className="font-semibold text-slate-900 text-sm mt-1 group-hover:text-[#1E3A8A] transition-colors">{s.courseName}</h4>
                             </div>
                             <div className="flex items-center gap-1">
@@ -749,19 +945,20 @@ export default function AdminJadwalPage() {
                           <div className="text-xs text-slate-500 space-y-1 pt-1 border-t border-slate-200">
                             <div className="flex items-center gap-1.5">
                               <Clock className="w-3 h-3 text-slate-400" />
-                              <span className="font-mono">{s.timeSlot}</span>
+                              <span className="font-mono">{entry.timeSlot}</span>
                             </div>
                             <div className="flex items-center gap-1.5">
                               <DoorOpen className="w-3 h-3 text-slate-400" />
-                              <span>{s.roomName}</span>
+                              <span>{entry.roomName}</span>
                             </div>
                             <div className="flex items-center gap-1.5">
                               <UserCheck className="w-3 h-3 text-slate-400" />
-                              <span className="truncate">{s.lecturerName}</span>
+                              <span className="truncate">{entry.lecturerName}</span>
                             </div>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1048,6 +1245,9 @@ export default function AdminJadwalPage() {
               </>
             )}
 
+            {!formData.isFlexibleSchedule && Number(courseOfForm?.sksPraktik) > 0 &&
+              renderPracticeFields(Number(courseOfForm?.sksTeori) || 0, Number(courseOfForm?.sksPraktik) || 0, Number(courseOfForm?.sks) || 3)}
+
             {/* Kuota */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Kapasitas Kuota Mahasiswa</label>
@@ -1162,6 +1362,9 @@ export default function AdminJadwalPage() {
                 </div>
               </div>
             )}
+
+            {!formData.isFlexibleSchedule && Number(editingSchedule?.sksPraktik) > 0 &&
+              renderPracticeFields(Number(editingSchedule?.sksTeori) || 0, Number(editingSchedule?.sksPraktik) || 0, Number(editingSchedule?.sks) || 3)}
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Kapasitas Kuota</label>

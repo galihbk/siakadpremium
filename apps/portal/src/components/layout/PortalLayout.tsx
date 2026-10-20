@@ -61,6 +61,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Megaphone,
+  MessageCircle,
   AlertTriangle,
   FileCheck2,
   PanelLeft,
@@ -92,12 +93,34 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
   const pathname = usePathname();
   const router = useRouter();
   const { unreadCount: unreadUpdates } = useUnreadUpdates();
+  const [chatUnread, setChatUnread] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [institutionProfile, setInstitutionProfile] = useState<InstitutionProfile>(FALLBACK_INSTITUTION_PROFILE);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [effectiveRole, setEffectiveRole] = useState<
     'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' | 'lp3m' | 'p2m' | 'prodi' | 'sdm' | 'pmb'
   >(role);
+  // Lencana Live Chat PMB: jumlah pesan pendaftar yang belum dibaca panitia (hanya untuk peran PMB).
+  useEffect(() => {
+    if (effectiveRole !== 'pmb') return;
+    let live = true;
+    const load = () => {
+      if (document.visibilityState !== 'visible') return;
+      fetch(`${getApiBaseUrl()}/admissions/admin/pmb/chat/unread`, { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => {
+          const d = j?.data ?? j;
+          if (live && typeof d?.unread === 'number') setChatUnread(d.unread);
+        })
+        .catch(() => undefined);
+    };
+    load();
+    const id = window.setInterval(load, 15000);
+    return () => {
+      live = false;
+      window.clearInterval(id);
+    };
+  }, [effectiveRole]);
   const [isVerifying, setIsVerifying] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
@@ -688,6 +711,10 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       ],
     },
     {
+      title: 'KOMUNIKASI',
+      items: [{ name: 'Live Chat', href: '/admin/pmb/live-chat', icon: MessageCircle }],
+    },
+    {
       title: 'LAPORAN',
       items: [{ name: 'Rekapitulasi PMB', href: '/admin/pmb/statistik', icon: BarChart3 }],
     },
@@ -929,6 +956,11 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                         className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#D4A017]' : 'text-slate-400'}`}
                       />
                       <span className="flex-1">{item.name}</span>
+                      {item.href === '/admin/pmb/live-chat' && chatUnread > 0 && (
+                        <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-[#D4A017] text-slate-950 text-[10px] font-extrabold flex items-center justify-center">
+                          {chatUnread}
+                        </span>
+                      )}
                       {item.href === '/admin/superadmin/updates' && unreadUpdates > 0 && (
                         <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-[#D4A017] text-slate-950 text-[10px] font-extrabold flex items-center justify-center">
                           {unreadUpdates}

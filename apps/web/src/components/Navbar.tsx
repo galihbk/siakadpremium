@@ -4,14 +4,15 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Menu, X, Phone, Mail, UserCircle, ArrowRight, ChevronDown, ShieldCheck, LayoutGrid, FlaskConical } from 'lucide-react';
 import { getApiBaseUrl } from '@/lib/api';
+import { useServiceUrl } from '@/lib/publicUrls';
 import { getInstitutionProfile, FALLBACK_INSTITUTION_PROFILE, type InstitutionProfile } from '@/lib/institution';
 
 export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [portalUrl, setPortalUrl] = useState('http://portal.siakadpremium.ac.id');
-  const [p2mUrl, setP2mUrl] = useState('http://p2m.siakadpremium.ac.id');
-  const [p3mUrl, setP3mUrl] = useState('http://p3m.siakadpremium.ac.id');
+  const portalUrl = useServiceUrl('portal', '#');
+  const p2mUrl = useServiceUrl('p2m', '#');
+  const p3mUrl = useServiceUrl('p3m', '#');
   const [layananOpen, setLayananOpen] = useState(false);
   const [fakultasOpen, setFakultasOpen] = useState(false);
   const [mobileFakultasOpen, setMobileFakultasOpen] = useState(false);
@@ -40,22 +41,6 @@ export function Navbar() {
         );
       })
       .catch(() => undefined);
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const { hostname, protocol } = window.location;
-    // Alamat subdomain layanan (portal., p2m.) diturunkan dari host saat ini.
-    const sub = (name: string, localPort: number, envUrl?: string) => {
-      if (hostname === 'siakadpremium.ac.id' || hostname.endsWith('.siakadpremium.ac.id')) return `http://${name}.siakadpremium.ac.id`;
-      if (hostname === 'localhost' || hostname === '127.0.0.1') return `http://localhost:${localPort}`;
-      if (hostname === 'galihjp.com' || hostname.endsWith('.galihjp.com')) return `https://${name}.galihjp.com`;
-      if (envUrl) return envUrl;
-      return `${protocol}//${name}.${hostname}`;
-    };
-    setPortalUrl(sub('portal', 3002, process.env.NEXT_PUBLIC_PORTAL_URL));
-    setP2mUrl(sub('p2m', 3005, process.env.NEXT_PUBLIC_P2M_URL));
-    setP3mUrl(sub('p3m', 3006, process.env.NEXT_PUBLIC_P3M_URL));
   }, []);
 
   useEffect(() => {

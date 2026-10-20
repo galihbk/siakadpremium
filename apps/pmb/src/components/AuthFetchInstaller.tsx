@@ -17,7 +17,9 @@ function install() {
       if (url.startsWith('/api/v1') || url.includes('/api/v1/')) {
         const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
         if (!headers.has('Authorization')) {
-          const token = localStorage.getItem('pmb_applicant_token') || localStorage.getItem('pmb_account_token');
+          const token = localStorage.getItem('pmb_applicant_token') ||
+            localStorage.getItem('pmb_account_token') ||
+            localStorage.getItem('pmb_visitor_token');
           if (token) headers.set('Authorization', `Bearer ${token}`);
         }
         return original(input, { ...init, headers });

@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Put, Delete, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { EmployeesService } from './employees.service';
 
@@ -12,6 +13,25 @@ export class EmployeesController {
   @ApiResponse({ status: 200, description: 'Daftar pegawai berhasil dimuat' })
   async findAll() {
     return this.employeesService.findAll();
+  }
+
+  @Get('universities')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({ summary: 'Cari perguruan tinggi (PDDikti) untuk isian riwayat pendidikan pegawai' })
+  async universities(@Query('search') search?: string) {
+    return this.employeesService.searchUniversities(search ?? '');
+  }
+
+  @Post('bulk-shift')
+  @ApiOperation({ summary: 'Menetapkan shift untuk banyak pegawai/dosen sekaligus (shiftId kosong = ikut shift default)' })
+  async bulkShift(@Body() body: { ids?: string[]; shiftId?: string | null }) {
+    return this.employeesService.bulkSetShift(body?.ids ?? [], body?.shiftId ?? null);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Mendapatkan satu data pegawai berdasarkan ID' })
+  async findOne(@Param('id') id: string) {
+    return this.employeesService.findOne(id);
   }
 
   @Post()

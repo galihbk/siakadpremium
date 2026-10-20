@@ -12,8 +12,9 @@ const DEFAULT_ROLE_LABEL: Record<SignerRole, string> = {
   REKTOR: 'Rektor',
 };
 
-// Dokumen bawaan yang sudah/segera punya tampilan cetak di portal. Admin tetap bisa
-// menambah kode dokumen lain lewat halaman pengaturan -- daftar ini hanya nilai awal (seed).
+// Jenis dokumen ditetapkan pengembang di daftar ini (bukan ditambah dari halaman pengaturan), supaya master dokumen
+// tetap seragam dengan tampilan cetak di portal. Setiap kali server menyala, jenis yang belum ada otomatis ditambahkan
+// dengan penandatangan awal di bawah; penandatangan yang sudah diubah Super Admin tidak ditimpa.
 const DEFAULT_RULES: { code: string; label: string; signer1: SignerRole; signer2?: SignerRole }[] = [
   { code: 'KRS', label: 'Kartu Rencana Studi (KRS)', signer1: 'DOSEN_PA' },
   { code: 'KHS', label: 'Kartu Hasil Studi (KHS)', signer1: 'DOSEN_PA', signer2: 'KAPRODI' },
@@ -38,16 +39,20 @@ export class DocumentSignaturesService implements OnModuleInit {
   constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit() {
-    const count = await this.prisma.documentSignatureRule.count().catch(() => 0);
-    if (count > 0) return;
+    const existing = await this.prisma.documentSignatureRule.findMany({ select: { documentCode: true } }).catch(() => null);
+    if (!existing) return;
+    const have = new Set(existing.map((r) => r.documentCode));
+    const missing = DEFAULT_RULES.filter((r) => !have.has(r.code));
+    if (missing.length === 0) return;
     await this.prisma.documentSignatureRule
       .createMany({
-        data: DEFAULT_RULES.map((r) => ({
+        data: missing.map((r) => ({
           documentCode: r.code,
           documentLabel: r.label,
           signer1Role: r.signer1,
           signer2Role: r.signer2 ?? null,
         })),
+        skipDuplicates: true,
       })
       .catch(() => null);
   }
@@ -60,49 +65,35 @@ export class DocumentSignaturesService implements OnModuleInit {
     return this.prisma.documentSignatureRule.findMany({ orderBy: { documentCode: 'asc' } });
   }
 
-  async upsertRule(dto: {
-    documentCode: string;
-    documentLabel: string;
-    signer1Role: SignerRole;
-    signer1Label?: string | null;
-    signer2Role?: SignerRole | null;
-    signer2Label?: string | null;
-    notes?: string | null;
-  }) {
-    const code = dto.documentCode?.trim().toUpperCase();
-    if (!code) throw new BadRequestException('Kode dokumen wajib diisi.');
-    if (!dto.documentLabel?.trim()) throw new BadRequestException('Nama dokumen wajib diisi.');
+  /** Mengubah penandatangan sebuah jenis dokumen. Kode & nama jenis dokumen tetap (ditetapkan pengembang). */
+  async updateRule(
+    documentCode: string,
+    dto: {
+      signer1Role: SignerRole;
+      signer1Label?: string | null;
+      signer2Role?: SignerRole | null;
+      signer2Label?: string | null;
+      notes?: string | null;
+    },
+  ) {
+    const code = documentCode?.trim().toUpperCase();
+    const existing = code ? await this.prisma.documentSignatureRule.findUnique({ where: { documentCode: code } }) : null;
+    if (!existing) {
+      throw new NotFoundException(`Jenis dokumen "${documentCode}" tidak terdaftar. Jenis dokumen ditetapkan oleh pengembang sistem.`);
+    }
     if (!SIGNER_ROLES.includes(dto.signer1Role)) throw new BadRequestException('Penandatangan 1 tidak valid.');
     if (dto.signer2Role && !SIGNER_ROLES.includes(dto.signer2Role)) throw new BadRequestException('Penandatangan 2 tidak valid.');
 
-    return this.prisma.documentSignatureRule.upsert({
+    return this.prisma.documentSignatureRule.update({
       where: { documentCode: code },
-      create: {
-        documentCode: code,
-        documentLabel: dto.documentLabel.trim(),
+      data: {
         signer1Role: dto.signer1Role,
         signer1Label: dto.signer1Label?.trim() || null,
         signer2Role: dto.signer2Role || null,
-        signer2Label: dto.signer2Label?.trim() || null,
-        notes: dto.notes?.trim() || null,
-      },
-      update: {
-        documentLabel: dto.documentLabel.trim(),
-        signer1Role: dto.signer1Role,
-        signer1Label: dto.signer1Label?.trim() || null,
-        signer2Role: dto.signer2Role || null,
-        signer2Label: dto.signer2Label?.trim() || null,
+        signer2Label: dto.signer2Role ? dto.signer2Label?.trim() || null : null,
         notes: dto.notes?.trim() || null,
       },
     });
-  }
-
-  async deleteRule(documentCode: string) {
-    const code = documentCode.trim().toUpperCase();
-    const exists = await this.prisma.documentSignatureRule.findUnique({ where: { documentCode: code } });
-    if (!exists) throw new NotFoundException(`Aturan tanda tangan untuk dokumen "${code}" tidak ditemukan.`);
-    await this.prisma.documentSignatureRule.delete({ where: { documentCode: code } });
-    return { success: true, message: `Aturan tanda tangan "${exists.documentLabel}" berhasil dihapus.` };
   }
 
   /** Mengubah satu SignerRole menjadi {nama, NIP} nyata untuk konteks mahasiswa tertentu. */

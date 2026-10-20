@@ -1,5 +1,6 @@
 'use client';
 
+import { PmbUrl } from '@/components/PmbUrl';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
@@ -360,7 +361,7 @@ function BuktiPendaftaranDocument({
             Kampus Utama: Jl. Boulevard Teknologi No. 1, Menteng, Jakarta Pusat 10310 • Telp: (021) 7890-1234
           </p>
           <p className="text-[8px] sm:text-[8.5px] text-slate-500 leading-tight">
-            Laman Resmi: https://pmb.siakadpremium.ac.id • Surel: pmb@itn.ac.id • WhatsApp PMB: 0812-7643-8553
+            Laman Resmi: <PmbUrl /> • Surel: pmb@itn.ac.id • WhatsApp PMB: 0812-7643-8553
           </p>
         </div>
         <div className="w-16 shrink-0 flex items-center justify-center">
@@ -659,7 +660,7 @@ function BuktiPendaftaranDocument({
             Cetak dan simpan kartu bukti pendaftaran ini dengan baik. Dokumen ini wajib dilampirkan atau ditunjukkan saat verifikasi fisik berkas serta proses registrasi ulang.
           </li>
           <li>
-            Pantau hasil seleksi kelulusan dan tahapan registrasi secara berkala melalui portal resmi di <strong>https://pmb.siakadpremium.ac.id</strong>.
+            Pantau hasil seleksi kelulusan dan tahapan registrasi secara berkala melalui portal resmi di <strong><PmbUrl /></strong>.
           </li>
           <li>
             Layanan Bantuan & Informasi Resmi Helpdesk PMB: WhatsApp Hotline <strong>0812-7643-8553</strong> atau Surel <strong>pmb@itn.ac.id</strong>.

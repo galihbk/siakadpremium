@@ -868,6 +868,8 @@ export class AcademicService {
     course: true,
     room: { include: { building: true } },
     lecturer: { include: { user: true } },
+    practiceRoom: { include: { building: true } },
+    practiceLecturer: { include: { user: true } },
     academicYear: true,
     _count: { select: { enrollments: true } },
   } as const;
@@ -879,6 +881,8 @@ export class AcademicService {
       courseCode: cc.course?.code || '',
       courseName: cc.course?.name || '',
       sks: cc.course?.sks || cc.course?.totalSks || 3,
+      sksTeori: cc.course?.sksTeori ?? 0,
+      sksPraktik: cc.course?.sksPraktik ?? 0,
       className: cc.className,
       isFlexibleSchedule: cc.isFlexibleSchedule,
       day: cc.isFlexibleSchedule ? null : cc.day,
@@ -901,6 +905,23 @@ export class AcademicService {
       quota: cc.quota,
       enrolledCount: cc._count?.enrollments || 0,
       status: cc.status,
+      // Sesi praktikum kelas yang sama (null = mata kuliah tanpa praktikum / belum dijadwalkan)
+      practice:
+        !cc.isFlexibleSchedule && cc.practiceDay && cc.practiceStartTime && cc.practiceEndTime
+          ? {
+              day: cc.practiceDay,
+              startTime: cc.practiceStartTime,
+              endTime: cc.practiceEndTime,
+              timeSlot: `${cc.practiceStartTime} - ${cc.practiceEndTime} WIB`,
+              roomId: cc.practiceRoomId,
+              roomCode: cc.practiceRoom?.code || '-',
+              roomName: cc.practiceRoom?.name || '-',
+              buildingName: cc.practiceRoom?.building?.name || cc.practiceRoom?.buildingName || '-',
+              lecturerId: cc.practiceLecturerId || cc.lecturerId,
+              lecturerName: cc.practiceLecturer?.user?.fullName || cc.lecturer?.user?.fullName || '-',
+              sameLecturer: !cc.practiceLecturerId,
+            }
+          : null,
     };
   }
 
@@ -957,53 +978,131 @@ export class AcademicService {
     return (h || 0) * 60 + (m || 0);
   }
 
-  /** Cek jadwal kelas bentrok ruang atau dosen pada hari & jam yang beririsan. */
+  /**
+   * Cek bentrok jadwal. Satu kelas punya satu sesi teori dan (bila mata kuliahnya ada SKS praktik) satu sesi
+   * praktikum; semua sesi diperiksa terhadap sesi kelas lain (ruang & dosen) dan terhadap sesi kelas ini sendiri
+   * (mahasiswa tidak bisa mengikuti dua sesi bersamaan).
+   */
   private async assertNoScheduleConflict(params: {
     academicYearId: string;
-    day: string;
-    startTime: string;
-    endTime: string;
-    roomId?: string | null;
-    lecturerId?: string | null;
+    slots: { label: 'Teori' | 'Praktikum'; day: string; startTime: string; endTime: string; roomId?: string | null; lecturerId?: string | null }[];
     excludeClassId?: string;
   }) {
-    const { academicYearId, day, startTime, endTime, roomId, lecturerId, excludeClassId } = params;
-    const newStart = this.toMinutes(startTime);
-    const newEnd = this.toMinutes(endTime);
-    if (newEnd <= newStart) {
-      throw new BadRequestException('Jam selesai harus setelah jam mulai.');
+    const { academicYearId, slots, excludeClassId } = params;
+    const overlap = (aS: string, aE: string, bS: string, bE: string) => this.toMinutes(aS) < this.toMinutes(bE) && this.toMinutes(bS) < this.toMinutes(aE);
+
+    for (const sl of slots) {
+      if (this.toMinutes(sl.endTime) <= this.toMinutes(sl.startTime)) {
+        throw new BadRequestException(`Jam selesai sesi ${sl.label.toLowerCase()} harus setelah jam mulai.`);
+      }
+    }
+    if (slots.length === 2 && slots[0].day.toLowerCase() === slots[1].day.toLowerCase() && overlap(slots[0].startTime, slots[0].endTime, slots[1].startTime, slots[1].endTime)) {
+      throw new BadRequestException('Sesi teori dan sesi praktikum kelas ini saling bertabrakan; atur jam yang berbeda.');
     }
 
+    const rooms = Array.from(new Set(slots.map((x) => x.roomId).filter(Boolean))) as string[];
+    const lecturers = Array.from(new Set(slots.map((x) => x.lecturerId).filter(Boolean))) as string[];
     const orFilters: any[] = [];
-    if (roomId) orFilters.push({ roomId });
-    if (lecturerId) orFilters.push({ lecturerId });
+    if (rooms.length) orFilters.push({ roomId: { in: rooms } }, { practiceRoomId: { in: rooms } });
+    if (lecturers.length) orFilters.push({ lecturerId: { in: lecturers } }, { practiceLecturerId: { in: lecturers } });
     if (orFilters.length === 0) return;
 
     const candidates = await this.prisma.courseClass.findMany({
       where: {
         academicYearId,
-        day: { equals: day, mode: 'insensitive' },
+        isFlexibleSchedule: false,
         id: excludeClassId ? { not: excludeClassId } : undefined,
         OR: orFilters,
       },
-      include: { course: true, lecturer: { include: { user: true } } },
+      include: { course: true, lecturer: { include: { user: true } }, practiceLecturer: { include: { user: true } } },
     });
 
     for (const c of candidates) {
-      const overlaps = this.toMinutes(c.startTime) < newEnd && newStart < this.toMinutes(c.endTime);
-      if (!overlaps) continue;
-
-      if (roomId && c.roomId === roomId) {
-        throw new BadRequestException(
-          `Ruang bentrok: sudah dipakai kelas ${c.className} (${c.course.code}) pada ${c.day} ${c.startTime}-${c.endTime}.`,
-        );
+      const existing = [
+        { label: 'Teori', day: c.day, startTime: c.startTime, endTime: c.endTime, roomId: c.roomId, lecturerId: c.lecturerId, lecturerName: c.lecturer?.user?.fullName },
+      ];
+      if (c.practiceDay && c.practiceStartTime && c.practiceEndTime) {
+        existing.push({
+          label: 'Praktikum',
+          day: c.practiceDay,
+          startTime: c.practiceStartTime,
+          endTime: c.practiceEndTime,
+          roomId: c.practiceRoomId,
+          lecturerId: c.practiceLecturerId || c.lecturerId,
+          lecturerName: c.practiceLecturer?.user?.fullName || c.lecturer?.user?.fullName,
+        });
       }
-      if (lecturerId && c.lecturerId === lecturerId) {
-        throw new BadRequestException(
-          `Dosen bentrok: ${c.lecturer?.user?.fullName || 'dosen ini'} sudah mengajar kelas ${c.className} (${c.course.code}) pada ${c.day} ${c.startTime}-${c.endTime}.`,
-        );
+      for (const nw of slots) {
+        for (const ex of existing) {
+          if (nw.day.toLowerCase() !== ex.day.toLowerCase()) continue;
+          if (!overlap(nw.startTime, nw.endTime, ex.startTime, ex.endTime)) continue;
+          const where = `kelas ${c.className} (${c.course.code}, sesi ${ex.label.toLowerCase()}) pada ${ex.day} ${ex.startTime}-${ex.endTime}`;
+          if (nw.roomId && ex.roomId === nw.roomId) {
+            throw new BadRequestException(`Ruang bentrok (sesi ${nw.label.toLowerCase()}): sudah dipakai ${where}.`);
+          }
+          if (nw.lecturerId && ex.lecturerId === nw.lecturerId) {
+            throw new BadRequestException(`Dosen bentrok (sesi ${nw.label.toLowerCase()}): ${ex.lecturerName || 'dosen ini'} sudah mengajar ${where}.`);
+          }
+        }
       }
     }
+  }
+
+  /**
+   * Menyusun sesi praktikum dari input. `undefined` pada semua kolom = tidak diubah; hari kosong/null = hapus sesi.
+   * Hanya mata kuliah dengan SKS praktik yang boleh punya sesi praktikum.
+   */
+  private resolvePractice(data: any, course: { sksPraktik: number } | null, existing?: any) {
+    const keys = ['practiceDay', 'practiceStartTime', 'practiceEndTime', 'practiceRoomId', 'practiceLecturerId'];
+    const touched = keys.some((k) => data[k] !== undefined);
+    const clear = { practiceDay: null, practiceStartTime: null, practiceEndTime: null, practiceRoomId: null, practiceLecturerId: null };
+
+    if (!course || (course.sksPraktik ?? 0) <= 0) {
+      if (touched && data.practiceDay) {
+        throw new BadRequestException('Mata kuliah ini tidak memiliki SKS praktik, sehingga tidak bisa diberi sesi praktikum.');
+      }
+      return clear;
+    }
+    if (!touched) {
+      return existing
+        ? {
+            practiceDay: existing.practiceDay ?? null,
+            practiceStartTime: existing.practiceStartTime ?? null,
+            practiceEndTime: existing.practiceEndTime ?? null,
+            practiceRoomId: existing.practiceRoomId ?? null,
+            practiceLecturerId: existing.practiceLecturerId ?? null,
+          }
+        : clear;
+    }
+    if (!data.practiceDay) return clear;
+
+    const start = String(data.practiceStartTime ?? '').trim();
+    const end = String(data.practiceEndTime ?? '').trim();
+    if (!/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end)) {
+      throw new BadRequestException('Jam mulai dan jam selesai sesi praktikum wajib diisi (format HH:MM).');
+    }
+    return {
+      practiceDay: String(data.practiceDay),
+      practiceStartTime: start,
+      practiceEndTime: end,
+      practiceRoomId: data.practiceRoomId || null,
+      practiceLecturerId: data.practiceLecturerId || null,
+    };
+  }
+
+  private slotsFor(day: string, startTime: string, endTime: string, roomId: string | null, lecturerId: string | null, practice: ReturnType<AcademicService['resolvePractice']>) {
+    const slots: any[] = [{ label: 'Teori', day, startTime, endTime, roomId, lecturerId }];
+    if (practice.practiceDay && practice.practiceStartTime && practice.practiceEndTime) {
+      slots.push({
+        label: 'Praktikum',
+        day: practice.practiceDay,
+        startTime: practice.practiceStartTime,
+        endTime: practice.practiceEndTime,
+        roomId: practice.practiceRoomId,
+        lecturerId: practice.practiceLecturerId || lecturerId,
+      });
+    }
+    return slots;
   }
 
   async createSchedule(data: any) {
@@ -1022,8 +1121,10 @@ export class AcademicService {
     const roomId = isFlexibleSchedule ? null : data.roomId || null;
     const lecturerId = data.lecturerId || null;
 
+    const practice = isFlexibleSchedule ? this.resolvePractice({ practiceDay: null }, course) : this.resolvePractice(data, course);
+
     if (!isFlexibleSchedule) {
-      await this.assertNoScheduleConflict({ academicYearId: activeYear.id, day, startTime, endTime, roomId, lecturerId });
+      await this.assertNoScheduleConflict({ academicYearId: activeYear.id, slots: this.slotsFor(day, startTime, endTime, roomId, lecturerId, practice) });
     }
 
     const created = await this.prisma.courseClass.create({
@@ -1037,6 +1138,7 @@ export class AcademicService {
         endTime,
         roomId,
         lecturerId,
+        ...practice,
         quota: Number(data.quota) || 40,
         status: 'Berjalan',
       },
@@ -1066,14 +1168,12 @@ export class AcademicService {
     const roomId = isFlexibleSchedule ? null : data.roomId !== undefined ? data.roomId || null : existing.roomId;
     const lecturerId = data.lecturerId !== undefined ? data.lecturerId || null : existing.lecturerId;
 
+    const practice = isFlexibleSchedule ? this.resolvePractice({ practiceDay: null }, course) : this.resolvePractice(data, course, existing);
+
     if (!isFlexibleSchedule) {
       await this.assertNoScheduleConflict({
         academicYearId: existing.academicYearId,
-        day,
-        startTime,
-        endTime,
-        roomId,
-        lecturerId,
+        slots: this.slotsFor(day, startTime, endTime, roomId, lecturerId, practice),
         excludeClassId: id,
       });
     }
@@ -1089,6 +1189,7 @@ export class AcademicService {
         endTime,
         roomId,
         lecturerId,
+        ...practice,
         quota: data.quota !== undefined ? Number(data.quota) : undefined,
         status: data.status !== undefined ? data.status : undefined,
       },

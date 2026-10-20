@@ -119,3 +119,28 @@ Sistem deployment mengadopsi arsitektur containerized dengan **GitHub Container 
 
 ## 📄 Lisensi
 Hak Cipta © 2026 SIAKAD Premium. Proprietary / All Rights Reserved.
+
+---
+
+## 🔗 Integrasi OBE (Outcome-Based Education)
+
+SIAKAD menyediakan endpoint **baca-saja** agar sistem OBE dapat menarik data akademik. Modul: `apps/api/src/modules/obe-integration`.
+
+- **Alamat dasar:** `{API_URL}/api/v1/integrations/obe` (isi sebagai *Base URL* di OBE → Pengaturan → Integrasi → SIAKAD).
+- **Autentikasi:** `Authorization: Bearer <OBE_API_KEY>` (server-ke-server, bukan token pengguna). Atur `OBE_API_KEY` di `.env`; kosong = endpoint ditutup (503).
+- **Paginasi:** `page` dan `per_page` (default 200, maks. 500); jawaban memuat `data` dan `meta.last_page`.
+
+| Endpoint (GET) | Isi |
+|---|---|
+| `institutions` | Nama dan singkatan kampus (dari pengaturan situs) |
+| `faculties`, `study-programs` | Fakultas dan program studi (`degree`: D3/D4/S1/S2/S3/PROFESI) |
+| `students` | NIM, nama, email, program studi, status |
+| `lecturers` | Dosen ber-NIDN/NUPTK/NIP (`nidn` = NIDN, bila kosong NUPTK, lalu NIP) |
+| `courses` | Kode, nama, SKS |
+| `curriculum-courses` | Mata kuliah di dalam kurikulum: kode/nama/tahun/status kurikulum, program studi, semester, SKS, jenis (`MANDATORY`/`ELECTIVE`) |
+| `academic-periods` | Tahun akademik + semester, kode mis. `2026/2027-GANJIL` |
+| `course-offerings` | Kelas: mata kuliah, periode, kode kelas, dosen |
+| `enrollments` | KRS berstatus APPROVED yang terikat ke kelas |
+| `grades` | Nilai FINAL: komponen Tugas/UTS/UAS bila terisi, ditambah nilai akhir. `totalScore` di database bercampur skala 0-100 dan indeks 0-4, sehingga skalanya dikirim lewat `max_score` |
+
+Hanya data akademik yang dibagikan; tidak ada NIK, alamat, data orang tua, atau keuangan.
