@@ -1,5 +1,6 @@
-import { useInstitution } from '@/lib/useInstitution';
 'use client';
+
+import { useInstitution } from '@/lib/useInstitution';
 
 import { PmbUrl } from '@/components/PmbUrl';
 import React, { useState, useEffect } from 'react';
