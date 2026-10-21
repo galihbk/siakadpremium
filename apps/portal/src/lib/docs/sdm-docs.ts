@@ -27,6 +27,38 @@ export const SDM_DOCS: DocSection[] = [
     ],
   },
   {
+    id: 'prioritas',
+    group: 'Mulai',
+    title: 'Prioritas Pekerjaan Anda',
+    summary: 'Apa yang harus dikerjakan lebih dulu, kapan, dan di menu mana.',
+    blocks: [
+      { t: 'p', text: 'Data pegawai dan status dosen menjadi acuan bagian lain, sedangkan rekap absensi adalah pekerjaan berulang yang paling sering dicek.' },
+      {
+        t: 'table',
+        head: ['Prioritas', 'Pekerjaan', 'Kapan', 'Menu'],
+        rows: [
+          ['P1 - Kerjakan lebih dulu', 'Pastikan data pegawai lengkap dan tidak ada pegawai aktif yang belum tercatat', 'Awal tahun dan saat pegawai baru masuk', 'Data Pegawai'],
+          ['P1 - Kerjakan lebih dulu', 'Tetapkan status kepegawaian setiap dosen (filter "Belum diatur" untuk mencarinya)', 'Awal semester', 'Status Dosen'],
+          ['P2 - Penting', 'Atur shift dan toleransi keterlambatan', 'Sebelum rekap absensi pertama', 'Pengaturan Shift'],
+          ['P3 - Rutin', 'Impor data absensi dan cek rekap', 'Bulanan', 'Rekap Absensi'],
+          ['P4 - Bila diperlukan', 'Cetak ID Card, laporan, atau ekspor CSV', 'Bila diperlukan', 'Data Pegawai'],
+        ],
+      },
+      {
+        t: 'note',
+        kind: 'info',
+        title: 'Cara membaca prioritas',
+        text: 'P1 adalah pekerjaan yang bila terlewat akan menghambat orang lain atau membuat fitur terkunci. P2 penting dan sebaiknya selesai sebelum fase berikutnya dimulai. P3 dikerjakan berulang sepanjang semester. P4 dikerjakan hanya saat ada kebutuhan. Kerjakan dari P1 ke bawah, di dalam tiap prioritas ikuti urutan baris.',
+      },
+      {
+        t: 'note',
+        kind: 'info',
+        title: 'Wewenang',
+        text: 'Hanya SDM dan Super Admin yang dapat mengubah status kepegawaian dosen. Dosen dan BAAK hanya melihat.',
+      },
+    ],
+  },
+  {
     id: 'pegawai',
     group: 'Kepegawaian',
     title: 'Data Pegawai',

@@ -1,6 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 
+/** Penyaring opsional untuk daftar nilai dan KRS; semuanya boleh kosong. */
+export interface ObeGradeFilter {
+  periodId?: string;
+  classId?: string;
+  /** Hanya baris yang berubah pada atau setelah waktu ini. */
+  updatedSince?: Date;
+}
+
 export interface Page<T> {
   items: T[];
   meta: { page: number; per_page: number; total: number; last_page: number };
@@ -244,15 +252,26 @@ export class ObeIntegrationService {
           orderBy: { id: 'asc' },
           skip,
           take,
-          select: { id: true, courseId: true, academicYearId: true, className: true, lecturerId: true },
+          select: { id: true, courseId: true, academicYearId: true, className: true, lecturerId: true, practiceLecturerId: true },
         }),
-      (c) => [{ id: c.id, course_id: c.courseId, period_id: c.academicYearId, class_code: c.className, lecturer_id: c.lecturerId }],
+      (c) => [
+        {
+          id: c.id,
+          course_id: c.courseId,
+          period_id: c.academicYearId,
+          class_code: c.className,
+          // Dosen utama kelas; tetap dikirim agar OBE lama tidak rusak.
+          lecturer_id: c.lecturerId,
+          // Semua dosen yang mengajar kelas ini (teori + praktikum), tanpa duplikat.
+          lecturer_ids: [...new Set([c.lecturerId, c.practiceLecturerId].filter((x): x is string => Boolean(x)))],
+        },
+      ],
     );
   }
 
   /** KRS yang sudah disetujui dan terikat ke satu kelas. */
-  enrollments(page: number, perPage: number) {
-    const where = { status: 'APPROVED' as const, courseClassId: { not: null } };
+  enrollments(page: number, perPage: number, filter: ObeGradeFilter = {}) {
+    const where = { status: 'APPROVED' as const, courseClassId: filter.classId ?? { not: null }, ...this.periodAndSince(filter) };
     return this.paged(
       page,
       perPage,
@@ -269,20 +288,39 @@ export class ObeIntegrationService {
     );
   }
 
+  /** Filter umum untuk `enrollments` dan `grades`: periode, kelas, dan hanya yang berubah sejak waktu tertentu. */
+  private periodAndSince(filter: ObeGradeFilter) {
+    return {
+      ...(filter.periodId ? { academicYearId: filter.periodId } : {}),
+      ...(filter.updatedSince ? { updatedAt: { gte: filter.updatedSince } } : {}),
+    };
+  }
+
   /**
-   * Nilai yang sudah FINAL. Satu baris per komponen yang terisi (Tugas, UTS, UAS) ditambah nilai akhir
-   * tanpa komponen (lihat skala di bawah). OBE mencocokkan nama komponen dengan nama/jenis assessment di RPS-nya; nilai akhir
-   * hanya disimpan sebagai arsip. Halaman dihitung per KRS, jadi satu halaman dapat berisi sampai 4x
-   * `per_page` baris.
+   * Nilai yang sudah FINAL. Satu baris per komponen yang terisi ditambah nilai akhir tanpa komponen
+   * (lihat skala di bawah). Setiap baris komponen membawa:
+   *  - `component`        nama komponen apa adanya (dipakai OBE untuk mencocokkan assessment di RPS),
+   *  - `component_code`   kode komponen yang stabil (mis. "UTS"), tidak berubah bila nama diganti,
+   *  - `component_weight` bobot komponen di kelas itu dalam persen (dari Kontrak Kuliah dosen), atau null bila belum ditetapkan,
+   *  - `period_id`        periode akademik nilai ini,
+   *  - `graded_at`        kapan baris KRS terakhir berubah (untuk sinkronisasi bertahap).
+   * Halaman dihitung per KRS, jadi satu halaman dapat berisi banyak baris per `per_page`.
    */
-  grades(page: number, perPage: number) {
-    const where = { status: 'APPROVED' as const, courseClassId: { not: null }, gradeStatus: 'FINAL' };
+  grades(page: number, perPage: number, filter: ObeGradeFilter = {}) {
+    const where = {
+      status: 'APPROVED' as const,
+      courseClassId: filter.classId ?? { not: null },
+      gradeStatus: 'FINAL',
+      ...this.periodAndSince(filter),
+    };
+    // Bobot per kelas dibaca sekali per halaman, bukan per baris.
+    const contracts = new Map<string, { legacy: Record<string, number>; components: Record<string, number> | null }>();
     return this.paged(
       page,
       perPage,
       () => this.prisma.courseEnrollment.count({ where }),
-      (skip, take) =>
-        this.prisma.courseEnrollment.findMany({
+      async (skip, take) => {
+        const rows = await this.prisma.courseEnrollment.findMany({
           where,
           orderBy: { id: 'asc' },
           skip,
@@ -291,37 +329,74 @@ export class ObeIntegrationService {
             id: true,
             studentId: true,
             courseClassId: true,
+            academicYearId: true,
+            updatedAt: true,
             assignmentScore: true,
             midtermScore: true,
             finalScore: true,
             totalScore: true,
             gradePoint: true,
-            componentScores: { select: { score: true, component: { select: { code: true, name: true } } } },
+            componentScores: { select: { score: true, component: { select: { id: true, code: true, name: true } } } },
           },
-        }),
+        });
+        const classIds = [...new Set(rows.map((r) => r.courseClassId).filter((x): x is string => Boolean(x)))];
+        const found = await this.prisma.courseContract.findMany({
+          where: { courseClassId: { in: classIds } },
+          select: { courseClassId: true, assessmentWeights: true },
+        });
+        const num = (v: unknown) => (v !== null && v !== undefined && Number.isFinite(Number(v)) ? Number(v) : null);
+        for (const c of found) {
+          const w = (c.assessmentWeights ?? {}) as Record<string, unknown> & { components?: Record<string, unknown> };
+          const components: Record<string, number> = {};
+          for (const [id, v] of Object.entries(w.components ?? {})) {
+            const n = num(v);
+            if (n !== null) components[id] = n;
+          }
+          const legacy: Record<string, number> = {};
+          for (const k of ['tugas', 'uts', 'uas']) {
+            const n = num(w[k]);
+            if (n !== null) legacy[k] = n;
+          }
+          contracts.set(c.courseClassId, { legacy, components: Object.keys(components).length ? components : null });
+        }
+        return rows;
+      },
       (e) => {
-        const base = { student_id: e.studentId, class_id: e.courseClassId, max_score: 100 };
+        const contract = e.courseClassId ? contracts.get(e.courseClassId) : undefined;
+        const base = {
+          student_id: e.studentId,
+          class_id: e.courseClassId,
+          period_id: e.academicYearId,
+          max_score: 100,
+          graded_at: e.updatedAt.toISOString(),
+        };
         const rows: Record<string, unknown>[] = [];
-        const add = (key: string, component: string | null, score: number | null) => {
-          if (score !== null && score !== undefined) rows.push({ id: `${e.id}:${key}`, ...base, component, score });
+        const add = (key: string, code: string | null, component: string | null, score: number | null, weight: number | null) => {
+          if (score !== null && score !== undefined) {
+            rows.push({ id: `${e.id}:${key}`, ...base, component, component_code: code, component_weight: weight, score });
+          }
         };
         if (e.componentScores.length > 0) {
-          // Nilai memakai skema komponen kampus: satu baris per komponen (nama komponen apa adanya)
-          for (const cs of e.componentScores) add(cs.component.code, cs.component.name, cs.score);
+          // Nilai memakai skema komponen kampus: satu baris per komponen (nama komponen apa adanya).
+          // Bobot hanya dikirim bila Kontrak Kuliah kelas itu menetapkannya.
+          for (const cs of e.componentScores) {
+            add(cs.component.code, cs.component.code, cs.component.name, cs.score, contract?.components?.[cs.component.id] ?? null);
+          }
         } else {
-          add('tugas', 'Tugas', e.assignmentScore);
-          add('uts', 'UTS', e.midtermScore);
-          add('uas', 'UAS', e.finalScore);
+          add('tugas', 'TUGAS', 'Tugas', e.assignmentScore, contract?.legacy.tugas ?? null);
+          add('uts', 'UTS', 'UTS', e.midtermScore, contract?.legacy.uts ?? null);
+          add('uas', 'UAS', 'UAS', e.finalScore, contract?.legacy.uas ?? null);
         }
         // `totalScore` tidak seragam di data SIAKAD: sebagian baris berisi nilai 0-100, sebagian (hasil impor
         // Feeder) berisi indeks 0-4 yang sama dengan `gradePoint`. Skalanya dikirim apa adanya lewat
         // `max_score` supaya OBE menormalkannya dengan benar; baris yang skalanya tidak dapat dipastikan
         // dilewati daripada dikirim sebagai angka yang menyesatkan.
         if (e.totalScore !== null && e.totalScore !== undefined) {
+          const final = { id: `${e.id}:akhir`, ...base, component: null, component_code: null, component_weight: null };
           if (e.totalScore > 4) {
-            rows.push({ id: `${e.id}:akhir`, ...base, component: null, score: e.totalScore });
+            rows.push({ ...final, score: e.totalScore });
           } else if (e.gradePoint !== null && e.gradePoint !== undefined && Math.abs(e.totalScore - e.gradePoint) < 0.01) {
-            rows.push({ id: `${e.id}:akhir`, ...base, component: null, score: e.gradePoint, max_score: 4 });
+            rows.push({ ...final, score: e.gradePoint, max_score: 4 });
           }
         }
         return rows;

@@ -26,6 +26,39 @@ export const LP3M_DOCS: DocSection[] = [
     ],
   },
   {
+    id: 'prioritas',
+    group: 'Mulai',
+    title: 'Prioritas Pekerjaan Anda',
+    summary: 'Apa yang harus dikerjakan lebih dulu, kapan, dan di menu mana.',
+    blocks: [
+      { t: 'p', text: 'Pekerjaan utama LP3M adalah memverifikasi laporan yang masuk. Hanya data berstatus Terverifikasi (atau HAKI Tersertifikasi) yang tampil di situs publik.' },
+      {
+        t: 'table',
+        head: ['Prioritas', 'Pekerjaan', 'Kapan', 'Menu'],
+        rows: [
+          ['P1 - Kerjakan lebih dulu', 'Verifikasi laporan penelitian dan pengabdian yang berstatus Menunggu Verifikasi; minta perbaikan dengan catatan bila kurang', 'Mingguan, lebih sering saat akhir periode pelaporan', 'Laporan Penelitian, Pengabdian (PkM)'],
+          ['P1 - Kerjakan lebih dulu', 'Pastikan tingkat akses tiap dokumen benar (Publik hanya untuk dokumen yang boleh diunduh umum)', 'Setiap kali mengunggah dokumen', 'Bank Dokumen Panduan'],
+          ['P2 - Penting', 'Catat dan proses HAKI/paten hingga Tersertifikasi', 'Saat ada pengajuan', 'Sentra HAKI & Paten'],
+          ['P2 - Penting', 'Siapkan rekap borang per program studi', 'Menjelang akreditasi', 'Rekap Borang Akreditasi'],
+          ['P3 - Rutin', 'Catat kegiatan yang belum dilaporkan dosen', 'Bulanan', 'Laporan Penelitian, Pengabdian (PkM)'],
+          ['P4 - Bila diperlukan', 'Tulis berita LP3M', 'Bila ada kabar', 'Berita & Pengumuman'],
+        ],
+      },
+      {
+        t: 'note',
+        kind: 'info',
+        title: 'Cara membaca prioritas',
+        text: 'P1 adalah pekerjaan yang bila terlewat akan menghambat orang lain atau membuat fitur terkunci. P2 penting dan sebaiknya selesai sebelum fase berikutnya dimulai. P3 dikerjakan berulang sepanjang semester. P4 dikerjakan hanya saat ada kebutuhan. Kerjakan dari P1 ke bawah, di dalam tiap prioritas ikuti urutan baris.',
+      },
+      {
+        t: 'note',
+        kind: 'warn',
+        title: 'Privasi',
+        text: 'NIDN, anggaran, dan catatan reviewer tidak ditampilkan di situs publik. Dokumen internal jangan diberi akses Publik.',
+      },
+    ],
+  },
+  {
     id: 'laporan',
     group: 'Tri Dharma & Riset',
     title: 'Laporan Penelitian & Pengabdian',

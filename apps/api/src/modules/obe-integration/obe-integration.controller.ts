@@ -2,9 +2,19 @@ import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { ObeApiKeyGuard } from './obe-api-key.guard';
-import { ObeIntegrationService } from './obe-integration.service';
+import { ObeGradeFilter, ObeIntegrationService } from './obe-integration.service';
 
 const MAX_PER_PAGE = 500;
+
+/** `period_id`, `class_id`, dan `updated_since` (tanggal/waktu ISO); nilai yang tidak valid diabaikan. */
+function gradeFilter(periodId?: string, classId?: string, updatedSince?: string): ObeGradeFilter {
+  const since = updatedSince ? new Date(updatedSince) : undefined;
+  return {
+    periodId: periodId || undefined,
+    classId: classId || undefined,
+    updatedSince: since && !Number.isNaN(since.getTime()) ? since : undefined,
+  };
+}
 
 function paging(page?: string, perPage?: string) {
   const p = Math.max(1, Math.floor(Number(page)) || 1);
@@ -112,17 +122,39 @@ export class ObeIntegrationController {
   @ApiOperation({ summary: 'KRS yang sudah disetujui dan terikat ke kelas' })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'per_page', required: false })
-  enrollments(@Query('page') page?: string, @Query('per_page') perPage?: string) {
+  @ApiQuery({ name: 'period_id', required: false, description: 'Hanya KRS pada periode akademik ini' })
+  @ApiQuery({ name: 'class_id', required: false, description: 'Hanya KRS pada kelas ini' })
+  @ApiQuery({ name: 'updated_since', required: false, description: 'Hanya yang berubah sejak waktu ini (ISO 8601)' })
+  enrollments(
+    @Query('page') page?: string,
+    @Query('per_page') perPage?: string,
+    @Query('period_id') periodId?: string,
+    @Query('class_id') classId?: string,
+    @Query('updated_since') updatedSince?: string,
+  ) {
     const q = paging(page, perPage);
-    return this.service.enrollments(q.page, q.perPage);
+    return this.service.enrollments(q.page, q.perPage, gradeFilter(periodId, classId, updatedSince));
   }
 
   @Get('grades')
-  @ApiOperation({ summary: 'Nilai FINAL per komponen (Tugas, UTS, UAS) dan nilai akhir' })
+  @ApiOperation({
+    summary: 'Nilai FINAL per komponen (nama, kode, bobot kelas) dan nilai akhir',
+    description:
+      'Satu baris per komponen yang terisi, ditambah satu baris nilai akhir (component = null). Bobot komponen berasal dari Kontrak Kuliah kelas dan null bila belum ditetapkan.',
+  })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'per_page', required: false })
-  grades(@Query('page') page?: string, @Query('per_page') perPage?: string) {
+  @ApiQuery({ name: 'period_id', required: false, description: 'Hanya nilai pada periode akademik ini' })
+  @ApiQuery({ name: 'class_id', required: false, description: 'Hanya nilai pada kelas ini' })
+  @ApiQuery({ name: 'updated_since', required: false, description: 'Hanya yang berubah sejak waktu ini (ISO 8601), untuk sinkronisasi bertahap' })
+  grades(
+    @Query('page') page?: string,
+    @Query('per_page') perPage?: string,
+    @Query('period_id') periodId?: string,
+    @Query('class_id') classId?: string,
+    @Query('updated_since') updatedSince?: string,
+  ) {
     const q = paging(page, perPage);
-    return this.service.grades(q.page, q.perPage);
+    return this.service.grades(q.page, q.perPage, gradeFilter(periodId, classId, updatedSince));
   }
 }

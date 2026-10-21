@@ -26,6 +26,41 @@ export const DOSEN_DOCS: DocSection[] = [
     ],
   },
   {
+    id: 'prioritas',
+    group: 'Mulai',
+    title: 'Prioritas Pekerjaan Anda',
+    summary: 'Apa yang harus dikerjakan lebih dulu, kapan, dan di menu mana.',
+    blocks: [
+      { t: 'p', text: 'Pekerjaan dosen terikat tahapan semester. Yang paling sering menghambat adalah bobot penilaian yang belum diisi, karena tanpa itu nilai tidak bisa diinput sama sekali.' },
+      {
+        t: 'table',
+        head: ['Prioritas', 'Pekerjaan', 'Kapan', 'Menu'],
+        rows: [
+          ['P1 - Kerjakan lebih dulu', 'Isi bobot setiap komponen penilaian di Kontrak Kuliah untuk SETIAP kelas yang Anda ampu (total 100%)', 'Awal semester, sebelum perkuliahan berjalan', 'Kontrak Kuliah'],
+          ['P1 - Kerjakan lebih dulu', 'Setujui atau tolak KRS mahasiswa bimbingan PA', 'Selama masa KRS', 'Mahasiswa Bimbingan PA'],
+          ['P1 - Kerjakan lebih dulu', 'Input nilai semua mahasiswa lalu terbitkan', 'Akhir semester, di dalam jendela input nilai', 'Input Nilai Semester'],
+          ['P2 - Penting', 'Lengkapi profil (NIDN/NUPTK/NIP dan biodata)', 'Sekali, sebelum mengajar', 'Profil'],
+          ['P2 - Penting', 'Susun RPS dan ajukan ke P2M; perbaiki bila ada catatan revisi', 'Awal semester', 'Rencana Pembelajaran (RPS)'],
+          ['P3 - Rutin', 'Isi absensi setiap pertemuan; nilai Kehadiran dihitung otomatis dari sini', 'Setiap pertemuan', 'Absensi Perkuliahan'],
+          ['P3 - Rutin', 'Mengawas ujian sesuai penugasan', 'Jadwal UTS/UAS', 'Jadwal Ujian & Pengawasan'],
+          ['P4 - Bila diperlukan', 'Setujui surat mahasiswa, bimbingan skripsi, laporan penelitian/PkM', 'Bila ada permintaan', 'Persetujuan Surat, Bimbingan Skripsi, Laporan Penelitian & PkM'],
+        ],
+      },
+      {
+        t: 'note',
+        kind: 'info',
+        title: 'Cara membaca prioritas',
+        text: 'P1 adalah pekerjaan yang bila terlewat akan menghambat orang lain atau membuat fitur terkunci. P2 penting dan sebaiknya selesai sebelum fase berikutnya dimulai. P3 dikerjakan berulang sepanjang semester. P4 dikerjakan hanya saat ada kebutuhan. Kerjakan dari P1 ke bawah, di dalam tiap prioritas ikuti urutan baris.',
+      },
+      {
+        t: 'note',
+        kind: 'warn',
+        title: 'Batas waktu',
+        text: 'Input nilai hanya bisa dilakukan dalam jendela tanggal yang ditetapkan BAAK. Di luar jendela halaman terkunci; hubungi BAAK untuk membukanya kembali.',
+      },
+    ],
+  },
+  {
     id: 'profil',
     group: 'Menu Utama',
     title: 'Dashboard & Profil',
@@ -74,9 +109,15 @@ export const DOSEN_DOCS: DocSection[] = [
         t: 'ol',
         items: [
           'Buka Kontrak Kuliah dan pilih kelas.',
-          'Tetapkan bobot komponen penilaian (Tugas, UTS, UAS, Kehadiran) hingga total 100%.',
+          'Jika kampus sudah menetapkan Komponen Penilaian, halaman menampilkan satu kolom bobot untuk tiap komponen (nama komponen tidak dapat diubah). Isi bobot masing-masing; totalnya harus 100%. Jika belum ada skema, isi bobot Tugas, UTS, UAS, dan Kehadiran seperti biasa.',
           'Simpan lalu publikasikan agar mahasiswa dapat melihatnya.',
         ],
+      },
+      {
+        t: 'note',
+        kind: 'warn',
+        title: 'Wajib sebelum input nilai',
+        text: 'Bobot diisi per kelas. Dosen lain yang mengampu mata kuliah yang sama boleh memakai bobot berbeda. Selama bobot belum lengkap dan berjumlah 100%, halaman Input Nilai menampilkan peringatan dan tombol simpan nonaktif.',
       },
       { t: 'h3', text: 'RPS' },
       {
@@ -99,7 +140,8 @@ export const DOSEN_DOCS: DocSection[] = [
         t: 'ol',
         items: [
           'Buka Input Nilai Semester dan pilih kelas.',
-          'Isi nilai tiap mahasiswa. Gunakan simpan-draf bila belum final.',
+          'Pastikan bobot kelas sudah diisi di Kontrak Kuliah; bila belum, muncul tombol Atur Bobot.',
+          'Isi nilai tiap komponen untuk setiap mahasiswa. Kolom mengikuti Komponen Penilaian kampus; komponen otomatis (kehadiran) tidak perlu diisi. Gunakan simpan-draf bila belum final.',
           'Terbitkan nilai agar terlihat oleh mahasiswa di KHS.',
         ],
       },

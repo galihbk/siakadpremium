@@ -33,6 +33,41 @@ export const PRODI_DOCS: DocSection[] = [
     ],
   },
   {
+    id: 'prioritas',
+    group: 'Mulai',
+    title: 'Prioritas Pekerjaan Anda',
+    summary: 'Apa yang harus dikerjakan lebih dulu, kapan, dan di menu mana.',
+    blocks: [
+      { t: 'p', text: 'Admin Prodi memantau data program studinya sendiri; perubahan data induk dilakukan BAAK. Peran Anda adalah memastikan data prodi lengkap dan benar sebelum BAAK membuka KRS, lalu mengawasi jalannya semester.' },
+      {
+        t: 'table',
+        head: ['Prioritas', 'Pekerjaan', 'Kapan', 'Menu'],
+        rows: [
+          ['P1 - Kerjakan lebih dulu', 'Pastikan akun Anda terhubung ke program studi dan dashboard terisi', 'Pertama kali masuk', 'Dashboard Prodi'],
+          ['P1 - Kerjakan lebih dulu', 'Periksa katalog mata kuliah dan kurikulum prodi sudah lengkap untuk semester berjalan', 'Sebelum BAAK membuat kelas', 'Mata Kuliah'],
+          ['P2 - Penting', 'Periksa kelas: dosen pengampu terisi, jadwal tidak bentrok, kuota memadai', 'Sebelum KRS dibuka', 'Jadwal & Kelas'],
+          ['P2 - Penting', 'Pastikan Ketua Program Studi tercantum di dashboard; bila belum, minta BAAK menetapkannya', 'Awal semester', 'Dashboard Prodi'],
+          ['P3 - Rutin', 'Pantau keterisian kelas, beban mengajar dosen, dan status mahasiswa', 'Sepanjang semester', 'Data Mahasiswa, Data Dosen, Jadwal & Kelas'],
+          ['P3 - Rutin', 'Cari tugas akhir yang tertahan di satu tahap', 'Bulanan', 'Tugas Akhir / Skripsi'],
+          ['P4 - Bila diperlukan', 'Pantau pendaftar yudisium prodi', 'Menjelang kelulusan', 'Yudisium & Kelulusan'],
+          ['P4 - Bila diperlukan', 'Tulis berita prodi untuk situs publik', 'Bila ada kabar', 'Berita & Pengumuman'],
+        ],
+      },
+      {
+        t: 'note',
+        kind: 'info',
+        title: 'Cara membaca prioritas',
+        text: 'P1 adalah pekerjaan yang bila terlewat akan menghambat orang lain atau membuat fitur terkunci. P2 penting dan sebaiknya selesai sebelum fase berikutnya dimulai. P3 dikerjakan berulang sepanjang semester. P4 dikerjakan hanya saat ada kebutuhan. Kerjakan dari P1 ke bawah, di dalam tiap prioritas ikuti urutan baris.',
+      },
+      {
+        t: 'note',
+        kind: 'info',
+        title: 'Catatan',
+        text: 'Komponen penilaian ditetapkan BAAK untuk seluruh kampus dan bobotnya diisi dosen per kelas. Admin Prodi tidak mengubahnya.',
+      },
+    ],
+  },
+  {
     id: 'dashboard',
     group: 'Data Program Studi',
     title: 'Dashboard Prodi',

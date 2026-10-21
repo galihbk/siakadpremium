@@ -26,6 +26,40 @@ export const P2M_DOCS: DocSection[] = [
     ],
   },
   {
+    id: 'prioritas',
+    group: 'Mulai',
+    title: 'Prioritas Pekerjaan Anda',
+    summary: 'Apa yang harus dikerjakan lebih dulu, kapan, dan di menu mana.',
+    blocks: [
+      { t: 'p', text: 'P2M menjalankan siklus PPEPP. Urutannya: tetapkan standar lebih dulu, lalu awasi pelaksanaan (validasi RPS), evaluasi lewat audit, dan kendalikan lewat tindak lanjut.' },
+      {
+        t: 'table',
+        head: ['Prioritas', 'Pekerjaan', 'Kapan', 'Menu'],
+        rows: [
+          ['P1 - Kerjakan lebih dulu', 'Tetapkan standar mutu dan pastikan statusnya Aktif', 'Awal tahun akademik', 'Standar Mutu'],
+          ['P1 - Kerjakan lebih dulu', 'Validasi RPS yang diajukan dosen atau beri catatan revisi', 'Awal semester, lalu tiap ada pengajuan', 'Validasi RPS'],
+          ['P2 - Penting', 'Jadwalkan Audit Mutu Internal tiap prodi', 'Sesuai siklus audit', 'Audit Mutu Internal'],
+          ['P2 - Penting', 'Isi hasil audit (Sesuai, Temuan Minor, Temuan Mayor) dan batas waktu tindak lanjut', 'Setelah audit selesai', 'Audit Mutu Internal'],
+          ['P3 - Rutin', 'Pantau dan perbarui status tindak lanjut sampai Selesai', 'Mingguan hingga temuan tuntas', 'Tindak Lanjut Audit'],
+          ['P3 - Rutin', 'Unggah dokumen mutu terbaru dengan tingkat akses yang benar', 'Saat ada revisi dokumen', 'Dokumen Mutu'],
+          ['P4 - Bila diperlukan', 'Tulis berita P2M', 'Bila ada kabar', 'Berita & Pengumuman'],
+        ],
+      },
+      {
+        t: 'note',
+        kind: 'info',
+        title: 'Cara membaca prioritas',
+        text: 'P1 adalah pekerjaan yang bila terlewat akan menghambat orang lain atau membuat fitur terkunci. P2 penting dan sebaiknya selesai sebelum fase berikutnya dimulai. P3 dikerjakan berulang sepanjang semester. P4 dikerjakan hanya saat ada kebutuhan. Kerjakan dari P1 ke bawah, di dalam tiap prioritas ikuti urutan baris.',
+      },
+      {
+        t: 'note',
+        kind: 'info',
+        title: 'Privasi',
+        text: 'Situs publik hanya menampilkan ringkasan audit secara agregat dan jadwal mendatang. Temuan per program studi tidak ditampilkan.',
+      },
+    ],
+  },
+  {
     id: 'standar',
     group: 'Penjaminan Mutu',
     title: 'Standar Mutu',

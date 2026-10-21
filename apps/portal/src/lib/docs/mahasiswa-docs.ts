@@ -24,7 +24,42 @@ export const MAHASISWA_DOCS: DocSection[] = [
       {
         t: 'note',
         kind: 'tip',
-        text: 'Akun mahasiswa hanya dapat membuka halaman mahasiswa. Jika lupa kata sandi, hubungi BAAK.',
+        text: 'Akun mahasiswa hanya dapat membuka halaman mahasiswa. Jika lupa kata sandi, klik Lupa kata sandi? pada halaman masuk dan ikuti tautan yang dikirim ke email Anda (berlaku 1 jam, sekali pakai). Bila email tidak masuk, hubungi BAAK.',
+      },
+    ],
+  },
+  {
+    id: 'prioritas',
+    group: 'Mulai',
+    title: 'Prioritas Pekerjaan Anda',
+    summary: 'Apa yang harus dikerjakan lebih dulu, kapan, dan di menu mana.',
+    blocks: [
+      { t: 'p', text: 'Sebagian besar pekerjaan mahasiswa mengikuti kalender akademik. KRS dan pembayaran paling sering terlambat dan paling berakibat, jadi dahulukan keduanya.' },
+      {
+        t: 'table',
+        head: ['Prioritas', 'Pekerjaan', 'Kapan', 'Menu'],
+        rows: [
+          ['P1 - Kerjakan lebih dulu', 'Isi KRS dan kirim ke dosen PA', 'Selama masa KRS dibuka', 'Rencana Studi (KRS)'],
+          ['P1 - Kerjakan lebih dulu', 'Bayar tagihan yang belum lunas (pilih rekening bank kampus, unggah bukti transfer)', 'Sebelum jatuh tempo dan sebelum ujian', 'Tagihan & Pembayaran'],
+          ['P2 - Penting', 'Cek dan jaga presensi minimal 75% di tiap mata kuliah', 'Sepanjang semester', 'Presensi & Kehadiran'],
+          ['P2 - Penting', 'Cek jadwal ujian dan cetak kartu ujian', 'Sebelum UTS/UAS', 'Jadwal Ujian (UTS/UAS)'],
+          ['P3 - Rutin', 'Lihat KHS dan unduh PDF-nya setelah nilai terbit', 'Akhir semester', 'Hasil Studi (KHS)'],
+          ['P3 - Rutin', 'Pantau jadwal kuliah mingguan', 'Mingguan', 'Jadwal Kuliah'],
+          ['P4 - Bila diperlukan', 'Lihat seluruh nilai dalam Transkrip Sementara', 'Bila diperlukan', 'Transkrip Sementara'],
+          ['P4 - Bila diperlukan', 'Ajukan surat, kerjakan tugas akhir, daftar yudisium', 'Sesuai kebutuhan dan semester akhir', 'Layanan Surat, Tugas Akhir, Yudisium'],
+        ],
+      },
+      {
+        t: 'note',
+        kind: 'info',
+        title: 'Cara membaca prioritas',
+        text: 'P1 adalah pekerjaan yang bila terlewat akan menghambat orang lain atau membuat fitur terkunci. P2 penting dan sebaiknya selesai sebelum fase berikutnya dimulai. P3 dikerjakan berulang sepanjang semester. P4 dikerjakan hanya saat ada kebutuhan. Kerjakan dari P1 ke bawah, di dalam tiap prioritas ikuti urutan baris.',
+      },
+      {
+        t: 'note',
+        kind: 'warn',
+        title: 'Akibat bila terlewat',
+        text: 'Tagihan belum lunas dapat menghambat kartu ujian dan pendaftaran yudisium. Presensi di bawah 75% dapat membuat Anda tidak boleh mengikuti ujian mata kuliah itu.',
       },
     ],
   },
@@ -36,7 +71,7 @@ export const MAHASISWA_DOCS: DocSection[] = [
     blocks: [
       {
         t: 'p',
-        text: 'Dashboard menampilkan IPK, total SKS lulus, status KRS semester berjalan, dan status tagihan dalam satu pandangan.',
+        text: 'Dashboard menampilkan IPK, total SKS lulus, status KRS semester berjalan, dan status tagihan dalam satu pandangan. Tagihan yang belum dibayar ditampilkan langsung di dashboard.',
       },
       { t: 'h3', text: 'Memperbarui profil' },
       {
@@ -68,6 +103,7 @@ export const MAHASISWA_DOCS: DocSection[] = [
           'Pilih kelas mata kuliah yang akan diambil. Total SKS dibatasi otomatis sesuai ketentuan.',
           'Kirim KRS untuk disetujui Dosen Pembimbing Akademik (PA).',
           'Pantau status: "Menunggu persetujuan Dosen Pembimbing Akademik" berubah menjadi "Disetujui Dosen Pembimbing Akademik".',
+          'Unduh KRS sebagai PDF dari halaman KRS; dokumen memakai kop surat kampus dan tanda tangan sesuai aturan.',
         ],
       },
       {
@@ -125,6 +161,24 @@ export const MAHASISWA_DOCS: DocSection[] = [
           'Pilih semester untuk melihat nilai setiap mata kuliah, IPS, dan IPK kumulatif.',
           'Grafik tren IPS dan distribusi nilai dihitung dari data nilai Anda yang sebenarnya.',
           'Nilai hanya muncul setelah dosen menerbitkannya.',
+          'Klik cetak untuk mengunduh KHS sebagai PDF dengan kop surat kampus dan tanda tangan sesuai aturan.',
+        ],
+      },
+    ],
+  },
+  {
+    id: 'transkrip',
+    group: 'Ujian & Hasil Studi',
+    title: 'Transkrip Sementara',
+    summary: 'Seluruh nilai Anda dalam satu tabel.',
+    blocks: [
+      { t: 'p', text: 'Menu Transkrip Sementara menampilkan semua nilai mata kuliah yang sudah terbit dalam satu tabel, tanpa pengelompokan per semester, lengkap dengan total SKS dan IPK kumulatif.' },
+      {
+        t: 'ul',
+        items: [
+          'Klik cetak untuk mengunduh PDF berjudul Transkrip Nilai Sementara dengan kop surat kampus.',
+          'Dokumen ini bersifat sementara dan bukan transkrip resmi kelulusan.',
+          'Nilai yang belum diterbitkan dosen tidak tampil.',
         ],
       },
     ],
@@ -228,7 +282,8 @@ export const MAHASISWA_DOCS: DocSection[] = [
         items: [
           'Buka Tagihan & Pembayaran untuk melihat daftar tagihan dan statusnya.',
           'Pilih tagihan yang akan dibayar lalu pilih metode pembayaran.',
-          'Untuk transfer manual, unggah bukti transfer (gambar atau PDF) lalu kirim.',
+          'Pilih rekening bank kampus tempat Anda mengirim pembayaran. Jika belum ada rekening yang diatur, pembayaran belum bisa dikonfirmasi; hubungi Biro Keuangan.',
+          'Transfer sesuai nominal, lalu unggah bukti transfer (gambar atau PDF) dan kirim.',
           'Bagian Keuangan memverifikasi pembayaran; status berubah menjadi Lunas setelah terverifikasi.',
         ],
       },
@@ -253,6 +308,8 @@ export const MAHASISWA_DOCS: DocSection[] = [
           ['Nilai belum muncul di KHS', 'Dosen belum menerbitkan nilai atau jendela input nilai belum selesai.'],
           ['Kartu ujian tidak bisa dicetak / ada peringatan', 'Periksa tagihan belum lunas dan presensi di bawah 75%.'],
           ['Tidak bisa mendaftar yudisium', 'Lihat checklist syarat; tombol aktif setelah semua syarat terpenuhi.'],
+          ['Tidak bisa mengonfirmasi pembayaran', 'Rekening tujuan belum diatur kampus. Hubungi Biro Keuangan; setelah ada rekening aktif, pilih rekening itu lalu unggah bukti.'],
+          ['Bukti transfer ditolak', 'Buka tagihan, baca alasan penolakan Keuangan, lalu unggah ulang bukti yang valid.'],
           ['Bukti transfer gagal diunggah', 'Pastikan berkas berupa gambar/PDF dan ukurannya wajar; coba lagi, atau hubungi Keuangan.'],
           ['Data profil salah', 'Biodata dasar diubah BAAK; ajukan koreksi ke BAAK.'],
         ],

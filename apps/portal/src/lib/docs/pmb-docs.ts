@@ -39,6 +39,42 @@ export const PMB_DOCS: DocSection[] = [
     ],
   },
   {
+    id: 'prioritas',
+    group: 'Mulai',
+    title: 'Prioritas Pekerjaan Anda',
+    summary: 'Apa yang harus dikerjakan lebih dulu, kapan, dan di menu mana.',
+    blocks: [
+      { t: 'p', text: 'PMB berjalan dalam urutan: persiapan, pendaftaran, seleksi, registrasi ulang. Dua hal di luar PMB harus siap lebih dulu: rekening bank kampus (Keuangan) dan Format NIM (Super Admin).' },
+      {
+        t: 'table',
+        head: ['Prioritas', 'Pekerjaan', 'Kapan', 'Menu'],
+        rows: [
+          ['P1 - Kerjakan lebih dulu', 'Pastikan rekening bank kampus aktif (Keuangan) dan Format NIM sudah diatur (Super Admin)', 'Sebelum gelombang dibuka', 'Koordinasi dengan Keuangan dan Super Admin'],
+          ['P1 - Kerjakan lebih dulu', 'Buat gelombang pendaftaran dan atur jalur, jenis, dan kelas', 'Sebelum pendaftaran dibuka', 'Gelombang Pendaftaran, Jalur, Jenis & Kelas'],
+          ['P1 - Kerjakan lebih dulu', 'Verifikasi berkas dan pembayaran pendaftar; isi catatan saat menolak', 'Harian selama pendaftaran', 'Verifikasi Berkas, Pembayaran & Keuangan'],
+          ['P2 - Penting', 'Tetapkan kelulusan seleksi', 'Setelah seleksi selesai', 'Kelulusan & Registrasi'],
+          ['P2 - Penting', 'Verifikasi daftar ulang lalu terbitkan NIM', 'Setelah calon lulus membayar daftar ulang', 'Kelulusan & Registrasi'],
+          ['P3 - Rutin', 'Balas pertanyaan calon mahasiswa', 'Harian', 'Live Chat'],
+          ['P3 - Rutin', 'Pantau KPI dan progres seleksi', 'Mingguan', 'Dashboard PMB'],
+          ['P4 - Bila diperlukan', 'Kelola mitra affiliate dan rekap laporan', 'Bila diperlukan / akhir gelombang', 'Data Affiliate, Rekapitulasi PMB'],
+          ['P4 - Bila diperlukan', 'Tulis berita dan pengumuman PMB', 'Bila ada kabar', 'Berita & Pengumuman'],
+        ],
+      },
+      {
+        t: 'note',
+        kind: 'info',
+        title: 'Cara membaca prioritas',
+        text: 'P1 adalah pekerjaan yang bila terlewat akan menghambat orang lain atau membuat fitur terkunci. P2 penting dan sebaiknya selesai sebelum fase berikutnya dimulai. P3 dikerjakan berulang sepanjang semester. P4 dikerjakan hanya saat ada kebutuhan. Kerjakan dari P1 ke bawah, di dalam tiap prioritas ikuti urutan baris.',
+      },
+      {
+        t: 'note',
+        kind: 'warn',
+        title: 'Yang sering terlewat',
+        text: 'Pendaftar harus memilih rekening bank kampus saat membayar. Jika belum ada rekening aktif, pembayaran tidak bisa dikonfirmasi dan pendaftar tertahan.',
+      },
+    ],
+  },
+  {
     id: 'dashboard',
     group: 'Menu Utama',
     title: 'Dashboard PMB',
@@ -128,7 +164,8 @@ export const PMB_DOCS: DocSection[] = [
       {
         t: 'ul',
         items: [
-          'Verifikasi bukti transfer Biaya Registrasi dan Biaya Daftar Ulang.',
+          'Verifikasi bukti transfer Biaya Registrasi dan Biaya Daftar Ulang. Pendaftar memilih rekening bank kampus tujuan transfer; rekening itu tertera pada pembayarannya.',
+          'Bagian Keuangan juga dapat memverifikasi pembayaran PMB lewat tab PMB pada menu Verifikasi Pembayaran.',
           'Atur nominal biaya dan Simpan Perubahan Biaya.',
         ],
       },

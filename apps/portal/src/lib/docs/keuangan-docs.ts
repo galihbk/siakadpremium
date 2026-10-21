@@ -18,10 +18,45 @@ export const KEUANGAN_DOCS: DocSection[] = [
         head: ['Kelompok menu', 'Isi'],
         rows: [
           ['Menu Utama', 'Dashboard Keuangan & Perbendaharaan.'],
-          ['Penerimaan & Tagihan', 'Penerimaan SPP & UKT, Daftar Tagihan Mahasiswa, Verifikasi Pembayaran, Aturan Biaya Perkuliahan.'],
+          ['Penerimaan & Tagihan', 'Penerimaan SPP & UKT, Daftar Tagihan Mahasiswa, Verifikasi Pembayaran, Riwayat Pembayaran, Aturan Biaya Perkuliahan.'],
           ['Honor & Pengajaran', 'Rekapitulasi Mengajar, Pengaturan Gaji, Tarif Honor per Jenjang, Tarif Uang Transport, Rekap Honor.'],
           ['Kas & Anggaran', 'Rekening Bank & Kas, Realisasi Anggaran Kampus.'],
         ],
+      },
+    ],
+  },
+  {
+    id: 'prioritas',
+    group: 'Mulai',
+    title: 'Prioritas Pekerjaan Anda',
+    summary: 'Apa yang harus dikerjakan lebih dulu, kapan, dan di menu mana.',
+    blocks: [
+      { t: 'p', text: 'Keuangan bergantung pada rekening dan aturan biaya yang benar. Tanpa rekening aktif, mahasiswa dan calon mahasiswa tidak bisa mengonfirmasi pembayaran; tanpa aturan biaya, tagihan bernominal salah.' },
+      {
+        t: 'table',
+        head: ['Prioritas', 'Pekerjaan', 'Kapan', 'Menu'],
+        rows: [
+          ['P1 - Kerjakan lebih dulu', 'Pastikan ada minimal satu rekening bank kampus yang aktif (tujuan transfer mahasiswa dan calon mahasiswa)', 'Sebelum tagihan dan PMB dibuka', 'Rekening Bank & Kas'],
+          ['P1 - Kerjakan lebih dulu', 'Siapkan komponen dan nominal biaya', 'Sebelum menerbitkan tagihan', 'Aturan Biaya Perkuliahan'],
+          ['P1 - Kerjakan lebih dulu', 'Verifikasi bukti transfer yang masuk (tab Mahasiswa dan tab PMB); tolak dengan alasan bila tidak sesuai', 'Harian', 'Verifikasi Pembayaran'],
+          ['P2 - Penting', 'Terbitkan tagihan dari komponen biaya', 'Awal semester', 'Daftar Tagihan Mahasiswa'],
+          ['P2 - Penting', 'Tinjau seluruh transaksi untuk rekonsiliasi', 'Mingguan', 'Riwayat Pembayaran, Penerimaan SPP & UKT'],
+          ['P3 - Rutin', 'Rekap mengajar lalu hitung honor, gaji, dan transport', 'Bulanan', 'Rekapitulasi Mengajar, Rekap Honor'],
+          ['P4 - Bila diperlukan', 'Atur tarif honor, tarif transport, dan gaji', 'Saat tarif berubah', 'Tarif Honor per Jenjang, Tarif Uang Transport, Pengaturan Gaji'],
+          ['P4 - Bila diperlukan', 'Catat kategori dan realisasi anggaran', 'Sesuai siklus anggaran', 'Realisasi Anggaran Kampus'],
+        ],
+      },
+      {
+        t: 'note',
+        kind: 'info',
+        title: 'Cara membaca prioritas',
+        text: 'P1 adalah pekerjaan yang bila terlewat akan menghambat orang lain atau membuat fitur terkunci. P2 penting dan sebaiknya selesai sebelum fase berikutnya dimulai. P3 dikerjakan berulang sepanjang semester. P4 dikerjakan hanya saat ada kebutuhan. Kerjakan dari P1 ke bawah, di dalam tiap prioritas ikuti urutan baris.',
+      },
+      {
+        t: 'note',
+        kind: 'info',
+        title: 'Mode pembayaran',
+        text: 'Saat ini pembayaran memakai Konfirmasi Manual: mahasiswa transfer ke rekening kampus lalu mengunggah bukti, dan Anda memverifikasinya. Integrasi API bank belum tersedia.',
       },
     ],
   },
@@ -78,10 +113,27 @@ export const KEUANGAN_DOCS: DocSection[] = [
       {
         t: 'ol',
         items: [
-          'Buka Verifikasi Pembayaran untuk melihat pembayaran yang menunggu verifikasi.',
-          'Periksa bukti transfer yang diunggah mahasiswa terhadap mutasi rekening.',
+          'Buka Verifikasi Pembayaran. Tab Mahasiswa berisi pembayaran tagihan perkuliahan; tab PMB berisi pembayaran calon mahasiswa.',
+          'Periksa pratinjau bukti transfer dan rekening tujuan yang dipilih pembayar, lalu cocokkan dengan mutasi rekening.',
           'Pilih Verifikasi Manual lalu setujui bila sesuai; tambahkan catatan bila perlu.',
           'Status tagihan berubah menjadi lunas dan kwitansi dapat dicetak dari dashboard.',
+          'Bila bukti tidak valid, klik Tolak dan tulis alasannya. Tagihan kembali berstatus tertunda dan pembayar diminta mengunggah ulang.',
+        ],
+      },
+    ],
+  },
+  {
+    id: 'riwayat',
+    group: 'Penerimaan & Tagihan',
+    title: 'Riwayat Pembayaran',
+    summary: 'Seluruh transaksi pembayaran dalam satu daftar.',
+    blocks: [
+      {
+        t: 'ul',
+        items: [
+          'Menampilkan semua pembayaran mahasiswa dan calon mahasiswa beserta metode dan rekening tujuan.',
+          'Cari berdasarkan nomor, nama, NIM, atau keterangan; saring menurut jenis dan status.',
+          'Gunakan untuk mencocokkan pembayaran dengan mutasi rekening dan menelusuri satu transaksi.',
         ],
       },
     ],
@@ -114,6 +166,7 @@ export const KEUANGAN_DOCS: DocSection[] = [
         t: 'ul',
         items: [
           'Rekening Bank & Kas: Tambah Rekening dan pantau saldonya.',
+          'Rekening yang aktif menjadi pilihan tujuan transfer bagi mahasiswa dan calon mahasiswa. Tanpa rekening aktif mereka tidak dapat mengonfirmasi pembayaran. Rekening ini sama dengan yang dikelola Super Admin di Pengaturan Bank.',
           'Realisasi Anggaran Kampus: kelola kategori anggaran (Tambah Kategori) dan catat realisasinya.',
         ],
       },
