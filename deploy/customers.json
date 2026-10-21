@@ -7,6 +7,14 @@
       "autoDeploy": false,
       "track": "main",
       "runner": "self-hosted"
+    },
+    {
+      "name": "test-obe",
+      "environment": "test-obe",
+      "appDir": "/srv/projects/siakad-obe",
+      "autoDeploy": false,
+      "track": "main",
+      "runner": "self-hosted"
     }
   ]
 }

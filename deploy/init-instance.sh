@@ -35,6 +35,7 @@ rand() { openssl rand -hex "$1" 2>/dev/null || head -c "$1" /dev/urandom | od -A
 mkdir -p "$DIR"
 PG_PASS="$(rand 16)"
 ADMIN_PASS="$(rand 6)Aa1!"
+OBE_KEY="$(rand 24)"
 URL_WEB="https://${NAME}.${DOMAIN}"
 URL_PORTAL="https://portal-${NAME}.${DOMAIN}"
 URL_PMB="https://pmb-${NAME}.${DOMAIN}"
@@ -104,6 +105,9 @@ BOOTSTRAP_ADMIN_PASSWORD=${ADMIN_PASS}
 BOOTSTRAP_ADMIN_NAME=Super Administrator
 BOOTSTRAP_CAMPUS_NAME="${CAMPUS}"
 BOOTSTRAP_CAMPUS_SHORT=${SHORT}
+
+# --- Integrasi OBE: kunci yang diisi di aplikasi OBE (Authorization: Bearer <kunci>) ---
+OBE_API_KEY=${OBE_KEY}
 EOF
 chmod 600 "$DIR/.env"
 
@@ -114,6 +118,10 @@ Selesai: $DIR/.env dibuat (izin 600).
   Login Super Admin pertama (CATAT SEKARANG, tidak ditampilkan lagi):
     email     : ${ADMIN_EMAIL}
     kata sandi: ${ADMIN_PASS}
+
+  Kunci integrasi OBE (isi di aplikasi OBE):
+    alamat dasar: http://localhost:$((PORT_BASE + 1))/api/v1/integrations/obe  (bila OBE satu server dengan instance ini)
+    API key     : ${OBE_KEY}
 
   Tambahkan 5 public hostname di Cloudflare Tunnel:
     ${URL_WEB#https://}           -> http://localhost:$((PORT_BASE))
