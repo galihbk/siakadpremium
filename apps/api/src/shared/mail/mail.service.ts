@@ -7,12 +7,23 @@ export interface EmailQueueJob {
   fullName: string;
   verificationUrl?: string;
   resetUrl?: string;
-  type: 'VERIFICATION' | 'PASSWORD_RESET' | 'PORTAL_RESET';
+  type: 'VERIFICATION' | 'PASSWORD_RESET' | 'PORTAL_RESET' | 'NOTICE';
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
   attempts: number;
   maxAttempts: number;
   createdAt: Date;
   error?: string;
+}
+
+export interface NoticeEmail {
+  subject: string;
+  heading: string;
+  paragraphs: string[];
+  details?: Array<[string, string]>;
+  cta?: { label: string; url: string };
+  brand?: string;
+  subtitle?: string;
+  footer?: string;
 }
 
 @Injectable()
@@ -105,6 +116,49 @@ export class MailService {
     return true;
   }
 
+  /** Email pemberitahuan umum (mis. diterima, pembayaran disetujui): judul, paragraf, tabel ringkas, dan tombol opsional. */
+  async sendNoticeEmail(to: string, fullName: string, notice: NoticeEmail): Promise<boolean> {
+    const job: EmailQueueJob & { notice?: NoticeEmail } = {
+      id: `mail-notice-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      to,
+      fullName,
+      type: 'NOTICE',
+      status: 'PENDING',
+      attempts: 0,
+      maxAttempts: 3,
+      createdAt: new Date(),
+      notice,
+    };
+    this.queue.push(job);
+    this.processQueue().catch((err) => this.logger.error('[MailQueue] Worker queue error:', err));
+    return true;
+  }
+
+  private async deliverNoticeEmail(job: EmailQueueJob & { notice?: NoticeEmail }): Promise<boolean> {
+    const n = job.notice!;
+    const brand = n.brand || process.env.MAIL_FROM_NAME || 'SIAKAD Premium';
+    const fromAddress = process.env.MAIL_FROM_ADDRESS || process.env.MAIL_USERNAME || '';
+    const esc = (v: string) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
+    const rows = (n.details ?? [])
+      .map(([k, v]) => `<tr><td style="padding:8px 12px;background:#f8fafc;color:#64748b;font-size:13px;border-bottom:1px solid #e2e8f0;width:38%">${esc(k)}</td><td style="padding:8px 12px;font-weight:bold;font-size:14px;border-bottom:1px solid #e2e8f0">${esc(v)}</td></tr>`)
+      .join('');
+    const html = `<!DOCTYPE html><html lang="id"><body style="font-family:Arial,Helvetica,sans-serif;background:#f1f5f9;margin:0;padding:24px;color:#1e293b">
+<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:14px;padding:32px;border:1px solid #e2e8f0">
+<h2 style="margin:0 0 4px;color:#1E3A8A">${esc(brand)}</h2>
+<p style="margin:0 0 20px;color:#64748b;font-size:13px">${esc(n.subtitle || 'Penerimaan Mahasiswa Baru')}</p>
+<p>Halo <strong>${esc(job.fullName)}</strong>,</p>
+<h3 style="margin:16px 0 8px;color:#047857">${esc(n.heading)}</h3>
+${n.paragraphs.map((p) => `<p style="line-height:1.6">${esc(p)}</p>`).join('')}
+${rows ? `<table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;margin:16px 0">${rows}</table>` : ''}
+${n.cta ? `<p style="text-align:center;margin:28px 0"><a href="${esc(n.cta.url)}" style="background:#1E3A8A;color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:bold;display:inline-block">${esc(n.cta.label)}</a></p>` : ''}
+<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0">
+<p style="font-size:12px;color:#94a3b8">${esc(n.footer || `Email ini dikirim otomatis oleh Panitia PMB ${brand}.`)}</p>
+</div></body></html>`;
+    const info = await this.transporter.sendMail({ from: `"${brand}" <${fromAddress}>`, to: job.to, subject: n.subject, html });
+    this.logger.log(`[MailQueue] SMTP delivered notice "${n.subject}" to ${job.to}, messageId: ${info.messageId}`);
+    return true;
+  }
+
   /** Email atur ulang kata sandi akun portal SIAKAD (mahasiswa, dosen, staf). */
   async sendPortalPasswordResetEmail(to: string, fullName: string, resetUrl: string, campusName?: string): Promise<boolean> {
     const job: EmailQueueJob & { campusName?: string } = {
@@ -167,7 +221,9 @@ export class MailService {
 
       try {
         let success = false;
-        if (job.type === 'PORTAL_RESET') {
+        if (job.type === 'NOTICE') {
+          success = await this.deliverNoticeEmail(job);
+        } else if (job.type === 'PORTAL_RESET') {
           success = await this.deliverPortalResetEmail(job);
         } else if (job.type === 'PASSWORD_RESET') {
           success = await this.deliverPasswordResetEmail(job);

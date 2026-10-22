@@ -107,7 +107,13 @@ export const PMB_DOCS: DocSection[] = [
         ],
       },
       { t: 'h3', text: 'Jalur, Jenis & Kelas' },
-      { t: 'p', text: 'Kelola master jenis penerimaan, jalur masuk, dan kelas (mis. reguler/karyawan) yang dipilih pendaftar.' },
+      { t: 'p', text: 'Kelola master jenis penerimaan, jalur masuk, dan kelas (mis. reguler/karyawan) yang dipilih pendaftar. Jenis mahasiswa dan kelas kuliah masing-masing punya daftar Program Studi yang Menerima: centang prodi yang menerimanya, atau biarkan "Semua program studi". Pendaftar hanya dapat memilih prodi yang menerima kombinasi jenis mahasiswa dan kelas kuliah pilihannya (berlaku untuk jenjang S1 dan D4). Setiap kelas kuliah punya Kategori Kelas (Pagi, Siang, Sore, Malam, atau Akhir Pekan). Kelas inilah yang dipilih BAAK pada jadwal kuliah, sehingga KRS mahasiswa hanya menampilkan jadwal untuk kelasnya.' },
+      {
+        t: 'note',
+        kind: 'info',
+        title: 'Kategori pada Jenis Mahasiswa',
+        text: 'Setiap jenis mahasiswa punya Kategori: Mahasiswa Baru, Pindahan (Transfer), atau RPL. Pilihan kategori sama dengan Jenis Pendaftaran di Neo Feeder (Peserta didik baru, Pindahan, RPL Perolehan SKS, RPL Transfer SKS, Pendidikan Non Gelar, Fast Track, PPG PGP/PLPG, PPG Non PGP/PLPG, Double Degree, Join Degree), sehingga saat sinkronisasi Feeder mengenalinya. Nama dan kode jenis mahasiswa boleh Anda tulis bebas; yang dibaca sistem adalah kategorinya. Selain Peserta didik baru, pendaftar mengisi perguruan tinggi asal dan program studi asal pada langkah Data Asal. Isian itu wajib untuk Pindahan dan RPL Transfer SKS, dan opsional untuk kategori lain karena tidak semuanya berasal dari perguruan tinggi lain. Perguruan tinggi dan program studi asal dipilih dari saran yang diambil dari data PDDIKTI (ketik minimal 3 huruf); bila PDDIKTI tidak dapat dijangkau, saran diambil dari referensi Feeder. Kode perguruan tinggi tersimpan, sehingga saat sinkronisasi perguruan tinggi dicocokkan ke Feeder lewat kodenya. Bila nama tidak ditemukan di saran, pendaftar tetap bisa mengetik nama, dan nama itu dicocokkan ke Feeder saat sinkronisasi. Perguruan tinggi dan program studi asal dicocokkan ke referensi Feeder dari nama yang ditulis; bila tidak ditemukan atau ambigu, status sinkronisasi mahasiswa menampilkan alasannya agar BAAK dapat memperbaiki penulisannya.',
+      },
     ],
   },
   {
@@ -200,7 +206,7 @@ export const PMB_DOCS: DocSection[] = [
       {
         t: 'note',
         kind: 'info',
-        text: 'Halaman memperbarui diri otomatis (sekitar 3 detik saat percakapan dibuka). Pendaftar dan tamu hanya melihat nama "Panitia PMB"; nama akun petugas yang membalas hanya tampil di sisi panitia dan tercatat di database. Percakapan tamu tidak otomatis tergabung dengan akun yang dibuat kemudian; gunakan kontak yang tertera untuk menyambungkannya. Chat tamu dibatasi 5 percakapan baru per jam per alamat, kolom jebakan bot, dan 200 pesan per percakapan.',
+        text: 'Pesan baru muncul seketika lewat sambungan real-time (WebSocket) tanpa memuat ulang halaman. Live chat memakai WebSocket sepenuhnya: bila sambungan terputus, halaman menampilkan keterangan "Real-time terputus, menyambungkan ulang" dan menyambung kembali otomatis, lalu mengambil pesan yang terlewat. Pendaftar dan tamu hanya melihat nama "Panitia PMB"; nama akun petugas yang membalas hanya tampil di sisi panitia dan tercatat di database. Percakapan tamu tidak otomatis tergabung dengan akun yang dibuat kemudian; gunakan kontak yang tertera untuk menyambungkannya. Chat tamu dibatasi 5 percakapan baru per jam per alamat, kolom jebakan bot, dan 200 pesan per percakapan.',
       },
     ],
   },

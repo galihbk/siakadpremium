@@ -14,6 +14,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { AdmissionsService } from './admissions.service';
+import { IntegrationSettingsService } from '../integration-settings/integration-settings.service';
+import { PddiktiPublicService } from './pddikti-public.service';
 import { PmbService } from './pmb.service';
 import { RegisterApplicantDto } from './dto/register-applicant.dto';
 import { QueryApplicantsDto, UpdateApplicantStatusDto } from './dto/admin-applicant.dto';
@@ -38,6 +40,8 @@ export class AdmissionsController {
   constructor(
     private admissionsService: AdmissionsService,
     private pmbService: PmbService,
+    private integrationSettings: IntegrationSettingsService,
+    private pddikti: PddiktiPublicService,
   ) {}
 
   @Post('register')
@@ -254,6 +258,29 @@ export class AdmissionsController {
   @ApiOperation({ summary: 'Pencarian Database Sekolah Indonesia (NPSN & Nama Sekolah Kemendikbud)' })
   async pmbSearchSchools(@Query('search') search: string) {
     return this.pmbService.searchSchools(search);
+  }
+
+  @Get('pmb/origin-universities')
+  @ApiOperation({ summary: 'Cari perguruan tinggi asal untuk mahasiswa pindahan/RPL (PDDIKTI; cadangan: referensi Neo Feeder)' })
+  async pmbOriginUniversities(@Query('search') search?: string) {
+    const primary = await this.pddikti.searchUniversities(search || '');
+    if (primary.status === 'OK') return { ...primary, source: 'PDDIKTI' };
+    const fallback = await this.integrationSettings.searchOriginUniversities(search || '');
+    return { ...fallback, source: 'FEEDER' };
+  }
+
+  @Get('pmb/origin-study-programs')
+  @ApiOperation({ summary: 'Cari program studi pada perguruan tinggi asal (PDDIKTI, atau referensi Neo Feeder bila perguruan tinggi dipilih dari Feeder)' })
+  async pmbOriginStudyPrograms(
+    @Query('universityId') universityId: string,
+    @Query('universityName') universityName?: string,
+    @Query('search') search?: string,
+  ) {
+    // ID Feeder berbentuk UUID; selain itu perguruan tinggi berasal dari PDDIKTI dan dikenali lewat namanya.
+    if (/^[0-9a-f-]{36}$/i.test(String(universityId ?? ''))) {
+      return { ...(await this.integrationSettings.searchOriginStudyPrograms(universityId, search)), source: 'FEEDER' };
+    }
+    return { ...(await this.pddikti.searchStudyPrograms(universityName || '', search)), source: 'PDDIKTI' };
   }
 
   @Put('pmb/draft')

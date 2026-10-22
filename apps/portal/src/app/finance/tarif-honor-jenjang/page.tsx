@@ -1,4 +1,5 @@
 'use client';
+import { alertDialog } from '@/components/ui/ConfirmHost';
 import React, { useCallback, useEffect, useState } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getApiBaseUrl } from '@/lib/api';
@@ -65,7 +66,7 @@ export default function TarifHonorJenjangPage() {
       setTimeout(() => setSavedLevel(null), 2000);
     } catch (err) {
       console.error('Gagal menyimpan tarif honor jenjang', err);
-      alert('Gagal menyimpan tarif. Coba lagi.');
+      void alertDialog('Gagal menyimpan tarif. Coba lagi.');
     } finally {
       setSavingLevel(null);
     }

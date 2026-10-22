@@ -1,4 +1,5 @@
 'use client';
+import { alertDialog } from '@/components/ui/ConfirmHost';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getApiBaseUrl } from '@/lib/api';
@@ -158,7 +159,7 @@ export default function PengaturanGajiPage() {
       await load(search);
     } catch (err) {
       console.error('Gagal menyimpan pengaturan gaji', err);
-      alert('Gagal menyimpan pengaturan gaji. Coba lagi.');
+      void alertDialog('Gagal menyimpan pengaturan gaji. Coba lagi.');
     } finally {
       setSaving(false);
     }

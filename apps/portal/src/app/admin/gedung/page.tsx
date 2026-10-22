@@ -7,6 +7,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { Modal } from '@/components/ui/Modal';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { getApiBaseUrl } from '@/lib/api';
 import {
   Building2,
   Landmark,
@@ -48,6 +50,24 @@ interface BuildingItem {
 }
 
 export default function AdminGedungPage() {
+  // Penanggung jawab dipilih dari data pegawai (dosen dan tenaga kependidikan)
+  const [employees, setEmployees] = useState<{ label: string; phone: string; keywords: string }[]>([]);
+  useEffect(() => {
+    fetch(`${getApiBaseUrl()}/employees/directory`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const list = j?.data ?? j;
+        if (!Array.isArray(list)) return;
+        setEmployees(
+          list.map((e: any) => ({
+            label: `${[e.titlePrefix, e.fullName].filter(Boolean).join(' ')}${e.titleSuffix ? `, ${e.titleSuffix}` : ''}`.trim(),
+            phone: e.phone || '',
+            keywords: [e.nip, e.nidn, e.department, e.position, e.category].filter(Boolean).join(' '),
+          })),
+        );
+      })
+      .catch(() => {});
+  }, []);
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
   const [buildings, setBuildings] = useState<BuildingItem[]>([]);
@@ -286,6 +306,15 @@ export default function AdminGedungPage() {
       }
     }
   };
+
+  const picOptions = useMemo(() => {
+    const opts = employees.map((e) => ({ value: e.label, label: e.label, keywords: e.keywords }));
+    // Nama lama yang belum cocok dengan data pegawai tetap tampil agar tidak hilang saat mengubah gedung
+    if (formData.picName && !opts.some((o) => o.value === formData.picName)) {
+      opts.unshift({ value: formData.picName, label: `${formData.picName} (belum ada di data pegawai)`, keywords: '' });
+    }
+    return opts;
+  }, [employees, formData.picName]);
 
   return (
     <PortalLayout
@@ -806,13 +835,16 @@ export default function AdminGedungPage() {
                     <label className="block text-xs font-bold text-slate-700 mb-1">
                       Penanggung Jawab (URT) <span className="text-rose-500">*</span>
                     </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Bambang Irawan"
+                    <SearchableSelect
                       value={formData.picName}
-                      onChange={(e) => setFormData({ ...formData, picName: e.target.value })}
-                      className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                      onChange={(v) => {
+                        const emp = employees.find((e) => e.label === v);
+                        setFormData({ ...formData, picName: v, picPhone: emp?.phone || formData.picPhone });
+                      }}
+                      options={picOptions}
+                      placeholder="Pilih pegawai / dosen..."
+                      searchPlaceholder="Cari nama, NIP, atau unit..."
+                      required
                     />
                   </div>
 

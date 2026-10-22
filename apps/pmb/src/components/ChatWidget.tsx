@@ -1,5 +1,6 @@
 'use client';
 
+import { useChatSocket } from '@/lib/useChatSocket';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Headset, MessageCircle, Send, X } from 'lucide-react';
@@ -23,9 +24,6 @@ interface ChatHours {
 }
 
 const MAX_LEN = 1000;
-const POLL_OPEN_MS = 3000;
-const POLL_CLOSED_MS = 20000;
-const STATUS_MS = 60000;
 const VISITOR_KEY = 'pmb_visitor_token';
 
 const hhmm = (iso: string) => new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
@@ -44,7 +42,7 @@ function readModeAndToken(): { mode: Mode; token: string | null } {
 }
 
 /**
- * Live chat dengan Panitia PMB, tersedia di semua halaman PMB (polling).
+ * Live chat dengan Panitia PMB, tersedia di semua halaman PMB (real-time murni lewat WebSocket, tanpa polling).
  *  - Pendaftar yang login memakai token akunnya.
  *  - Pengunjung yang belum punya akun mengisi nama + email/WhatsApp + pesan pertama, lalu mendapat token tamu.
  */
@@ -145,39 +143,45 @@ export function ChatWidget() {
     }
   }, [token, mode, headers, merge, markRead]);
 
-  // Jam operasional: diperiksa saat dimuat dan tiap menit (tanpa token, endpoint publik).
-  useEffect(() => {
-    let alive = true;
-    const load = async () => {
-      try {
-        const res = await fetch(`${getApiBaseUrl()}/admissions/pmb/chat/status`, { cache: 'no-store' });
-        if (!res.ok) return;
-        const json = await res.json();
-        if (alive) setHours(json.data ?? json);
-      } catch {
-        /* tanpa info jam, widget tetap berfungsi seperti biasa */
-      }
-    };
-    void load();
-    const id = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void load();
-    }, STATUS_MS);
-    return () => {
-      alive = false;
-      window.clearInterval(id);
-    };
+  // Jam operasional (endpoint publik): dimuat saat halaman dibuka, saat widget dibuka/ditutup, saat tab kembali
+  // terlihat, dan saat server memberi sinyal "status" lewat WebSocket -- tanpa interval.
+  const loadHours = useCallback(async () => {
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/admissions/pmb/chat/status`, { cache: 'no-store' });
+      if (!res.ok) return;
+      const json = await res.json();
+      setHours(json.data ?? json);
+    } catch {
+      /* tanpa info jam, widget tetap berfungsi seperti biasa */
+    }
   }, []);
 
   useEffect(() => {
+    void loadHours();
+  }, [loadHours, open]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void loadHours();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [loadHours]);
+
+  // Real-time: server hanya memberi sinyal; datanya tetap diambil lewat REST (poll).
+  const { connected } = useChatSocket({
+    token,
+    enabled: !disabled,
+    onSignal: (signal) => {
+      if (signal.type === 'status') void loadHours();
+      else void poll();
+    },
+  });
+
+  // Ambil sekali saat token/status widget berubah (permintaan tunggal, bukan polling).
+  useEffect(() => {
     if (disabled || !token) return;
     void poll();
-    const id = window.setInterval(
-      () => {
-        if (document.visibilityState === 'visible') void poll();
-      },
-      open ? POLL_OPEN_MS : POLL_CLOSED_MS,
-    );
-    return () => window.clearInterval(id);
   }, [open, disabled, token, poll]);
 
   useEffect(() => {
@@ -363,6 +367,9 @@ export function ChatWidget() {
               </div>
 
               <div className="border-t border-slate-200 bg-white p-2.5">
+                {!connected && !disabled && (
+                  <p className="text-[11px] text-amber-700 mb-1.5 px-1">Koneksi obrolan terputus. Menyambungkan ulang…</p>
+                )}
                 {error && <p className="text-[11px] text-rose-600 mb-1.5 px-1">{error}</p>}
                 <div className="flex items-end gap-2">
                   <textarea

@@ -526,6 +526,7 @@ export class AdmissionsService {
       } else if (status === 'VERIFIED') newAppsWhere.verificationStatus = 'VERIFIED';
       else if (status === 'PASSED') newAppsWhere.selectionStatus = 'PASSED';
       else if (status === 'FAILED') newAppsWhere.selectionStatus = 'FAILED';
+      else if (status === 'REJECTED') newAppsWhere.verificationStatus = 'REJECTED';
       else if (status === 'REGISTERED') newAppsWhere.studentId = { not: null };
     }
 
@@ -560,6 +561,8 @@ export class AdmissionsService {
         st = 'PASSED';
       } else if (a.selectionStatus === 'FAILED') {
         st = 'FAILED';
+      } else if (a.verificationStatus === 'REJECTED') {
+        st = 'REJECTED';
       } else if (a.verificationStatus === 'VERIFIED') {
         st = 'VERIFIED';
       } else if (isVerifyingPayment) {
@@ -584,7 +587,16 @@ export class AdmissionsService {
         birthDate: a.birthDate,
         gender: a.gender,
         address: a.address,
-        notes: a.selectionNotes || a.verificationNote,
+        notes: a.verificationStatus === 'REJECTED' ? a.verificationNote : a.selectionNotes || a.verificationNote,
+        // Penanda berkas yang sudah diunggah (tautannya diambil saat dibuka lewat detail pendaftar)
+        documentFlags: {
+          fileFoto: !!a.fileFoto,
+          fileKtp: !!a.fileKtp,
+          fileKk: !!a.fileKk,
+          fileIjazah: !!a.fileIjazah,
+          fileKip: !!a.fileKip,
+          fileTambahan: !!a.fileTambahan,
+        },
         verifiedAt: a.verifiedAt?.toISOString() || null,
         createdAt: a.createdAt,
       };
@@ -592,7 +604,8 @@ export class AdmissionsService {
 
     // 2. Ambil dari legacy jika ada
     const legacyWhere: any = {};
-    if (status && status !== 'ALL') legacyWhere.status = status;
+    // Pendaftar lama (legacy) tidak mengenal status REJECTED; berkas ditolak dicatat sebagai FAILED di sana
+    if (status && status !== 'ALL') legacyWhere.status = status === 'REJECTED' ? 'FAILED' : status;
     if (prodi && prodi !== 'ALL') legacyWhere.chosenStudyProgram = { contains: prodi, mode: 'insensitive' };
     if (jalur && jalur !== 'ALL') legacyWhere.jalurPendaftaran = { contains: jalur, mode: 'insensitive' };
     if (search && search.trim()) {
@@ -874,14 +887,14 @@ export class AdmissionsService {
 
         // Dokumen
         documents: {
-          fileKtp: app.fileKtp,
-          fileKk: app.fileKk,
-          fileIjazah: app.fileIjazah,
-          fileFoto: app.fileFoto,
-          fileKip: app.fileKip,
-          fileTambahan: app.fileTambahan,
+          fileKtp: this.pmbService.freshUrl(app.fileKtp),
+          fileKk: this.pmbService.freshUrl(app.fileKk),
+          fileIjazah: this.pmbService.freshUrl(app.fileIjazah),
+          fileFoto: this.pmbService.freshUrl(app.fileFoto),
+          fileKip: this.pmbService.freshUrl(app.fileKip),
+          fileTambahan: this.pmbService.freshUrl(app.fileTambahan),
         },
-        payments: app.payments || [],
+        payments: (app.payments || []).map((p: any) => (p?.proofUrl ? { ...p, proofUrl: this.pmbService.freshUrl(p.proofUrl) } : p)),
       };
     }
 
@@ -967,6 +980,13 @@ export class AdmissionsService {
             status: 'VERIFIED',
             verifiedBy: dto.verifiedBy || 'Admin PMB',
           });
+        } else if (dto.status === 'REJECTED') {
+          // Berkas ditolak: alasan tersimpan sebagai catatan verifikasi dan tampil ke pendaftar; keputusan seleksi tidak disentuh
+          return this.pmbService.verifyDocument(id, {
+            status: 'REJECTED',
+            note: dto.notes,
+            verifiedBy: dto.verifiedBy || 'Admin PMB',
+          } as any);
         } else if (dto.status === 'PASSED' || dto.status === 'FAILED') {
           return this.pmbService.setSelectionDecision(id, {
             selectionStatus: dto.status as any,
@@ -994,6 +1014,8 @@ export class AdmissionsService {
       data: {
         status: (dto.status === 'UNPAID' || dto.status === 'VERIFYING_PAYMENT'
           ? 'PENDING'
+          : dto.status === 'REJECTED'
+          ? 'FAILED'
           : dto.status) as any,
         ...(dto.testScore !== undefined ? { testScore: dto.testScore } : {}),
         ...(dto.notes !== undefined ? { notes: dto.notes } : {}),

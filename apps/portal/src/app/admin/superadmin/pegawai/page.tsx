@@ -1,6 +1,6 @@
 'use client';
 
-import { confirmDialog } from '@/components/ui/ConfirmHost';
+import { confirmDialog, alertDialog } from '@/components/ui/ConfirmHost';
 
 import { useInstitution } from '@/lib/useInstitution';
 import { CampusLogo } from '@/components/common/CampusLogo';
@@ -286,7 +286,7 @@ export default function SuperAdminPegawaiPage() {
   const handleSavePegawai = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.fullName || !formData.nip || !formData.position || !formData.email) {
-      alert('Mohon lengkapi NIP, Nama Lengkap, Jabatan, dan Email Pegawai!');
+      void alertDialog('Mohon lengkapi NIP, Nama Lengkap, Jabatan, dan Email Pegawai!');
       return;
     }
 

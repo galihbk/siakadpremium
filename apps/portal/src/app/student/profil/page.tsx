@@ -5,6 +5,7 @@ import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getAuthSession } from '@/lib/auth';
 import { getApiBaseUrl } from '@/lib/api';
 import { BirthPlaceSelect } from '@/components/ui/BirthPlaceSelect';
+import { useInstitution } from '@/lib/useInstitution';
 import { compressUploadedFile, fileToBase64 } from '@/lib/fileCompression';
 import {
   User,
@@ -102,7 +103,8 @@ function parseAddressString(fullAddress: string) {
 }
 
 export default function StudentProfilePage() {
-  const [activeTab, setActiveTab] = useState<'identitas' | 'alamat' | 'orangtua' | 'akademik' | 'keamanan'>('identitas');
+  const [activeTab, setActiveTab] = useState<'identitas' | 'alamat' | 'orangtua' | 'akademik' | 'riwayat' | 'keamanan'>('identitas');
+  const institution = useInstitution();
   const [loading, setLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -192,6 +194,13 @@ export default function StudentProfilePage() {
   const [advisorNip, setAdvisorNip] = useState('');
   const [admissionPath, setAdmissionPath] = useState('Jalur Reguler');
   const [academicClass, setAcademicClass] = useState('');
+  const [trackKind, setTrackKind] = useState('BARU');
+  const [registrationTypeName, setRegistrationTypeName] = useState('');
+  // Riwayat pendidikan: sekolah asal & (untuk pindahan/RPL) perguruan tinggi asal
+  const [eduHistory, setEduHistory] = useState({
+    schoolName: '', npsn: '', major: '', graduationYear: '',
+    originInstitution: '', originStudyProgram: '', originStudyProgramLevel: '', originNim: '', originCredits: '',
+  });
 
   // --- 5. Keamanan Akun ---
   const [currentPassword, setCurrentPassword] = useState('');
@@ -287,6 +296,19 @@ export default function StudentProfilePage() {
           if (data.student.track?.name) {
             setAdmissionPath(data.student.track.name);
           }
+          if (data.student.track?.kind) setTrackKind(data.student.track.kind);
+          if (data.student.registrationType?.name) setRegistrationTypeName(data.student.registrationType.name);
+          setEduHistory({
+            schoolName: std.schoolName || '',
+            npsn: std.npsn || '',
+            major: std.major || '',
+            graduationYear: std.graduationYear ? String(std.graduationYear) : '',
+            originInstitution: std.originInstitution || '',
+            originStudyProgram: std.originStudyProgram || '',
+            originStudyProgramLevel: std.originStudyProgramLevel || '',
+            originNim: std.originNim || '',
+            originCredits: std.originCredits != null ? String(std.originCredits) : '',
+          });
           if (data.student.admissionClass?.name) {
             setAcademicClass(data.student.admissionClass.name);
           }
@@ -962,6 +984,19 @@ export default function StudentProfilePage() {
               >
                 <GraduationCap className="w-4 h-4 shrink-0" />
                 <span>Akademik</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('riwayat')}
+                className={`flex-1 min-w-[130px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'riwayat'
+                    ? 'bg-[#1E3A8A] text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <Building className="w-4 h-4 shrink-0" />
+                <span>Riwayat Pendidikan</span>
               </button>
 
               <button
@@ -1687,7 +1722,7 @@ export default function StudentProfilePage() {
                       </div>
                       <div>
                         <h4 className="font-extrabold text-sm sm:text-base tracking-wide text-white uppercase">
-                          INSTITUT TEKNOLOGI NUSANTARA
+                          {institution.campusName || ' '}
                         </h4>
                         <p className="text-[10px] text-blue-200 tracking-wider uppercase font-semibold">
                           KARTU TANDA MAHASISWA (KTM) RESMI
@@ -1741,6 +1776,81 @@ export default function StudentProfilePage() {
                   </div>
                 </div>
 
+              </div>
+            )}
+
+            {/* TAB CONTENT: RIWAYAT PENDIDIKAN */}
+            {activeTab === 'riwayat' && (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-subtle p-6 space-y-6">
+                <div className="border-b border-slate-100 pb-4">
+                  <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <Building className="w-5 h-5 text-[#1E3A8A]" />
+                    <span>Riwayat Pendidikan</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Pendidikan sebelumnya dan pendidikan saat ini. Data berasal dari pendaftaran PMB.
+                  </p>
+                </div>
+
+                {(() => {
+                  const hasOrigin = Boolean(eduHistory.originInstitution);
+                  const isTransferLike = trackKind !== 'BARU';
+                  const row = (label: string, value?: string) => (
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                      <span className="font-bold text-slate-400 uppercase text-[10px] block mb-0.5">{label}</span>
+                      <p className="font-bold text-sm text-slate-900">{value || '-'}</p>
+                    </div>
+                  );
+                  return (
+                    <ol className="relative border-l-2 border-slate-200 ml-2 space-y-7 text-xs">
+                      {eduHistory.schoolName && (
+                        <li className="pl-6 relative">
+                          <span className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-slate-300 border-2 border-white" />
+                          <h3 className="font-extrabold text-sm text-slate-900">Sekolah Asal</h3>
+                          <p className="text-slate-500 mb-3">{eduHistory.graduationYear ? `Lulus ${eduHistory.graduationYear}` : 'Pendidikan menengah'}</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {row('Nama Sekolah', eduHistory.schoolName)}
+                            {row('NPSN', eduHistory.npsn)}
+                            {row('Jurusan', eduHistory.major)}
+                            {row('Tahun Lulus', eduHistory.graduationYear)}
+                          </div>
+                        </li>
+                      )}
+
+                      {(hasOrigin || isTransferLike) && (
+                        <li className="pl-6 relative">
+                          <span className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-amber-500 border-2 border-white" />
+                          <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                            Perguruan Tinggi Asal
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">{admissionPath}</span>
+                          </h3>
+                          {hasOrigin ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                              {row('Perguruan Tinggi', eduHistory.originInstitution)}
+                              {row('Program Studi', `${eduHistory.originStudyProgram || '-'}${eduHistory.originStudyProgramLevel ? ` (${eduHistory.originStudyProgramLevel})` : ''}`)}
+                              {row('NIM Asal', eduHistory.originNim)}
+                              {row('SKS Diakui / Ditransfer', eduHistory.originCredits ? `${eduHistory.originCredits} SKS` : '')}
+                            </div>
+                          ) : (
+                            <p className="text-slate-500 mt-2">Data perguruan tinggi asal belum tercatat. Hubungi BAAK untuk melengkapinya.</p>
+                          )}
+                        </li>
+                      )}
+
+                      <li className="pl-6 relative">
+                        <span className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-[#1E3A8A] border-2 border-white" />
+                        <h3 className="font-extrabold text-sm text-slate-900">{institution.campusName || 'Perguruan Tinggi Saat Ini'}</h3>
+                        <p className="text-slate-500 mb-3">{academicYear ? `Masuk tahun ${academicYear}` : 'Mahasiswa aktif'}</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {row('Program Studi', `${studyProgram || '-'}${degree ? ` (${degree})` : ''}`)}
+                          {row('NIM', nim)}
+                          {row('Jenis Mahasiswa', admissionPath)}
+                          {row('Jenis Pendaftaran', registrationTypeName)}
+                        </div>
+                      </li>
+                    </ol>
+                  );
+                })()}
               </div>
             )}
 

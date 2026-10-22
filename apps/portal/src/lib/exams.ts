@@ -14,6 +14,9 @@ export interface ExamScheduleView {
   roomId: string | null;
   location: string | null;
   roomName: string | null;
+  roomCapacity?: number | null;
+  seatCount?: number;
+  seatNo?: number | null;
   proctor1: { id: string; name: string | null } | null;
   proctor2: { id: string; name: string | null } | null;
   notes: string | null;

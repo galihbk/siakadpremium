@@ -1,6 +1,6 @@
 'use client';
 
-import { confirmDialog } from '@/components/ui/ConfirmHost';
+import { confirmDialog, alertDialog } from '@/components/ui/ConfirmHost';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { Modal } from '@/components/ui/Modal';
@@ -151,7 +151,7 @@ export default function PengaturanShiftPage() {
       }
       void load();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Gagal mengatur shift.');
+      void alertDialog(err instanceof Error ? err.message : 'Gagal mengatur shift.', { type: 'error' });
     } finally {
       setBusyId(null);
       setBulkBusy(false);
@@ -194,7 +194,7 @@ export default function PengaturanShiftPage() {
 
   const handleSave = async () => {
     if (!form.name.trim()) {
-      alert('Nama shift wajib diisi.');
+      void alertDialog('Nama shift wajib diisi.');
       return;
     }
     setSaving(true);
@@ -210,7 +210,7 @@ export default function PengaturanShiftPage() {
       await load();
     } catch (err) {
       console.error('Gagal menyimpan shift', err);
-      alert('Gagal menyimpan shift. Coba lagi.');
+      void alertDialog('Gagal menyimpan shift. Coba lagi.');
     } finally {
       setSaving(false);
     }
@@ -224,7 +224,7 @@ export default function PengaturanShiftPage() {
       await load();
     } catch (err) {
       console.error('Gagal menghapus shift', err);
-      alert('Gagal menghapus shift.');
+      void alertDialog('Gagal menghapus shift.');
     }
   };
 

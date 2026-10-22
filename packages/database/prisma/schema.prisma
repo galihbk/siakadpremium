@@ -325,6 +325,9 @@ model StudyProgram {
   // structuralPosition-nya KAPRODI & structuralStudyProgramId mengarah ke prodi ini.
   kaprodiLecturers      Lecturer[]             @relation("ProdiKaprodi")
 
+  admissionTracks  AdmissionTrack[] @relation("AdmissionTrackPrograms")
+  admissionClasses AdmissionClass[] @relation("AdmissionClassPrograms")
+
   @@map("study_programs")
 }
 
@@ -421,6 +424,16 @@ model Lecturer {
 
 model Student {
   id                   String        @id @default(uuid())
+  // Perguruan tinggi asal -- diisi bila jenis mahasiswa bukan mahasiswa baru (pindahan/RPL); dikirim ke Feeder
+  originInstitution  String?
+  originInstitutionCode String? // kode perguruan tinggi 6 digit (PDDIKTI/Feeder), bila dipilih dari pencarian
+  originInstitutionId  String? // id_perguruan_tinggi Feeder, bila dipilih dari pencarian Feeder
+  originStudyProgram String?
+  originStudyProgramLevel String? // jenjang prodi asal (S1, S2, D3, ...), bila dipilih dari pencarian
+  originStudyProgramId String? // id_prodi Feeder, bila dipilih dari pencarian Feeder
+  originNim          String?
+  originCredits      Int? // SKS yang diakui (diisi setelah evaluasi), bawaan 0 saat dikirim ke Feeder
+
   userId               String        @unique
   studyProgramId       String
   advisorLecturerId    String?
@@ -482,6 +495,7 @@ model Student {
   studyProgram          StudyProgram           @relation(fields: [studyProgramId], references: [id], onDelete: Restrict)
   advisorLecturer       Lecturer?              @relation("AcademicAdvisor", fields: [advisorLecturerId], references: [id], onDelete: SetNull)
   enrollments           CourseEnrollment[]
+  examSeats             ExamSeat[]
   attendanceRecords     AttendanceRecord[]
   admissionApplications AdmissionApplication[]
 
@@ -596,6 +610,8 @@ model CourseClass {
   feederSyncError    String?   @db.Text
   feederSyncErrorAt  DateTime?
   courseId           String
+  // Kelas kuliah (mis. Pagi / Sore) yang dilayani jadwal ini; kosong = terbuka untuk semua kelas
+  admissionClassId   String?
   academicYearId     String
   className          String // e.g. "TIF-5A"
   // true untuk mata kuliah tanpa jadwal & ruang tetap (Skripsi/TA, KKN, Kerja Praktik, dst.) —
@@ -630,6 +646,9 @@ model CourseClass {
   contract           CourseContract?
   examSchedules      ExamSchedule[]
 
+  admissionClass AdmissionClass? @relation(fields: [admissionClassId], references: [id], onDelete: SetNull)
+
+  @@index([admissionClassId])
   @@unique([courseId, academicYearId, className])
   @@map("course_classes")
 }
@@ -840,11 +859,27 @@ model AdmissionRegistrationType {
   @@map("admission_registration_types")
 }
 
+/// Jenis mahasiswa menurut sistem (berbeda dari nama/kode buatan kampus): dipakai untuk aturan NIM, pelaporan, dsb.
+enum AdmissionTrackKind {
+  BARU // Peserta didik baru
+  TRANSFER // Pindahan
+  RPL // lama: RPL tanpa varian; diperlakukan sebagai RPL Perolehan SKS, pilih ulang varian yang tepat
+  RPL_PEROLEHAN // RPL Perolehan SKS
+  RPL_TRANSFER // RPL Transfer SKS
+  NON_GELAR // Pendidikan Non Gelar (Course)
+  FAST_TRACK // Fast Track
+  PPG_PGP // PPG PGP / PLPG
+  PPG_NON_PGP // PPG Non PGP / PLPG
+  DOUBLE_DEGREE // Double Degree
+  JOIN_DEGREE // Join Degree
+}
+
 model AdmissionTrack {
   id          String   @id @default(uuid())
   code        String   @unique // e.g. "REGULER", "TRANSFER", "PRESTASI", "KIPK"
   name        String // e.g. "Jalur Reguler", "Jalur Prestasi", "Jalur KIP-Kuliah"
   description String?  @db.Text
+  kind        AdmissionTrackKind @default(BARU) // label bagi sistem; nama dan kode bebas diatur kampus
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -852,8 +887,19 @@ model AdmissionTrack {
   applications AdmissionApplication[]
   students     Student[]
   feeRules     FeeRule[]
+  // Program studi yang menerima jenis mahasiswa ini; kosong = semua program studi
+  studyPrograms StudyProgram[] @relation("AdmissionTrackPrograms")
 
   @@map("admission_tracks")
+}
+
+/// Waktu kuliah sebuah kelas kuliah; dipakai sistem untuk membedakan kelas dan memeriksa kecocokan jadwal.
+enum AdmissionClassShift {
+  PAGI
+  SIANG
+  SORE
+  MALAM
+  AKHIR_PEKAN
 }
 
 model AdmissionClass {
@@ -861,6 +907,7 @@ model AdmissionClass {
   code        String   @unique // e.g. "REGULER", "KARYAWAN"
   name        String // e.g. "Kelas Reguler (Pagi)", "Kelas Karyawan (Sore/Malam)"
   description String?  @db.Text
+  shift       AdmissionClassShift @default(PAGI) // kategori waktu kuliah; nama dan kode bebas diatur kampus
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -868,12 +915,25 @@ model AdmissionClass {
   applications AdmissionApplication[]
   students     Student[]
   feeRules     FeeRule[]
+  courseClasses CourseClass[]
+  // Program studi yang membuka kelas kuliah ini; kosong = semua program studi
+  studyPrograms StudyProgram[] @relation("AdmissionClassPrograms")
 
   @@map("admission_classes")
 }
 
 model AdmissionApplication {
   id                 String  @id @default(uuid())
+  // Perguruan tinggi asal -- diisi bila jenis mahasiswa bukan mahasiswa baru (pindahan/RPL); dikirim ke Feeder
+  originInstitution  String?
+  originInstitutionCode String? // kode perguruan tinggi 6 digit (PDDIKTI/Feeder), bila dipilih dari pencarian
+  originInstitutionId  String? // id_perguruan_tinggi Feeder, bila dipilih dari pencarian Feeder
+  originStudyProgram String?
+  originStudyProgramLevel String? // jenjang prodi asal (S1, S2, D3, ...), bila dipilih dari pencarian
+  originStudyProgramId String? // id_prodi Feeder, bila dipilih dari pencarian Feeder
+  originNim          String?
+  originCredits      Int? // SKS yang diakui (diisi setelah evaluasi), bawaan 0 saat dikirim ke Feeder
+
   accountId          String
   waveId             String?
   registrationTypeId String?
@@ -1597,10 +1657,27 @@ model ExamSchedule {
   room         Room?        @relation(fields: [roomId], references: [id], onDelete: SetNull)
   proctor1     Lecturer?    @relation("ExamProctor1", fields: [proctor1Id], references: [id], onDelete: SetNull)
   proctor2     Lecturer?    @relation("ExamProctor2", fields: [proctor2Id], references: [id], onDelete: SetNull)
+  seats        ExamSeat[]
 
   @@unique([courseClassId, type])
   @@index([academicYearId, type, examDate])
   @@map("exam_schedules")
+}
+
+/// Nomor kursi peserta pada satu jadwal ujian (digenerate BAAK; nomor 1..kapasitas ruang, unik per jadwal).
+model ExamSeat {
+  id             String   @id @default(uuid())
+  examScheduleId String
+  studentId      String
+  seatNo         Int
+  createdAt      DateTime @default(now())
+
+  examSchedule ExamSchedule @relation(fields: [examScheduleId], references: [id], onDelete: Cascade)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([examScheduleId, studentId])
+  @@unique([examScheduleId, seatNo])
+  @@map("exam_seats")
 }
 
 // ================= YUDISIUM & KELULUSAN =================

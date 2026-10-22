@@ -181,14 +181,19 @@ export class StudentsService {
       // Sengaja tidak difilter per semester mahasiswa -- mahasiswa semester atas yang mau
       // mengulang matkul semester bawah tetap harus bisa menemukannya.
       const effectiveProdiId = studyProgramId || student?.studyProgramId;
+      // Kelas kuliah mahasiswa (mis. Pagi / Sore): hanya jadwal untuk kelasnya atau yang terbuka untuk semua kelas.
+      // Mahasiswa tanpa kelas kuliah (data lama) tetap melihat semua jadwal.
+      const studentKelas = student?.classId || null;
       const classes = await this.prisma.courseClass.findMany({
         where: {
           academicYearId: activeYear.id,
           course: effectiveProdiId
             ? { OR: [{ studyProgramId: effectiveProdiId }, { studyProgramId: null }] }
             : undefined,
+          ...(studentKelas ? { OR: [{ admissionClassId: null }, { admissionClassId: studentKelas }] } : {}),
         },
         include: {
+          admissionClass: { select: { name: true } },
           course: true,
           lecturer: { include: { user: true } },
           room: true,
@@ -221,6 +226,7 @@ export class StudentsService {
           code: cc.course.code,
           name: cc.course.name,
           className: cc.className,
+          kelasKuliah: cc.admissionClass?.name ?? null,
           sks: cc.course.sks || cc.course.totalSks || 3,
           dosen: cc.lecturer?.user?.fullName || cc.course.coordinator || 'Tim Dosen',
           isFlexibleSchedule: cc.isFlexibleSchedule,
@@ -351,6 +357,19 @@ export class StudentsService {
       where: { id: { in: classIds } },
       include: { course: true, _count: { select: { enrollments: { where: { status: { not: 'REJECTED' } } } } } },
     });
+
+    // Jadwal yang dikhususkan untuk satu kelas kuliah (Pagi/Sore) tidak boleh diambil mahasiswa kelas lain
+    if (student.classId) {
+      const mismatch = await this.prisma.courseClass.findFirst({
+        where: { id: { in: classIds }, admissionClassId: { not: null, notIn: [student.classId] } },
+        include: { course: { select: { code: true } }, admissionClass: { select: { name: true } } },
+      });
+      if (mismatch) {
+        throw new BadRequestException(
+          `Kelas ${mismatch.className} (${mismatch.course.code}) hanya untuk ${mismatch.admissionClass?.name ?? 'kelas kuliah lain'}. Pilih jadwal untuk kelas kuliah Anda.`,
+        );
+      }
+    }
 
     const totalSks = classes.reduce((sum, c) => sum + (c.course.sks || c.course.totalSks || 3), 0);
     if (totalSks > MAX_SKS_PER_SEMESTER) {

@@ -1,4 +1,5 @@
 'use client';
+import { alertDialog } from '@/components/ui/ConfirmHost';
 import React, { useCallback, useEffect, useState } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getApiBaseUrl } from '@/lib/api';
@@ -53,7 +54,7 @@ export default function TarifTransportPage() {
       setTimeout(() => setSaved(false), 2500);
     } catch (err) {
       console.error('Gagal menyimpan tarif transport', err);
-      alert('Gagal menyimpan tarif transport. Coba lagi.');
+      void alertDialog('Gagal menyimpan tarif transport. Coba lagi.');
     } finally {
       setSaving(false);
     }

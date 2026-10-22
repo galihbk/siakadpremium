@@ -363,6 +363,23 @@ export class StorageService implements OnModuleInit {
   }
 
   /**
+   * Membuat ulang tautan berkas privat yang tersimpan di database. Tautan yang disimpan saat unggah berupa URL bertanda
+   * tangan yang kedaluwarsa dan memuat alamat API dari `.env` (bisa `http://localhost:...`), sehingga tidak bisa dibuka
+   * browser. Hasilnya tautan RELATIF (`/api/v1/storage/private?...`) dengan tanda tangan baru; situs meneruskannya ke API.
+   * Nilai yang bukan berkas privat (data:, URL luar) dikembalikan apa adanya.
+   */
+  refreshPrivateUrl<T extends string | null | undefined>(value: T, expiresInSeconds: number = 7200): T | string {
+    if (!value || typeof value !== 'string' || !value.includes('/storage/private')) return value;
+    try {
+      const key = new URL(value, 'http://placeholder.local').searchParams.get('key');
+      if (!key) return value;
+      return this.generateSignedUrl(key, expiresInSeconds).replace(/^https?:\/\/[^/]+/, '');
+    } catch {
+      return value;
+    }
+  }
+
+  /**
    * Upload berkas Buffer (Multipart File)
    * Secara default disimpan di FOLDER PRIVATE, terlindungi dari akses publik langsung.
    */

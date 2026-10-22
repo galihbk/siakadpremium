@@ -181,6 +181,9 @@ export default function StudentUjianPage() {
                                 <MapPin className="w-3.5 h-3.5 text-slate-400" />
                                 {e.roomName || '-'}
                               </span>
+                              {e.seatNo ? (
+                                <span className="block mt-1 text-[11px] font-bold text-[#1E3A8A]">Nomor kursi: {e.seatNo}</span>
+                              ) : null}
                             </td>
                             <td className="py-2.5 text-slate-600">
                               <span className="inline-flex items-start gap-1">

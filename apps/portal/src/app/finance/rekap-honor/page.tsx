@@ -1,6 +1,6 @@
 'use client';
 
-import { confirmDialog } from '@/components/ui/ConfirmHost';
+import { confirmDialog, alertDialog } from '@/components/ui/ConfirmHost';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getApiBaseUrl } from '@/lib/api';
@@ -116,7 +116,7 @@ export default function RekapHonorPage() {
       await load(yearId, month, year);
     } catch (err) {
       console.error('Gagal menandai honor sudah dibayar', err);
-      alert('Gagal menandai honor sudah dibayar.');
+      void alertDialog('Gagal menandai honor sudah dibayar.');
     } finally {
       setTogglingUserId(null);
     }
@@ -136,7 +136,7 @@ export default function RekapHonorPage() {
       await load(yearId, month, year);
     } catch (err) {
       console.error('Gagal membatalkan status bayar', err);
-      alert('Gagal membatalkan status bayar.');
+      void alertDialog('Gagal membatalkan status bayar.');
     } finally {
       setTogglingUserId(null);
     }

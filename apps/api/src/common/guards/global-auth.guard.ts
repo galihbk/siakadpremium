@@ -75,6 +75,8 @@ const ROLE_RULES: RoleRule[] = [
   { methods: WRITE, path: /^\/academic\/calendar-events(\/|$)/, roles: [] },
 
   // ---- SDM
+  // Direktori ringkas pegawai (nama, kontak, unit) untuk pilihan penanggung jawab/pengawas -- tanpa data sensitif
+  { methods: ['GET'], path: /^\/employees\/directory$/, roles: [...BAAK, 'SDM'] },
   { path: /^\/employees(\/|$)/, roles: ['SDM'] },
   { path: /^\/shifts(\/|$)/, roles: ['SDM'] },
   { path: /^\/attendance\/(import|recap|recap-tahunan)$/, roles: ['SDM'] },
@@ -88,7 +90,7 @@ const ROLE_RULES: RoleRule[] = [
 
   // ---- PMB, LP3M, P2M
   { path: /^\/admissions\/pmb\/(chat|chat\/read)$/, roles: ['PMB_APPLICANT', 'PMB_VISITOR'] },
-  { path: /^\/admissions\/pmb\/(me|draft|submit|payments\/[^/]+\/pay)$/, roles: ['PMB_APPLICANT'] },
+  { path: /^\/admissions\/pmb\/(me|draft|submit|origin-universities|origin-study-programs|payments\/[^/]+\/pay)$/, roles: ['PMB_APPLICANT'] },
   { path: /^\/admissions\/admin\/pmb\/chat(\/|$)/, roles: ['ADMIN_PMB', 'ADMIN_BAAK', 'STAFF'] },
   { methods: ['POST'], path: /^\/admissions\/admin\/pmb\/applications$/, roles: ['ADMIN_PMB', 'ADMIN_BAAK', 'STAFF'] },
   { path: /^\/admissions\/admin\//, roles: ['ADMIN_PMB', 'ADMIN_BAAK', 'ADMIN_KEUANGAN', 'STAFF'] },
@@ -119,7 +121,7 @@ const ROLE_RULES: RoleRule[] = [
   { path: /^\/letters\/advisor\//, roles: ['LECTURER'] },
   { methods: ['POST'], path: /^\/letters\/[^/]+\/(advisor-approve|advisor-reject)$/, roles: ['LECTURER'] },
   { methods: ['POST'], path: /^\/letters\/[^/]+\/(issue|reject)$/, roles: BAAK },
-  { methods: ['GET'], path: /^\/letters$/, roles: BAAK },
+  { methods: ['GET'], path: /^\/letters(\/pending-count)?$/, roles: BAAK },
 ];
 
 @Injectable()

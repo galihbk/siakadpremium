@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getApiBaseUrl } from '@/lib/api';
+import { getAuthSession } from '@/lib/auth';
 import { copyToClipboard } from '@/lib/clipboard';
 import {
   Hash,
@@ -82,6 +83,18 @@ export default function SettingFormatNimPage() {
           if (parsed.isAdvancedMode !== undefined) setIsAdvancedMode(parsed.isAdvancedMode);
         }
 
+        if (!savedConfig) {
+          fetch(`${getApiBaseUrl()}/landing-page`)
+            .then((r) => r.json())
+            .then((j) => {
+              const tpl = (j?.data ?? j)?.nimFormat;
+              if (typeof tpl === 'string' && tpl.includes('{')) {
+                setCustomPatternInput(tpl);
+                setIsAdvancedMode(true);
+              }
+            })
+            .catch(() => {});
+        }
       } catch (e) {
         console.error('Failed to parse NIM format config:', e);
       }
@@ -148,7 +161,8 @@ export default function SettingFormatNimPage() {
         .replace('{ANGKATAN_4DIGIT}', yearFull)
         .replace('{ANGKATAN_2DIGIT}', yearShort)
         .replace('{KODE_FAKULTAS}', facultyCodeVal)
-        .replace('{KODE_PRODI}', prodiCodeVal)
+        .replace('{KODE_DIKTI}', selectedProdi.diktiCode)
+        .replace('{KODE_PRODI}', selectedProdi.code)
         .replace('{KODE_JALUR}', jalurCode)
         .replace(/{NO_URUT_\dDIGIT}/g, seqPadded);
     }
@@ -181,6 +195,23 @@ export default function SettingFormatNimPage() {
     return parts.join(delimiter);
   };
 
+  /**
+   * Rumus NIM yang disimpan ke server (bukan contoh hasilnya). Server mengganti penanda {...} dengan data tiap mahasiswa:
+   * angkatan dari tahun gelombang, kode prodi, kode jalur, dan nomor urut. Prefix institusi dan pemisah ikut tertulis apa adanya.
+   */
+  const buildTemplate = (): string => {
+    if (isAdvancedMode && customPatternInput.trim()) return customPatternInput.trim();
+    const parts: string[] = [];
+    if (institutionCode.trim()) parts.push(institutionCode.trim());
+    if (angkatanFormat === '2DIGIT') parts.push('{ANGKATAN_2DIGIT}');
+    else if (angkatanFormat === '4DIGIT') parts.push('{ANGKATAN_4DIGIT}');
+    if (useFacultyCode) parts.push(facultyCodeFormat === '2DIGIT' ? '{KODE_FAKULTAS_2DIGIT}' : '{KODE_FAKULTAS_1DIGIT}');
+    parts.push(prodiCodeFormat === 'DIKTI' ? '{KODE_DIKTI}' : '{KODE_PRODI}');
+    if (useJalurCode) parts.push('{KODE_JALUR}');
+    parts.push(`{NO_URUT_${sequenceLength}DIGIT}`);
+    return parts.join(delimiter);
+  };
+
   const sampleOutput = generateSampleNim(
     simYear,
     simProdiId,
@@ -201,6 +232,7 @@ export default function SettingFormatNimPage() {
       customPatternInput,
       isAdvancedMode,
       samplePattern: sampleOutput,
+      template: buildTemplate(),
     };
 
     if (typeof window !== 'undefined') {
@@ -208,18 +240,20 @@ export default function SettingFormatNimPage() {
     }
 
     try {
-      const apiBase = getApiBaseUrl();
-      await fetch(`${apiBase}/landing-page`, {
+      const { token } = getAuthSession();
+      const res = await fetch(`${getApiBaseUrl()}/landing-page`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          nimFormat: sampleOutput,
-        }),
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ nimFormat: buildTemplate() }),
       });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        showToast(`Gagal menyimpan ke server: ${body?.message || res.status}`);
+        return;
+      }
     } catch (e) {
-      console.warn('Backend API update notice:', e);
+      showToast('Gagal menyimpan ke server. Periksa koneksi lalu coba lagi.');
+      return;
     }
 
     showToast('Format NIM berhasil disimpan ke Database Sistem!');
@@ -638,6 +672,7 @@ export default function SettingFormatNimPage() {
                       <code className="bg-slate-100 p-2 rounded border text-slate-700">{`{ANGKATAN_4DIGIT}`}</code>
                       <code className="bg-slate-100 p-2 rounded border text-slate-700">{`{KODE_FAKULTAS}`}</code>
                       <code className="bg-slate-100 p-2 rounded border text-slate-700">{`{KODE_PRODI}`}</code>
+                      <code className="bg-slate-100 p-2 rounded border text-slate-700">{`{KODE_DIKTI}`}</code>
                       <code className="bg-slate-100 p-2 rounded border text-slate-700">{`{KODE_JALUR}`}</code>
                       <code className="bg-slate-100 p-2 rounded border text-slate-700">{`{NO_URUT_4DIGIT}`}</code>
                     </div>

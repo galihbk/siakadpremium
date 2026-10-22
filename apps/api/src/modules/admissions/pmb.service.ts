@@ -102,6 +102,79 @@ export class PmbService {
     return trimmed;
   }
 
+  /**
+   * Kirim email pemberitahuan ke pendaftar (diterima / pembayaran disetujui). Tidak pernah menggagalkan proses utama:
+   * kegagalan SMTP hanya dicatat. Nama institusi & tautan portal diambil dari Profil Institusi / env.
+   */
+  private async notifyApplicant(
+    appId: string,
+    kind: 'PASSED' | 'REGISTRATION_PAID' | 'RE_REGISTRATION_PAID',
+    extra?: { nim?: string; initialPassword?: string; amount?: number | string },
+  ) {
+    try {
+      const app = await this.prisma.admissionApplication.findUnique({
+        where: { id: appId },
+        include: { studyProgram: true },
+      });
+      if (!app?.email) return;
+      const setting: any = await this.prisma.landingPageSetting.findUnique({ where: { id: 'default-setting' } }).catch(() => null);
+      const brand = String(setting?.campusName || process.env.MAIL_FROM_NAME || 'SIAKAD Premium');
+      const pmbUrl = (process.env.PUBLIC_PMB_URL || process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '');
+      const portalUrl = (process.env.PUBLIC_PORTAL_URL || '').replace(/\/+$/, '');
+      const prodi = app.studyProgram?.name || '-';
+      const rp = (v: any) => `Rp ${Number(v || 0).toLocaleString('id-ID')}`;
+
+      if (kind === 'PASSED') {
+        await this.mailService.sendNoticeEmail(app.email, app.fullName, {
+          brand,
+          subject: `Selamat, Anda Dinyatakan Diterima - ${brand}`,
+          heading: 'Selamat! Anda dinyatakan DITERIMA',
+          paragraphs: [
+            `Berdasarkan hasil seleksi, Anda dinyatakan diterima di ${brand}. Langkah berikutnya adalah menyelesaikan pembayaran daftar ulang melalui dashboard PMB.`,
+          ],
+          details: [
+            ['Nomor Pendaftaran', app.registrationNumber || '-'],
+            ['Program Studi', prodi],
+          ],
+          cta: pmbUrl ? { label: 'Buka Dashboard PMB', url: `${pmbUrl}/dashboard` } : undefined,
+        });
+      } else if (kind === 'REGISTRATION_PAID') {
+        await this.mailService.sendNoticeEmail(app.email, app.fullName, {
+          brand,
+          subject: `Pembayaran Registrasi Disetujui - ${brand}`,
+          heading: 'Pembayaran registrasi Anda telah disetujui',
+          paragraphs: ['Pembayaran biaya registrasi telah divalidasi. Pantau tahapan seleksi Anda melalui dashboard PMB.'],
+          details: [
+            ['Nomor Pendaftaran', app.registrationNumber || '-'],
+            ['Nominal', rp(extra?.amount)],
+          ],
+          cta: pmbUrl ? { label: 'Buka Dashboard PMB', url: `${pmbUrl}/dashboard` } : undefined,
+        });
+      } else {
+        const details: Array<[string, string]> = [
+          ['Nomor Pendaftaran', app.registrationNumber || '-'],
+          ['Program Studi', prodi],
+          ['Pembayaran Daftar Ulang', `${rp(extra?.amount)} (Lunas)`],
+        ];
+        if (extra?.nim) details.push(['NIM / Username Portal', extra.nim]);
+        if (extra?.initialPassword) details.push(['Password Awal Portal', extra.initialPassword]);
+        await this.mailService.sendNoticeEmail(app.email, app.fullName, {
+          brand,
+          subject: `Daftar Ulang Disetujui - Anda Resmi Diterima di ${brand}`,
+          heading: 'Daftar ulang disetujui, Anda resmi menjadi mahasiswa',
+          paragraphs: [
+            `Pembayaran daftar ulang Anda telah disetujui dan Anda resmi diterima sebagai mahasiswa baru ${brand}. Gunakan NIM dan password awal berikut untuk masuk ke portal akademik, lalu segera ganti password Anda.`,
+          ],
+          details,
+          cta: portalUrl ? { label: 'Masuk Portal Akademik', url: `${portalUrl}/login` } : pmbUrl ? { label: 'Buka Dashboard PMB', url: `${pmbUrl}/dashboard` } : undefined,
+          footer: `Simpan email ini dengan baik dan jangan bagikan password Anda kepada siapa pun. Dikirim otomatis oleh Panitia PMB ${brand}.`,
+        });
+      }
+    } catch (err: any) {
+      console.error(`[PMB] Gagal mengirim email pemberitahuan (${kind}):`, err?.message || err);
+    }
+  }
+
   /** Helper generate password awal student berdasarkan Tanggal Lahir (Format DDMMYYYY) */
   private generateBirthDatePassword(birthDateInput?: string | Date | null): string {
     if (!birthDateInput) return '17092005';
@@ -173,6 +246,18 @@ export class PmbService {
   /**
    * Pendaftaran Akun PMB baru (Belum membuat nomor pendaftaran atau NIM)
    */
+  private roleLabel(role: string): string {
+    const map: Record<string, string> = {
+      LECTURER: 'dosen',
+      STAFF: 'pegawai',
+      SUPER_ADMIN: 'administrator',
+      ADMIN_BAAK: 'admin BAAK',
+      ADMIN_KEUANGAN: 'admin keuangan',
+      ADMIN_PMB: 'admin PMB',
+    };
+    return map[role] ?? 'pegawai';
+  }
+
   async registerAccount(dto: RegisterPmbAccountDto, originUrl?: string) {
     if (dto.honeypot && dto.honeypot.trim().length > 0) {
       throw new BadRequestException('Pendaftaran tidak dapat diproses oleh sistem keamanan.');
@@ -204,6 +289,20 @@ export class PmbService {
       }
 
       throw new ConflictException(`Email ${dto.email} sudah terdaftar. Silakan login ke akun PMB Anda.`);
+    }
+
+    // Email yang sudah dipakai akun sistem (dosen, pegawai, admin) tidak boleh dipakai mendaftar sebagai mahasiswa:
+    // satu email = satu akun, dan konversi menjadi mahasiswa akan menumpuk peran akun tersebut.
+    const systemUser = await this.prisma.user.findFirst({
+      where: { email: { equals: emailTrimmed, mode: 'insensitive' } },
+      select: { role: true },
+    });
+    if (systemUser) {
+      throw new ConflictException(
+        systemUser.role === 'STUDENT'
+          ? `Email ${dto.email} sudah terdaftar sebagai mahasiswa. Silakan login ke portal mahasiswa.`
+          : `Email ${dto.email} sudah dipakai sebagai akun ${this.roleLabel(String(systemUser.role))} di sistem. Gunakan email lain untuk pendaftaran mahasiswa baru.`,
+      );
     }
 
     // Hash kata sandi
@@ -506,6 +605,23 @@ export class PmbService {
   /**
    * Mendapatkan profil dan pendaftaran calon mahasiswa
    */
+  /** Tautan berkas segar (lihat StorageService.refreshPrivateUrl). */
+  freshUrl<T extends string | null | undefined>(value: T): T | string {
+    return this.storageService.refreshPrivateUrl(value);
+  }
+
+  /** Salinan pendaftaran dengan tautan berkas dan bukti bayar yang segar. */
+  private freshenApplication<T extends Record<string, any>>(app: T): T {
+    const out: Record<string, any> = { ...app };
+    for (const f of ['fileKtp', 'fileKk', 'fileIjazah', 'fileFoto', 'fileKip', 'fileTambahan']) {
+      if (out[f]) out[f] = this.freshUrl(out[f]);
+    }
+    if (Array.isArray(out.payments)) {
+      out.payments = out.payments.map((p: any) => (p?.proofUrl ? { ...p, proofUrl: this.freshUrl(p.proofUrl) } : p));
+    }
+    return out as T;
+  }
+
   async getMyProfile(accountId: string) {
     const account = await this.resolvePmbAccount(accountId);
 
@@ -530,7 +646,7 @@ export class PmbService {
         whatsapp: account.whatsapp,
         isEmailVerified: account.isEmailVerified,
       },
-      application: account.applications[0] || null,
+      application: account.applications[0] ? this.freshenApplication(account.applications[0] as any) : null,
     };
   }
 
@@ -554,10 +670,12 @@ export class PmbService {
       this.prisma.admissionTrack.findMany({
         where: { isActive: true },
         orderBy: { name: 'asc' },
+        include: { studyPrograms: { select: { id: true } } },
       }),
       this.prisma.admissionClass.findMany({
         where: { isActive: true },
         orderBy: { name: 'asc' },
+        include: { studyPrograms: { select: { id: true } } },
       }),
       this.prisma.studyProgram.findMany({
         where: { status: 'Aktif' },
@@ -575,8 +693,8 @@ export class PmbService {
     return {
       waves,
       registrationTypes,
-      tracks,
-      classes,
+      tracks: tracks.map(({ studyPrograms: sp, ...t }) => ({ ...t, studyProgramIds: sp.map((p) => p.id) })),
+      classes: classes.map(({ studyPrograms: sp, ...c }) => ({ ...c, studyProgramIds: sp.map((p) => p.id) })),
       paymentAccounts,
       studyPrograms: studyPrograms.map((p) => ({
         id: p.id,
@@ -676,6 +794,13 @@ export class PmbService {
       classId: dto.classId || undefined,
       studyProgramId: dto.studyProgramId || undefined,
       isKip: dto.isKip ?? false,
+      originInstitution: dto.originInstitution?.trim() || undefined,
+      originInstitutionCode: dto.originInstitutionCode?.trim() || undefined,
+      originInstitutionId: dto.originInstitutionId?.trim() || undefined,
+      originStudyProgram: dto.originStudyProgram?.trim() || undefined,
+      originStudyProgramLevel: dto.originStudyProgramLevel?.trim() || undefined,
+      originStudyProgramId: dto.originStudyProgramId?.trim() || undefined,
+      originNim: dto.originNim?.trim() || undefined,
       nik: dto.nik || undefined,
       fullName: toTitleCase(dto.fullName || account.fullName) || (dto.fullName || account.fullName).trim(),
       birthPlace: toTitleCase(dto.birthPlace),
@@ -773,11 +898,38 @@ export class PmbService {
       throw new BadRequestException('Jalur pendaftaran wajib dipilih.');
     }
 
+    // Pindahan dan RPL Transfer SKS: asal perguruan tinggi wajib, karena Feeder meminta data ini saat registrasi.
+    // Kategori lain (mis. RPL Perolehan SKS dari pengalaman kerja) tidak selalu punya perguruan tinggi asal, jadi opsional.
+    const submittedTrack = await this.prisma.admissionTrack.findUnique({ where: { id: dto.trackId }, select: { kind: true, name: true } });
+    if (submittedTrack && ['TRANSFER', 'RPL_TRANSFER'].includes(submittedTrack.kind) && (!dto.originInstitution?.trim() || !dto.originStudyProgram?.trim())) {
+      throw new BadRequestException(
+        `Untuk jenis mahasiswa "${submittedTrack.name}", nama perguruan tinggi asal dan program studi asal wajib diisi.`,
+      );
+    }
+
     const wave = await this.prisma.admissionBatch.findUnique({
       where: { id: dto.waveId },
     });
     if (!wave) {
       throw new NotFoundException('Gelombang pendaftaran yang dipilih tidak valid.');
+    }
+
+    // Program studi harus termasuk yang menerima jenis mahasiswa dan kelas kuliah yang dipilih (kosong = semua prodi).
+    // Pilihan jenis mahasiswa/kelas hanya relevan untuk jenjang S1 dan D4.
+    const chosenProdi = await this.prisma.studyProgram.findUnique({ where: { id: dto.studyProgramId }, select: { degreeLevel: true, name: true } });
+    if (chosenProdi && ['S1', 'D4'].includes(chosenProdi.degreeLevel)) {
+      const [trk, cls] = await Promise.all([
+        this.prisma.admissionTrack.findUnique({ where: { id: dto.trackId }, select: { name: true, studyPrograms: { select: { id: true } } } }),
+        dto.classId
+          ? this.prisma.admissionClass.findUnique({ where: { id: dto.classId }, select: { name: true, studyPrograms: { select: { id: true } } } })
+          : null,
+      ]);
+      if (trk && trk.studyPrograms.length > 0 && !trk.studyPrograms.some((p) => p.id === dto.studyProgramId)) {
+        throw new BadRequestException(`Program studi ${chosenProdi.name} tidak menerima jenis mahasiswa "${trk.name}".`);
+      }
+      if (cls && cls.studyPrograms.length > 0 && !cls.studyPrograms.some((p) => p.id === dto.studyProgramId)) {
+        throw new BadRequestException(`Program studi ${chosenProdi.name} tidak membuka kelas kuliah "${cls.name}".`);
+      }
     }
 
     // Generate Nomor Pendaftaran: format PMB-2027-XXXXXX
@@ -798,9 +950,17 @@ export class PmbService {
       classId: dto.classId || undefined,
       studyProgramId: dto.studyProgramId,
       isKip: dto.isKip ?? false,
+      originInstitution: dto.originInstitution?.trim() || undefined,
+      originInstitutionCode: dto.originInstitutionCode?.trim() || undefined,
+      originInstitutionId: dto.originInstitutionId?.trim() || undefined,
+      originStudyProgram: dto.originStudyProgram?.trim() || undefined,
+      originStudyProgramLevel: dto.originStudyProgramLevel?.trim() || undefined,
+      originStudyProgramId: dto.originStudyProgramId?.trim() || undefined,
+      originNim: dto.originNim?.trim() || undefined,
       registrationNumber,
       formStatus: 'SUBMITTED',
       verificationStatus: 'UNVERIFIED',
+      verificationNote: null,
       selectionStatus: 'PENDING_SELECTION',
       nik: dto.nik || undefined,
       fullName: toTitleCase(dto.fullName || account.fullName) || (dto.fullName || account.fullName).trim(),
@@ -1131,6 +1291,8 @@ export class PmbService {
         ? 'PASSED'
         : a.selectionStatus === 'FAILED'
         ? 'FAILED'
+        : a.verificationStatus === 'REJECTED'
+        ? 'REJECTED'
         : a.verificationStatus === 'VERIFIED'
         ? 'VERIFIED'
         : 'PENDING';
@@ -1253,7 +1415,7 @@ export class PmbService {
       throw new NotFoundException('Data pendaftaran tidak ditemukan.');
     }
 
-    return app;
+    return this.freshenApplication(app as any);
   }
 
   /**
@@ -1311,6 +1473,8 @@ export class PmbService {
       },
     });
 
+    const newlyPaid = dto.status === 'PAID' && payment.status !== 'PAID';
+
     if (dto.status === 'PAID' && payment.type === 'REGISTRATION') {
       await this.prisma.admissionApplication.update({
         where: { id: payment.applicationId },
@@ -1318,6 +1482,7 @@ export class PmbService {
           verificationStatus: 'UNVERIFIED',
         },
       });
+      if (newlyPaid) void this.notifyApplicant(payment.applicationId, 'REGISTRATION_PAID', { amount: Number(payment.amount) });
     }
 
     let studentResult: any = null;
@@ -1336,6 +1501,13 @@ export class PmbService {
         studentResult = convertRes?.data || null;
       } catch (err: any) {
         console.error('Otomatis konversi mahasiswa saat verifikasi pembayaran:', err);
+      }
+      if (newlyPaid) {
+        void this.notifyApplicant(payment.applicationId, 'RE_REGISTRATION_PAID', {
+          nim: studentResult?.nim,
+          initialPassword: studentResult?.portalAccount?.initialPassword,
+          amount: Number(payment.amount),
+        });
       }
     }
 
@@ -1420,6 +1592,11 @@ export class PmbService {
       throw new NotFoundException('Data pendaftaran tidak ditemukan.');
     }
 
+    // Pendaftar yang dinyatakan tidak lolos berhak tahu alasannya (tampil di dashboard pendaftar)
+    if (dto.selectionStatus === 'FAILED' && String(dto.selectionNotes ?? '').trim().length < 5) {
+      throw new BadRequestException('Alasan tidak lolos wajib diisi (minimal 5 karakter); alasan ini ditampilkan kepada pendaftar.');
+    }
+
     const updated = await this.prisma.admissionApplication.update({
       where: { id },
       data: {
@@ -1459,6 +1636,10 @@ export class PmbService {
       }
     }
 
+    if (dto.selectionStatus === 'PASSED' && app.selectionStatus !== 'PASSED') {
+      void this.notifyApplicant(id, 'PASSED');
+    }
+
     return {
       success: true,
       message: `Keputusan seleksi berhasil disimpan: ${dto.selectionStatus}.`,
@@ -1469,64 +1650,73 @@ export class PmbService {
   /**
    * Generator NIM Dinamis berbasis Konfigurasi Format NIM di Database
    */
-  private async generateNimForApplication(prodi: any, app: any): Promise<string> {
-    const studentCount = await this.prisma.student.count({
-      where: { studyProgramId: prodi.id },
-    });
-    const totalStudents = await this.prisma.student.count();
-    const seq = studentCount + 1;
-    const currentYear = new Date().getFullYear();
+  /**
+   * Tahun angkatan = tahun awal tahun akademik gelombang pendaftaran (mis. "2027/2028" -> 2027), bukan tahun kalender
+   * saat konversi; cadangannya tahun akademik aktif lalu tahun berjalan. Dipakai untuk NIM dan kolom angkatan.
+   */
+  private async resolveEntryYear(app: any): Promise<number> {
+    const fromLabel = (v?: string | null) => {
+      const m = String(v ?? '').match(/(20\d{2})/);
+      return m ? Number(m[1]) : null;
+    };
+    const wave = app.wave ?? (app.waveId ? await this.prisma.admissionBatch.findUnique({ where: { id: app.waveId }, select: { academicYear: true } }) : null);
+    const active = await this.prisma.academicYear.findFirst({ where: { isActive: true }, select: { name: true } });
+    return fromLabel(wave?.academicYear) ?? fromLabel(active?.name) ?? new Date().getFullYear();
+  }
+
+  private async generateNimForApplication(prodi: any, app: any, entryYear?: number): Promise<string> {
+    const currentYear = entryYear ?? (await this.resolveEntryYear(app));
     const year4Digit = String(currentYear);
     const year2Digit = year4Digit.slice(-2);
-    const prodiCleanCode = (prodi.code || '115').replace(/[^0-9]/g, '').slice(-3).padStart(3, '0');
 
-    // Tentukan kode jalur PMB (1: Reguler, 2: Beasiswa, 3: Transfer, 4: Internasional)
+    // Kode jalur PMB (1: Reguler, 2: Beasiswa/KIP, 3: Pindahan/RPL), dibaca dari label jenis mahasiswa & jenis pendaftaran
     let jalurCode = '1';
-    if (app.registrationTypeId) {
-      if (String(app.registrationTypeId).includes('2') || String(app.registrationTypeId).toLowerCase().includes('beasiswa')) {
-        jalurCode = '2';
-      } else if (String(app.registrationTypeId).includes('3') || String(app.registrationTypeId).toLowerCase().includes('transfer')) {
-        jalurCode = '3';
-      }
-    }
+    const [appTrack, appRegType, faculties] = await Promise.all([
+      app.trackId ? this.prisma.admissionTrack.findUnique({ where: { id: app.trackId }, select: { kind: true } }) : null,
+      app.registrationTypeId ? this.prisma.admissionRegistrationType.findUnique({ where: { id: app.registrationTypeId }, select: { isKip: true } }) : null,
+      this.prisma.faculty.findMany({ orderBy: { code: 'asc' }, select: { id: true } }),
+    ]);
+    if (appTrack && appTrack.kind !== 'BARU') jalurCode = '3';
+    else if (appRegType?.isKip) jalurCode = '2';
 
-    // Ambil format dari DB setting
-    let formatPattern = '{ANGKATAN_2DIGIT}{KODE_PRODI_3DIGIT}{NO_URUT_4DIGIT}';
+    // Rumus NIM dari Pengaturan > Format NIM
+    let template = '';
     try {
-      const dbSetting = await this.prisma.landingPageSetting.findUnique({
-        where: { id: 'default-setting' },
-      });
-      if (dbSetting?.nimFormat) {
-        formatPattern = dbSetting.nimFormat;
-      }
+      const dbSetting = await this.prisma.landingPageSetting.findUnique({ where: { id: 'default-setting' } });
+      template = String(dbSetting?.nimFormat ?? '').trim();
     } catch (err) {
       console.warn('Fallback NIM format pattern:', err);
     }
+    // Isi lama berupa contoh angka (bukan rumus) tidak bisa ditafsirkan: pakai rumus bawaan
+    if (!template.includes('{')) template = '{ANGKATAN_2DIGIT}{KODE_PRODI}{NO_URUT_4DIGIT}';
 
-    if (formatPattern.includes('{')) {
-      return formatPattern
-        .replace('{INSTITUSI}', '27')
-        .replace('{ANGKATAN_4DIGIT}', year4Digit)
-        .replace('{ANGKATAN_2DIGIT}', year2Digit)
-        .replace('{KODE_FAKULTAS}', '01')
-        .replace('{KODE_PRODI_3DIGIT}', prodiCleanCode)
-        .replace('{KODE_PRODI}', prodiCleanCode)
-        .replace('{KODE_JALUR}', jalurCode)
-        .replace(/{NO_URUT_\dDIGIT}/g, String(seq).padStart(4, '0'))
-        .replace('{NO_URUT}', String(seq).padStart(4, '0'));
+    const facultyNo = Math.max(1, faculties.findIndex((f) => f.id === prodi.facultyId) + 1);
+    const prodiCode = String(prodi.code || '').trim() || '00';
+    const diktiCode = String(prodi.diktiCode || '').trim() || prodiCode;
+    const render = (seq: number) =>
+      template
+        .replace(/{INSTITUSI}/g, '27')
+        .replace(/{ANGKATAN_4DIGIT}/g, year4Digit)
+        .replace(/{ANGKATAN_2DIGIT}/g, year2Digit)
+        .replace(/{KODE_FAKULTAS_1DIGIT}/g, String(facultyNo).slice(-1))
+        .replace(/{KODE_FAKULTAS_2DIGIT}/g, String(facultyNo).padStart(2, '0'))
+        .replace(/{KODE_FAKULTAS}/g, String(facultyNo).padStart(2, '0'))
+        .replace(/{KODE_PRODI_3DIGIT}/g, prodiCode.replace(/\D/g, '').slice(-3).padStart(3, '0'))
+        .replace(/{KODE_DIKTI}/g, diktiCode)
+        .replace(/{KODE_PRODI}/g, prodiCode)
+        .replace(/{KODE_JALUR}/g, jalurCode)
+        .replace(/{NO_URUT_(\d)DIGIT}/g, (_m, n) => String(seq).padStart(Number(n), '0'))
+        .replace(/{NO_URUT}/g, String(seq).padStart(4, '0'));
+
+    // Nomor urut = jumlah mahasiswa prodi yang sudah memakai rumus yang sama + 1; dinaikkan bila NIM sudah terpakai
+    const sameProdi = await this.prisma.student.count({ where: { studyProgramId: prodi.id } });
+    let seq = sameProdi + 1;
+    for (let guard = 0; guard < 500; guard++, seq++) {
+      const candidate = render(seq);
+      const taken = await this.prisma.student.findUnique({ where: { nim: candidate }, select: { id: true } });
+      if (!taken) return candidate;
     }
-
-    // Jika formatPattern berupa string digit (contoh "272611510001" atau "261150001" atau "2615001")
-    if (/^\d+$/.test(formatPattern)) {
-      if (formatPattern.length === 10 || formatPattern.length === 12) {
-        return `27${year2Digit}${prodiCleanCode}${jalurCode}${String(seq).padStart(4, '0')}`;
-      } else if (formatPattern.length === 7) {
-        return `${year2Digit}${prodiCleanCode.slice(-2)}${String(seq).padStart(3, '0')}`;
-      }
-    }
-
-    // Default fallback format: 27 + Angkatan 2-digit + Kode Prodi + Urutan 4-digit
-    return `27${year2Digit}${prodiCleanCode}${String(totalStudents + 1).padStart(4, '0')}`;
+    return render(seq);
   }
 
   /**
@@ -1573,36 +1763,43 @@ export class PmbService {
     if (!prodi) throw new BadRequestException('Program studi tidak ditemukan.');
 
     // Generate NIM resmi berdasarkan format terkonfigurasi di database
-    const nim = await this.generateNimForApplication(prodi, app);
+    const entryYear = await this.resolveEntryYear(app);
+    const nim = app.nim || (await this.generateNimForApplication(prodi, app, entryYear));
 
     // Cek User akun portal
     let user = await this.prisma.user.findUnique({
       where: { email: app.email },
     });
 
-  const initialPassword = this.generateBirthDatePassword(app.birthDate);
-  const passwordHash = await bcrypt.hash(initialPassword, 10);
+    // Akun dosen/pegawai/admin TIDAK boleh diubah menjadi mahasiswa (perannya dan kata sandinya akan tertimpa).
+    if (user && user.role !== 'STUDENT') {
+      throw new BadRequestException(
+        `Email ${app.email} sudah dipakai akun ${this.roleLabel(String(user.role))}. Penerbitan NIM dibatalkan agar akun tersebut tidak berubah menjadi mahasiswa. Minta pendaftar memakai email lain.`,
+      );
+    }
 
-  if (!user) {
-    user = await this.prisma.user.create({
-      data: {
-        email: app.email,
-        fullName: app.fullName,
-        role: 'STUDENT' as any,
-        passwordHash,
-        isActive: true,
-      },
-    });
-  } else {
-    user = await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        role: 'STUDENT' as any,
-        passwordHash,
-        isActive: true,
-      },
-    });
-  }
+    const initialPassword = this.generateBirthDatePassword(app.birthDate);
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: {
+          email: app.email,
+          fullName: app.fullName,
+          role: 'STUDENT' as any,
+          passwordHash: await bcrypt.hash(initialPassword, 10),
+          isActive: true,
+        },
+      });
+    } else {
+      // Sudah akun mahasiswa: kata sandi hanya diatur ulang bila belum punya data mahasiswa (penerbitan pertama);
+      // ACC berulang tidak boleh menimpa kata sandi yang sudah diganti mahasiswa.
+      const hasStudent = await this.prisma.student.findUnique({ where: { userId: user.id }, select: { id: true } });
+      if (!hasStudent) {
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: { passwordHash: await bcrypt.hash(initialPassword, 10), isActive: true },
+        });
+      }
+    }
 
     // Buat record Student (biodata lengkap dari PMB dipindahkan seluruhnya)
     const parsedAddr = this.parseAddressString(app.address);
@@ -1650,6 +1847,14 @@ export class PmbService {
         trackId: app.trackId,
         classId: app.classId,
         waveId: app.waveId,
+        originInstitution: app.originInstitution,
+        originInstitutionCode: app.originInstitutionCode,
+        originInstitutionId: app.originInstitutionId,
+        originStudyProgram: app.originStudyProgram,
+        originStudyProgramLevel: app.originStudyProgramLevel,
+        originStudyProgramId: app.originStudyProgramId,
+        originNim: app.originNim,
+        originCredits: app.originCredits,
         // Data Sekolah Asal
         schoolName: app.schoolName,
         npsn: app.npsn,
@@ -1673,7 +1878,7 @@ export class PmbService {
         studyProgramId: prodi.id,
         advisorLecturerId: advisor?.id || undefined,
         nim,
-        entryYear: 2027,
+        entryYear,
         currentSemester: 1,
         status: 'ACTIVE' as any,
         phone: app.phone,
@@ -1697,6 +1902,14 @@ export class PmbService {
         trackId: app.trackId,
         classId: app.classId,
         waveId: app.waveId,
+        originInstitution: app.originInstitution,
+        originInstitutionCode: app.originInstitutionCode,
+        originInstitutionId: app.originInstitutionId,
+        originStudyProgram: app.originStudyProgram,
+        originStudyProgramLevel: app.originStudyProgramLevel,
+        originStudyProgramId: app.originStudyProgramId,
+        originNim: app.originNim,
+        originCredits: app.originCredits,
         // Data Sekolah Asal
         schoolName: app.schoolName,
         npsn: app.npsn,
@@ -1731,8 +1944,11 @@ export class PmbService {
     let feeAssignmentResult: any = null;
     let semesterInvoiceResult: any = null;
     try {
+      const waveYear = app.waveId
+        ? (await this.prisma.admissionBatch.findUnique({ where: { id: app.waveId }, select: { academicYear: true } }))?.academicYear
+        : null;
       const activeYear = await this.prisma.academicYear.findFirst({ where: { isActive: true } });
-      const academicYear = activeYear?.name || '2026/2027';
+      const academicYear = waveYear?.trim() || activeYear?.name || '2026/2027';
 
       // Hanya menetapkan skema pembiayaan (rule/diskon) mahasiswa. Tagihan UKT semester 1
       // baru diterbitkan otomatis saat mahasiswa mengajukan KRS (lihat StudentsService.submitKrs).
@@ -1785,7 +2001,18 @@ export class PmbService {
     });
   }
 
+  /** Tahun akademik gelombang harus sudah ada di master Tahun Akademik (Kalender Akademik); tidak dibuat otomatis. */
+  private async assertAcademicYearExists(name: string) {
+    const exists = await this.prisma.academicYear.findFirst({ where: { name: name.trim() }, select: { id: true } });
+    if (!exists) {
+      throw new BadRequestException(
+        `Tahun akademik "${name.trim()}" belum ada di master Tahun Akademik. Tambahkan dulu di Kalender Akademik, lalu pilih kembali di sini.`,
+      );
+    }
+  }
+
   async createWave(dto: CreateWaveDto) {
+    await this.assertAcademicYearExists(dto.academicYear);
     const wave = await this.prisma.admissionBatch.create({
       data: {
         name: dto.name.trim(),
@@ -1811,6 +2038,11 @@ export class PmbService {
   }
 
   async updateWave(id: string, dto: Partial<CreateWaveDto>) {
+    if (dto.academicYear?.trim()) {
+      const current = await this.prisma.admissionBatch.findUnique({ where: { id }, select: { academicYear: true } });
+      // gelombang lama yang tahunnya tidak diubah tetap boleh disimpan
+      if (current?.academicYear !== dto.academicYear.trim()) await this.assertAcademicYearExists(dto.academicYear);
+    }
     const wave = await this.prisma.admissionBatch.update({
       where: { id },
       data: {
@@ -1957,7 +2189,17 @@ export class PmbService {
   async getTracks() {
     return this.prisma.admissionTrack.findMany({
       orderBy: { name: 'asc' },
+      include: { studyPrograms: { select: { id: true, name: true, code: true } } },
     });
+  }
+
+  /** Memastikan semua ID program studi ada; mengembalikan daftar `{ id }` untuk relasi. */
+  private async resolveProgramRefs(ids?: string[]): Promise<Array<{ id: string }>> {
+    const list = Array.from(new Set((ids ?? []).map((i) => String(i).trim()).filter(Boolean)));
+    if (list.length === 0) return [];
+    const found = await this.prisma.studyProgram.count({ where: { id: { in: list } } });
+    if (found !== list.length) throw new BadRequestException('Ada program studi yang dipilih tidak ditemukan.');
+    return list.map((id) => ({ id }));
   }
 
   async createTrack(dto: CreateTrackDto) {
@@ -1966,7 +2208,9 @@ export class PmbService {
         code: dto.code.trim().toUpperCase(),
         name: dto.name.trim(),
         description: dto.description || null,
+        kind: dto.kind ?? 'BARU',
         isActive: dto.isActive ?? true,
+        studyPrograms: { connect: await this.resolveProgramRefs(dto.studyProgramIds) },
       },
     });
     return { success: true, message: 'Jalur pendaftaran berhasil ditambahkan.', track };
@@ -1979,7 +2223,9 @@ export class PmbService {
         code: dto.code ? dto.code.trim().toUpperCase() : undefined,
         name: dto.name ? dto.name.trim() : undefined,
         description: dto.description !== undefined ? dto.description : undefined,
+        kind: dto.kind,
         isActive: dto.isActive !== undefined ? dto.isActive : undefined,
+        studyPrograms: dto.studyProgramIds !== undefined ? { set: await this.resolveProgramRefs(dto.studyProgramIds) } : undefined,
       },
     });
     return { success: true, message: 'Jalur pendaftaran berhasil diperbarui.', track };
@@ -1997,6 +2243,7 @@ export class PmbService {
   async getClasses() {
     return this.prisma.admissionClass.findMany({
       orderBy: { name: 'asc' },
+      include: { studyPrograms: { select: { id: true, name: true, code: true } } },
     });
   }
 
@@ -2006,7 +2253,9 @@ export class PmbService {
         code: dto.code.trim().toUpperCase(),
         name: dto.name.trim(),
         description: dto.description || null,
+        shift: dto.shift ?? 'PAGI',
         isActive: dto.isActive ?? true,
+        studyPrograms: { connect: await this.resolveProgramRefs(dto.studyProgramIds) },
       },
     });
     return { success: true, message: 'Kelas berhasil ditambahkan.', admissionClass };
@@ -2019,7 +2268,9 @@ export class PmbService {
         code: dto.code ? dto.code.trim().toUpperCase() : undefined,
         name: dto.name ? dto.name.trim() : undefined,
         description: dto.description !== undefined ? dto.description : undefined,
+        shift: dto.shift,
         isActive: dto.isActive !== undefined ? dto.isActive : undefined,
+        studyPrograms: dto.studyProgramIds !== undefined ? { set: await this.resolveProgramRefs(dto.studyProgramIds) } : undefined,
       },
     });
     return { success: true, message: 'Kelas berhasil diperbarui.', admissionClass };

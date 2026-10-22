@@ -1,5 +1,9 @@
 'use client';
 
+import { BirthPlaceSelect } from '@/components/BirthPlaceSelect';
+import { OriginPicker } from '@/components/OriginPicker';
+import { CampusName, PmbYear } from '@/components/CampusText';
+import { alertDialog } from '@/components/AlertHost';
 import { CampusLogo } from '@/components/CampusLogo';
 import { useCampus } from '@/lib/campusProfile';
 import { PmbUrl } from '@/components/PmbUrl';
@@ -140,8 +144,8 @@ const DEGREE_LEVEL_INFO: Record<string, {
   S1: {
     title: 'Sarjana (S1)',
     subtitle: 'Program Sarjana Strata 1',
-    desc: 'Tersedia opsi Beasiswa KIP-Kuliah, Mahasiswa Baru / Transfer, serta Kelas Reguler & Karyawan.',
-    badge: 'Reguler & KIP',
+    desc: 'Program sarjana dengan pilihan jenis pendaftaran, jenis mahasiswa, dan kelas sesuai yang dibuka panitia.',
+    badge: 'Reguler',
     kipEligible: true,
     showTrackClass: true,
   },
@@ -269,6 +273,28 @@ function formatIndoDate(dateStr?: string | Date) {
 }
 
 /** Lambang resmi kampus pada dokumen cetak: logo yang diunggah, atau inisial kampus bila belum ada. */
+/** Memuat pustaka html2pdf. Skrip yang gagal dimuat sebelumnya dibuang lalu dipasang ulang, dengan batas waktu agar tombol tidak menggantung. */
+function loadHtml2Pdf(): Promise<void> {
+  if (typeof window === 'undefined') return Promise.reject(new Error('Hanya di peramban'));
+  if ((window as any).html2pdf) return Promise.resolve();
+  return new Promise<void>((resolve, reject) => {
+    document.querySelectorAll('script[data-html2pdf]').forEach((el) => el.remove());
+    const script = document.createElement('script');
+    script.src = '/js/html2pdf.bundle.min.js';
+    script.setAttribute('data-html2pdf', '1');
+    const timer = window.setTimeout(() => reject(new Error('Pemuatan pustaka PDF terlalu lama')), 15000);
+    script.onload = () => {
+      window.clearTimeout(timer);
+      (window as any).html2pdf ? resolve() : reject(new Error('Pustaka PDF tidak tersedia'));
+    };
+    script.onerror = () => {
+      window.clearTimeout(timer);
+      reject(new Error('Gagal memuat pustaka PDF'));
+    };
+    document.head.appendChild(script);
+  });
+}
+
 function UniversitySealLogo({ className = 'w-18 h-18' }: { className?: string }) {
   const campus = useCampus();
   return (
@@ -335,38 +361,79 @@ function BuktiPendaftaranDocument({
   application,
   regPayment,
   isRegistrationPaid,
+  reRegPayment,
+  isReRegistrationPaid,
+  isConverted,
+  portalPassword,
+  portalUrl,
 }: {
   application: any;
   regPayment?: any;
   isRegistrationPaid?: boolean;
+  reRegPayment?: any;
+  isReRegistrationPaid?: boolean;
+  isConverted?: boolean;
+  portalPassword?: string;
+  portalUrl?: string;
 }) {
   const campus = useCampus();
   const printDate = formatIndoDate(new Date());
   const regDate = formatIndoDate(application?.createdAt);
   const regNumber = application?.registrationNumber || 'PMB-2027-000007';
+  // Jenis mahasiswa selain mahasiswa baru (pindahan / RPL transfer) menampilkan asal perguruan tinggi, bukan asal sekolah
+  const trackKind = application?.track?.kind || 'BARU';
+  const showOrigin =
+    trackKind === 'TRANSFER' || trackKind === 'RPL_TRANSFER' || Boolean(String(application?.originInstitution ?? '').trim());
 
   return (
-    <div className="w-full bg-white text-slate-900 font-sans p-4 sm:p-5 text-[10px] leading-snug max-w-[210mm] mx-auto print:p-2 print:max-w-full">
+    <div className="relative w-full bg-white text-slate-900 font-sans p-4 sm:p-5 text-[10px] leading-snug max-w-[210mm] mx-auto print:p-2 print:max-w-full">
+      {/* Cap DITERIMA: muncul setelah daftar ulang lunas dan NIM terbit */}
+      {isConverted && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '150px',
+            right: '70px',
+            transform: 'rotate(-12deg)',
+            border: '3px double #047857',
+            color: '#047857',
+            padding: '4px 14px',
+            borderRadius: '6px',
+            textAlign: 'center',
+            opacity: 0.85,
+            pointerEvents: 'none',
+          }}
+        >
+          <div style={{ fontSize: '20px', fontWeight: 900, letterSpacing: '3px' }}>DITERIMA</div>
+          <div style={{ fontSize: '9px', fontWeight: 700, fontFamily: 'monospace' }}>NIM {application?.nim}</div>
+        </div>
+      )}
       {/* 1. KOP SURAT RESMI */}
       <div className="flex items-center justify-between gap-3 pb-1 border-b-0">
         <div className="w-16 shrink-0 flex items-center justify-center">
           <UniversitySealLogo className="w-16 h-16" />
         </div>
         <div className="flex-1 text-center px-1">
-          <h4 className="text-[9px] sm:text-[10px] font-bold tracking-[0.18em] uppercase text-slate-700">
-            YAYASAN PENDIDIKAN TINGGI TEKNOLOGI NUSANTARA
-          </h4>
+          {campus.kop.line1 && (
+            <h4 className="text-[9px] sm:text-[10px] font-bold tracking-[0.18em] uppercase text-slate-700">
+              {campus.kop.line1.toUpperCase()}
+            </h4>
+          )}
           <h1 className="text-base sm:text-lg font-black tracking-tight text-[#1E3A8A] uppercase mt-0.5">
-            INSTITUT TEKNOLOGI NUSANTARA
+            {campus.kop.line2}
           </h1>
           <h2 className="text-[11px] sm:text-[11.5px] font-extrabold uppercase tracking-wide text-slate-900 mt-0.5">
-            PANITIA PENERIMAAN MAHASISWA BARU (PMB) T.A. 2027/2028
+            PANITIA PENERIMAAN MAHASISWA BARU (PMB)<PmbYear prefix=" T.A. " />
           </h2>
-          <p className="text-[8.5px] sm:text-[9px] text-slate-600 mt-0.5 leading-tight">
-            Kampus Utama: {campus.address || '-'} • Telp: {campus.phone || '-'}
-          </p>
+          {/* Alamat dan kontak mengikuti format KOP yang diatur Super Admin (baris baru dihormati) */}
+          {campus.kop.contact.split('\n').map((line, i) => (
+            <p key={i} className="text-[8.5px] sm:text-[9px] text-slate-600 mt-0.5 leading-tight">
+              {line}
+            </p>
+          ))}
           <p className="text-[8px] sm:text-[8.5px] text-slate-500 leading-tight">
-            Laman Resmi: <PmbUrl /> • Surel: {campus.email || '-'} • WhatsApp PMB: {campus.whatsapp || '-'}
+            Laman Resmi: <PmbUrl />
+            {campus.whatsapp ? ` • WhatsApp PMB: ${campus.whatsapp}` : ''}
           </p>
         </div>
         <div className="w-16 shrink-0 flex items-center justify-center">
@@ -376,7 +443,11 @@ function BuktiPendaftaranDocument({
 
       {/* Garis Ganda Kop Surat Resmi */}
       <div className="border-t-[2.5px] border-[#1E3A8A] w-full mt-1"></div>
-      <div className="border-t border-[#D4A017] w-full mt-[1px] mb-2.5"></div>
+      {campus.kop.doubleBorder ? (
+        <div className="border-t border-[#D4A017] w-full mt-[1px] mb-2.5"></div>
+      ) : (
+        <div className="mb-2.5"></div>
+      )}
 
       {/* 2. JUDUL DOKUMEN & IDENTITAS REGISTRASI */}
       <div className="text-center mb-2">
@@ -384,7 +455,7 @@ function BuktiPendaftaranDocument({
           KARTU TANDA BUKTI PENDAFTARAN
         </h3>
         <p className="text-[9px] sm:text-[9.5px] font-bold text-slate-600 uppercase tracking-widest mt-0.5">
-          CALON MAHASISWA BARU TAHUN AKADEMIK 2027/2028
+          CALON MAHASISWA BARU<PmbYear prefix=" TAHUN AKADEMIK " />
         </p>
         <div style={{ textAlign: 'center', marginTop: '4px', marginBottom: '4px' }}>
           <div
@@ -507,34 +578,67 @@ function BuktiPendaftaranDocument({
 
         {/* BAGIAN II: ASAL PENDIDIKAN & ORANG TUA (2 Kolom) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {/* ASAL SEKOLAH */}
-          <div className="border border-slate-300 rounded overflow-hidden">
-            <div className="bg-[#1E3A8A] text-white px-2.5 py-0.5 font-bold text-[9px] tracking-wider uppercase">
-              II. ASAL SEKOLAH / PENDIDIKAN
+          {showOrigin ? (
+            /* ASAL PERGURUAN TINGGI (pindahan / RPL transfer) */
+            <div className="border border-slate-300 rounded overflow-hidden">
+              <div className="bg-[#1E3A8A] text-white px-2.5 py-0.5 font-bold text-[9px] tracking-wider uppercase">
+                II. ASAL PERGURUAN TINGGI
+              </div>
+              <table className="w-full text-[9.5px]">
+                <tbody>
+                  <tr className="border-b border-slate-200">
+                    <td className="w-2/5 py-0.5 px-2 font-semibold text-slate-600 bg-slate-50">Perguruan Tinggi Asal</td>
+                    <td className="py-0.5 px-2 font-bold text-slate-800">{application?.originInstitution || '-'}</td>
+                  </tr>
+                  <tr className="border-b border-slate-200">
+                    <td className="py-0.5 px-2 font-semibold text-slate-600 bg-slate-50">Program Studi Asal</td>
+                    <td className="py-0.5 px-2 text-slate-800">
+                      {application?.originStudyProgram || '-'}
+                      {application?.originStudyProgramLevel ? ` (${application.originStudyProgramLevel})` : ''}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-slate-200">
+                    <td className="py-0.5 px-2 font-semibold text-slate-600 bg-slate-50">NIM Asal</td>
+                    <td className="py-0.5 px-2 font-mono text-slate-800">{application?.originNim || '-'}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-0.5 px-2 font-semibold text-slate-600 bg-slate-50">SKS Diperoleh</td>
+                    <td className="py-0.5 px-2 text-slate-800">
+                      {application?.originCredits != null ? `${application.originCredits} SKS` : '-'}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-            <table className="w-full text-[9.5px]">
-              <tbody>
-                <tr className="border-b border-slate-200">
-                  <td className="w-2/5 py-0.5 px-2 font-semibold text-slate-600 bg-slate-50">Nama Sekolah</td>
-                  <td className="py-0.5 px-2 font-bold text-slate-800">{application?.schoolName || '-'}</td>
-                </tr>
-                <tr className="border-b border-slate-200">
-                  <td className="py-0.5 px-2 font-semibold text-slate-600 bg-slate-50">NPSN / NISN</td>
-                  <td className="py-0.5 px-2 font-mono text-slate-800">
-                    {application?.npsn || '-'} / {(application as any)?.nisn || '-'}
-                  </td>
-                </tr>
-                <tr className="border-b border-slate-200">
-                  <td className="py-0.5 px-2 font-semibold text-slate-600 bg-slate-50">Jurusan Asal</td>
-                  <td className="py-0.5 px-2 text-slate-800">{application?.major || '-'}</td>
-                </tr>
-                <tr>
-                  <td className="py-0.5 px-2 font-semibold text-slate-600 bg-slate-50">Tahun Kelulusan</td>
-                  <td className="py-0.5 px-2 text-slate-800">{application?.graduationYear || '-'}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          ) : (
+            <div className="border border-slate-300 rounded overflow-hidden">
+              <div className="bg-[#1E3A8A] text-white px-2.5 py-0.5 font-bold text-[9px] tracking-wider uppercase">
+                II. ASAL SEKOLAH / PENDIDIKAN
+              </div>
+              <table className="w-full text-[9.5px]">
+                <tbody>
+                  <tr className="border-b border-slate-200">
+                    <td className="w-2/5 py-0.5 px-2 font-semibold text-slate-600 bg-slate-50">Nama Sekolah</td>
+                    <td className="py-0.5 px-2 font-bold text-slate-800">{application?.schoolName || '-'}</td>
+                  </tr>
+                  <tr className="border-b border-slate-200">
+                    <td className="py-0.5 px-2 font-semibold text-slate-600 bg-slate-50">NPSN / NISN</td>
+                    <td className="py-0.5 px-2 font-mono text-slate-800">
+                      {application?.npsn || '-'} / {(application as any)?.nisn || '-'}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-slate-200">
+                    <td className="py-0.5 px-2 font-semibold text-slate-600 bg-slate-50">Jurusan Asal</td>
+                    <td className="py-0.5 px-2 text-slate-800">{application?.major || '-'}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-0.5 px-2 font-semibold text-slate-600 bg-slate-50">Tahun Kelulusan</td>
+                    <td className="py-0.5 px-2 text-slate-800">{application?.graduationYear || '-'}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* DATA ORANG TUA / WALI */}
           <div className="border border-slate-300 rounded overflow-hidden">
@@ -628,9 +732,61 @@ function BuktiPendaftaranDocument({
                   )}
                 </td>
               </tr>
+              <tr className="border-t border-slate-200">
+                <td className="py-0.5 px-2 font-semibold text-slate-600 bg-slate-50">Biaya Daftar Ulang</td>
+                <td className="py-0.5 px-2 font-bold text-slate-900">
+                  {reRegPayment ? `Rp ${Number(reRegPayment.amount || 0).toLocaleString('id-ID')}` : 'Terbit setelah dinyatakan lulus'}
+                </td>
+                <td className="py-0.5 px-2 font-semibold text-slate-600 bg-slate-50">Status Daftar Ulang</td>
+                <td className="py-0.5 px-2">
+                  {isReRegistrationPaid ? (
+                    <span className="inline-block px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-extrabold text-[9px] border border-emerald-300">
+                      ✓ LUNAS / TERVALIDASI
+                    </span>
+                  ) : reRegPayment?.status === 'VERIFYING' ? (
+                    <span className="inline-block px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-bold text-[9px] border border-amber-300">
+                      MENUNGGU VERIFIKASI
+                    </span>
+                  ) : reRegPayment ? (
+                    <span className="inline-block px-1.5 py-0.2 rounded bg-red-100 text-red-800 font-bold text-[9px] border border-red-300">
+                      MENUNGGU PEMBAYARAN
+                    </span>
+                  ) : (
+                    <span className="inline-block px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-semibold text-[9px] border border-slate-300">
+                      BELUM ADA TAGIHAN
+                    </span>
+                  )}
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
+
+        {/* BAGIAN V: AKUN PORTAL (hanya setelah diterima & NIM terbit) */}
+        {isConverted && (
+          <div className="border border-emerald-400 rounded overflow-hidden">
+            <div className="bg-emerald-700 text-white px-2.5 py-0.5 font-bold text-[9px] tracking-wider uppercase">
+              V. DITERIMA SEBAGAI MAHASISWA &amp; AKUN PORTAL AKADEMIK
+            </div>
+            <table className="w-full text-[9.5px]">
+              <tbody>
+                <tr className="border-b border-slate-200">
+                  <td className="w-1/4 py-0.5 px-2 font-semibold text-slate-600 bg-emerald-50">NIM / Username</td>
+                  <td className="w-1/4 py-0.5 px-2 font-mono font-black text-slate-900">{application?.nim}</td>
+                  <td className="w-1/4 py-0.5 px-2 font-semibold text-slate-600 bg-emerald-50">Password Awal</td>
+                  <td className="w-1/4 py-0.5 px-2 font-mono font-black text-slate-900">{portalPassword || '-'}</td>
+                </tr>
+                <tr>
+                  <td className="py-0.5 px-2 font-semibold text-slate-600 bg-emerald-50">Alamat Portal</td>
+                  <td colSpan={3} className="py-0.5 px-2 text-slate-800">
+                    {portalUrl || '-'}
+                    <span className="text-[8px] text-slate-500"> — segera ganti password setelah login pertama.</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* 5. TANDA TANGAN PENDAFTAR */}
@@ -659,7 +815,7 @@ function BuktiPendaftaranDocument({
         </span>
         <ol className="list-decimal pl-3.5 space-y-0.2">
           <li>
-            Lembar ini merupakan <strong>Tanda Bukti Pendaftaran Resmi</strong> Seleksi Penerimaan Mahasiswa Baru {campus.nameWithShort} Tahun Akademik 2027/2028.
+            Lembar ini merupakan <strong>Tanda Bukti Pendaftaran Resmi</strong> Seleksi Penerimaan Mahasiswa Baru {campus.nameWithShort}<PmbYear prefix=" Tahun Akademik " />.
           </li>
           <li>
             Cetak dan simpan kartu bukti pendaftaran ini dengan baik. Dokumen ini wajib dilampirkan atau ditunjukkan saat verifikasi fisik berkas serta proses registrasi ulang.
@@ -1052,6 +1208,13 @@ export default function PmbDashboardPage() {
     classId: '',
     studyProgramId: '',
     isKip: false,
+    originInstitution: '',
+    originInstitutionCode: '',
+    originInstitutionId: '',
+    originStudyProgram: '',
+    originStudyProgramLevel: '',
+    originStudyProgramId: '',
+    originNim: '',
 
     // Pribadi
     nik: '',
@@ -1097,6 +1260,11 @@ export default function PmbDashboardPage() {
 
     statementAgreed: false,
   });
+
+  // Label jenis mahasiswa yang dipilih (BARU / TRANSFER / RPL); selain BARU, asal perguruan tinggi wajib diisi
+  const selectedTrackKind = options.tracks.find((t) => t.id === formData.trackId)?.kind ?? 'BARU';
+  // Pindahan dan RPL Transfer SKS wajib mengisi asal; kategori lain bukan mahasiswa baru boleh mengosongkannya
+  const originRequired = selectedTrackKind === 'TRANSFER' || selectedTrackKind === 'RPL_TRANSFER';
 
   // Load user session & fetch options + profile
   const fetchDashboardData = async () => {
@@ -1196,6 +1364,13 @@ export default function PmbDashboardPage() {
             classId: app.classId || prev.classId,
             studyProgramId: app.studyProgramId || prev.studyProgramId,
             isKip: app.isKip ?? false,
+            originInstitution: app.originInstitution || '',
+            originInstitutionCode: app.originInstitutionCode || '',
+            originInstitutionId: app.originInstitutionId || '',
+            originStudyProgram: app.originStudyProgram || '',
+            originStudyProgramLevel: app.originStudyProgramLevel || '',
+            originStudyProgramId: app.originStudyProgramId || '',
+            originNim: app.originNim || '',
             nik: app.nik || '',
             fullName: app.fullName || storedAccount.fullName || '',
             birthPlace: app.birthPlace || '',
@@ -1299,26 +1474,8 @@ export default function PmbDashboardPage() {
     try {
       if (typeof window === 'undefined') return;
 
-      // 1. Pastikan html2pdf sudah dimuat ke window
-      if (!(window as any).html2pdf) {
-        await new Promise<void>((resolve, reject) => {
-          const existing = document.querySelector('script[src="/js/html2pdf.bundle.min.js"]');
-          if (existing) {
-            if ((window as any).html2pdf) {
-              resolve();
-              return;
-            }
-            existing.addEventListener('load', () => resolve());
-            existing.addEventListener('error', () => reject(new Error('Gagal memuat pustaka PDF')));
-            return;
-          }
-          const script = document.createElement('script');
-          script.src = '/js/html2pdf.bundle.min.js';
-          script.onload = () => resolve();
-          script.onerror = () => reject(new Error('Gagal memuat pustaka PDF'));
-          document.head.appendChild(script);
-        });
-      }
+      // 1. Pastikan html2pdf sudah dimuat ke window (dicoba ulang bila pemuatan awal gagal)
+      await loadHtml2Pdf();
 
       const html2pdf = (window as any).html2pdf;
       const element = document.getElementById('bukti-pendaftaran-document-card');
@@ -1340,26 +1497,16 @@ export default function PmbDashboardPage() {
       await html2pdf().set(opt).from(element).save();
     } catch (err: any) {
       console.error('Download PDF error:', err);
-      // Fallback ke browser print
-      if (typeof window !== 'undefined') {
-        window.print();
-      }
+      // Beri tahu pendaftar (jangan diam-diam membuka dialog cetak) dan arahkan ke cara lain
+      void alertDialog('PDF tidak dapat dibuat otomatis. Klik tombol Cetak, lalu pilih "Simpan sebagai PDF" pada dialog printer.', { type: 'error' });
     } finally {
       setIsDownloadingPdf(false);
     }
   };
 
-  // Preload html2pdf library agar download langsung instan saat tombol diklik
+  // Preload html2pdf agar unduhan langsung instan; kegagalan diabaikan (dicoba ulang saat tombol ditekan)
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if ((window as any).html2pdf) return;
-    const existing = document.querySelector('script[src="/js/html2pdf.bundle.min.js"]');
-    if (!existing) {
-      const script = document.createElement('script');
-      script.src = '/js/html2pdf.bundle.min.js';
-      script.defer = true;
-      document.head.appendChild(script);
-    }
+    loadHtml2Pdf().catch(() => undefined);
   }, []);
 
   // Gelombang otomatis sesuai jenjang yang dipilih (prioritas status OPEN > default > first)
@@ -1608,8 +1755,27 @@ export default function PmbDashboardPage() {
   // Filter prodi sesuai jenjang yang dipilih — langsung match degreeLevel dari DB
   const filteredStudyPrograms = useMemo(() => {
     if (!selectedJenjang) return [];
-    return options.studyPrograms.filter((p) => p.degreeLevel === selectedJenjang);
-  }, [options.studyPrograms, selectedJenjang]);
+    const byJenjang = options.studyPrograms.filter((p) => p.degreeLevel === selectedJenjang);
+    // Jenis mahasiswa dan kelas kuliah hanya berlaku untuk jenjang yang memilihnya (S1, D4). Prodi yang tidak menerima
+    // jenis mahasiswa atau kelas yang dipilih tidak ditampilkan (daftar kosong di master = semua prodi).
+    if (!getDegreeInfo(selectedJenjang)?.showTrackClass) return byJenjang;
+    const track = options.tracks.find((t) => t.id === formData.trackId);
+    const kelas = options.classes.find((c) => c.id === formData.classId);
+    return byJenjang.filter(
+      (p) =>
+        (!track?.studyProgramIds?.length || track.studyProgramIds.includes(p.id)) &&
+        (!kelas?.studyProgramIds?.length || kelas.studyProgramIds.includes(p.id)),
+    );
+  }, [options.studyPrograms, options.tracks, options.classes, selectedJenjang, formData.trackId, formData.classId]);
+
+  // Prodi yang sudah dipilih tetapi tidak menerima kombinasi jenis mahasiswa/kelas yang baru dipilih dilepas
+  useEffect(() => {
+    if (!selectedJenjang || options.studyPrograms.length === 0 || !formData.studyProgramId) return;
+    if (!filteredStudyPrograms.some((p) => p.id === formData.studyProgramId)) {
+      setFormData((prev) => ({ ...prev, studyProgramId: '' }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredStudyPrograms]);
 
   // Kelompokkan prodi berdasarkan fakultas untuk jenjang yang dipilih
   const availableFaculties = useMemo(() => {
@@ -1686,8 +1852,14 @@ export default function PmbDashboardPage() {
         setWizardError(`Belum ada gelombang pendaftaran aktif untuk jenjang ${selectedJenjang}. Silakan hubungi panitia PMB.`);
         return;
       }
-      if (getDegreeInfo(selectedJenjang).showTrackClass && !formData.trackId) {
-        setWizardError('Silakan pilih salah satu Jalur Mahasiswa.');
+      // Jenis Pendaftaran (Non-KIP / KIP, dsb.) disiapkan panitia; tanpa itu pendaftaran tidak dapat dilanjutkan
+      if (getDegreeInfo(selectedJenjang).showTrackClass && options.registrationTypes.length === 0) {
+        setWizardError('Pendaftaran belum dapat dilanjutkan karena panitia belum menyiapkan Jenis Pendaftaran. Silakan hubungi panitia PMB.');
+        return;
+      }
+      // Hanya diwajibkan bila panitia sudah menyiapkan pilihan Jenis Mahasiswa
+      if (getDegreeInfo(selectedJenjang).showTrackClass && options.tracks.length > 0 && !formData.trackId) {
+        setWizardError('Silakan pilih salah satu Jenis Mahasiswa.');
         return;
       }
       if (!formData.studyProgramId) {
@@ -1740,8 +1912,12 @@ export default function PmbDashboardPage() {
         villageName: toTitleCase(prev.villageName),
       }));
     } else if (currentStep === 3) {
+      if (originRequired && (!formData.originInstitution.trim() || !formData.originStudyProgram.trim())) {
+        setWizardError('Nama Perguruan Tinggi Asal dan Program Studi Asal wajib diisi.');
+        return;
+      }
       if (!formData.schoolName.trim()) {
-        setWizardError('Nama Asal Sekolah / Kampus wajib diisi.');
+        setWizardError('Nama Asal Sekolah wajib diisi.');
         return;
       }
       setFormData((prev) => ({
@@ -1960,7 +2136,7 @@ export default function PmbDashboardPage() {
   const handleConfirmPayment = async () => {
     if (!selectedPayment) return;
     if (!bankAccountId) {
-      alert('Pilih rekening bank kampus tempat Anda mengirim pembayaran.');
+      void alertDialog('Pilih rekening bank kampus tempat Anda mengirim pembayaran.');
       return;
     }
     setIsUploadingPayment(true);
@@ -1987,7 +2163,7 @@ export default function PmbDashboardPage() {
       // Refresh dashboard data
       fetchDashboardData();
     } catch (err: any) {
-      alert(err.message || 'Gagal mengunggah bukti pembayaran.');
+      void alertDialog(err.message || 'Gagal mengunggah bukti pembayaran.', { type: 'error' });
     } finally {
       setIsUploadingPayment(false);
     }
@@ -2033,10 +2209,10 @@ export default function PmbDashboardPage() {
               <CampusLogo url={campus.logoUrl} initials={campus.initials} className="w-9 h-9 rounded-full bg-white border-2 border-[#D4A017] flex items-center justify-center font-extrabold text-[#1E3A8A] text-xs shadow-xs" />
               <div>
                 <span className="font-bold text-sm tracking-wide block leading-tight">
-                  INSTITUT TEKNOLOGI NUSANTARA
+                  <CampusName upper />
                 </span>
                 <span className="text-[11px] text-blue-200 block">
-                  Dashboard Calon Mahasiswa Baru 2027
+                  Dashboard Calon Mahasiswa Baru<PmbYear prefix=" " />
                 </span>
               </div>
             </div>
@@ -2217,7 +2393,11 @@ export default function PmbDashboardPage() {
                             : 'Menunggu Verifikasi'}
                         </span>
                         <span className="text-[10px] text-slate-500 mt-0.5">
-                          {isDocVerified ? 'Berkas Valid' : 'Panitia PMB'}
+                          {isDocVerified
+                            ? 'Berkas Valid'
+                            : application.verificationStatus === 'REJECTED'
+                            ? application.verificationNote || 'Lihat catatan di bawah'
+                            : 'Panitia PMB'}
                         </span>
                       </div>
                     );
@@ -2263,7 +2443,17 @@ export default function PmbDashboardPage() {
                         : 'Proses Seleksi'}
                     </span>
                     <span className="text-[10px] text-slate-500 mt-0.5">
-                      {isPassed ? 'Lolos Administrasi' : 'Verifikasi Berkas'}
+                      {isPassed
+                        ? 'Lolos Administrasi'
+                        : application.selectionStatus === 'FAILED'
+                        ? 'Lihat alasan di bawah'
+                        : application.selectionStatus === 'RESERVE'
+                        ? 'Daftar Cadangan'
+                        : application.verificationStatus === 'VERIFIED' || !!application.studentId
+                        ? 'Menunggu Keputusan Panitia'
+                        : application.verificationStatus === 'REJECTED'
+                        ? 'Perbaiki Berkas Dahulu'
+                        : 'Menunggu Verifikasi Berkas'}
                     </span>
                   </div>
 
@@ -2418,6 +2608,19 @@ export default function PmbDashboardPage() {
                   <Edit3 className="w-4 h-4" />
                   <span>Perbaiki Dokumen Sekarang</span>
                 </button>
+              </div>
+            )}
+
+            {/* ACTION BANNER: Tidak Lulus Seleksi (dengan alasan dari panitia) */}
+            {application.selectionStatus === 'FAILED' && (
+              <div className="p-5 bg-red-50 border border-red-200 rounded-xl shadow-xs flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
+                <div>
+                  <span className="text-xs font-bold text-red-900 block">Mohon maaf, Anda belum dinyatakan lulus seleksi</span>
+                  <p className="text-xs text-red-700 mt-0.5 whitespace-pre-line">
+                    Alasan dari panitia: {application.selectionNotes || 'Silakan hubungi panitia PMB untuk informasi lebih lanjut.'}
+                  </p>
+                </div>
               </div>
             )}
 
@@ -2785,7 +2988,7 @@ export default function PmbDashboardPage() {
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                                 isSelected ? 'bg-[#1E3A8A] text-white' : 'bg-slate-100 text-slate-600'
                               }`}>
-                                {info.badge}
+                                {jenjang === 'S1' && options.registrationTypes.some((r) => r.isKip) ? 'Reguler & KIP' : info.badge}
                               </span>
                             </div>
                           </button>
@@ -2945,54 +3148,7 @@ export default function PmbDashboardPage() {
                                 );
                               })
                             ) : (
-                              <>
-                                <label
-                                  className={`p-3.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
-                                    !formData.isKip
-                                      ? 'border-[#1E3A8A] bg-blue-50/50 shadow-xs'
-                                      : 'border-slate-200 hover:border-slate-300 bg-white'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <input
-                                      type="radio"
-                                      name="jenisPendaftaran"
-                                      checked={!formData.isKip}
-                                      onChange={() => setFormData((p) => ({ ...p, isKip: false }))}
-                                      className="text-[#1E3A8A] focus:ring-[#1E3A8A]"
-                                    />
-                                    <div>
-                                      <span className="text-xs font-bold text-slate-900 block">NON-KIP (Reguler Mandiri)</span>
-                                      <span className="text-[11px] text-slate-500 block">Pendaftaran umum dengan pembiayaan mandiri</span>
-                                    </div>
-                                  </div>
-                                </label>
-
-                                <label
-                                  className={`p-3.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
-                                    formData.isKip
-                                      ? 'border-[#1E3A8A] bg-blue-50/50 shadow-xs'
-                                      : 'border-slate-200 hover:border-slate-300 bg-white'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <input
-                                      type="radio"
-                                      name="jenisPendaftaran"
-                                      checked={formData.isKip}
-                                      onChange={() => setFormData((p) => ({ ...p, isKip: true }))}
-                                      className="text-[#1E3A8A] focus:ring-[#1E3A8A]"
-                                    />
-                                    <div>
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-xs font-bold text-slate-900 block">KIP-Kuliah (Beasiswa)</span>
-                                        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">Beasiswa Penuh</span>
-                                      </div>
-                                      <span className="text-[11px] text-slate-500 block">Bagi pemegang nomor KIP / kartu bantuan pendidikan</span>
-                                    </div>
-                                  </div>
-                                </label>
-                              </>
+                              <p className="text-[11px] text-slate-500 italic">Belum ada jenis pendaftaran yang dibuka panitia.</p>
                             )}
                           </div>
                         </div>
@@ -3003,6 +3159,9 @@ export default function PmbDashboardPage() {
                             Jenis Mahasiswa
                           </label>
                           <div className="space-y-2">
+                            {options.tracks.length === 0 && (
+                              <p className="text-[11px] text-slate-500 italic">Belum ada pilihan jenis mahasiswa yang dibuka panitia.</p>
+                            )}
                             {options.tracks.map((t) => (
                               <label
                                 key={t.id}
@@ -3038,6 +3197,9 @@ export default function PmbDashboardPage() {
                           Pilihan Kelas Kuliah
                         </label>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {options.classes.length === 0 && (
+                            <p className="md:col-span-2 text-[11px] text-slate-500 italic">Belum ada pilihan kelas kuliah yang dibuka panitia.</p>
+                          )}
                           {options.classes.map((c) => (
                             <label
                               key={c.id}
@@ -3140,6 +3302,11 @@ export default function PmbDashboardPage() {
                             {filteredStudyPrograms.length}
                           </span>
                         </button>
+                        {selectedJenjang && filteredStudyPrograms.length === 0 && (
+                          <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
+                            Belum ada program studi yang menerima kombinasi jenis mahasiswa dan kelas kuliah yang Anda pilih. Ubah pilihan di atas.
+                          </div>
+                        )}
                         {availableFaculties.map((fac) => {
                           const isCurrent = selectedFacultyFilter === fac.name;
                           return (
@@ -3316,13 +3483,11 @@ export default function PmbDashboardPage() {
 
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">Tempat Lahir</label>
-                      <input
-                        type="text"
-                        placeholder="Kota / Kabupaten"
+                      <BirthPlaceSelect
                         value={formData.birthPlace}
-                        onChange={(e) => setFormData((p) => ({ ...p, birthPlace: e.target.value }))}
-                        onBlur={(e) => setFormData((p) => ({ ...p, birthPlace: toTitleCase(e.target.value) }))}
-                        className="w-full px-3.5 py-2.5 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]"
+                        onChange={(v) => setFormData((p) => ({ ...p, birthPlace: v }))}
+                        placeholder="-- Pilih Kota / Kabupaten --"
+                        className="w-full px-3.5 py-2.5 text-xs rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]"
                       />
                     </div>
 
@@ -3646,11 +3811,39 @@ export default function PmbDashboardPage() {
               {/* STEP 3: DATA ASAL SEKOLAH */}
               {currentStep === 3 && (
                 <div className="space-y-4">
+                  {selectedTrackKind !== 'BARU' && (
+                    <div className="p-4 rounded-2xl border border-amber-200 bg-amber-50/60 space-y-3">
+                      <h4 className="font-extrabold text-xs text-slate-900 uppercase tracking-wide">Perguruan Tinggi Asal</h4>
+                      <OriginPicker
+                        apiBaseUrl={apiBaseUrl}
+                        required={originRequired}
+                        value={{
+                          originInstitution: formData.originInstitution,
+                          originInstitutionCode: formData.originInstitutionCode,
+                          originInstitutionId: formData.originInstitutionId,
+                          originStudyProgram: formData.originStudyProgram,
+                          originStudyProgramLevel: formData.originStudyProgramLevel,
+                          originStudyProgramId: formData.originStudyProgramId,
+                        }}
+                        onChange={(patch) => setFormData((p) => ({ ...p, ...patch }))}
+                      />
+                      <div className="md:w-1/2">
+                        <label className="block text-xs font-bold text-slate-700 mb-1">NIM di Perguruan Tinggi Asal</label>
+                        <input
+                          type="text"
+                          value={formData.originNim}
+                          onChange={(e) => setFormData((p) => ({ ...p, originNim: e.target.value }))}
+                          className="w-full px-3.5 py-2.5 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]"
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="md:col-span-2 relative">
                       <div className="flex items-center justify-between mb-1">
                         <label className="block text-xs font-bold text-slate-700">
-                          Nama Asal Sekolah / Perguruan Tinggi <span className="text-red-500">*</span>
+                          Nama Asal Sekolah <span className="text-red-500">*</span>
                         </label>
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-[#1E3A8A] border border-blue-200 flex items-center gap-1">
                           <Search className="w-2.5 h-2.5" />
@@ -4444,6 +4637,11 @@ export default function PmbDashboardPage() {
               application={application}
               regPayment={regPayment}
               isRegistrationPaid={isRegistrationPaid}
+              reRegPayment={reRegPayment}
+              isReRegistrationPaid={isReRegistrationPaid}
+              isConverted={isConvertedStudent}
+              portalPassword={formatStudentPassword(application?.birthDate)}
+              portalUrl={portalLoginUrl !== '#' ? portalLoginUrl : ''}
             />
           </div>
         </div>
@@ -4457,6 +4655,11 @@ export default function PmbDashboardPage() {
             application={application}
             regPayment={regPayment}
             isRegistrationPaid={isRegistrationPaid}
+            reRegPayment={reRegPayment}
+            isReRegistrationPaid={isReRegistrationPaid}
+            isConverted={isConvertedStudent}
+            portalPassword={formatStudentPassword(application?.birthDate)}
+            portalUrl={portalLoginUrl !== '#' ? portalLoginUrl : ''}
           />
         </div>
       )}

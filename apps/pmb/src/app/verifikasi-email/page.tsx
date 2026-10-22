@@ -1,5 +1,6 @@
 'use client';
 
+import { CampusName, PmbYear } from '@/components/CampusText';
 import { CampusLogo } from '@/components/CampusLogo';
 import { useCampus } from '@/lib/campusProfile';
 import { Suspense, useEffect, useState } from 'react';
@@ -160,7 +161,7 @@ function VerificationContent() {
           </h1>
 
           <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto leading-relaxed mb-6">
-            Selamat, akun pendaftaran Anda di <strong>STKIP MAJENANG</strong> kini telah aktif dan siap digunakan.
+            Selamat, akun pendaftaran Anda di <strong><CampusName upper /></strong> kini telah aktif dan siap digunakan.
           </p>
 
           {applicant && (
@@ -207,7 +208,7 @@ function VerificationContent() {
           </h1>
 
           <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto leading-relaxed mb-6">
-            Alamat email Anda telah diverifikasi sebelumnya. Anda dapat langsung masuk ke portal PMB STKIP MAJENANG.
+            Alamat email Anda telah diverifikasi sebelumnya. Anda dapat langsung masuk ke portal PMB <CampusName upper />.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 max-w-md mx-auto">
@@ -370,10 +371,10 @@ export default function PmbVerifikasiEmailPage() {
               <CampusLogo url={campus.logoUrl} initials={campus.initials} className="w-9 h-9 rounded-full bg-white border-2 border-[#D4A017] flex items-center justify-center font-extrabold text-[#1E3A8A] text-xs shadow-xs" />
               <div>
                 <span className="font-bold text-sm tracking-wide block leading-tight">
-                  INSTITUT TEKNOLOGI NUSANTARA
+                  <CampusName upper />
                 </span>
                 <span className="text-[11px] text-blue-200 block">
-                  Verifikasi Akun PMB 2027/2028
+                  Verifikasi Akun PMB<PmbYear prefix=" " />
                 </span>
               </div>
             </div>
@@ -407,7 +408,7 @@ export default function PmbVerifikasiEmailPage() {
       {/* Footer */}
       <footer className="py-6 border-t border-slate-200 bg-white text-center text-xs text-slate-500">
         <div className="max-w-5xl mx-auto px-4">
-          &copy; 2027/2028 PMB {campus.name}. Seluruh Hak Cipta Dilindungi.
+          &copy; {new Date().getFullYear()} PMB {campus.name}. Seluruh Hak Cipta Dilindungi.
         </div>
       </footer>
     </div>

@@ -896,6 +896,7 @@ export class AcademicService {
     practiceRoom: { include: { building: true } },
     practiceLecturer: { include: { user: true } },
     academicYear: true,
+    admissionClass: { select: { id: true, code: true, name: true, shift: true } },
     _count: { select: { enrollments: true } },
   } as const;
 
@@ -909,6 +910,9 @@ export class AcademicService {
       sksTeori: cc.course?.sksTeori ?? 0,
       sksPraktik: cc.course?.sksPraktik ?? 0,
       className: cc.className,
+      admissionClassId: cc.admissionClassId ?? null,
+      kelasKuliah: cc.admissionClass?.name ?? null,
+      kelasKuliahShift: cc.admissionClass?.shift ?? null,
       isFlexibleSchedule: cc.isFlexibleSchedule,
       day: cc.isFlexibleSchedule ? null : cc.day,
       startTime: cc.isFlexibleSchedule ? null : cc.startTime,
@@ -974,6 +978,15 @@ export class AcademicService {
       orderBy: { createdAt: 'desc' },
     });
     return rows.map((r) => this.mapCourseClass(r));
+  }
+
+  /** Kelas kuliah (Pagi/Sore) untuk jadwal; string kosong/null berarti terbuka untuk semua kelas. */
+  private async resolveAdmissionClassId(raw: unknown): Promise<string | null> {
+    const id = String(raw ?? '').trim();
+    if (!id) return null;
+    const found = await this.prisma.admissionClass.findUnique({ where: { id }, select: { id: true } });
+    if (!found) throw new BadRequestException('Kelas kuliah yang dipilih tidak ditemukan.');
+    return found.id;
   }
 
   private async resolveCourseByCodeOrId(courseIdOrCode: string) {
@@ -1157,6 +1170,7 @@ export class AcademicService {
         courseId: course.id,
         academicYearId: activeYear.id,
         className: this.normalizeClassName(data.className || 'A'),
+        admissionClassId: await this.resolveAdmissionClassId(data.admissionClassId),
         isFlexibleSchedule,
         day,
         startTime,
@@ -1208,6 +1222,7 @@ export class AcademicService {
       data: {
         courseId,
         className: data.className !== undefined ? this.normalizeClassName(data.className) : undefined,
+        admissionClassId: data.admissionClassId !== undefined ? await this.resolveAdmissionClassId(data.admissionClassId) : undefined,
         isFlexibleSchedule,
         day,
         startTime,

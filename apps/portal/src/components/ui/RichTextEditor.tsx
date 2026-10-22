@@ -1,5 +1,6 @@
 'use client';
 
+import { promptDialog } from '@/components/ui/ConfirmHost';
 import React, { useEffect } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -61,9 +62,9 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
     return <div className="w-full min-h-[280px] rounded-xl border border-slate-200 bg-slate-50 animate-pulse" />;
   }
 
-  const setLink = () => {
+  const setLink = async () => {
     const previousUrl = editor.getAttributes('link').href;
-    const url = window.prompt('Masukkan URL tautan:', previousUrl || 'https://');
+    const url = await promptDialog('Masukkan URL tautan:', { title: 'Sisipkan Tautan', defaultValue: previousUrl || 'https://' });
     if (url === null) return;
     if (url === '') {
       editor.chain().focus().extendMarkRange('link').unsetLink().run();

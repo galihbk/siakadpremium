@@ -1,5 +1,6 @@
 'use client';
 
+import { alertDialog } from '@/components/ui/ConfirmHost';
 import React, { useEffect, useRef, useState } from 'react';
 import { Briefcase, GraduationCap, Loader2, Mail, MapPin, Search, UserCheck } from 'lucide-react';
 import { getApiBaseUrl } from '@/lib/api';
@@ -411,33 +412,33 @@ export function PegawaiForm({ initial, shiftOptions, submitLabel = 'Simpan Data 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.fullName.trim()) {
-      alert('Nama lengkap wajib diisi.');
+      void alertDialog('Nama lengkap wajib diisi.');
       return;
     }
     if (!isOutsourcing && !formData.nip.trim()) {
-      alert('NIP pegawai wajib diisi.');
+      void alertDialog('NIP pegawai wajib diisi.');
       return;
     }
     if (isDosen && !(formData.nidn || '').trim() && !(formData.nuptk || '').trim()) {
-      alert('Dosen wajib memiliki NIDN atau NUPTK. Isi salah satunya.');
+      void alertDialog('Dosen wajib memiliki NIDN atau NUPTK. Isi salah satunya.');
       return;
     }
     if (isDosen && !formData.email.trim()) {
-      alert('Email dosen wajib diisi (dipakai untuk akun login).');
+      void alertDialog('Email dosen wajib diisi (dipakai untuk akun login).');
       return;
     }
     if (isOutsourcing && !(formData.vendorName || '').trim()) {
-      alert('Perusahaan penyedia (vendor) wajib diisi untuk pegawai outsourcing.');
+      void alertDialog('Perusahaan penyedia (vendor) wajib diisi untuk pegawai outsourcing.');
       return;
     }
     const hasStructural = !!(formData.structuralPosition || '').trim();
     const hasFunctional = isDosen && !!(formData.functionalPosition || '').trim();
     if (isDosen && !hasStructural && !hasFunctional) {
-      alert('Isi minimal salah satu: Jabatan Struktural atau Jabatan Fungsional.');
+      void alertDialog('Isi minimal salah satu: Jabatan Struktural atau Jabatan Fungsional.');
       return;
     }
     if (!isDosen && !isSupport && !hasStructural) {
-      alert('Jabatan Struktural wajib dipilih untuk tenaga kependidikan.');
+      void alertDialog('Jabatan Struktural wajib dipilih untuk tenaga kependidikan.');
       return;
     }
     void onSubmit(formData);

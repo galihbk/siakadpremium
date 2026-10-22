@@ -110,16 +110,36 @@ export async function compressImageFile(
           return resolve(file); // Fallback jika context gagal
         }
 
-        // Gambar latar putih (khusus bila input PNG transparan dikonversi ke JPEG)
-        if (mimeType === 'image/jpeg') {
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(0, 0, width, height);
-        }
-
         // Render gambar dengan smoothing tingkat tinggi
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, width, height);
+
+        // Gambar transparan (mis. logo PNG tanpa latar) tidak boleh diberi latar putih: tetap simpan dengan kanal
+        // transparan (WebP). Gambar tanpa transparansi (foto, scan) dikonversi seperti biasa (JPEG, latar putih).
+        let outType: 'image/jpeg' | 'image/webp' = mimeType;
+        let hasAlpha = false;
+        if (file.type === 'image/png' || file.type === 'image/webp' || file.type === 'image/gif') {
+          try {
+            const px = ctx.getImageData(0, 0, width, height).data;
+            for (let i = 3; i < px.length; i += 4) {
+              if (px[i] < 250) {
+                hasAlpha = true;
+                break;
+              }
+            }
+          } catch {
+            hasAlpha = false;
+          }
+        }
+        if (hasAlpha) {
+          outType = 'image/webp';
+        } else if (outType === 'image/jpeg') {
+          ctx.globalCompositeOperation = 'destination-over';
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, width, height);
+          ctx.globalCompositeOperation = 'source-over';
+        }
 
         let currentQuality = initialQuality;
 
@@ -138,14 +158,14 @@ export async function compressImageFile(
 
               // Buat nama file baru dengan ekstensi yang sesuai
               let newFileName = file.name;
-              if (mimeType === 'image/jpeg' && !newFileName.toLowerCase().endsWith('.jpg') && !newFileName.toLowerCase().endsWith('.jpeg')) {
+              if (outType === 'image/jpeg' && !newFileName.toLowerCase().endsWith('.jpg') && !newFileName.toLowerCase().endsWith('.jpeg')) {
                 newFileName = newFileName.replace(/\.[^/.]+$/, '') + '.jpg';
-              } else if (mimeType === 'image/webp' && !newFileName.toLowerCase().endsWith('.webp')) {
+              } else if (outType === 'image/webp' && !newFileName.toLowerCase().endsWith('.webp')) {
                 newFileName = newFileName.replace(/\.[^/.]+$/, '') + '.webp';
               }
 
               const compressedFile = new File([blob], newFileName, {
-                type: mimeType,
+                type: outType,
                 lastModified: Date.now(),
               });
 
@@ -156,7 +176,7 @@ export async function compressImageFile(
                 resolve(compressedFile);
               }
             },
-            mimeType,
+            outType,
             quality,
           );
         };

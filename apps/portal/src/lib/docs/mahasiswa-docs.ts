@@ -100,7 +100,7 @@ export const MAHASISWA_DOCS: DocSection[] = [
         t: 'ol',
         items: [
           'Buka Rencana Studi (KRS) pada masa pengisian KRS yang ditetapkan BAAK.',
-          'Pilih kelas mata kuliah yang akan diambil. Total SKS dibatasi otomatis sesuai ketentuan.',
+          'Pilih kelas mata kuliah yang akan diambil. Total SKS dibatasi otomatis sesuai ketentuan. Daftar hanya memuat jadwal untuk kelas kuliah Anda (mis. Pagi atau Sore).',
           'Kirim KRS untuk disetujui Dosen Pembimbing Akademik (PA).',
           'Pantau status: "Menunggu persetujuan Dosen Pembimbing Akademik" berubah menjadi "Disetujui Dosen Pembimbing Akademik".',
           'Unduh KRS sebagai PDF dari halaman KRS; dokumen memakai kop surat kampus dan tanda tangan sesuai aturan.',

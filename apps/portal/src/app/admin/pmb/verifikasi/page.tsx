@@ -1,5 +1,6 @@
 'use client';
 
+import { ApplicantDocuments } from '@/components/pmb/ApplicantDocuments';
 import React, { useState, useEffect, useMemo } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getApiBaseUrl } from '@/lib/api';
@@ -90,7 +91,7 @@ export default function VerifikasiPage() {
   // Stats
   const pendingCount = useMemo(() => applicants.filter((a) => a.status === 'PENDING').length, [applicants]);
   const verifiedCount = useMemo(() => applicants.filter((a) => a.status === 'VERIFIED' || a.status === 'PASSED' || a.status === 'REGISTERED').length, [applicants]);
-  const rejectedCount = useMemo(() => applicants.filter((a) => a.status === 'FAILED').length, [applicants]);
+  const rejectedCount = useMemo(() => applicants.filter((a) => a.status === 'REJECTED').length, [applicants]);
 
   const filteredApplicants = useMemo(() => {
     return applicants.filter((item) => {
@@ -123,7 +124,8 @@ export default function VerifikasiPage() {
 
     setIsSubmitting(true);
     try {
-      const newStatus = actionType === 'APPROVE' ? 'VERIFIED' : 'FAILED';
+      // REJECTED = berkas ditolak (pendaftar diminta memperbaiki); bukan keputusan seleksi "tidak lulus"
+      const newStatus = actionType === 'APPROVE' ? 'VERIFIED' : 'REJECTED';
       const payload = {
         status: newStatus,
         notes: actionNotes.trim(),
@@ -148,7 +150,7 @@ export default function VerifikasiPage() {
         title: actionType === 'APPROVE' ? 'Berkas Berhasil Disetujui' : 'Berkas Telah Ditolak',
         message: actionType === 'APPROVE' 
           ? 'Status calon mahasiswa kini telah terverifikasi dan dapat melanjutkan ke tahap berikutnya.'
-          : 'Status calon mahasiswa telah diubah menjadi belum memenuhi syarat berkas.',
+          : 'Berkas ditandai belum memenuhi syarat. Alasan penolakan tampil di dashboard pendaftar, dan ia diminta memperbaiki berkas.',
         type: actionType === 'APPROVE' ? 'success' : 'warning',
         isAlert: true,
         confirmText: 'Selesai',
@@ -353,20 +355,9 @@ export default function VerifikasiPage() {
                     <span>Kontak: {item.phone}</span>
                   </div>
 
-                  {/* Checklist Dokumen Berkas */}
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
-                      <FileText className="w-3 h-3 text-slate-500" /> KTP / KK
-                    </span>
-                    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
-                      <FileText className="w-3 h-3 text-slate-500" /> Ijazah / SKL
-                    </span>
-                    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
-                      <FileText className="w-3 h-3 text-slate-500" /> Rapor / Nilai
-                    </span>
-                    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
-                      <FileText className="w-3 h-3 text-slate-500" /> Pasfoto Resmi
-                    </span>
+                  {/* Berkas yang diunggah pendaftar: klik untuk melihat */}
+                  <div className="pt-1">
+                    <ApplicantDocuments applicantId={item.id} flags={(item as any).documentFlags} />
                   </div>
 
                   {item.notes && (
@@ -399,9 +390,11 @@ export default function VerifikasiPage() {
                       <span className={`px-3 py-1.5 rounded-xl text-xs font-bold ${
                         item.status === 'VERIFIED' || item.status === 'PASSED' || item.status === 'REGISTERED'
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-rose-50 text-rose-700 border border-rose-200'
+                          : item.status === 'REJECTED' || item.status === 'FAILED'
+                          ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                          : 'bg-slate-50 text-slate-600 border border-slate-200'
                       }`}>
-                        {item.status === 'VERIFIED' ? 'Berkas Valid' : item.status === 'PASSED' ? 'Lolos Seleksi' : item.status === 'REGISTERED' ? 'Registrasi Selesai' : 'Berkas Ditolak'}
+                        {item.status === 'VERIFIED' ? 'Berkas Valid' : item.status === 'PASSED' ? 'Lolos Seleksi' : item.status === 'REGISTERED' ? 'Registrasi Selesai' : item.status === 'REJECTED' ? 'Berkas Ditolak' : item.status === 'FAILED' ? 'Tidak Lulus Seleksi' : item.status === 'UNPAID' ? 'Menunggu Pembayaran' : item.status === 'VERIFYING_PAYMENT' ? 'Verifikasi Pembayaran' : item.status === 'VERIFYING_RE_REGISTRATION' ? 'Verifikasi Daftar Ulang' : 'Belum Diverifikasi'}
                       </span>
                       <button
                         onClick={() => handleOpenActionModal(item, 'APPROVE')}
@@ -440,6 +433,11 @@ export default function VerifikasiPage() {
                 <p className="font-bold text-slate-900 text-sm">{selectedApplicant.fullName}</p>
                 <p className="text-slate-500 font-mono text-[11px]">{selectedApplicant.registrationNumber}</p>
                 <p className="text-slate-600 font-medium">{selectedApplicant.chosenStudyProgram}</p>
+              </div>
+
+              <div>
+                <span className="block font-bold text-slate-700 mb-1.5">Berkas Pendaftar</span>
+                <ApplicantDocuments applicantId={selectedApplicant.id} flags={(selectedApplicant as any).documentFlags} />
               </div>
 
               <div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { pageWindow } from '@/lib/pageWindow';
-import { confirmDialog } from '@/components/ui/ConfirmHost';
+import { confirmDialog, alertDialog } from '@/components/ui/ConfirmHost';
 
 import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import Link from 'next/link';
@@ -385,7 +385,7 @@ function ProdiContent() {
   const handleSaveProgram = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.code || !formData.name || !formData.facultyId) {
-      alert('Mohon isi field wajib (termasuk Fakultas Induk)!');
+      void alertDialog('Mohon isi field wajib (termasuk Fakultas Induk)!');
       return;
     }
 

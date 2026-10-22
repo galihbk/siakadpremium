@@ -1,5 +1,6 @@
 'use client';
 
+import { CampusName, PmbYear } from '@/components/CampusText';
 import { CampusLogo } from '@/components/CampusLogo';
 import { useCampus } from '@/lib/campusProfile';
 import { useState, useEffect } from 'react';
@@ -365,10 +366,10 @@ export default function PmbDaftarPage() {
               <CampusLogo url={campus.logoUrl} initials={campus.initials} className="w-9 h-9 rounded-full bg-white border-2 border-[#D4A017] flex items-center justify-center font-extrabold text-[#1E3A8A] text-xs shadow-xs" />
               <div>
                 <span className="font-bold text-sm tracking-wide block leading-tight">
-                  INSTITUT TEKNOLOGI NUSANTARA
+                  <CampusName upper />
                 </span>
                 <span className="text-[11px] text-blue-200 block">
-                  Pendaftaran Akun Baru PMB 2027/2028
+                  Pendaftaran Akun Baru PMB<PmbYear prefix=" " />
                 </span>
               </div>
             </div>
@@ -468,7 +469,7 @@ export default function PmbDaftarPage() {
                 Registrasi Akun PMB Baru
               </h1>
               <p className="text-xs text-slate-500 mt-1">
-                Tahun Akademik 2027/2028 • {campus.name}
+                <PmbYear prefix="Tahun Akademik " suffix=" • " />{campus.name}
               </p>
             </div>
 

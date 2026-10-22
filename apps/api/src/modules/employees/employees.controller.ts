@@ -15,6 +15,12 @@ export class EmployeesController {
     return this.employeesService.findAll();
   }
 
+  @Get('directory')
+  @ApiOperation({ summary: 'Direktori ringkas pegawai & dosen (nama, kontak, unit) untuk pilihan penanggung jawab' })
+  async directory() {
+    return this.employeesService.directory();
+  }
+
   @Get('universities')
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Cari perguruan tinggi (PDDikti) untuk isian riwayat pendidikan pegawai' })

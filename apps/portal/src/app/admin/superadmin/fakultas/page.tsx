@@ -1,5 +1,6 @@
 'use client';
 
+import { alertDialog } from '@/components/ui/ConfirmHost';
 import { pageWindow } from '@/lib/pageWindow';
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
@@ -258,7 +259,7 @@ export default function SuperAdminFakultasPage() {
   const handleSaveFaculty = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.code || !formData.name) {
-      alert('Mohon isi field wajib (Kode dan Nama Fakultas)!');
+      void alertDialog('Mohon isi field wajib (Kode dan Nama Fakultas)!');
       return;
     }
 
@@ -291,7 +292,7 @@ export default function SuperAdminFakultasPage() {
       await loadFaculties();
       setIsAddModalOpen(false);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Gagal menyimpan data fakultas.');
+      void alertDialog(err instanceof Error ? err.message : 'Gagal menyimpan data fakultas.', { type: 'error' });
     } finally {
       setIsSavingFaculty(false);
     }

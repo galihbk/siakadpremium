@@ -1,6 +1,7 @@
 'use client';
 
 import { KopSurat } from '@/components/common/KopSurat';
+import { LetterBody } from '@/components/common/LetterBody';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getAuthSession, AuthUser } from '@/lib/auth';
@@ -16,9 +17,16 @@ function splitNameAndBidang(value: string): { name: string; bidang: string } {
 
 // Ambil nama kota dari string alamat, contoh "..., Jakarta Selatan 12430" -> "Jakarta Selatan"
 function getCityFromAddress(address: string): string {
-  const parts = address.split(',');
-  const last = parts[parts.length - 1] || '';
-  return last.replace(/\d+/g, '').trim() || 'Jakarta';
+  // Ambil bagian alamat sebelum " | " (kontak), buang provinsi/kode pos di ujung, lalu ambil kota/kabupaten terakhir
+  const first = address.split('|')[0];
+  const parts = first
+    .split(',')
+    .map((p) => p.replace(/\d+/g, '').trim())
+    .filter(Boolean);
+  const PROVINCE = /^(prov\.?|provinsi|jawa|dki|di yogyakarta|banten|bali|sumatera|kalimantan|sulawesi|papua|nusa tenggara|maluku|aceh|riau|jambi|lampung|bengkulu|gorontalo|kepulauan)/i;
+  while (parts.length > 1 && PROVINCE.test(parts[parts.length - 1])) parts.pop();
+  const city = (parts[parts.length - 1] || '').replace(/^(kabupaten|kab\.?|kota)\s+/i, '').trim();
+  return city || '..........';
 }
 
 import {
@@ -318,8 +326,49 @@ export default function LayananSuratPage() {
     }
   };
 
-  const handlePrintPreview = () => {
-    window.print();
+  // Langsung simpan sebagai PDF (tanpa dialog cetak browser)
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const downloadLetter = async (letter: LetterRequest, signer: ResolvedSigner | null, coSigner: ResolvedSigner | null) => {
+    setPdfBusy(true);
+    try {
+      const { downloadLetterPdf } = await import('@/lib/academicPdf');
+      await downloadLetterPdf({
+        inst: institutionProfile,
+        unitName: 'Biro Administrasi Akademik dan Kemahasiswaan (BAAK)',
+        title: letter.typeName,
+        letterNo: letter.letterNo || '-',
+        body: letter.letterBody || '',
+        placeDate: `${getCityFromAddress(institutionProfile.kopContact || institutionProfile.contactAddress)}, ${formatTanggal(letter.processedAt) || formatTanggal(letter.createdAt)}`,
+        signer: {
+          roleLabel: signer?.roleLabel ?? 'Wakil Rektor Bidang Akademik',
+          name: '',
+        },
+        coSigner: coSigner ? { roleLabel: coSigner.roleLabel, name: '' } : null,
+        requestNo: letter.requestNo,
+        filename: `${letter.typeCode}-${(letter.letterNo || letter.requestNo).replace(/[\/]+/g, '-')}.pdf`,
+      });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Gagal membuat PDF surat.');
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
+  // Tombol "Unduh PDF" di daftar: ambil penandatangan lalu langsung simpan PDF tanpa membuka pratinjau
+  const downloadLetterDirect = async (letter: LetterRequest) => {
+    let s1: ResolvedSigner | null = null;
+    let s2: ResolvedSigner | null = null;
+    try {
+      const params = new URLSearchParams({ documentCode: letter.typeCode });
+      if (profile?.studentId) params.set('studentId', profile.studentId);
+      const r = await fetch(`${getApiBaseUrl()}/document-signatures/resolve?${params.toString()}`);
+      const j = r.ok ? await r.json() : null;
+      s1 = j?.data?.signer1 ?? null;
+      s2 = j?.data?.signer2 ?? null;
+    } catch {
+      // tanpa aturan tanda tangan: pakai penandatangan bawaan profil institusi
+    }
+    await downloadLetter(letter, s1, s2);
   };
 
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -362,14 +411,11 @@ export default function LayananSuratPage() {
 
           <div className="flex items-center gap-2.5 flex-wrap">
             <button
-              onClick={() => {
-                resetForm();
-                setIsModalOpen(true);
-              }}
+              onClick={() => document.getElementById('katalog-surat')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
               className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-[#D4A017] hover:bg-[#C59114] text-slate-950 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs"
             >
               <Plus className="w-4 h-4" />
-              <span>Ajukan Surat Baru</span>
+              <span>Pilih Jenis Surat</span>
             </button>
           </div>
         </div>
@@ -444,7 +490,7 @@ export default function LayananSuratPage() {
         </div>
 
         {/* KATALOG JENIS SURAT SECTION */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-subtle p-6 space-y-4 print:hidden">
+        <div id="katalog-surat" className="bg-white rounded-2xl border border-slate-200 shadow-subtle p-6 space-y-4 print:hidden">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
             <div>
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -642,12 +688,13 @@ export default function LayananSuratPage() {
                                 <span>Lihat</span>
                               </button>
                               <button
-                                onClick={() => setPreviewLetter(item)}
+                                onClick={() => downloadLetterDirect(item)}
+                                disabled={pdfBusy}
                                 className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-700 text-emerald-700 hover:text-white text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
-                                title="Cetak Surat Resmi"
+                                title="Simpan surat resmi sebagai PDF"
                               >
                                 <Download className="w-3.5 h-3.5" />
-                                <span>Cetak</span>
+                                <span>Unduh PDF</span>
                               </button>
                             </>
                           ) : (
@@ -713,22 +760,11 @@ export default function LayananSuratPage() {
                 </div>
               )}
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Jenis Surat yang Diajukan <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  value={formJenis}
-                  onChange={(e) => setFormJenis(e.target.value)}
-                  required
-                  className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 font-medium text-slate-900 bg-white"
-                >
-                  {KATALOG_SURAT.map((kat) => (
-                    <option key={kat.kode} value={kat.kode}>
-                      {kat.nama} ({kat.durasi})
-                    </option>
-                  ))}
-                </select>
+              {/* Jenis surat sudah dipilih dari katalog; tidak dipilih ulang di sini */}
+              <div className="p-3 rounded-xl bg-blue-50 border border-blue-100 text-xs">
+                <span className="text-[10px] font-bold uppercase text-slate-500 block">Jenis surat</span>
+                <span className="font-bold text-[#1E3A8A]">{KATALOG_SURAT.find((k) => k.kode === formJenis)?.nama}</span>
+                <span className="text-slate-500"> · {KATALOG_SURAT.find((k) => k.kode === formJenis)?.durasi}</span>
               </div>
 
               <div>
@@ -841,11 +877,12 @@ export default function LayananSuratPage() {
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={handlePrintPreview}
+                  onClick={() => downloadLetter(previewLetter, previewSigner, previewSigner2)}
+                  disabled={pdfBusy}
                   className="px-3 py-1.5 rounded-lg bg-[#D4A017] hover:bg-[#C59114] text-slate-950 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  <span>Cetak / Simpan PDF</span>
+                  <span>{pdfBusy ? 'Membuat PDF...' : 'Simpan PDF'}</span>
                 </button>
                 <button
                   onClick={() => setPreviewLetter(null)}
@@ -873,8 +910,8 @@ export default function LayananSuratPage() {
                 </p>
               </div>
 
-              <div className="text-xs sm:text-sm space-y-4 text-justify whitespace-pre-line">
-                {previewLetter.letterBody || 'Isi surat sedang disiapkan oleh BAAK.'}
+              <div className="text-xs sm:text-sm">
+                <LetterBody text={previewLetter.letterBody || 'Isi surat sedang disiapkan oleh BAAK.'} campusName={institutionProfile.campusName} />
               </div>
 
               <div className="pt-6 font-sans flex items-end justify-between text-xs">
@@ -891,23 +928,16 @@ export default function LayananSuratPage() {
                     <div className="mt-5 space-y-1 text-xs">
                       <p>Mengetahui,</p>
                       <p className="font-bold text-slate-800">{previewSigner2.roleLabel},</p>
-                      <div className="h-12" />
-                      <p className={`font-bold ${previewSigner2.name ? 'text-slate-900' : 'text-slate-400 italic'}`}>
-                        {previewSigner2.name ?? '(belum ditetapkan)'}
-                      </p>
+                      <div className="h-20" />
                     </div>
                   )}
                 </div>
 
                 <div className="text-right space-y-1">
-                  <p>{getCityFromAddress(institutionProfile.contactAddress)}, {formatTanggal(previewLetter.processedAt) || formatTanggal(previewLetter.createdAt)}</p>
+                  <p>{getCityFromAddress(institutionProfile.kopContact || institutionProfile.contactAddress)}, {formatTanggal(previewLetter.processedAt) || formatTanggal(previewLetter.createdAt)}</p>
                   <p className="font-bold text-slate-800">{previewSigner?.roleLabel ?? 'Wakil Rektor Bidang Akademik'},</p>
-                  <div className="h-12 flex items-center justify-end">
-                    <span className="font-serif italic text-[#1E3A8A] font-black text-sm tracking-wider">
-                      {previewSigner?.name ?? splitNameAndBidang(institutionProfile.viceRector1).name}
-                    </span>
-                  </div>
-                  <p className="font-bold text-slate-900">{previewSigner?.name ?? splitNameAndBidang(institutionProfile.viceRector1).name}</p>
+                  {/* Tanda tangan & nama pejabat dikosongkan: ditandatangani manual setelah dicetak */}
+                  <div className="h-20" />
                 </div>
               </div>
             </div>

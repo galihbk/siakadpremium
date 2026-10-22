@@ -1,7 +1,8 @@
 'use client';
 
+import { useChatSocket } from '@/lib/useChatSocket';
 import { CampusLogo } from '@/components/common/CampusLogo';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -95,6 +96,8 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
   const router = useRouter();
   const { unreadCount: unreadUpdates } = useUnreadUpdates();
   const [chatUnread, setChatUnread] = useState(0);
+  // Lencana Layanan Surat (BAAK): permohonan surat yang menunggu diproses
+  const [letterPending, setLetterPending] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [institutionProfile, setInstitutionProfile] = useState<InstitutionProfile>(FALLBACK_INSTITUTION_PROFILE);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -102,26 +105,54 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
     'student' | 'lecturer' | 'admin' | 'superadmin' | 'finance' | 'lp3m' | 'p2m' | 'prodi' | 'sdm' | 'pmb'
   >(role);
   // Lencana Live Chat PMB: jumlah pesan pendaftar yang belum dibaca panitia (hanya untuk peran PMB).
+  // Diperbarui real-time murni lewat WebSocket (tanpa polling); saat tersambung ulang diambil lagi lewat sinyal resync.
+  const loadChatUnread = useCallback(() => {
+    fetch(`${getApiBaseUrl()}/admissions/admin/pmb/chat/unread`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const d = j?.data ?? j;
+        if (typeof d?.unread === 'number') setChatUnread(d.unread);
+      })
+      .catch(() => undefined);
+  }, []);
+
   useEffect(() => {
-    if (effectiveRole !== 'pmb') return;
-    let live = true;
-    const load = () => {
-      if (document.visibilityState !== 'visible') return;
-      fetch(`${getApiBaseUrl()}/admissions/admin/pmb/chat/unread`, { cache: 'no-store' })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((j) => {
-          const d = j?.data ?? j;
-          if (live && typeof d?.unread === 'number') setChatUnread(d.unread);
-        })
-        .catch(() => undefined);
+    if (effectiveRole === 'pmb') loadChatUnread();
+  }, [effectiveRole, loadChatUnread]);
+
+  useChatSocket({
+    token: effectiveRole === 'pmb' ? getAuthSession().token : null,
+    onSignal: (signal) => {
+      if (signal.type !== 'status') loadChatUnread();
+    },
+  });
+
+  // Diambil saat halaman dibuka/berpindah, saat tab kembali aktif, dan setelah BAAK memproses surat (tanpa polling berkala)
+  const loadLetterPending = useCallback(() => {
+    const { token } = getAuthSession();
+    fetch(`${getApiBaseUrl()}/letters/pending-count`, { cache: 'no-store', headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const d = j?.data ?? j;
+        if (typeof d?.pending === 'number') setLetterPending(d.pending);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (effectiveRole !== 'admin') return;
+    loadLetterPending();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') loadLetterPending();
     };
-    load();
-    const id = window.setInterval(load, 15000);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('siakad:letters-updated', loadLetterPending);
     return () => {
-      live = false;
-      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('siakad:letters-updated', loadLetterPending);
     };
-  }, [effectiveRole]);
+  }, [effectiveRole, pathname, loadLetterPending]);
+
   const [isVerifying, setIsVerifying] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
@@ -969,6 +1000,11 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                       {item.href === '/admin/pmb/live-chat' && chatUnread > 0 && (
                         <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-[#D4A017] text-slate-950 text-[10px] font-extrabold flex items-center justify-center">
                           {chatUnread}
+                        </span>
+                      )}
+                      {item.href === '/admin/surat' && letterPending > 0 && (
+                        <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-[#D4A017] text-slate-950 text-[10px] font-extrabold flex items-center justify-center">
+                          {letterPending}
                         </span>
                       )}
                       {item.href === '/admin/superadmin/updates' && unreadUpdates > 0 && (

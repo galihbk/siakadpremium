@@ -74,6 +74,8 @@ export class ExamsService {
       roomId: e.roomId,
       location: e.location,
       roomName: e.room ? `${e.room.name} (${e.room.buildingName})` : e.location || null,
+      roomCapacity: e.room?.capacity ?? null,
+      seatCount: e._count?.seats ?? 0,
       proctor1: e.proctor1 ? { id: e.proctor1.id, name: this.lecturerName(e.proctor1) } : null,
       proctor2: e.proctor2 ? { id: e.proctor2.id, name: this.lecturerName(e.proctor2) } : null,
       notes: e.notes,
@@ -81,9 +83,10 @@ export class ExamsService {
   }
 
   private readonly scheduleInclude = {
-    room: { select: { id: true, name: true, buildingName: true } },
+    room: { select: { id: true, name: true, buildingName: true, capacity: true } },
     proctor1: { select: lecturerSelect },
     proctor2: { select: lecturerSelect },
+    _count: { select: { seats: true } },
   } satisfies Prisma.ExamScheduleInclude;
 
   // ---------------------------------------------------------------- admin
@@ -251,12 +254,18 @@ export class ExamsService {
     });
     if (!courseClass) throw new NotFoundException('Kelas tidak ditemukan.');
 
+    // Lokasi ujian = ruang dari master ruang (gedung & lantai sudah tercatat di sana); tidak ada lokasi bebas.
     const roomId = dto.roomId || null;
-    if (roomId) {
-      const room = await this.prisma.room.findUnique({ where: { id: roomId }, select: { id: true } });
-      if (!room) throw new BadRequestException('Ruang tidak ditemukan.');
+    if (!roomId) throw new BadRequestException('Ruang ujian wajib dipilih dari master ruang.');
+    const room = await this.prisma.room.findUnique({ where: { id: roomId }, select: { id: true, name: true, capacity: true } });
+    if (!room) throw new BadRequestException('Ruang tidak ditemukan.');
+    const participants = await this.prisma.courseEnrollment.count({ where: { courseClassId: courseClass.id, status: 'APPROVED' } });
+    if (participants > room.capacity) {
+      throw new BadRequestException(
+        `Ruang ${room.name} hanya berkapasitas ${room.capacity} kursi, sedangkan kelas ini punya ${participants} peserta. Pilih ruang yang lebih besar.`,
+      );
     }
-    const location = (dto.location ?? '').trim() || null;
+    const location: string | null = null;
     const proctor1Id = dto.proctor1Id || null;
     const proctor2Id = dto.proctor2Id || null;
     if (proctor1Id && proctor1Id === proctor2Id) throw new BadRequestException('Pengawas 1 dan 2 tidak boleh orang yang sama.');
@@ -278,13 +287,18 @@ export class ExamsService {
       type,
     });
 
+    const previous = await this.prisma.examSchedule.findUnique({
+      where: { courseClassId_type: { courseClassId: courseClass.id, type } },
+      select: { id: true, roomId: true },
+    });
+
     const data = {
       academicYearId: courseClass.academicYearId,
       examDate,
       startTime,
       endTime,
       roomId,
-      location: roomId ? null : location,
+      location: null,
       proctor1Id,
       proctor2Id,
       notes: (dto.notes ?? '').trim() || null,
@@ -295,7 +309,195 @@ export class ExamsService {
       update: data,
       include: this.scheduleInclude,
     });
+    // Ganti ruang: nomor kursi lama tidak berlaku lagi (kapasitas/tata letak berbeda)
+    if (previous && previous.roomId !== roomId) {
+      const removed = await this.prisma.examSeat.deleteMany({ where: { examScheduleId: previous.id } });
+      if (removed.count > 0) warnings.push('Ruang diganti, nomor kursi sebelumnya dihapus. Generate ulang nomor kursi.');
+      return { success: true, schedule: this.shape({ ...saved, _count: { seats: 0 } }), warnings };
+    }
     return { success: true, schedule: this.shape(saved), warnings };
+  }
+
+  // ---------------------------------------------------------------- ketersediaan & nomor kursi
+  /** Ruang dan pengawas yang sudah terpakai pada tanggal & jam tertentu (untuk menonaktifkan pilihan di form). */
+  async getAvailability(q: { academicYearId?: string; date?: string; startTime?: string; endTime?: string; courseClassId?: string; type?: string }) {
+    const examDate = this.dateOnly(q.date);
+    const startTime = (q.startTime ?? '').trim();
+    const endTime = (q.endTime ?? '').trim();
+    if (!TIME_RE.test(startTime) || !TIME_RE.test(endTime) || this.toMinutes(startTime) >= this.toMinutes(endTime)) {
+      return { busyRooms: {}, busyProctors: {} };
+    }
+    const year = await this.resolveYear(q.academicYearId);
+    const type = q.type ? this.normType(q.type) : null;
+    const rows = await this.prisma.examSchedule.findMany({
+      where: {
+        academicYearId: year.id,
+        examDate,
+        ...(q.courseClassId && type ? { NOT: { courseClassId: q.courseClassId, type } } : {}),
+      },
+      include: { courseClass: { select: { className: true, course: { select: { code: true, name: true } } } } },
+    });
+    const busyRooms: Record<string, string> = {};
+    const busyProctors: Record<string, string> = {};
+    for (const e of rows) {
+      if (!this.overlap(startTime, endTime, e.startTime, e.endTime)) continue;
+      const label = `${e.courseClass.course?.code ?? ''} ${e.courseClass.className}, ${e.startTime}-${e.endTime}`;
+      if (e.roomId) busyRooms[e.roomId] = label;
+      for (const p of [e.proctor1Id, e.proctor2Id]) if (p) busyProctors[p] = label;
+    }
+    return { busyRooms, busyProctors };
+  }
+
+  private shuffle<T>(arr: T[]) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  private async generateSeatsFor(scheduleId: string, mode: 'nim' | 'random') {
+    const schedule = await this.prisma.examSchedule.findUnique({
+      where: { id: scheduleId },
+      include: { room: { select: { name: true, capacity: true } }, courseClass: { select: { className: true, course: { select: { code: true } } } } },
+    });
+    if (!schedule) throw new NotFoundException('Jadwal ujian tidak ditemukan.');
+    if (!schedule.room) throw new BadRequestException('Jadwal belum punya ruang; pilih ruang ujian dulu.');
+
+    const enrolled = await this.prisma.courseEnrollment.findMany({
+      where: { courseClassId: schedule.courseClassId, status: 'APPROVED' },
+      select: { student: { select: { id: true, nim: true } } },
+    });
+    const students = Array.from(new Map(enrolled.map((e) => [e.student.id, e.student])).values());
+    if (students.length > schedule.room.capacity) {
+      throw new BadRequestException(
+        `${schedule.courseClass.course?.code ?? ''} ${schedule.courseClass.className}: ${students.length} peserta melebihi kapasitas ${schedule.room.name} (${schedule.room.capacity} kursi).`,
+      );
+    }
+    const ordered = mode === 'random' ? this.shuffle(students) : [...students].sort((a, b) => a.nim.localeCompare(b.nim));
+    await this.prisma.$transaction([
+      this.prisma.examSeat.deleteMany({ where: { examScheduleId: scheduleId } }),
+      this.prisma.examSeat.createMany({ data: ordered.map((st, i) => ({ examScheduleId: scheduleId, studentId: st.id, seatNo: i + 1 })) }),
+    ]);
+    return ordered.length;
+  }
+
+  /** Generate nomor kursi satu jadwal (id jadwal) atau semua jadwal pada tahun akademik + jenis ujian. */
+  async generateSeats(dto: { scheduleId?: string; academicYearId?: string; type?: string; mode?: string }) {
+    const mode: 'nim' | 'random' = dto.mode === 'random' ? 'random' : 'nim';
+    if (dto.scheduleId) {
+      const count = await this.generateSeatsFor(dto.scheduleId, mode);
+      return { success: true, generated: 1, seats: count, failed: [] as string[] };
+    }
+    const year = await this.resolveYear(dto.academicYearId);
+    const type = this.normType(dto.type);
+    const schedules = await this.prisma.examSchedule.findMany({ where: { academicYearId: year.id, type }, select: { id: true } });
+    let generated = 0;
+    let seats = 0;
+    const failed: string[] = [];
+    for (const sc of schedules) {
+      try {
+        seats += await this.generateSeatsFor(sc.id, mode);
+        generated++;
+      } catch (err: any) {
+        failed.push(err?.message || 'Gagal membuat nomor kursi.');
+      }
+    }
+    return { success: true, generated, seats, failed };
+  }
+
+  /** Daftar peserta + nomor kursi sebuah jadwal (untuk cetak daftar hadir). */
+  async getSeats(scheduleId: string) {
+    const schedule = await this.prisma.examSchedule.findUnique({
+      where: { id: scheduleId },
+      include: {
+        ...this.scheduleInclude,
+        courseClass: { select: { className: true, course: { select: { code: true, name: true } } } },
+        seats: { select: { seatNo: true, studentId: true } },
+      },
+    });
+    if (!schedule) throw new NotFoundException('Jadwal ujian tidak ditemukan.');
+    // Peserta = mahasiswa kelas dengan KRS disetujui; nomor kursi terisi bila sudah digenerate
+    const enrolled = await this.prisma.courseEnrollment.findMany({
+      where: { courseClassId: schedule.courseClassId, status: 'APPROVED' },
+      select: { student: { select: { id: true, nim: true, user: { select: { fullName: true } } } } },
+    });
+    const seatOf = new Map(schedule.seats.map((x) => [x.studentId, x.seatNo]));
+    const participants = Array.from(new Map(enrolled.map((e) => [e.student.id, e.student])).values())
+      .map((st) => ({ seatNo: seatOf.get(st.id) ?? null, nim: st.nim, name: st.user.fullName }))
+      .sort((a, b) => (a.seatNo ?? 1e9) - (b.seatNo ?? 1e9) || a.nim.localeCompare(b.nim));
+    return {
+      schedule: {
+        ...this.shape(schedule),
+        courseCode: schedule.courseClass.course?.code ?? '',
+        courseName: schedule.courseClass.course?.name ?? '',
+        className: schedule.courseClass.className,
+      },
+      seats: participants,
+    };
+  }
+
+  /** Bahan cetak Daftar Hadir & Berita Acara: satu jadwal, atau semua jadwal pada tahun akademik + jenis ujian. */
+  async getPrintBundle(q: { scheduleId?: string; academicYearId?: string; type?: string }) {
+    let ids: string[];
+    let year: { id: string; code: string; name: string };
+    if (q.scheduleId) {
+      const one = await this.prisma.examSchedule.findUnique({ where: { id: q.scheduleId }, select: { id: true, academicYearId: true } });
+      if (!one) throw new NotFoundException('Jadwal ujian tidak ditemukan.');
+      ids = [one.id];
+      year = await this.resolveYear(one.academicYearId);
+    } else {
+      year = await this.resolveYear(q.academicYearId);
+      const type = this.normType(q.type);
+      const rows = await this.prisma.examSchedule.findMany({
+        where: { academicYearId: year.id, type },
+        orderBy: [{ examDate: 'asc' }, { startTime: 'asc' }, { room: { name: 'asc' } }],
+        select: { id: true },
+      });
+      ids = rows.map((r) => r.id);
+    }
+    const items = [];
+    for (const id of ids) items.push(await this.getSeats(id));
+    return { year, items };
+  }
+
+  /** Rekap tugas mengawas per dosen (pengawas 1 & 2) untuk tahun akademik dan jenis ujian (kosong = UTS & UAS). */
+  async getProctorRecap(q: { academicYearId?: string; type?: string }) {
+    const year = await this.resolveYear(q.academicYearId);
+    const type = q.type ? this.normType(q.type) : null;
+    const rows = await this.prisma.examSchedule.findMany({
+      where: { academicYearId: year.id, ...(type ? { type } : {}), OR: [{ proctor1Id: { not: null } }, { proctor2Id: { not: null } }] },
+      include: {
+        ...this.scheduleInclude,
+        courseClass: { select: { className: true, course: { select: { code: true, name: true } } } },
+      },
+      orderBy: [{ examDate: 'asc' }, { startTime: 'asc' }],
+    });
+    const byLecturer = new Map<string, { id: string; name: string; duties: any[] }>();
+    for (const r of rows) {
+      for (const [role, l] of [['Pengawas 1', r.proctor1], ['Pengawas 2', r.proctor2]] as const) {
+        if (!l) continue;
+        const entry = byLecturer.get(l.id) ?? { id: l.id, name: this.lecturerName(l) || '-', duties: [] };
+        entry.duties.push({
+          scheduleId: r.id,
+          type: r.type,
+          role,
+          examDate: r.examDate,
+          startTime: r.startTime,
+          endTime: r.endTime,
+          room: r.room ? `${r.room.name} (${r.room.buildingName})` : '-',
+          courseCode: r.courseClass.course?.code ?? '',
+          courseName: r.courseClass.course?.name ?? '',
+          className: r.courseClass.className,
+        });
+        byLecturer.set(l.id, entry);
+      }
+    }
+    const items = Array.from(byLecturer.values())
+      .map((e) => ({ ...e, total: e.duties.length }))
+      .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+    return { year, type, totalSchedules: rows.length, items };
   }
 
   async removeSchedule(id: string) {
@@ -323,7 +525,7 @@ export class ExamsService {
         courseClass: {
           select: {
             className: true,
-            examSchedules: { include: this.scheduleInclude },
+            examSchedules: { include: { ...this.scheduleInclude, seats: { where: { studentId: student.id }, select: { seatNo: true } } } },
           },
         },
       },
@@ -333,6 +535,7 @@ export class ExamsService {
       .flatMap((e) =>
         (e.courseClass?.examSchedules ?? []).map((s) => ({
           ...this.shape(s),
+          seatNo: (s as any).seats?.[0]?.seatNo ?? null,
           courseCode: e.course?.code ?? '',
           courseName: e.course?.name ?? '',
           sks: e.course?.sks ?? 0,

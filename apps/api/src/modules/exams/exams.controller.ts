@@ -42,6 +42,48 @@ export class ExamsController {
     return this.examsService.upsertSchedule(dto);
   }
 
+  @Get('admin/availability')
+  @Roles(UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Ruang & pengawas yang sudah terpakai pada tanggal/jam tertentu' })
+  availability(
+    @Query('academicYearId') academicYearId?: string,
+    @Query('date') date?: string,
+    @Query('startTime') startTime?: string,
+    @Query('endTime') endTime?: string,
+    @Query('courseClassId') courseClassId?: string,
+    @Query('type') type?: string
+  ) {
+    return this.examsService.getAvailability({ academicYearId, date, startTime, endTime, courseClassId, type });
+  }
+
+  @Post('admin/seats/generate')
+  @Roles(UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Generate nomor kursi peserta (satu jadwal atau semua jadwal pada tahun akademik & jenis ujian)' })
+  generateSeats(@Body() dto: { scheduleId?: string; academicYearId?: string; type?: string; mode?: string }) {
+    return this.examsService.generateSeats(dto);
+  }
+
+  @Get('admin/print')
+  @Roles(UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Bahan cetak Daftar Hadir & Berita Acara ujian (satu jadwal atau semua per jenis ujian)' })
+  printBundle(@Query('scheduleId') scheduleId?: string, @Query('academicYearId') academicYearId?: string, @Query('type') type?: string) {
+    return this.examsService.getPrintBundle({ scheduleId, academicYearId, type });
+  }
+
+  @Get('admin/proctors')
+  @Roles(UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Rekap tugas mengawas per dosen' })
+  proctorRecap(@Query('academicYearId') academicYearId?: string, @Query('type') type?: string) {
+    return this.examsService.getProctorRecap({ academicYearId, type });
+  }
+
+  @Get('admin/schedule/:id/seats')
+  @Roles(UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Daftar peserta beserta nomor kursi sebuah jadwal ujian' })
+  seats(@Param('id') id: string) {
+    return this.examsService.getSeats(id);
+  }
+
   @Delete('admin/schedule/:id')
   @Roles(UserRole.ADMIN_BAAK, UserRole.STAFF)
   @ApiOperation({ summary: 'Menghapus jadwal ujian' })

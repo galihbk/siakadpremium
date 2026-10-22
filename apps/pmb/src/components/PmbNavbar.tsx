@@ -1,5 +1,6 @@
 'use client';
 
+import { PmbYear } from '@/components/CampusText';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useServiceUrl } from '@/lib/publicUrls';
@@ -92,7 +93,7 @@ export function PmbNavbar({ webUrl: webUrlFallback }: { webUrl: string }) {
                   <span className="hidden sm:inline">PMB {name.toUpperCase()}</span>
                 </span>
                 <span className="hidden sm:block text-[10px] md:text-xs font-semibold text-[#D4A017] tracking-wider uppercase truncate">
-                  Penerimaan Mahasiswa Baru TA 2027/2028
+                  Penerimaan Mahasiswa Baru<PmbYear prefix=" TA " />
                 </span>
               </div>
             </Link>

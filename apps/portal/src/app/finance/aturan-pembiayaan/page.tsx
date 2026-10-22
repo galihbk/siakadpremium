@@ -229,10 +229,11 @@ export default function AdminAturanPembiayaanPage() {
 
   // Quick preset loader for simulator
   const loadScenario = (scenario: 'A' | 'B' | 'C' | 'D') => {
-    const kip = registrationTypes.find((r) => r.code === 'KIP');
-    const nonKip = registrationTypes.find((r) => r.code === 'NON_KIP');
-    const mhsBaru = tracks.find((t) => t.code === 'MAHASISWA_BARU');
-    const transfer = tracks.find((t) => t.code === 'TRANSFER');
+    // Dikenali dari status KIP dan kategori mahasiswa, bukan dari kode yang ditulis kampus
+    const kip = registrationTypes.find((r) => r.isKip);
+    const nonKip = registrationTypes.find((r) => !r.isKip);
+    const mhsBaru = tracks.find((t) => t.kind === 'BARU') ?? tracks.find((t) => t.code === 'MAHASISWA_BARU');
+    const transfer = tracks.find((t) => t.kind === 'TRANSFER') ?? tracks.find((t) => t.code === 'TRANSFER');
     const regClass = classes.find((c) => c.code === 'REGULER');
     const karyClass = classes.find((c) => c.code === 'KARYAWAN');
 

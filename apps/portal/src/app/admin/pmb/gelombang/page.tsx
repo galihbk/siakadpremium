@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { getApiBaseUrl } from '@/lib/api';
+import { getAuthSession } from '@/lib/auth';
 import {
   CalendarDays,
   Plus,
@@ -91,6 +92,19 @@ export default function PmbGelombangPage() {
   });
 
   const apiBaseUrl = getApiBaseUrl();
+  // Tahun akademik dipilih dari master Tahun Akademik (bukan ketikan bebas)
+  const [yearOptions, setYearOptions] = useState<string[]>([]);
+  useEffect(() => {
+    const { token } = getAuthSession();
+    fetch(`${apiBaseUrl}/academic/years`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((r) => r.json())
+      .then((j) => {
+        const rows = Array.isArray(j) ? j : j?.data ?? [];
+        const names: string[] = Array.from(new Set<string>(rows.map((y: any) => String(y.name)).filter(Boolean)));
+        setYearOptions(names.sort().reverse());
+      })
+      .catch(() => {});
+  }, [apiBaseUrl]);
 
   const fetchBatches = async () => {
     setIsRefreshing(true);
@@ -746,14 +760,25 @@ export default function PmbGelombangPage() {
                     <label className="block font-bold text-slate-700 mb-1">
                       Tahun Akademik <span className="text-rose-500">*</span>
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={formData.academicYear}
                       onChange={(e) => setFormData({ ...formData, academicYear: e.target.value })}
-                      placeholder="2027/2028"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
                       required
-                    />
+                    >
+                      {!yearOptions.includes(formData.academicYear) && (
+                        <option value={formData.academicYear}>{formData.academicYear || 'Pilih tahun akademik'} (belum ada di master)</option>
+                      )}
+                      {yearOptions.map((y) => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                    {!yearOptions.includes(formData.academicYear) && (
+                      <p className="text-[11px] text-amber-700 mt-1">
+                        Tahun akademik ini belum ada di master. Minta <strong>Admin Akademik (BAAK)</strong> menambahkannya di menu Tahun Akademik,
+                        lalu muat ulang halaman ini.
+                      </p>
+                    )}
                   </div>
 
                   {/* JENJANG */}

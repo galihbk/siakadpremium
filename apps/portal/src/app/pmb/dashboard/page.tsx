@@ -1,5 +1,8 @@
 'use client';
 
+import { BirthPlaceSelect } from '@/components/ui/BirthPlaceSelect';
+import { OriginPicker } from '@/components/pmb/OriginPicker';
+import { alertDialog } from '@/components/ui/ConfirmHost';
 import { PmbUrl } from '@/components/PmbUrl';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -112,8 +115,8 @@ const DEGREE_LEVEL_INFO: Record<string, {
   S1: {
     title: 'Sarjana (S1)',
     subtitle: 'Program Sarjana Strata 1',
-    desc: 'Tersedia opsi Beasiswa KIP-Kuliah, Mahasiswa Baru / Transfer, serta Kelas Reguler & Karyawan.',
-    badge: 'Reguler & KIP',
+    desc: 'Program sarjana dengan pilihan jenis pendaftaran, jenis mahasiswa, dan kelas sesuai yang dibuka panitia.',
+    badge: 'Reguler',
     kipEligible: true,
     showTrackClass: true,
   },
@@ -966,6 +969,13 @@ export default function PmbDashboardPage() {
     classId: '',
     studyProgramId: '',
     isKip: false,
+    originInstitution: '',
+    originInstitutionCode: '',
+    originInstitutionId: '',
+    originStudyProgram: '',
+    originStudyProgramLevel: '',
+    originStudyProgramId: '',
+    originNim: '',
 
     // Pribadi
     nik: '',
@@ -1011,6 +1021,11 @@ export default function PmbDashboardPage() {
 
     statementAgreed: false,
   });
+
+  // Label jenis mahasiswa yang dipilih (BARU / TRANSFER / RPL); selain BARU, asal perguruan tinggi wajib diisi
+  const selectedTrackKind = options.tracks.find((t) => t.id === formData.trackId)?.kind ?? 'BARU';
+  // Pindahan dan RPL Transfer SKS wajib mengisi asal; kategori lain bukan mahasiswa baru boleh mengosongkannya
+  const originRequired = selectedTrackKind === 'TRANSFER' || selectedTrackKind === 'RPL_TRANSFER';
 
   // Load user session & fetch options + profile
   const fetchDashboardData = async () => {
@@ -1104,6 +1119,13 @@ export default function PmbDashboardPage() {
             classId: app.classId || prev.classId,
             studyProgramId: app.studyProgramId || prev.studyProgramId,
             isKip: app.isKip ?? false,
+            originInstitution: app.originInstitution || '',
+            originInstitutionCode: app.originInstitutionCode || '',
+            originInstitutionId: app.originInstitutionId || '',
+            originStudyProgram: app.originStudyProgram || '',
+            originStudyProgramLevel: app.originStudyProgramLevel || '',
+            originStudyProgramId: app.originStudyProgramId || '',
+            originNim: app.originNim || '',
             nik: app.nik || '',
             fullName: app.fullName || storedAccount.fullName || '',
             birthPlace: app.birthPlace || '',
@@ -1526,8 +1548,27 @@ export default function PmbDashboardPage() {
   // Filter prodi sesuai jenjang yang dipilih — langsung match degreeLevel dari DB
   const filteredStudyPrograms = useMemo(() => {
     if (!selectedJenjang) return [];
-    return options.studyPrograms.filter((p) => p.degreeLevel === selectedJenjang);
-  }, [options.studyPrograms, selectedJenjang]);
+    const byJenjang = options.studyPrograms.filter((p) => p.degreeLevel === selectedJenjang);
+    // Jenis mahasiswa dan kelas kuliah hanya berlaku untuk jenjang yang memilihnya (S1, D4). Prodi yang tidak menerima
+    // jenis mahasiswa atau kelas yang dipilih tidak ditampilkan (daftar kosong di master = semua prodi).
+    if (!getDegreeInfo(selectedJenjang)?.showTrackClass) return byJenjang;
+    const track = options.tracks.find((t) => t.id === formData.trackId);
+    const kelas = options.classes.find((c) => c.id === formData.classId);
+    return byJenjang.filter(
+      (p) =>
+        (!track?.studyProgramIds?.length || track.studyProgramIds.includes(p.id)) &&
+        (!kelas?.studyProgramIds?.length || kelas.studyProgramIds.includes(p.id)),
+    );
+  }, [options.studyPrograms, options.tracks, options.classes, selectedJenjang, formData.trackId, formData.classId]);
+
+  // Prodi yang sudah dipilih tetapi tidak menerima kombinasi jenis mahasiswa/kelas yang baru dipilih dilepas
+  useEffect(() => {
+    if (!selectedJenjang || options.studyPrograms.length === 0 || !formData.studyProgramId) return;
+    if (!filteredStudyPrograms.some((p) => p.id === formData.studyProgramId)) {
+      setFormData((prev) => ({ ...prev, studyProgramId: '' }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredStudyPrograms]);
 
   // Kelompokkan prodi berdasarkan fakultas untuk jenjang yang dipilih
   const availableFaculties = useMemo(() => {
@@ -1604,8 +1645,14 @@ export default function PmbDashboardPage() {
         setWizardError(`Belum ada gelombang pendaftaran aktif untuk jenjang ${selectedJenjang}. Silakan hubungi panitia PMB.`);
         return;
       }
-      if (getDegreeInfo(selectedJenjang).showTrackClass && !formData.trackId) {
-        setWizardError('Silakan pilih salah satu Jalur Mahasiswa.');
+      // Jenis Pendaftaran (Non-KIP / KIP, dsb.) disiapkan panitia; tanpa itu pendaftaran tidak dapat dilanjutkan
+      if (getDegreeInfo(selectedJenjang).showTrackClass && options.registrationTypes.length === 0) {
+        setWizardError('Pendaftaran belum dapat dilanjutkan karena panitia belum menyiapkan Jenis Pendaftaran. Silakan hubungi panitia PMB.');
+        return;
+      }
+      // Hanya diwajibkan bila panitia sudah menyiapkan pilihan Jenis Mahasiswa
+      if (getDegreeInfo(selectedJenjang).showTrackClass && options.tracks.length > 0 && !formData.trackId) {
+        setWizardError('Silakan pilih salah satu Jenis Mahasiswa.');
         return;
       }
       if (!formData.studyProgramId) {
@@ -1658,8 +1705,12 @@ export default function PmbDashboardPage() {
         villageName: toTitleCase(prev.villageName),
       }));
     } else if (currentStep === 3) {
+      if (originRequired && (!formData.originInstitution.trim() || !formData.originStudyProgram.trim())) {
+        setWizardError('Nama Perguruan Tinggi Asal dan Program Studi Asal wajib diisi.');
+        return;
+      }
       if (!formData.schoolName.trim()) {
-        setWizardError('Nama Asal Sekolah / Kampus wajib diisi.');
+        setWizardError('Nama Asal Sekolah wajib diisi.');
         return;
       }
       setFormData((prev) => ({
@@ -1900,7 +1951,7 @@ export default function PmbDashboardPage() {
       // Refresh dashboard data
       fetchDashboardData();
     } catch (err: any) {
-      alert(err.message || 'Gagal mengunggah bukti pembayaran.');
+      void alertDialog(err.message || 'Gagal mengunggah bukti pembayaran.', { type: 'error' });
     } finally {
       setIsUploadingPayment(false);
     }
@@ -2673,7 +2724,7 @@ export default function PmbDashboardPage() {
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                                 isSelected ? 'bg-[#1E3A8A] text-white' : 'bg-slate-100 text-slate-600'
                               }`}>
-                                {info.badge}
+                                {jenjang === 'S1' && options.registrationTypes.some((r) => r.isKip) ? 'Reguler & KIP' : info.badge}
                               </span>
                             </div>
                           </button>
@@ -2833,54 +2884,7 @@ export default function PmbDashboardPage() {
                                 );
                               })
                             ) : (
-                              <>
-                                <label
-                                  className={`p-3.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
-                                    !formData.isKip
-                                      ? 'border-[#1E3A8A] bg-blue-50/50 shadow-xs'
-                                      : 'border-slate-200 hover:border-slate-300 bg-white'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <input
-                                      type="radio"
-                                      name="jenisPendaftaran"
-                                      checked={!formData.isKip}
-                                      onChange={() => setFormData((p) => ({ ...p, isKip: false }))}
-                                      className="text-[#1E3A8A] focus:ring-[#1E3A8A]"
-                                    />
-                                    <div>
-                                      <span className="text-xs font-bold text-slate-900 block">NON-KIP (Reguler Mandiri)</span>
-                                      <span className="text-[11px] text-slate-500 block">Pendaftaran umum dengan pembiayaan mandiri</span>
-                                    </div>
-                                  </div>
-                                </label>
-
-                                <label
-                                  className={`p-3.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
-                                    formData.isKip
-                                      ? 'border-[#1E3A8A] bg-blue-50/50 shadow-xs'
-                                      : 'border-slate-200 hover:border-slate-300 bg-white'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <input
-                                      type="radio"
-                                      name="jenisPendaftaran"
-                                      checked={formData.isKip}
-                                      onChange={() => setFormData((p) => ({ ...p, isKip: true }))}
-                                      className="text-[#1E3A8A] focus:ring-[#1E3A8A]"
-                                    />
-                                    <div>
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-xs font-bold text-slate-900 block">KIP-Kuliah (Beasiswa)</span>
-                                        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">Beasiswa Penuh</span>
-                                      </div>
-                                      <span className="text-[11px] text-slate-500 block">Bagi pemegang nomor KIP / kartu bantuan pendidikan</span>
-                                    </div>
-                                  </div>
-                                </label>
-                              </>
+                              <p className="text-[11px] text-slate-500 italic">Belum ada jenis pendaftaran yang dibuka panitia.</p>
                             )}
                           </div>
                         </div>
@@ -2891,6 +2895,9 @@ export default function PmbDashboardPage() {
                             Jenis Mahasiswa
                           </label>
                           <div className="space-y-2">
+                            {options.tracks.length === 0 && (
+                              <p className="text-[11px] text-slate-500 italic">Belum ada pilihan jenis mahasiswa yang dibuka panitia.</p>
+                            )}
                             {options.tracks.map((t) => (
                               <label
                                 key={t.id}
@@ -2926,6 +2933,9 @@ export default function PmbDashboardPage() {
                           Pilihan Kelas Kuliah
                         </label>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {options.classes.length === 0 && (
+                            <p className="md:col-span-2 text-[11px] text-slate-500 italic">Belum ada pilihan kelas kuliah yang dibuka panitia.</p>
+                          )}
                           {options.classes.map((c) => (
                             <label
                               key={c.id}
@@ -3028,6 +3038,11 @@ export default function PmbDashboardPage() {
                             {filteredStudyPrograms.length}
                           </span>
                         </button>
+                        {selectedJenjang && filteredStudyPrograms.length === 0 && (
+                          <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
+                            Belum ada program studi yang menerima kombinasi jenis mahasiswa dan kelas kuliah yang Anda pilih. Ubah pilihan di atas.
+                          </div>
+                        )}
                         {availableFaculties.map((fac) => {
                           const isCurrent = selectedFacultyFilter === fac.name;
                           return (
@@ -3204,13 +3219,11 @@ export default function PmbDashboardPage() {
 
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">Tempat Lahir</label>
-                      <input
-                        type="text"
-                        placeholder="Kota / Kabupaten"
+                      <BirthPlaceSelect
                         value={formData.birthPlace}
-                        onChange={(e) => setFormData((p) => ({ ...p, birthPlace: e.target.value }))}
-                        onBlur={(e) => setFormData((p) => ({ ...p, birthPlace: toTitleCase(e.target.value) }))}
-                        className="w-full px-3.5 py-2.5 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]"
+                        onChange={(v) => setFormData((p) => ({ ...p, birthPlace: v }))}
+                        placeholder="-- Pilih Kota / Kabupaten --"
+                        className="w-full px-3.5 py-2.5 text-xs rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]"
                       />
                     </div>
 
@@ -3534,11 +3547,39 @@ export default function PmbDashboardPage() {
               {/* STEP 3: DATA ASAL SEKOLAH */}
               {currentStep === 3 && (
                 <div className="space-y-4">
+                  {selectedTrackKind !== 'BARU' && (
+                    <div className="p-4 rounded-2xl border border-amber-200 bg-amber-50/60 space-y-3">
+                      <h4 className="font-extrabold text-xs text-slate-900 uppercase tracking-wide">Perguruan Tinggi Asal</h4>
+                      <OriginPicker
+                        apiBaseUrl={apiBaseUrl}
+                        required={originRequired}
+                        value={{
+                          originInstitution: formData.originInstitution,
+                          originInstitutionCode: formData.originInstitutionCode,
+                          originInstitutionId: formData.originInstitutionId,
+                          originStudyProgram: formData.originStudyProgram,
+                          originStudyProgramLevel: formData.originStudyProgramLevel,
+                          originStudyProgramId: formData.originStudyProgramId,
+                        }}
+                        onChange={(patch) => setFormData((p) => ({ ...p, ...patch }))}
+                      />
+                      <div className="md:w-1/2">
+                        <label className="block text-xs font-bold text-slate-700 mb-1">NIM di Perguruan Tinggi Asal</label>
+                        <input
+                          type="text"
+                          value={formData.originNim}
+                          onChange={(e) => setFormData((p) => ({ ...p, originNim: e.target.value }))}
+                          className="w-full px-3.5 py-2.5 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]"
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="md:col-span-2 relative">
                       <div className="flex items-center justify-between mb-1">
                         <label className="block text-xs font-bold text-slate-700">
-                          Nama Asal Sekolah / Perguruan Tinggi <span className="text-red-500">*</span>
+                          Nama Asal Sekolah <span className="text-red-500">*</span>
                         </label>
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-[#1E3A8A] border border-blue-200 flex items-center gap-1">
                           <Search className="w-2.5 h-2.5" />

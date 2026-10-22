@@ -33,6 +33,7 @@ function formatNomorSurat(format: string, no: string): string {
   const now = new Date();
   return format
     .replace('{NO}', no)
+    .replace('{KODE_SURAT}', 'SK')
     .replace('{BULAN_ROMAWI}', ROMAWI_BULAN[now.getMonth()])
     .replace('{TAHUN}', String(now.getFullYear()));
 }
@@ -741,13 +742,16 @@ export default function KelulusanPage() {
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Catatan SK / Putusan Seleksi</label>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    {decisionType === 'PASSED' ? 'Catatan SK / Putusan Seleksi' : 'Alasan Tidak Lolos (ditampilkan kepada pendaftar)'}
+                  </label>
                   <textarea
                     rows={3}
                     required
+                    minLength={decisionType === 'FAILED' ? 5 : undefined}
                     value={decisionNotes}
                     onChange={(e) => setDecisionNotes(e.target.value)}
-                    placeholder="Tuliskan catatan kelulusan..."
+                    placeholder={decisionType === 'PASSED' ? 'Tuliskan catatan kelulusan...' : 'Tuliskan alasan agar pendaftar memahami hasil seleksinya...'}
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 text-xs"
                   />
                 </div>

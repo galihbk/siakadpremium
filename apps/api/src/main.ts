@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { WsAdapter } from '@nestjs/platform-ws';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { json, urlencoded, static as expressStatic } from 'express';
@@ -15,6 +16,8 @@ async function bootstrap() {
 
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
+  // WebSocket native (ws) untuk sinyal real-time live chat PMB di /ws/chat
+  app.useWebSocketAdapter(new WsAdapter(app));
 
   // Header keamanan HTTP standar (X-Content-Type-Options, X-Frame-Options, HSTS, dst.)
   // CSP dimatikan di sini karena frontend disajikan oleh app Next.js terpisah, bukan API ini.

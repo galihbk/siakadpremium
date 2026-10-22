@@ -80,6 +80,8 @@ export const AdmissionStatus = {
   VERIFIED: 'VERIFIED',
   PASSED: 'PASSED',
   FAILED: 'FAILED',
+  /** Berkas persyaratan ditolak panitia dan perlu diperbaiki pendaftar (berbeda dari FAILED = tidak lulus seleksi). */
+  REJECTED: 'REJECTED',
   REGISTERED: 'REGISTERED',
 } as const;
 export type AdmissionStatus = (typeof AdmissionStatus)[keyof typeof AdmissionStatus];
@@ -250,11 +252,29 @@ export interface AdmissionRegistrationTypeItem {
   updatedAt?: string;
 }
 
+/** Kategori mahasiswa bagi sistem; sama dengan Jenis Pendaftaran di Neo Feeder (RPL = varian lama sebelum dibedakan). */
+export type AdmissionTrackKind =
+  | 'BARU'
+  | 'TRANSFER'
+  | 'RPL'
+  | 'RPL_PEROLEHAN'
+  | 'RPL_TRANSFER'
+  | 'NON_GELAR'
+  | 'FAST_TRACK'
+  | 'PPG_PGP'
+  | 'PPG_NON_PGP'
+  | 'DOUBLE_DEGREE'
+  | 'JOIN_DEGREE';
+
 export interface AdmissionTrackItem {
   id: string;
   code: string;
   name: string;
   description?: string | null;
+  kind?: AdmissionTrackKind;
+  /** ID program studi yang menerima jenis mahasiswa ini; kosong/tidak ada = semua program studi. */
+  studyProgramIds?: string[];
+  studyPrograms?: Array<{ id: string; name: string; code?: string }>;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -265,6 +285,11 @@ export interface AdmissionClassItem {
   code: string;
   name: string;
   description?: string | null;
+  /** Kategori waktu kuliah: PAGI, SIANG, SORE, MALAM, atau AKHIR_PEKAN. */
+  shift?: string;
+  /** ID program studi yang membuka kelas ini; kosong/tidak ada = semua program studi. */
+  studyProgramIds?: string[];
+  studyPrograms?: Array<{ id: string; name: string; code?: string }>;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;

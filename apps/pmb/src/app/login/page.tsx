@@ -1,5 +1,6 @@
 'use client';
 
+import { CampusName, PmbYear } from '@/components/CampusText';
 import { CampusLogo } from '@/components/CampusLogo';
 import { useCampus } from '@/lib/campusProfile';
 import { useState, useEffect } from 'react';
@@ -30,7 +31,7 @@ export default function PmbLoginPage() {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -52,6 +53,19 @@ export default function PmbLoginPage() {
       }
     }
   }, [router]);
+
+  // "Ingat email saya": isi otomatis kolom email dari login sebelumnya
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('pmb_remember_email');
+      if (saved) {
+        setIdentifier(saved);
+        setRememberMe(true);
+      }
+    } catch {
+      // penyimpanan peramban tidak tersedia; abaikan
+    }
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,6 +103,13 @@ export default function PmbLoginPage() {
         localStorage.setItem('pmb_applicant_token', token);
       }
 
+      try {
+        if (rememberMe) localStorage.setItem('pmb_remember_email', identifier.trim());
+        else localStorage.removeItem('pmb_remember_email');
+      } catch {
+        // penyimpanan peramban tidak tersedia; abaikan
+      }
+
       router.push('/dashboard');
     } catch (err: any) {
       setErrorMsg(err.message || 'Gagal masuk ke akun PMB. Silakan periksa kembali data Anda.');
@@ -115,10 +136,10 @@ export default function PmbLoginPage() {
               <CampusLogo url={campus.logoUrl} initials={campus.initials} className="w-9 h-9 rounded-full bg-white border-2 border-[#D4A017] flex items-center justify-center font-extrabold text-[#1E3A8A] text-xs shadow-xs" />
               <div>
                 <span className="font-bold text-sm tracking-wide block leading-tight">
-                  INSTITUT TEKNOLOGI NUSANTARA
+                  <CampusName upper />
                 </span>
                 <span className="text-[11px] text-blue-200 block">
-                  Penerimaan Mahasiswa Baru TA 2027/2028
+                  Penerimaan Mahasiswa Baru<PmbYear prefix=" TA " />
                 </span>
               </div>
             </div>
@@ -166,7 +187,7 @@ export default function PmbLoginPage() {
                 </div>
                 <div className="flex items-start gap-2.5">
                   <Calendar className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                  <span>Jadwal pengumuman hasil seleksi Gelombang 1 setiap hari Jumat.</span>
+                  <span>Lihat jadwal dan hasil pengumuman seleksi langsung di akun Anda.</span>
                 </div>
               </div>
             </div>
@@ -282,7 +303,7 @@ export default function PmbLoginPage() {
                       onChange={(e) => setRememberMe(e.target.checked)}
                       className="w-4 h-4 rounded border-slate-300 text-[#1E3A8A] focus:ring-[#1E3A8A] cursor-pointer"
                     />
-                    <span>Ingat nomor pendaftaran saya</span>
+                    <span>Ingat email saya</span>
                   </label>
                 </div>
 

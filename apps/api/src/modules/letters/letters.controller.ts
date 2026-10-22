@@ -81,6 +81,12 @@ export class LettersController {
   }
 
   // ================= BAAK =================
+  @Get('pending-count')
+  @ApiOperation({ summary: 'Jumlah permohonan surat yang menunggu diproses BAAK (lencana sidebar)' })
+  async pendingCount() {
+    return this.lettersService.pendingCountForBaak();
+  }
+
   @Get()
   @ApiOperation({ summary: 'Mendapatkan seluruh permohonan surat mahasiswa (BAAK)' })
   async getAllForBaak(@Query('status') status?: string, @Query('search') search?: string) {

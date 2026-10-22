@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Info,
   X,
+  XCircle,
   Loader2,
 } from 'lucide-react';
 
@@ -19,7 +20,7 @@ export interface ConfirmModalProps {
   message: React.ReactNode;
   confirmText?: string;
   cancelText?: string;
-  type?: 'danger' | 'warning' | 'info' | 'success';
+  type?: 'danger' | 'warning' | 'info' | 'success' | 'error';
   isLoading?: boolean;
   isAlert?: boolean; // If true, only shows 1 acknowledge button (like alert)
 }
@@ -79,6 +80,14 @@ export function ConfirmModal({
           confirmBtn:
             'bg-amber-600 hover:bg-amber-700 text-white shadow-sm focus:ring-amber-500',
           defaultConfirmText: 'Ya, Lanjutkan',
+        };
+      case 'error':
+        return {
+          icon: <XCircle className="w-6 h-6 text-rose-600" />,
+          iconBg: 'bg-rose-50 border-rose-200 text-rose-600',
+          confirmBtn:
+            'bg-rose-600 hover:bg-rose-700 text-white shadow-sm focus:ring-rose-500',
+          defaultConfirmText: 'Mengerti',
         };
       case 'success':
         return {

@@ -121,6 +121,8 @@ export const BAAK_DOCS: DocSection[] = [
         t: 'ol',
         items: [
           'Buat kelas kuliah: pilih mata kuliah, dosen pengampu, hari, jam, ruang, dan kuota.',
+          'Bila kampus punya beberapa kelas kuliah (mis. Reguler Pagi dan Karyawan Sore), pilih Kelas Kuliah pada jadwal. KRS mahasiswa lalu hanya menampilkan jadwal untuk kelasnya. Biarkan "Semua kelas" bila jadwal terbuka untuk semuanya. Pilihan kelas kuliah diatur admin PMB di menu Jalur, Jenis & Kelas.',
+          'Jadwal Pagi dan Sore untuk mata kuliah yang sama harus memakai nama kelas berbeda (mis. A dan B).',
           'Sistem mendeteksi bentrok ruang dan dosen.',
           'Kelas mata kuliah tugas akhir/lapangan tidak memerlukan jadwal tetap.',
         ],

@@ -1,5 +1,6 @@
 'use client';
 
+import { alertDialog } from '@/components/ui/ConfirmHost';
 import { RupiahInput } from '@/components/ui/RupiahInput';
 import { useInstitution } from '@/lib/useInstitution';
 import { CampusLogo } from '@/components/common/CampusLogo';
@@ -219,7 +220,7 @@ export default function FinanceDashboardPage() {
   const handleCreateInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newInvoice.nim || !newInvoice.studentName) {
-      alert('Mohon isi NIM dan Nama Mahasiswa dengan lengkap');
+      void alertDialog('Mohon isi NIM dan Nama Mahasiswa dengan lengkap');
       return;
     }
 

@@ -25,11 +25,39 @@ import {
   AdmissionClassItem,
 } from '@siakad/types';
 
+/** Kategori mahasiswa; namanya sama dengan Jenis Pendaftaran di Neo Feeder agar dikenali saat sinkronisasi. */
+const KIND_LABEL: Record<string, string> = {
+  BARU: 'Peserta didik baru',
+  TRANSFER: 'Pindahan',
+  RPL_PEROLEHAN: 'RPL Perolehan SKS',
+  RPL_TRANSFER: 'RPL Transfer SKS',
+  NON_GELAR: 'Pendidikan Non Gelar (Course)',
+  FAST_TRACK: 'Fast Track',
+  PPG_PGP: 'PPG PGP / PLPG',
+  PPG_NON_PGP: 'PPG Non PGP / PLPG',
+  DOUBLE_DEGREE: 'Double Degree',
+  JOIN_DEGREE: 'Join Degree',
+  RPL: 'RPL (lama, pilih ulang varian)',
+};
+
+/** Ringkasan program studi yang menerima sebuah jenis mahasiswa / kelas kuliah (kosong = semua). */
+const prodiSummary = (list?: Array<{ name: string }>) => (list && list.length > 0 ? list.map((p) => p.name).join(', ') : 'Semua prodi');
+
+/** Kategori waktu kuliah sebuah kelas kuliah. */
+const SHIFT_LABEL: Record<string, string> = {
+  PAGI: 'Pagi',
+  SIANG: 'Siang',
+  SORE: 'Sore',
+  MALAM: 'Malam',
+  AKHIR_PEKAN: 'Akhir Pekan',
+};
+
 export default function AdminPmbJalurPage() {
   const [activeTab, setActiveTab] = useState<'jenisPendaftaran' | 'jenisMahasiswa' | 'pilihanKelas'>('jenisPendaftaran');
   const [registrationTypes, setRegistrationTypes] = useState<AdmissionRegistrationTypeItem[]>([]);
   const [tracks, setTracks] = useState<AdmissionTrackItem[]>([]);
   const [classes, setClasses] = useState<AdmissionClassItem[]>([]);
+  const [prodiOptions, setProdiOptions] = useState<Array<{ id: string; name: string; degreeLevel: string }>>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -46,6 +74,9 @@ export default function AdminPmbJalurPage() {
     description: '',
     badge: '',
     isKip: false,
+    kind: 'BARU' as string,
+    shift: 'PAGI' as string,
+    studyProgramIds: [] as string[],
     isActive: true,
   });
   const [isSaving, setIsSaving] = useState(false);
@@ -102,6 +133,14 @@ export default function AdminPmbJalurPage() {
 
   useEffect(() => {
     fetchData();
+    fetch(`${apiBase}/admissions/pmb/options`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const d = j?.data ?? j;
+        setProdiOptions(Array.isArray(d?.studyPrograms) ? d.studyPrograms.map((p: any) => ({ id: p.id, name: p.name, degreeLevel: p.degreeLevel })) : []);
+      })
+      .catch(() => setProdiOptions([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleOpenAdd = (type: 'jenisPendaftaran' | 'jenisMahasiswa' | 'pilihanKelas') => {
@@ -112,6 +151,9 @@ export default function AdminPmbJalurPage() {
       description: '',
       badge: type === 'jenisPendaftaran' ? 'Reguler Mandiri' : '',
       isKip: false,
+      kind: 'BARU',
+      shift: 'PAGI',
+      studyProgramIds: [],
       isActive: true,
     });
     setModalOpen(true);
@@ -125,6 +167,9 @@ export default function AdminPmbJalurPage() {
       description: item.description || '',
       badge: item.badge || '',
       isKip: item.isKip ?? false,
+      kind: item.kind ?? 'BARU',
+      shift: item.shift ?? 'PAGI',
+      studyProgramIds: (item.studyPrograms ?? []).map((p: any) => p.id),
       isActive: item.isActive,
     });
     setModalOpen(true);
@@ -169,6 +214,15 @@ export default function AdminPmbJalurPage() {
       if (type === 'jenisPendaftaran') {
         payload.badge = formData.badge.trim() || undefined;
         payload.isKip = formData.isKip;
+      }
+      if (type === 'jenisMahasiswa') {
+        payload.kind = formData.kind;
+      }
+      if (type === 'pilihanKelas') {
+        payload.shift = formData.shift;
+      }
+      if (type === 'jenisMahasiswa' || type === 'pilihanKelas') {
+        payload.studyProgramIds = formData.studyProgramIds;
       }
 
       const res = await fetch(url, {
@@ -461,6 +515,8 @@ export default function AdminPmbJalurPage() {
                     <tr>
                       <th className="py-3 px-4">KODE</th>
                       <th className="py-3 px-4">NAMA JENIS MAHASISWA</th>
+                      <th className="py-3 px-4">KATEGORI</th>
+                      <th className="py-3 px-4">PRODI</th>
                       <th className="py-3 px-4">DESKRIPSI</th>
                       <th className="py-3 px-4 text-center">STATUS</th>
                       <th className="py-3 px-4 text-right">AKSI</th>
@@ -471,6 +527,12 @@ export default function AdminPmbJalurPage() {
                       <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="py-3.5 px-4 font-mono font-bold text-slate-800">{t.code}</td>
                         <td className="py-3.5 px-4 font-bold text-slate-900">{t.name}</td>
+                        <td className="py-3.5 px-4">
+                          <span className="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#1E3A8A]">
+                            {KIND_LABEL[t.kind ?? 'BARU'] ?? t.kind}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-500 max-w-[14rem] truncate" title={prodiSummary(t.studyPrograms)}>{prodiSummary(t.studyPrograms)}</td>
                         <td className="py-3.5 px-4 text-slate-500 max-w-xs truncate">{t.description || '-'}</td>
                         <td className="py-3.5 px-4 text-center">
                           <span
@@ -517,6 +579,8 @@ export default function AdminPmbJalurPage() {
                     <tr>
                       <th className="py-3 px-4">KODE</th>
                       <th className="py-3 px-4">NAMA KELAS</th>
+                      <th className="py-3 px-4">KATEGORI</th>
+                      <th className="py-3 px-4">PRODI</th>
                       <th className="py-3 px-4">DESKRIPSI</th>
                       <th className="py-3 px-4 text-center">STATUS</th>
                       <th className="py-3 px-4 text-right">AKSI</th>
@@ -527,6 +591,12 @@ export default function AdminPmbJalurPage() {
                       <tr key={c.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="py-3.5 px-4 font-mono font-bold text-slate-800">{c.code}</td>
                         <td className="py-3.5 px-4 font-bold text-slate-900">{c.name}</td>
+                        <td className="py-3.5 px-4">
+                          <span className="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#1E3A8A]">
+                            {SHIFT_LABEL[c.shift ?? 'PAGI'] ?? c.shift}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-500 max-w-[14rem] truncate" title={prodiSummary((c as any).studyPrograms)}>{prodiSummary((c as any).studyPrograms)}</td>
                         <td className="py-3.5 px-4 text-slate-500 max-w-xs truncate">{c.description || '-'}</td>
                         <td className="py-3.5 px-4 text-center">
                           <span
@@ -608,7 +678,11 @@ export default function AdminPmbJalurPage() {
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Nama Lengkap
+                    {editingItem?.type === 'jenisPendaftaran'
+                      ? 'Nama Jenis Pendaftaran'
+                      : editingItem?.type === 'jenisMahasiswa'
+                      ? 'Nama Jenis Mahasiswa'
+                      : 'Nama Kelas'}
                   </label>
                   <input
                     type="text"
@@ -638,6 +712,87 @@ export default function AdminPmbJalurPage() {
                       onChange={(e) => setFormData({ ...formData, badge: e.target.value })}
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]"
                     />
+                  </div>
+                )}
+
+                {editingItem?.type === 'jenisMahasiswa' && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Kategori Mahasiswa
+                    </label>
+                    <select
+                      value={formData.kind}
+                      onChange={(e) => setFormData({ ...formData, kind: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[#1E3A8A] bg-white"
+                    >
+                      <option value="BARU">Peserta didik baru</option>
+                      <option value="TRANSFER">Pindahan</option>
+                      <option value="RPL_PEROLEHAN">RPL Perolehan SKS</option>
+                      <option value="RPL_TRANSFER">RPL Transfer SKS</option>
+                      <option value="NON_GELAR">Pendidikan Non Gelar (Course)</option>
+                      <option value="FAST_TRACK">Fast Track</option>
+                      <option value="PPG_PGP">PPG PGP / PLPG</option>
+                      <option value="PPG_NON_PGP">PPG Non PGP / PLPG</option>
+                      <option value="DOUBLE_DEGREE">Double Degree</option>
+                      <option value="JOIN_DEGREE">Join Degree</option>
+                      {formData.kind === 'RPL' && <option value="RPL">{KIND_LABEL.RPL}</option>}
+                    </select>
+                  </div>
+                )}
+
+                {editingItem?.type === 'pilihanKelas' && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Kategori Kelas
+                    </label>
+                    <select
+                      value={formData.shift}
+                      onChange={(e) => setFormData({ ...formData, shift: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[#1E3A8A] bg-white"
+                    >
+                      <option value="PAGI">Pagi</option>
+                      <option value="SIANG">Siang</option>
+                      <option value="SORE">Sore</option>
+                      <option value="MALAM">Malam</option>
+                      <option value="AKHIR_PEKAN">Akhir Pekan</option>
+                    </select>
+                  </div>
+                )}
+
+                {(editingItem?.type === 'jenisMahasiswa' || editingItem?.type === 'pilihanKelas') && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Program Studi yang Menerima
+                    </label>
+                    <div className="rounded-xl border border-slate-200 divide-y divide-slate-100 max-h-48 overflow-auto">
+                      <label className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-800 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.studyProgramIds.length === 0}
+                          onChange={() => setFormData({ ...formData, studyProgramIds: [] })}
+                          className="rounded border-slate-300 text-[#1E3A8A] focus:ring-[#1E3A8A] w-4 h-4 cursor-pointer"
+                        />
+                        Semua program studi
+                      </label>
+                      {prodiOptions.map((p) => (
+                        <label key={p.id} className="flex items-center gap-2 px-3 py-2 text-xs text-slate-700 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.studyProgramIds.includes(p.id)}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                studyProgramIds: e.target.checked
+                                  ? [...formData.studyProgramIds, p.id]
+                                  : formData.studyProgramIds.filter((x) => x !== p.id),
+                              })
+                            }
+                            className="rounded border-slate-300 text-[#1E3A8A] focus:ring-[#1E3A8A] w-4 h-4 cursor-pointer"
+                          />
+                          {p.degreeLevel} {p.name}
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 )}
 

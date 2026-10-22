@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsOptional, IsString, IsBoolean, IsNumber } from 'class-validator';
+import { IsArray, IsEmail, IsIn, IsNotEmpty, IsOptional, IsString, IsBoolean, IsNumber } from 'class-validator';
 
 export class RegisterPmbAccountDto {
   @ApiProperty({ example: 'Galih Bagaskoro' })
@@ -49,6 +49,13 @@ export class SaveApplicationDraftDto {
   @IsOptional() @IsString() studyProgramId?: string;
   @IsOptional() @IsBoolean() isKip?: boolean;
   @IsOptional() @IsBoolean() statementAgreed?: boolean;
+  @IsOptional() @IsString() originInstitution?: string;
+  @IsOptional() @IsString() originInstitutionCode?: string;
+  @IsOptional() @IsString() originInstitutionId?: string;
+  @IsOptional() @IsString() originStudyProgram?: string;
+  @IsOptional() @IsString() originStudyProgramLevel?: string;
+  @IsOptional() @IsString() originStudyProgramId?: string;
+  @IsOptional() @IsString() originNim?: string;
 
   @IsOptional() @IsString() nik?: string;
   @IsOptional() @IsString() fullName?: string;
@@ -153,6 +160,8 @@ export class CreateTrackDto {
   @IsString() @IsNotEmpty() code: string;
   @IsString() @IsNotEmpty() name: string;
   @IsOptional() @IsString() description?: string;
+  @IsOptional() @IsArray() @IsString({ each: true }) studyProgramIds?: string[];
+  @IsOptional() @IsIn(['BARU', 'TRANSFER', 'RPL', 'RPL_PEROLEHAN', 'RPL_TRANSFER', 'NON_GELAR', 'FAST_TRACK', 'PPG_PGP', 'PPG_NON_PGP', 'DOUBLE_DEGREE', 'JOIN_DEGREE']) kind?: 'BARU' | 'TRANSFER' | 'RPL' | 'RPL_PEROLEHAN' | 'RPL_TRANSFER' | 'NON_GELAR' | 'FAST_TRACK' | 'PPG_PGP' | 'PPG_NON_PGP' | 'DOUBLE_DEGREE' | 'JOIN_DEGREE';
   @IsOptional() @IsBoolean() isActive?: boolean;
 }
 
@@ -160,5 +169,7 @@ export class CreateClassDto {
   @IsString() @IsNotEmpty() code: string;
   @IsString() @IsNotEmpty() name: string;
   @IsOptional() @IsString() description?: string;
+  @IsOptional() @IsArray() @IsString({ each: true }) studyProgramIds?: string[];
+  @IsOptional() @IsIn(['PAGI', 'SIANG', 'SORE', 'MALAM', 'AKHIR_PEKAN']) shift?: 'PAGI' | 'SIANG' | 'SORE' | 'MALAM' | 'AKHIR_PEKAN';
   @IsOptional() @IsBoolean() isActive?: boolean;
 }

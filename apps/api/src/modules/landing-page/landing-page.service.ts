@@ -100,7 +100,21 @@ export class LandingPageService {
         // Semester & tahun akademik aktif bersumber dari tabel Tahun Akademik (bukan isian profil).
         const active = await this.prisma.academicYear.findFirst({ where: { isActive: true } });
         const label = active ? (active.semesterType === 'ODD' ? 'Gasal' : active.semesterType === 'EVEN' ? 'Genap' : 'Pendek') : '';
-        return { ...dbSettings, activeAcademicYear: active?.name ?? '', activeSemester: label };
+        // Kolom KOP bawaan skema masih bernilai contoh ITN bila belum pernah diisi: anggap kosong agar KOP mengikuti
+        // nama institusi yang sebenarnya (konsumen memakai nama institusi/yayasan sebagai cadangan).
+        const isDemo = (v: string | null | undefined, demo: string) => String(v ?? '').trim() === demo;
+        const renamed = String(dbSettings.campusName ?? '').trim() !== DEFAULT_SETTINGS.campusName;
+        const kop = renamed
+          ? {
+              kopLine1: isDemo(dbSettings.kopLine1, DEFAULT_SETTINGS.kopLine1) ? '' : dbSettings.kopLine1,
+              kopLine2: isDemo(dbSettings.kopLine2, DEFAULT_SETTINGS.kopLine2) ? '' : dbSettings.kopLine2,
+              kopContact: isDemo(dbSettings.kopContact, DEFAULT_SETTINGS.kopContact) ? '' : dbSettings.kopContact,
+              nomorSuratFormat: isDemo(dbSettings.nomorSuratFormat, DEFAULT_SETTINGS.nomorSuratFormat)
+                ? '{KODE_SURAT}/{NO}/BAAK/{BULAN_ROMAWI}/{TAHUN}'
+                : dbSettings.nomorSuratFormat,
+            }
+          : {};
+        return { ...dbSettings, ...kop, activeAcademicYear: active?.name ?? '', activeSemester: label };
       }
     } catch {
       // Fallback to memory

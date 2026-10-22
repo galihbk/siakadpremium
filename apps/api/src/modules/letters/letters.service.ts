@@ -32,8 +32,24 @@ export class LettersService {
     const countThisYear = await this.prisma.letterRequest.count({
       where: { letterNo: { not: null }, createdAt: { gte: yearStart, lt: yearEnd } },
     });
-    const seq = String(countThisYear + 1).padStart(3, '0');
-    return `${entry.numberPrefix}/ITN-BAAK/${romanMonth}/${year}/${seq}`;
+    const seqNo = countThisYear + 1;
+
+    // Format dari Profil Institusi > Pengaturan Identitas > Format Nomor. Isi bawaan contoh (ITN) dianggap belum diatur.
+    const setting = await this.prisma.landingPageSetting
+      .findUnique({ where: { id: 'default-setting' }, select: { nomorSuratFormat: true, campusName: true } })
+      .catch(() => null);
+    const DEMO = '{NO}/ITN-BAAK/{BULAN_ROMAWI}/{TAHUN}';
+    let template = String(setting?.nomorSuratFormat ?? '').trim();
+    if (!template || template === DEMO) template = '{KODE_SURAT}/{NO}/BAAK/{BULAN_ROMAWI}/{TAHUN}';
+    if (!/\{NO(_\dDIGIT)?\}/.test(template)) template = `${template}/{NO}`; // nomor urut wajib ada agar nomor unik
+
+    return template
+      .replace(/\{KODE_SURAT\}/g, entry.numberPrefix)
+      .replace(/\{BULAN_ROMAWI\}/g, romanMonth)
+      .replace(/\{BULAN\}/g, String(new Date().getMonth() + 1).padStart(2, '0'))
+      .replace(/\{TAHUN\}/g, String(year))
+      .replace(/\{NO_(\d)DIGIT\}/g, (_m, n) => String(seqNo).padStart(Number(n), '0'))
+      .replace(/\{NO\}/g, String(seqNo).padStart(3, '0'));
   }
 
   /** Cek kelayakan administratif SKAK: status akademik aktif & UKT semester berjalan lunas. */
@@ -56,6 +72,12 @@ export class LettersService {
     return { eligible: true };
   }
 
+  /** Nama institusi dari Profil Institusi (bukan teks tetap). */
+  private async campusName(): Promise<string> {
+    const setting = await this.prisma.landingPageSetting.findUnique({ where: { id: 'default-setting' }, select: { campusName: true } }).catch(() => null);
+    return String(setting?.campusName ?? '').trim();
+  }
+
   private buildLetterBody(params: {
     studentName: string;
     nim: string;
@@ -66,13 +88,30 @@ export class LettersService {
     typeName: string;
     purpose: string;
     targetInstitution: string;
+    campusName: string;
   }): string {
-    const { studentName, nim, studyProgramName, facultyName, semester, academicYearName, typeName, purpose, targetInstitution } = params;
+    const { studentName, nim, studyProgramName, facultyName, semester, academicYearName, typeName, purpose, targetInstitution, campusName } = params;
+    // Identitas ditulis per baris "Label: nilai" agar rapi (halaman pratinjau menyejajarkannya sebagai tabel)
     return (
-      `Yang bertanda tangan di bawah ini, Wakil Rektor Bidang Akademik & Kemahasiswaan, menerangkan dengan sebenarnya bahwa mahasiswa atas nama ${studentName} ` +
-      `(NIM: ${nim}), Program Studi ${studyProgramName}, ${facultyName}, Semester ${semester} Tahun Akademik ${academicYearName}, adalah benar mahasiswa terdaftar aktif ` +
-      `di lingkungan Institut Teknologi Nusantara.\n\n` +
-      `${typeName} ini diterbitkan untuk keperluan: ${purpose}, yang ditujukan kepada ${targetInstitution}.\n\n` +
+      `Yang bertanda tangan di bawah ini, menerangkan dengan sebenarnya bahwa mahasiswa:
+
+` +
+      `Nama: ${studentName}
+` +
+      `NIM: ${nim}
+` +
+      `Program Studi: ${studyProgramName}
+` +
+      `Fakultas: ${facultyName}
+
+` +
+      `adalah benar mahasiswa terdaftar aktif pada Semester ${semester} Tahun Akademik ${academicYearName}` +
+      `${campusName ? ` di lingkungan ${campusName}` : ''}.
+
+` +
+      `${typeName} ini diterbitkan untuk keperluan: ${purpose}, yang ditujukan kepada ${targetInstitution}.
+
+` +
       `Demikian surat ini dibuat dengan sesungguhnya untuk dapat dipergunakan sebagaimana mestinya.`
     );
   }
@@ -114,6 +153,7 @@ export class LettersService {
           typeName: catalogEntry.name,
           purpose: dto.purpose,
           targetInstitution: dto.targetInstitution,
+          campusName: await this.campusName(),
         });
         status = 'SELESAI';
         processedAt = new Date();
@@ -199,6 +239,12 @@ export class LettersService {
     return { success: true, message: 'Permohonan surat ditolak.', data: updated };
   }
 
+  /** Jumlah permohonan yang menunggu diproses BAAK (untuk lencana sidebar). */
+  async pendingCountForBaak() {
+    const pending = await this.prisma.letterRequest.count({ where: { status: 'DIPROSES_BAAK' } });
+    return { pending };
+  }
+
   async listForBaak(query?: { status?: string; search?: string }) {
     const where: any = {};
     if (query?.status && query.status !== 'Semua') where.status = query.status;
@@ -253,6 +299,7 @@ export class LettersService {
         typeName: letter.typeName,
         purpose: letter.purpose,
         targetInstitution: letter.targetInstitution,
+        campusName: await this.campusName(),
       });
 
     const updated = await this.prisma.letterRequest.update({

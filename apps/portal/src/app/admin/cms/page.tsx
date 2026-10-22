@@ -1,5 +1,6 @@
 'use client';
 
+import { alertDialog } from '@/components/ui/ConfirmHost';
 import { useServiceUrl } from '@/lib/publicUrls';
 import { useState, useEffect } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
@@ -603,7 +604,7 @@ export default function SuperAdminCmsPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => alert('Fitur publikasi artikel baru siap terintegrasi!')}
+                  onClick={() => alertDialog('Fitur publikasi artikel baru siap terintegrasi!', { type: 'info' })}
                   className="px-3.5 py-1.5 bg-[#1E3A8A] text-white text-xs font-bold rounded-lg shadow-xs hover:bg-[#172554]"
                 >
                   + Tambah Berita Baru

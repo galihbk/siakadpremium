@@ -3,10 +3,12 @@
 import React, { useEffect, useState } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { Modal } from '@/components/ui/Modal';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { TablePagination } from '@/components/ui/TablePagination';
 import { useServerTable } from '@/lib/useServerTable';
 import { getApiBaseUrl } from '@/lib/api';
-import { ExamType, ExamScheduleView, EXAM_TYPE_LABEL, formatExamDateShort, examsFetch } from '@/lib/exams';
+import { ExamType, ExamScheduleView, EXAM_TYPE_LABEL, formatExamDate, formatExamDateShort, examsFetch } from '@/lib/exams';
+import { useInstitution } from '@/lib/useInstitution';
 import { CalendarClock, CheckCircle2, AlertTriangle, RefreshCw, X, Search, Settings2, Trash2 } from 'lucide-react';
 
 interface Row {
@@ -92,12 +94,144 @@ export default function AdminJadwalUjianPage() {
     startTime: '08:00',
     endTime: '10:00',
     roomId: '',
-    location: '',
     proctor1Id: '',
     proctor2Id: '',
     notes: '',
   });
   const [busy, setBusy] = useState(false);
+
+  // Ruang & pengawas yang sudah terpakai pada tanggal/jam yang dipilih
+  const [availability, setAvailability] = useState<{ busyRooms: Record<string, string>; busyProctors: Record<string, string> }>({
+    busyRooms: {},
+    busyProctors: {},
+  });
+  useEffect(() => {
+    if (!editing || !form.examDate || !form.startTime || !form.endTime || form.startTime >= form.endTime) {
+      setAvailability({ busyRooms: {}, busyProctors: {} });
+      return;
+    }
+    let alive = true;
+    const qs = new URLSearchParams({
+      academicYearId: yearId,
+      date: form.examDate,
+      startTime: form.startTime,
+      endTime: form.endTime,
+      courseClassId: editing.courseClassId,
+      type,
+    });
+    examsFetch<{ busyRooms: Record<string, string>; busyProctors: Record<string, string> }>(`/admin/availability?${qs}`)
+      .then((d) => alive && setAvailability(d))
+      .catch(() => alive && setAvailability({ busyRooms: {}, busyProctors: {} }));
+    return () => {
+      alive = false;
+    };
+  }, [editing, form.examDate, form.startTime, form.endTime, yearId, type]);
+
+  // Berita Acara (PDF dengan KOP surat) per kelas
+  const inst = useInstitution();
+  const [baBusy, setBaBusy] = useState<string | null>(null);
+  const downloadBeritaAcara = async (r: Row) => {
+    if (!r.schedule) return;
+    setBaBusy(r.schedule.id);
+    try {
+      const data = await examsFetch<{ year: { name: string }; items: { schedule: any; seats: { seatNo: number | null; nim: string; name: string }[] }[] }>(
+        `/admin/print?scheduleId=${r.schedule.id}`,
+      );
+      const it = data.items[0];
+      const { downloadExamBeritaAcaraPdf } = await import('@/lib/academicPdf');
+      await downloadExamBeritaAcaraPdf({
+        inst,
+        typeLabel: EXAM_TYPE_LABEL[type],
+        yearName: data.year.name,
+        courseCode: r.courseCode,
+        courseName: r.courseName,
+        className: r.className,
+        lecturerName: r.lecturerName,
+        dateLabel: formatExamDate(it.schedule.examDate),
+        timeLabel: `${it.schedule.startTime} - ${it.schedule.endTime} WIB`,
+        roomName: it.schedule.roomName || '-',
+        proctor1: it.schedule.proctor1?.name,
+        proctor2: it.schedule.proctor2?.name,
+        participants: it.seats,
+        filename: `Berita-Acara-${type}-${r.courseCode}-${r.className}.pdf`.replace(/\s+/g, '-'),
+      });
+    } catch (err) {
+      notify(false, err instanceof Error ? err.message : 'Gagal membuat berita acara.');
+    } finally {
+      setBaBusy(null);
+    }
+  };
+
+  // Rekap pengawas: diunduh sebagai Excel (ringkasan per dosen + rincian tugas)
+  const [recapBusy, setRecapBusy] = useState(false);
+  const downloadRecap = async () => {
+    setRecapBusy(true);
+    try {
+      const recap = await examsFetch<{ year: { name: string }; items: { name: string; total: number; duties: any[] }[] }>(
+        `/admin/proctors?academicYearId=${yearId}&type=${type}`,
+      );
+      if (recap.items.length === 0) {
+        notify(false, `Belum ada pengawas yang ditugaskan untuk ${type}.`);
+        return;
+      }
+      const XLSX = await import('xlsx');
+      const summary = recap.items.map((p, i) => ({ No: i + 1, 'Nama Dosen': p.name, 'Jumlah Tugas': p.total }));
+      const detail = recap.items.flatMap((p) =>
+        p.duties.map((d) => ({
+          'Nama Dosen': p.name,
+          Peran: d.role,
+          Tanggal: formatExamDateShort(d.examDate),
+          Jam: `${d.startTime}-${d.endTime}`,
+          'Kode MK': d.courseCode,
+          'Mata Kuliah': d.courseName,
+          Kelas: d.className,
+          Ruang: d.room,
+        })),
+      );
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summary), 'Rekap per Dosen');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detail), 'Rincian Tugas');
+      XLSX.writeFile(wb, `Rekap-Pengawas-${type}-${recap.year.name.replace('/', '-')}.xlsx`);
+    } catch (err) {
+      notify(false, err instanceof Error ? err.message : 'Gagal membuat rekap pengawas.');
+    } finally {
+      setRecapBusy(false);
+    }
+  };
+
+  // Nomor kursi
+  const [seatBusy, setSeatBusy] = useState(false);
+  const [seatMode, setSeatMode] = useState<'nim' | 'random'>('random');
+  const [seatView, setSeatView] = useState<{ schedule: any; seats: { seatNo: number | null; nim: string; name: string }[] } | null>(null);
+
+  const generateSeats = async (scheduleId?: string) => {
+    setSeatBusy(true);
+    try {
+      const res = await examsFetch<{ generated: number; seats: number; failed: string[] }>('/admin/seats/generate', {
+        method: 'POST',
+        body: scheduleId ? { scheduleId, mode: seatMode } : { academicYearId: yearId, type, mode: seatMode },
+      });
+      notify(
+        res.failed.length === 0,
+        `Nomor kursi dibuat untuk ${res.generated} jadwal (${res.seats} kursi).`,
+        res.failed.length ? res.failed : undefined,
+      );
+      table.reload();
+      if (scheduleId) await openSeats(scheduleId);
+    } catch (err) {
+      notify(false, err instanceof Error ? err.message : 'Gagal membuat nomor kursi.');
+    } finally {
+      setSeatBusy(false);
+    }
+  };
+
+  const openSeats = async (scheduleId: string) => {
+    try {
+      setSeatView(await examsFetch(`/admin/schedule/${scheduleId}/seats`));
+    } catch (err) {
+      notify(false, err instanceof Error ? err.message : 'Gagal memuat daftar peserta.');
+    }
+  };
 
   const openEdit = (r: Row) => {
     setEditing(r);
@@ -107,7 +241,6 @@ export default function AdminJadwalUjianPage() {
       startTime: s?.startTime || '08:00',
       endTime: s?.endTime || '10:00',
       roomId: s?.roomId || '',
-      location: s?.location || '',
       proctor1Id: s?.proctor1?.id || '',
       proctor2Id: s?.proctor2?.id || '',
       notes: s?.notes || '',
@@ -127,7 +260,6 @@ export default function AdminJadwalUjianPage() {
           startTime: form.startTime,
           endTime: form.endTime,
           roomId: form.roomId || null,
-          location: form.roomId ? null : form.location,
           proctor1Id: form.proctor1Id || null,
           proctor2Id: form.proctor2Id || null,
           notes: form.notes,
@@ -238,6 +370,27 @@ export default function AdminJadwalUjianPage() {
             </div>
           </div>
 
+          <div className="flex flex-wrap items-center gap-2">
+            <select className="px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white" value={seatMode} onChange={(e) => setSeatMode(e.target.value as 'nim' | 'random')}>
+              <option value="random">Acak</option>
+              <option value="nim">Urut NIM</option>
+            </select>
+            <button
+              disabled={!yearId || recapBusy}
+              onClick={downloadRecap}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-[#1E3A8A] bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg disabled:opacity-60 cursor-pointer"
+            >
+              {recapBusy && <RefreshCw className="w-3.5 h-3.5 animate-spin" />} Unduh Rekap Pengawas {type} (Excel)
+            </button>
+            <button
+              disabled={seatBusy || !yearId}
+              onClick={() => generateSeats()}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-900 rounded-lg disabled:opacity-60 cursor-pointer"
+            >
+              {seatBusy && <RefreshCw className="w-3.5 h-3.5 animate-spin" />} Generate Nomor Kursi Semua Kelas ({type})
+            </button>
+          </div>
+
           {summary && (
             <p className="text-[12px] text-slate-500">
               {EXAM_TYPE_LABEL[type]}: <b className="text-emerald-700">{summary.scheduledCount}</b> kelas terjadwal,{' '}
@@ -263,7 +416,7 @@ export default function AdminJadwalUjianPage() {
           )}
 
           <div className={`border border-slate-200 rounded-xl overflow-auto ${table.isLoading ? 'opacity-60' : ''}`}>
-            <table className="w-full min-w-[960px] text-left text-xs">
+            <table className="w-full min-w-[1040px] text-left text-xs">
               <thead className="bg-slate-50 text-slate-500">
                 <tr>
                   <th className="py-2.5 px-3">Mata Kuliah</th>
@@ -271,6 +424,7 @@ export default function AdminJadwalUjianPage() {
                   <th className="py-2.5 px-3 text-center">Peserta</th>
                   <th className="py-2.5 px-3">Tanggal &amp; Jam</th>
                   <th className="py-2.5 px-3">Ruang</th>
+                  <th className="py-2.5 px-3 text-center">Kursi</th>
                   <th className="py-2.5 px-3">Pengawas</th>
                   <th className="py-2.5 px-3 text-right">Aksi</th>
                 </tr>
@@ -278,7 +432,7 @@ export default function AdminJadwalUjianPage() {
               <tbody className="divide-y divide-slate-100">
                 {!table.isLoading && table.items.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-8 px-3 text-center text-slate-400">
+                    <td colSpan={8} className="py-8 px-3 text-center text-slate-400">
                       Tidak ada kelas untuk filter ini.
                     </td>
                   </tr>
@@ -291,7 +445,15 @@ export default function AdminJadwalUjianPage() {
                       <p className="text-[11px] text-slate-400">{r.lecturerName || 'Dosen belum ditetapkan'}</p>
                     </td>
                     <td className="py-2.5 px-3 font-semibold text-slate-700">{r.className}</td>
-                    <td className="py-2.5 px-3 text-center font-mono">{r.studentCount}</td>
+                    <td className="py-2.5 px-3 text-center font-mono">
+                      {r.schedule ? (
+                        <button onClick={() => openSeats(r.schedule!.id)} className="text-[#1E3A8A] underline cursor-pointer" title="Lihat peserta">
+                          {r.studentCount}
+                        </button>
+                      ) : (
+                        r.studentCount
+                      )}
+                    </td>
                     <td className="py-2.5 px-3">
                       {r.schedule ? (
                         <>
@@ -305,6 +467,25 @@ export default function AdminJadwalUjianPage() {
                       )}
                     </td>
                     <td className="py-2.5 px-3 text-slate-600">{r.schedule?.roomName || '-'}</td>
+                    <td className="py-2.5 px-3 text-center">
+                      {r.schedule ? (
+                        r.schedule.seatCount ? (
+                          <button onClick={() => openSeats(r.schedule!.id)} className="font-mono text-[#1E3A8A] underline cursor-pointer">
+                            {r.schedule.seatCount}/{r.schedule.roomCapacity ?? '-'}
+                          </button>
+                        ) : (
+                          <button
+                            disabled={seatBusy}
+                            onClick={() => generateSeats(r.schedule!.id)}
+                            className="text-[11px] font-bold text-[#1E3A8A] bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md px-2 py-1 disabled:opacity-60 cursor-pointer"
+                          >
+                            Generate ({r.studentCount})
+                          </button>
+                        )
+                      ) : (
+                        '-'
+                      )}
+                    </td>
                     <td className="py-2.5 px-3 text-slate-600">
                       {r.schedule?.proctor1 ? (
                         <>
@@ -316,6 +497,15 @@ export default function AdminJadwalUjianPage() {
                       )}
                     </td>
                     <td className="py-2.5 px-3 text-right">
+                      {r.schedule && (
+                        <button
+                          disabled={baBusy === r.schedule.id}
+                          onClick={() => downloadBeritaAcara(r)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 mr-1.5 text-[11px] font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg disabled:opacity-60 cursor-pointer"
+                        >
+                          {baBusy === r.schedule.id && <RefreshCw className="w-3 h-3 animate-spin" />} Berita Acara (PDF)
+                        </button>
+                      )}
                       <button
                         onClick={() => openEdit(r)}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-[#1E3A8A] bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg cursor-pointer"
@@ -364,52 +554,47 @@ export default function AdminJadwalUjianPage() {
                 <label className={labelCls}>Jam Selesai *</label>
                 <input type="time" className={inputCls} value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} />
               </div>
-              <div className="sm:col-span-3 grid sm:grid-cols-2 gap-3">
-                <div>
-                  <label className={labelCls}>Ruang (master ruang)</label>
-                  <select className={inputCls} value={form.roomId} onChange={(e) => setForm({ ...form, roomId: e.target.value })}>
-                    <option value="">-- Tidak dari master ruang --</option>
-                    {rooms.map((rm) => (
-                      <option key={rm.id} value={rm.id}>
+              <div className="sm:col-span-3">
+                <label className={labelCls}>Ruang ujian *</label>
+                <select className={inputCls} value={form.roomId} onChange={(e) => setForm({ ...form, roomId: e.target.value })}>
+                  <option value="">-- Pilih ruang --</option>
+                  {rooms.map((rm) => {
+                    const busy = availability.busyRooms[rm.id];
+                    const tooSmall = editing.studentCount > rm.capacity;
+                    return (
+                      <option key={rm.id} value={rm.id} disabled={!!busy || tooSmall}>
                         {rm.name} ({rm.buildingName}) · kap. {rm.capacity}
+                        {busy ? ` — terpakai: ${busy}` : tooSmall ? ' — kapasitas kurang' : ''}
                       </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className={labelCls}>Atau lokasi bebas</label>
-                  <input
-                    className={inputCls}
-                    value={form.location}
-                    disabled={!!form.roomId}
-                    onChange={(e) => setForm({ ...form, location: e.target.value })}
-                    placeholder={rooms.length === 0 ? 'mis. Aula Gedung A' : 'Dipakai bila ruang tidak dipilih'}
-                  />
-                </div>
+                    );
+                  })}
+                </select>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  {editing.studentCount} peserta. Ruang yang bentrok pada tanggal &amp; jam ini atau yang terlalu kecil dinonaktifkan. Lokasi mengikuti data ruang (gedung &amp; lantai).
+                </p>
               </div>
+              <div className="sm:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelCls}>Pengawas 1</label>
-                <select className={inputCls} value={form.proctor1Id} onChange={(e) => setForm({ ...form, proctor1Id: e.target.value })}>
-                  <option value="">-- Pilih dosen --</option>
-                  {lecturers.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {lecturerLabel(l)}
-                    </option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={form.proctor1Id}
+                  onChange={(v) => setForm({ ...form, proctor1Id: v })}
+                  options={lecturers.filter((l) => !availability.busyProctors[l.id] || l.id === form.proctor1Id).map((l) => ({ value: l.id, label: lecturerLabel(l) }))}
+                  placeholder="-- Pilih dosen --"
+                  searchPlaceholder="Cari nama atau NIDN dosen..."
+                />
               </div>
-              <div className="sm:col-span-2">
+              <div>
                 <label className={labelCls}>Pengawas 2 (opsional)</label>
-                <select className={inputCls} value={form.proctor2Id} onChange={(e) => setForm({ ...form, proctor2Id: e.target.value })}>
-                  <option value="">-- Tanpa pengawas 2 --</option>
-                  {lecturers
-                    .filter((l) => l.id !== form.proctor1Id)
-                    .map((l) => (
-                      <option key={l.id} value={l.id}>
-                        {lecturerLabel(l)}
-                      </option>
-                    ))}
-                </select>
+                <SearchableSelect
+                  value={form.proctor2Id}
+                  onChange={(v) => setForm({ ...form, proctor2Id: v })}
+                  options={lecturers.filter((l) => l.id !== form.proctor1Id && (!availability.busyProctors[l.id] || l.id === form.proctor2Id)).map((l) => ({ value: l.id, label: lecturerLabel(l) }))}
+                  placeholder="-- Tanpa pengawas 2 --"
+                  searchPlaceholder="Cari nama atau NIDN dosen..."
+                  emptyLabel="-- Tanpa pengawas 2 --"
+                />
+              </div>
               </div>
               <div className="sm:col-span-3">
                 <label className={labelCls}>Catatan untuk peserta (opsional)</label>
@@ -421,6 +606,16 @@ export default function AdminJadwalUjianPage() {
               <div>
                 {editing.schedule && (
                   <button
+                    disabled={seatBusy}
+                    title={`Mengacak nomor kursi untuk ${editing.studentCount} mahasiswa kelas ini`}
+                    onClick={() => generateSeats(editing.schedule!.id)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 mr-2 text-xs font-bold text-[#1E3A8A] bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl disabled:opacity-60 cursor-pointer"
+                  >
+                    {seatBusy && <RefreshCw className="w-4 h-4 animate-spin" />} Generate Nomor Kursi ({editing.studentCount} mahasiswa, {seatMode === 'random' ? 'acak' : 'urut NIM'})
+                  </button>
+                )}
+                {editing.schedule && (
+                  <button
                     disabled={busy}
                     onClick={remove}
                     className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl disabled:opacity-60 cursor-pointer"
@@ -430,7 +625,7 @@ export default function AdminJadwalUjianPage() {
                 )}
               </div>
               <button
-                disabled={busy || !form.examDate || !form.startTime || !form.endTime}
+                disabled={busy || !form.examDate || !form.startTime || !form.endTime || !form.roomId}
                 onClick={save}
                 className="inline-flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-900 rounded-xl disabled:opacity-60 cursor-pointer"
               >
@@ -438,6 +633,42 @@ export default function AdminJadwalUjianPage() {
                 Simpan Jadwal
               </button>
             </div>
+          </div>
+        )}
+      </Modal>
+      <Modal
+        isOpen={!!seatView}
+        onClose={() => setSeatView(null)}
+        title={seatView ? `Peserta ${type} -- ${seatView.schedule.courseCode} ${seatView.schedule.courseName}` : ''}
+        subtitle={seatView ? `Kelas ${seatView.schedule.className} · ${seatView.seats.length} peserta · ${seatView.schedule.roomName || '-'} · ${seatView.schedule.startTime}-${seatView.schedule.endTime}` : ''}
+        icon={<CalendarClock className="w-5 h-5" />}
+        maxWidth="2xl"
+      >
+        {seatView && (
+          <div className="space-y-3">
+            <div className="flex justify-end">
+              <button onClick={() => window.print()} className="px-3.5 py-2 text-xs font-bold text-[#1E3A8A] bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg cursor-pointer">
+                Cetak
+              </button>
+            </div>
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-500">
+                <tr>
+                  <th className="py-2 px-3 w-20">Kursi</th>
+                  <th className="py-2 px-3">NIM</th>
+                  <th className="py-2 px-3">Nama</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {seatView.seats.map((x) => (
+                  <tr key={x.nim}>
+                    <td className="py-1.5 px-3 font-mono font-bold">{x.seatNo ?? <span className="text-slate-300">-</span>}</td>
+                    <td className="py-1.5 px-3 font-mono">{x.nim}</td>
+                    <td className="py-1.5 px-3">{x.name}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </Modal>

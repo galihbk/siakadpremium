@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCheck, Clock, MessageCircle, Mail, Phone, RefreshCw, Search, Send, X, XCircle, RotateCcw } from 'lucide-react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getApiBaseUrl } from '@/lib/api';
+import { getAuthSession } from '@/lib/auth';
+import { useChatSocket } from '@/lib/useChatSocket';
 
 interface ThreadItem {
   id: string;
@@ -228,16 +230,18 @@ export default function PmbLiveChatPage() {
   const lastTime = useRef<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const load = () =>
+  const loadHours = useCallback(
+    () =>
       fetch(`${getApiBaseUrl()}/admissions/pmb/chat/status`, { cache: 'no-store' })
         .then((r) => r.json())
         .then((j) => setHours(j.data ?? j))
-        .catch(() => undefined);
-    void load();
-    const id = window.setInterval(load, 60000);
-    return () => window.clearInterval(id);
-  }, []);
+        .catch(() => undefined),
+    [],
+  );
+
+  useEffect(() => {
+    void loadHours();
+  }, [loadHours]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
@@ -262,10 +266,6 @@ export default function PmbLiveChatPage() {
   useEffect(() => {
     setLoadingList(true);
     void loadThreads();
-    const id = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void loadThreads();
-    }, 5000);
-    return () => window.clearInterval(id);
   }, [loadThreads]);
 
   const markRead = useCallback(async (id: string) => {
@@ -304,11 +304,21 @@ export default function PmbLiveChatPage() {
     setMessages([]);
     setDetail(null);
     void pollMessages(activeId, true);
-    const id = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void pollMessages(activeId);
-    }, 3000);
-    return () => window.clearInterval(id);
   }, [activeId, pollMessages]);
+
+  // Real-time lewat WebSocket: server memberi sinyal, daftar dan percakapan yang terbuka diambil ulang lewat REST.
+  const { connected } = useChatSocket({
+    token: getAuthSession().token,
+    onSignal: (signal) => {
+      if (signal.type === 'status') {
+        void loadHours();
+        return;
+      }
+      void loadThreads();
+      if (activeId && (signal.type === 'resync' || !signal.threadId || signal.threadId === activeId)) void pollMessages(activeId);
+    },
+  });
+
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -366,6 +376,9 @@ export default function PmbLiveChatPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {!connected && (
+              <span className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200">Real-time terputus, menyambungkan ulang…</span>
+            )}
             {unreadTotal > 0 && (
               <span className="text-xs font-bold px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200">{unreadTotal} pesan belum dibaca</span>
             )}

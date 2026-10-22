@@ -113,6 +113,7 @@ export default function AdminSuratPage() {
       showToast(json?.message || 'Surat berhasil diterbitkan.');
       setIssuing(null);
       await load();
+      window.dispatchEvent(new Event('siakad:letters-updated'));
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Gagal menerbitkan surat.');
     } finally {
@@ -139,6 +140,7 @@ export default function AdminSuratPage() {
       setRejectTarget(null);
       setRejectReason('');
       await load();
+      window.dispatchEvent(new Event('siakad:letters-updated'));
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Gagal menolak permohonan.');
     } finally {

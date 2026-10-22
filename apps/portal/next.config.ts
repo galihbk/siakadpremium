@@ -18,6 +18,11 @@ const nextConfig: NextConfig = {
         source: '/api/v1/:path*',
         destination: `${process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/:path*`,
       },
+      // Live chat PMB (WebSocket) diteruskan ke API di jalur /ws.
+      {
+        source: '/ws/:path*',
+        destination: `${(process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1').replace(/\/api\/v1\/?$/, '')}/ws/:path*`,
+      },
       // Gambar publik hasil unggahan (mis. foto berita) disajikan API di /uploads/public.
       {
         source: '/uploads/public/:path*',

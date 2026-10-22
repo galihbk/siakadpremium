@@ -10,6 +10,12 @@ export interface CampusProfile {
   contactAddress: string;
   contactWhatsapp: string;
   website: string;
+  foundationName?: string;
+  // Format KOP surat yang diatur Super Admin di Profil Institusi
+  kopLine1?: string;
+  kopLine2?: string;
+  kopContact?: string;
+  doubleBorderKop?: boolean;
 }
 
 /** Bentuk siap pakai untuk teks halaman (nilai kosong = belum diisi di Profil Institusi). */
@@ -24,6 +30,9 @@ export interface CampusInfo {
   whatsapp: string;
   address: string;
   website: string;
+  foundation: string;
+  /** KOP surat resmi: baris 1 (yayasan), baris 2 (nama institusi, huruf besar), kontak, dan garis ganda. */
+  kop: { line1: string; line2: string; contact: string; doubleBorder: boolean };
 }
 
 export const EMPTY_CAMPUS: CampusInfo = {
@@ -37,6 +46,8 @@ export const EMPTY_CAMPUS: CampusInfo = {
   whatsapp: '',
   address: '',
   website: '',
+  foundation: '',
+  kop: { line1: '', line2: '', contact: '', doubleBorder: true },
 };
 
 export function toCampusInfo(p: Partial<CampusProfile> | null | undefined): CampusInfo {
@@ -54,5 +65,17 @@ export function toCampusInfo(p: Partial<CampusProfile> | null | undefined): Camp
     whatsapp: String(p.contactWhatsapp ?? '').trim(),
     address: String(p.contactAddress ?? '').trim(),
     website: String(p.website ?? '').trim(),
+    foundation: String(p.foundationName ?? '').trim(),
+    kop: {
+      // Sama dengan komponen KopSurat di portal: pengaturan KOP didahulukan, bila kosong dirakit dari data institusi
+      line1: String(p.kopLine1 ?? '').trim() || String(p.foundationName ?? '').trim(),
+      line2: (String(p.kopLine2 ?? '').trim() || name).toUpperCase(),
+      contact:
+        String(p.kopContact ?? '').trim() ||
+        [String(p.contactAddress ?? '').trim(), p.contactPhone ? `Telp. ${String(p.contactPhone).trim()}` : '', String(p.website ?? '').trim()]
+          .filter(Boolean)
+          .join(' | '),
+      doubleBorder: p.doubleBorderKop ?? true,
+    },
   };
 }

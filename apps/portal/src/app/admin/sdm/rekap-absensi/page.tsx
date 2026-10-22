@@ -1,4 +1,5 @@
 'use client';
+import { alertDialog } from '@/components/ui/ConfirmHost';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { Modal } from '@/components/ui/Modal';
@@ -223,7 +224,7 @@ export default function RekapAbsensiSdmPage() {
       setImportFileName(file.name);
     } catch (err) {
       console.error('Gagal membaca file Excel', err);
-      alert('Gagal membaca file Excel. Pastikan format file benar (.xlsx).');
+      void alertDialog('Gagal membaca file Excel. Pastikan format file benar (.xlsx).');
     } finally {
       setImportParsing(false);
       e.target.value = '';
@@ -246,7 +247,7 @@ export default function RekapAbsensiSdmPage() {
       await load(mode, month, year);
     } catch (err) {
       console.error('Gagal mengimpor absensi', err);
-      alert('Gagal mengimpor data absensi. Coba lagi.');
+      void alertDialog('Gagal mengimpor data absensi. Coba lagi.');
     } finally {
       setImportSubmitting(false);
     }

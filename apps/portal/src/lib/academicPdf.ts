@@ -4,6 +4,7 @@
  * bergantung pada tampilan layar. KOP mengikuti Profil Institusi; tanda tangan mengikuti Aturan Tanda Tangan.
  */
 import { getApiBaseUrl } from '@/lib/api';
+import { parseLetterBody } from '@/lib/letterText';
 
 export interface PdfInstitution {
   campusName: string;
@@ -411,6 +412,226 @@ export async function downloadKrsPdf(args: {
   y = ((doc as any).lastAutoTable?.finalY ?? y) + 8;
 
   await drawSignatures(doc, y, 'KRS', student.id);
+  drawPageNumbers(doc);
+  doc.save(args.filename);
+}
+
+// ======================================================================================
+// Berita Acara Ujian (UTS/UAS) per kelas + lampiran Daftar Hadir
+// ======================================================================================
+export async function downloadExamBeritaAcaraPdf(args: {
+  inst: PdfInstitution;
+  typeLabel: string;
+  yearName: string;
+  courseCode: string;
+  courseName: string;
+  className: string;
+  lecturerName?: string | null;
+  dateLabel: string;
+  timeLabel: string;
+  roomName: string;
+  proctor1?: string | null;
+  proctor2?: string | null;
+  participants: Array<{ seatNo: number | null; nim: string; name: string }>;
+  filename: string;
+}): Promise<void> {
+  const { jsPDF } = await import('jspdf');
+  const autoTable = (await import('jspdf-autotable')).default;
+  const { inst, participants } = args;
+
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  let y = await drawKop(doc, inst);
+  y = drawTitle(doc, y, `BERITA ACARA PELAKSANAAN ${args.typeLabel.toUpperCase()}`, `Tahun Akademik ${args.yearName}`);
+
+  // Satu kolom agar nama mata kuliah yang panjang tidak bertabrakan dengan kolom lain
+  doc.setFontSize(9.5);
+  doc.setTextColor(15, 23, 42);
+  const idRows: Array<[string, string]> = [
+    ['Mata Kuliah', `${args.courseCode} - ${args.courseName}`],
+    ['Kelas', args.className],
+    ['Dosen Pengampu', args.lecturerName || '-'],
+    ['Hari / Tanggal', args.dateLabel],
+    ['Waktu', args.timeLabel],
+    ['Ruang', args.roomName],
+    ['Peserta Terdaftar', `${participants.length} mahasiswa`],
+  ];
+  for (const [k, v] of idRows) {
+    doc.setFont('helvetica', 'normal');
+    doc.text(k, M, y);
+    doc.setFont('helvetica', 'bold');
+    const lines = doc.splitTextToSize(`: ${v}`, W - 2 * M - 40) as string[];
+    doc.text(lines, M + 40, y);
+    y += lines.length * 5;
+  }
+  y += 3;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9.5);
+  doc.setTextColor(15, 23, 42);
+  const intro = doc.splitTextToSize(
+    `Pada hari ini telah dilaksanakan ${args.typeLabel} pada mata kuliah dan kelas tersebut di atas dengan keterangan sebagai berikut:`,
+    W - 2 * M,
+  ) as string[];
+  doc.text(intro, M, y);
+  y += intro.length * 5 + 2;
+
+  const fields: Array<[string, string]> = [
+    ['Jumlah peserta hadir', '............ mahasiswa'],
+    ['Jumlah peserta tidak hadir', '............ mahasiswa'],
+    ['No. kursi peserta tidak hadir', '.............................................................................'],
+    ['Ujian dimulai pukul', '............ WIB'],
+    ['Ujian selesai pukul', '............ WIB'],
+  ];
+  for (const [k, v] of fields) {
+    doc.text(k, M, y);
+    doc.text(`: ${v}`, M + 56, y);
+    y += 6.5;
+  }
+
+  y += 2;
+  doc.text('Catatan kejadian selama ujian:', M, y);
+  y += 2;
+  doc.setDrawColor(15, 23, 42);
+  doc.setLineWidth(0.25);
+  doc.rect(M, y, W - 2 * M, 38);
+  y += 38 + 8;
+
+  doc.text('Demikian berita acara ini dibuat dengan sebenarnya.', M, y);
+  y += 8;
+
+  // Tanda tangan: Pengawas 1, Pengawas 2, dan Mengetahui
+  const colW = (W - 2 * M) / 3;
+  const sign = (i: number, title: string, name?: string | null) => {
+    const cx = M + colW * i + colW / 2;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    doc.text(title, cx, y, { align: 'center' });
+    const line = name || '';
+    doc.setFont('helvetica', 'bold');
+    doc.text(line, cx, y + 26, { align: 'center' });
+    doc.setLineWidth(0.25);
+    doc.line(cx - 28, y + 27, cx + 28, y + 27);
+  };
+  sign(0, 'Pengawas 1', args.proctor1);
+  sign(1, 'Pengawas 2', args.proctor2);
+  sign(2, 'Mengetahui, BAAK / Kaprodi');
+
+  // Lampiran: Daftar Hadir
+  doc.addPage();
+  let y2 = await drawKop(doc, inst);
+  y2 = drawTitle(doc, y2, `LAMPIRAN - DAFTAR HADIR ${args.typeLabel.toUpperCase()}`, `${args.courseCode} ${args.courseName} - Kelas ${args.className}`);
+  y2 = drawIdentity(doc, y2, [['Hari / Tanggal', args.dateLabel, 'Ruang', args.roomName]]);
+  autoTable(doc, {
+    ...tableBase(),
+    startY: y2,
+    head: [['Kursi', 'NIM', 'Nama Mahasiswa', 'Tanda Tangan']],
+    body: participants.map((p, i) => [String(p.seatNo ?? i + 1), p.nim, p.name, '']),
+    styles: { ...tableBase().styles, fontSize: 8.5, minCellHeight: 8 },
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 14 },
+      1: { cellWidth: 30, font: 'courier' },
+      2: { cellWidth: 'auto' },
+      3: { cellWidth: 48 },
+    },
+  });
+  drawPageNumbers(doc);
+  doc.save(args.filename);
+}
+
+// ======================================================================================
+// Surat resmi mahasiswa (SKAK, izin penelitian, dll)
+// ======================================================================================
+export async function downloadLetterPdf(args: {
+  inst: PdfInstitution;
+  unitName: string;
+  title: string;
+  letterNo: string;
+  body: string;
+  placeDate: string;
+  signer: { roleLabel: string; name: string };
+  coSigner?: { roleLabel: string; name: string | null } | null;
+  requestNo: string;
+  filename: string;
+}): Promise<void> {
+  const { jsPDF } = await import('jspdf');
+  const { inst } = args;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  let y = await drawKop(doc, inst);
+
+  doc.setTextColor(51, 65, 85);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.text(args.unitName.toUpperCase(), W / 2, y, { align: 'center' });
+  y += 8;
+  y = drawTitle(doc, y, args.title.toUpperCase(), undefined);
+  doc.setFont('courier', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Nomor: ${args.letterNo}`, W / 2, y - 3, { align: 'center' });
+  y += 4;
+
+  const textW = W - 2 * M;
+  const ensure = (need: number) => {
+    if (y + need > H - 20) {
+      doc.addPage();
+      y = 22;
+    }
+  };
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('times', 'normal');
+  doc.setFontSize(11);
+  for (const b of parseLetterBody(args.body, inst.campusName)) {
+    if (b.type === 'space') {
+      y += 3;
+    } else if (b.type === 'p') {
+      const lines = doc.splitTextToSize(b.text, textW) as string[];
+      ensure(lines.length * 5.6);
+      doc.text(lines, M, y, { align: 'justify', maxWidth: textW });
+      y += lines.length * 5.6;
+    } else {
+      ensure(b.rows.length * 6);
+      for (const [k, v] of b.rows) {
+        doc.setFont('times', 'normal');
+        doc.text(k, M + 8, y);
+        doc.text(':', M + 8 + 36, y);
+        doc.setFont('times', 'bold');
+        const vl = doc.splitTextToSize(v, textW - 8 - 40) as string[];
+        doc.text(vl, M + 8 + 40, y);
+        y += vl.length * 5.6;
+      }
+      doc.setFont('times', 'normal');
+    }
+  }
+
+  // Tanda tangan
+  y += 10;
+  ensure(58);
+  const rightX = W - M - 38;
+  doc.setFont('times', 'normal');
+  doc.text(args.placeDate, rightX, y, { align: 'center' });
+  doc.setFont('times', 'bold');
+  doc.text(`${args.signer.roleLabel},`, rightX, y + 5.5, { align: 'center' });
+  if (args.signer.name) {
+    doc.text(args.signer.name, rightX, y + 30, { align: 'center' });
+    const nameW = doc.getTextWidth(args.signer.name);
+    doc.setLineWidth(0.25);
+    doc.line(rightX - nameW / 2, y + 31, rightX + nameW / 2, y + 31);
+  }
+
+  if (args.coSigner) {
+    const leftX = M + 32;
+    doc.setFont('times', 'normal');
+    doc.text('Mengetahui,', leftX, y + 5.5, { align: 'center' });
+    doc.setFont('times', 'bold');
+    doc.text(`${args.coSigner.roleLabel},`, leftX, y + 11, { align: 'center' });
+    if (args.coSigner.name) doc.text(args.coSigner.name, leftX, y + 30, { align: 'center' });
+  }
+
+  // Keterangan validasi
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Dokumen resmi ${args.unitName}. Nomor tiket pengajuan: ${args.requestNo}`, M, H - 12);
   drawPageNumbers(doc);
   doc.save(args.filename);
 }

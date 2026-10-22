@@ -1,5 +1,6 @@
 'use client';
 
+import { CampusName, PmbYear } from '@/components/CampusText';
 import { CampusLogo } from '@/components/CampusLogo';
 import { useCampus } from '@/lib/campusProfile';
 import { useState, useEffect, Suspense } from 'react';
@@ -248,7 +249,7 @@ function LupaKataSandiContent() {
               <CampusLogo url={campus.logoUrl} initials={campus.initials} className="w-9 h-9 rounded-full bg-white border-2 border-[#D4A017] flex items-center justify-center font-extrabold text-[#1E3A8A] text-xs shadow-xs" />
               <div>
                 <span className="font-bold text-sm tracking-wide block leading-tight">
-                  INSTITUT TEKNOLOGI NUSANTARA
+                  <CampusName upper />
                 </span>
                 <span className="text-[11px] text-blue-200 block">
                   Pusat Pemulihan Kata Sandi Akun PMB

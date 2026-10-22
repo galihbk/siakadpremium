@@ -84,6 +84,25 @@ export class EmployeesService {
 
   constructor(private prisma: PrismaService) {}
 
+  /** Direktori ringkas: hanya nama (berikut gelar), kontak, dan unit; tanpa NIK/gaji/data pribadi lain. */
+  async directory() {
+    const all = await this.findAll();
+    return all
+      .filter((e) => e.status === 'Aktif' || !e.status)
+      .map((e) => ({
+        id: e.id,
+        nip: e.nip,
+        nidn: e.nidn,
+        fullName: e.fullName,
+        titlePrefix: e.titlePrefix,
+        titleSuffix: e.titleSuffix,
+        phone: e.phone,
+        department: e.department,
+        position: e.position,
+        category: e.category,
+      }));
+  }
+
   async findAll(): Promise<PegawaiResponse[]> {
     const users = await this.prisma.user.findMany({
       where: {

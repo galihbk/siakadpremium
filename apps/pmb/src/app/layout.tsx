@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { CopyrightBanner } from '@/components/CopyrightBanner';
 import { AuthFetchInstaller } from '@/components/AuthFetchInstaller';
 import { ChatWidget } from '@/components/ChatWidget';
+import { AlertHost } from '@/components/AlertHost';
 import { getCampusServer } from '@/lib/campusServer';
 import './globals.css';
 
@@ -25,6 +26,7 @@ export default function RootLayout({
       <body className="min-h-screen bg-white text-slate-800 antialiased selection:bg-[#1E3A8A] selection:text-white">
         <CopyrightBanner />
         <AuthFetchInstaller />
+        <AlertHost />
         {children}
         <ChatWidget />
       </body>

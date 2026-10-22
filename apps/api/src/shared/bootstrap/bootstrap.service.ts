@@ -57,9 +57,42 @@ export class BootstrapService implements OnApplicationBootstrap {
       this.logger.log(`Super Admin awal dibuat: ${email}. Segera ganti kata sandinya setelah login pertama.`);
 
       await this.createInstitutionProfile();
+      await this.createAdmissionDefaults();
     } catch (err) {
       this.logger.error(`Bootstrap gagal: ${err instanceof Error ? err.message : err}`);
     }
+  }
+
+  /**
+   * Pilihan awal formulir PMB (jenis pendaftaran, jenis mahasiswa, kelas) supaya pendaftar tidak menemui daftar kosong.
+   * Hanya mengisi tabel yang masih kosong; panitia PMB bebas mengubahnya di menu Jalur, Jenis & Kelas.
+   */
+  private async createAdmissionDefaults() {
+    if ((await this.prisma.admissionRegistrationType.count()) === 0) {
+      await this.prisma.admissionRegistrationType.createMany({
+        data: [
+          { code: 'NON_KIP', name: 'NON-KIP (Reguler Mandiri)', description: 'Pendaftaran umum dengan pembiayaan mandiri', badge: 'Umum Mandiri', isKip: false },
+          { code: 'KIPK', name: 'KIP-Kuliah (Beasiswa)', description: 'Bagi pemegang nomor KIP / kartu bantuan pendidikan', badge: 'Beasiswa Penuh', isKip: true },
+        ],
+      });
+    }
+    if ((await this.prisma.admissionTrack.count()) === 0) {
+      await this.prisma.admissionTrack.createMany({
+        data: [
+          { code: 'REGULER', name: 'Mahasiswa Baru (Reguler)', description: 'Lulusan SMA/SMK/MA atau sederajat', kind: 'BARU' },
+          { code: 'TRANSFER', name: 'Mahasiswa Pindahan (Transfer)', description: 'Pindahan dari perguruan tinggi lain', kind: 'TRANSFER' },
+        ],
+      });
+    }
+    if ((await this.prisma.admissionClass.count()) === 0) {
+      await this.prisma.admissionClass.createMany({
+        data: [
+          { code: 'REGULER', name: 'Kelas Reguler (Pagi)', description: 'Perkuliahan pada jam kerja', shift: 'PAGI' },
+          { code: 'KARYAWAN', name: 'Kelas Karyawan (Sore/Malam)', description: 'Perkuliahan sore atau malam hari', shift: 'SORE' },
+        ],
+      });
+    }
+    this.logger.log('Pilihan awal PMB dibuat (jenis pendaftaran, jenis mahasiswa, kelas). Sesuaikan di Admin PMB > Jalur, Jenis & Kelas.');
   }
 
   /** Profil institusi awal yang bersih: hanya nama kampus, tanpa data kampus lain. */

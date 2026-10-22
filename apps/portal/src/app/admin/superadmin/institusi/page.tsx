@@ -357,9 +357,7 @@ export default function SuperAdminProfilInstitusiPage() {
         kopLine1: editIdentityData.kopLine1,
         kopLine2: editIdentityData.kopLine2,
         kopContact: editIdentityData.kopContact,
-        pinFormat: editIdentityData.pinFormat,
         nomorSuratFormat: editIdentityData.nomorSuratFormat,
-        nimFormat: editIdentityData.nimFormat,
         doubleBorderKop: editIdentityData.doubleBorderKop,
       };
 
@@ -1449,19 +1447,6 @@ export default function SuperAdminProfilInstitusiPage() {
             {activeIdentityTab === 'format' && (
               <div className="space-y-3.5">
                 <div className="space-y-1">
-                  <label className="font-bold text-slate-700">Format Penomoran Ijazah Nasional (PIN)</label>
-                  <input
-                    type="text"
-                    value={editIdentityData.pinFormat}
-                    onChange={(e) =>
-                      setEditIdentityData({ ...editIdentityData, pinFormat: e.target.value })
-                    }
-                    className="w-full px-3.5 py-2 font-mono text-xs rounded-xl border border-slate-200 focus:outline-none font-bold"
-                  />
-                  <p className="text-[10px] text-slate-400">Format standar penomoran ijazah sesuai regulasi PDDikti.</p>
-                </div>
-
-                <div className="space-y-1">
                   <label className="font-bold text-slate-700">Format Penomoran Surat Resmi BAAK</label>
                   <input
                     type="text"
@@ -1469,22 +1454,56 @@ export default function SuperAdminProfilInstitusiPage() {
                     onChange={(e) =>
                       setEditIdentityData({ ...editIdentityData, nomorSuratFormat: e.target.value })
                     }
-                    className="w-full px-3.5 py-2 font-mono text-xs rounded-xl border border-slate-200 focus:outline-none font-bold"
+                    className="w-full px-3.5 py-2 font-mono text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-[#1E3A8A] font-bold"
                   />
-                  <p className="text-[10px] text-slate-400">Digunakan pada layanan surat keterangan aktif kuliah, izin magang, dll.</p>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[
+                      ['{KODE_SURAT}', 'kode jenis surat (mis. 421.4)'],
+                      ['{NO}', 'nomor urut per tahun (001)'],
+                      ['{BULAN_ROMAWI}', 'bulan romawi (X)'],
+                      ['{BULAN}', 'bulan angka (10)'],
+                      ['{TAHUN}', 'tahun (2026)'],
+                    ].map(([tok, hint]) => (
+                      <button
+                        key={tok}
+                        type="button"
+                        title={hint}
+                        onClick={() =>
+                          setEditIdentityData({ ...editIdentityData, nomorSuratFormat: `${editIdentityData.nomorSuratFormat}${tok}` })
+                        }
+                        className="px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-[10px] font-mono font-bold text-slate-700 cursor-pointer"
+                      >
+                        {tok}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-slate-500">
+                    Contoh hasil:{' '}
+                    <span className="font-mono font-bold text-slate-800">
+                      {(editIdentityData.nomorSuratFormat || '{NO}')
+                        .replace(/\{KODE_SURAT\}/g, '421.4')
+                        .replace(/\{BULAN_ROMAWI\}/g, ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'][new Date().getMonth()])
+                        .replace(/\{BULAN\}/g, String(new Date().getMonth() + 1).padStart(2, '0'))
+                        .replace(/\{TAHUN\}/g, String(new Date().getFullYear()))
+                        .replace(/\{NO\}/g, '001')}
+                    </span>
+                  </p>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700">Format Nomor Induk Mahasiswa (NIM)</label>
-                  <input
-                    type="text"
-                    value={editIdentityData.nimFormat}
-                    onChange={(e) =>
-                      setEditIdentityData({ ...editIdentityData, nimFormat: e.target.value })
-                    }
-                    className="w-full px-3.5 py-2 font-mono text-xs rounded-xl border border-slate-200 focus:outline-none font-bold"
-                  />
-                  <p className="text-[10px] text-slate-400">Contoh hasil: 2311501001 (Angkatan 23, Prodi 115, Urut 01001).</p>
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 space-y-2">
+                  <p className="font-bold text-slate-800">Cara penggunaan</p>
+                  <ol className="list-decimal pl-4 space-y-1">
+                    <li>Ketik format nomor surat, atau klik tombol penanda di bawah kolom untuk menambahkannya di akhir. Teks biasa seperti singkatan unit (mis. BAAK) boleh ditulis langsung.</li>
+                    <li>Lihat <b>Contoh hasil</b> untuk memastikan bentuk nomornya sudah sesuai, lalu klik <b>Simpan</b>.</li>
+                    <li>Nomor dipakai otomatis pada surat resmi BAAK yang terbit berikutnya (SKAK, izin magang, izin penelitian, dan lainnya). Surat yang sudah terbit tidak berubah.</li>
+                  </ol>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5 pt-1 text-[10px]">
+                    <p><span className="font-mono font-bold">{'{KODE_SURAT}'}</span> kode jenis surat, mis. 421.4</p>
+                    <p><span className="font-mono font-bold">{'{NO}'}</span> nomor urut per tahun, mis. 001 (wajib ada)</p>
+                    <p><span className="font-mono font-bold">{'{BULAN_ROMAWI}'}</span> bulan romawi, mis. X</p>
+                    <p><span className="font-mono font-bold">{'{BULAN}'}</span> bulan angka, mis. 10</p>
+                    <p><span className="font-mono font-bold">{'{TAHUN}'}</span> tahun, mis. 2026</p>
+                  </div>
                 </div>
               </div>
             )}

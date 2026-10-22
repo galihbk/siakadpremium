@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { UpdateBankSettingDto } from './dto/update-bank-setting.dto';
@@ -3299,6 +3299,220 @@ export class IntegrationSettingsService {
    * Hanya membaca (GetWilayah). Tidak menebak -- kalau tidak ketemu atau ambigu, dikembalikan
    * alasan gagal supaya admin tahu persis harus melengkapi data apa, bukan silent-wrong-match.
    */
+  // ---- Pencarian perguruan tinggi / program studi asal untuk formulir PMB (membaca referensi Feeder, di-cache) ----
+  private originCache = new Map<string, { data: any[]; expiresAt: number }>();
+  private originToken: { token: string; expiresAt: number } | null = null;
+
+  private readonly originLogger = new Logger('OriginSearch');
+  // Neo Feeder kampus sering lambat membalas; sama dengan batas waktu sinkronisasi lain, bukan 8 detik.
+  private static readonly ORIGIN_TIMEOUT_MS = 20000;
+
+  private async getOriginSession(forceNew = false): Promise<{ baseUrl: string; token: string } | null> {
+    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    if (!setting?.baseUrl || !setting?.username || !setting?.password) return null;
+    if (!forceNew && this.originToken && this.originToken.expiresAt > Date.now()) {
+      return { baseUrl: setting.baseUrl, token: this.originToken.token };
+    }
+    const token = await this.getFeederToken(setting.baseUrl, setting.username, setting.password, IntegrationSettingsService.ORIGIN_TIMEOUT_MS);
+    this.originToken = { token, expiresAt: Date.now() + 10 * 60 * 1000 };
+    return { baseUrl: setting.baseUrl, token };
+  }
+
+  /**
+   * Pencarian ke referensi Feeder dengan cache. Mengembalikan status agar klien bisa membedakan "tidak ada hasil"
+   * dari "daftar tidak dapat dimuat" (Feeder belum dikonfigurasi / lambat / menolak). Penyebab dicatat di log server.
+   */
+  private async cachedOriginLookup(
+    key: string,
+    act: string,
+    filter: string,
+    limit: number,
+    map: (r: any) => any,
+  ): Promise<{ items: any[]; status: 'OK' | 'NOT_CONFIGURED' | 'UNAVAILABLE' }> {
+    const hit = this.originCache.get(key);
+    if (hit && hit.expiresAt > Date.now()) return { items: hit.data, status: 'OK' };
+    const started = Date.now();
+    try {
+      let session = await this.getOriginSession();
+      if (!session) {
+        this.originLogger.warn(`${act}: pengaturan Web Service Neo Feeder belum lengkap (Pengaturan DIKTI).`);
+        return { items: [], status: 'NOT_CONFIGURED' };
+      }
+      const timeout = IntegrationSettingsService.ORIGIN_TIMEOUT_MS;
+      let res = await this.callFeeder(session.baseUrl, { act, token: session.token, filter, limit, offset: 0 }, timeout);
+      if (res.errorCode !== '0') {
+        // token mungkin kedaluwarsa: ambil token baru sekali lalu ulangi
+        session = await this.getOriginSession(true);
+        if (!session) return { items: [], status: 'NOT_CONFIGURED' };
+        res = await this.callFeeder(session.baseUrl, { act, token: session.token, filter, limit, offset: 0 }, timeout);
+      }
+      if (res.errorCode !== '0' || !Array.isArray(res.data)) {
+        this.originLogger.warn(`${act} ditolak Feeder (kode ${res.errorCode ?? '-'}): ${res.errorDesc || 'tanpa keterangan'} -- filter: ${filter}`);
+        return { items: [], status: 'UNAVAILABLE' };
+      }
+      const data = res.data.map(map).filter((r: any) => r.id && r.name);
+      if (data.length === 0 && res.data.length > 0) {
+        this.originLogger.warn(`${act}: ${res.data.length} baris diterima tetapi tidak ada yang berisi id dan nama; nama kolom Feeder mungkin berbeda. Contoh baris: ${JSON.stringify(res.data[0]).slice(0, 300)}`);
+      }
+      if (this.originCache.size > 500) this.originCache.clear();
+      this.originCache.set(key, { data, expiresAt: Date.now() + 10 * 60 * 1000 });
+      return { items: data, status: 'OK' };
+    } catch (err: any) {
+      this.originLogger.warn(`${act} gagal setelah ${Date.now() - started} ms: ${err?.message || err}`);
+      return { items: [], status: 'UNAVAILABLE' };
+    }
+  }
+
+  /** Cari perguruan tinggi di referensi Feeder (min. 3 huruf). */
+  async searchOriginUniversities(query: string) {
+    const q = String(query ?? '').trim();
+    if (q.length < 3) return { items: [], status: 'OK' as const };
+    return this.cachedOriginLookup(
+      `pt:${q.toLowerCase()}`,
+      'GetAllPT',
+      `nama_perguruan_tinggi ilike '%${this.escapeFeederFilter(q)}%'`,
+      15,
+      (r) => ({ id: String(r.id_perguruan_tinggi ?? ''), code: String(r.kode_perguruan_tinggi ?? ''), name: String(r.nama_perguruan_tinggi ?? '').trim() }),
+    );
+  }
+
+  /** Cari program studi pada satu perguruan tinggi di referensi Feeder. `query` boleh kosong untuk menampilkan daftar awal. */
+  async searchOriginStudyPrograms(universityId: string, query?: string) {
+    const uid = String(universityId ?? '').trim();
+    if (!/^[0-9a-f-]{36}$/i.test(uid)) return { items: [], status: 'OK' as const };
+    const q = String(query ?? '').trim();
+    const filter = `id_perguruan_tinggi = '${uid}'` + (q ? ` and nama_program_studi ilike '%${this.escapeFeederFilter(q)}%'` : '');
+    return this.cachedOriginLookup(`prodi:${uid}:${q.toLowerCase()}`, 'GetAllProdi', filter, 30, (r) => {
+      const jenjang = String(r.nama_jenjang_pendidikan ?? '').trim();
+      const nama = String(r.nama_program_studi ?? '').trim();
+      return { id: String(r.id_prodi ?? ''), code: String(r.kode_program_studi ?? ''), jenjang, name: nama, label: jenjang ? `${jenjang} ${nama}` : nama };
+    });
+  }
+
+  /** Normalisasi nama untuk pencocokan: huruf kecil, tanpa tanda baca dan spasi ganda. */
+  private normalizeName(v: string): string {
+    return v.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+
+  /**
+   * Memetakan kategori mahasiswa SIAKAD ke id_jenis_daftar Feeder dengan membaca referensi Feeder sendiri
+   * (act GetJenisPendaftaran) dan mencocokkan NAMA jenisnya, bukan angka tetap, karena daftar tiap versi
+   * Neo Feeder bisa berbeda. Kategori yang namanya tidak ditemukan bernilai null.
+   */
+  private async resolveJenisDaftar(baseUrl: string, token: string): Promise<Record<string, string | null>> {
+    const patterns: Record<string, RegExp> = {
+      BARU: /^peserta didik baru$/i,
+      TRANSFER: /^pindahan$/i,
+      RPL: /rpl\s+perolehan\s+sks/i,
+      RPL_PEROLEHAN: /rpl\s+perolehan\s+sks/i,
+      RPL_TRANSFER: /rpl\s+transfer\s+sks/i,
+      NON_GELAR: /non\s+gelar/i,
+      FAST_TRACK: /fast\s*track/i,
+      PPG_PGP: /^ppg\s+pgp/i,
+      PPG_NON_PGP: /^ppg\s+non\s+pgp/i,
+      DOUBLE_DEGREE: /double\s+degree/i,
+      JOIN_DEGREE: /jo(i)?n\s+degree/i,
+    };
+    const out: Record<string, string | null> = {};
+    for (const k of Object.keys(patterns)) out[k] = null;
+    try {
+      const { data, errorCode } = await this.callFeeder(baseUrl, { act: 'GetJenisPendaftaran', token });
+      if (errorCode === '0' && Array.isArray(data)) {
+        const rows = data.map((r: any) => ({ id: String(r.id_jenis_daftar ?? ''), name: String(r.nama_jenis_daftar ?? '').trim() }));
+        for (const [kind, re] of Object.entries(patterns)) {
+          out[kind] = rows.find((r) => r.id && re.test(r.name))?.id ?? null;
+        }
+      }
+    } catch {
+      // jatuh ke bawaan di bawah
+    }
+    // Bawaan bila referensi Feeder tidak terbaca (kode tetap Neo Feeder): 1 Peserta didik baru, 2 Pindahan
+    if (!out.BARU) out.BARU = '1';
+    if (!out.TRANSFER) out.TRANSFER = '2';
+    return out;
+  }
+
+  /**
+   * Mencari id_perguruan_tinggi dan id_prodi asal di referensi Feeder dari data yang diisi pendaftar.
+   * Perguruan tinggi dicocokkan lewat KODE (pasti) bila ada, selain itu lewat nama; program studi dicocokkan lewat nama
+   * resmi dan jenjang. Gagal dengan alasan yang jelas bila tidak ada atau lebih dari satu kecocokan, supaya BAAK bisa memperbaikinya.
+   */
+  private async resolveFeederOrigin(
+    baseUrl: string,
+    token: string,
+    origin: { institution: string; institutionCode?: string; program: string; level?: string },
+  ): Promise<{ idPt?: string; idProdi?: string; reason?: string }> {
+    const institution = origin.institution;
+    const program = origin.program;
+    const exactOrAll = (rows: any[], nameKey: string, wanted: string) => {
+      const target = this.normalizeName(wanted);
+      const exact = rows.filter((r) => this.normalizeName(String(r[nameKey] ?? '')) === target);
+      return exact.length > 0 ? exact : rows;
+    };
+    try {
+      const byCode = String(origin.institutionCode ?? '').trim();
+      const pt = await this.callFeeder(baseUrl, {
+        act: 'GetAllPT',
+        token,
+        filter: byCode && /^[0-9A-Za-z]+$/.test(byCode)
+          ? `kode_perguruan_tinggi = '${this.escapeFeederFilter(byCode)}'`
+          : `nama_perguruan_tinggi ilike '%${this.escapeFeederFilter(institution.trim())}%'`,
+        limit: 20,
+        offset: 0,
+      });
+      if (pt.errorCode !== '0') return { reason: pt.errorDesc || 'Gagal mencari perguruan tinggi asal di Feeder' };
+      const ptRows: any[] = Array.isArray(pt.data) ? pt.data : [];
+      const ptCandidates = byCode ? ptRows : exactOrAll(ptRows, 'nama_perguruan_tinggi', institution);
+      if (ptCandidates.length === 0) {
+        return { reason: byCode
+          ? `Perguruan tinggi asal '${institution}' (kode ${byCode}) tidak ditemukan di referensi Feeder.`
+          : `Perguruan tinggi asal '${institution}' tidak ditemukan di referensi Feeder. Periksa penulisan namanya.` };
+      }
+      if (ptCandidates.length > 1) {
+        return { reason: `Perguruan tinggi asal '${institution}' cocok dengan ${ptCandidates.length} perguruan tinggi di Feeder. Pilih dari daftar pencarian agar kodenya tepat.` };
+      }
+      const idPt = String(ptCandidates[0].id_perguruan_tinggi);
+
+      // Ambil seluruh prodi perguruan tinggi itu lalu cocokkan nama (dan jenjang) secara lokal; jumlahnya kecil.
+      const prodi = await this.callFeeder(baseUrl, {
+        act: 'GetAllProdi',
+        token,
+        filter: `id_perguruan_tinggi = '${this.escapeFeederFilter(idPt)}'`,
+        limit: 500,
+        offset: 0,
+      });
+      if (prodi.errorCode !== '0') return { reason: prodi.errorDesc || 'Gagal mencari program studi asal di Feeder' };
+      const rows: any[] = Array.isArray(prodi.data) ? prodi.data : [];
+      // label di formulir berbentuk "S1 PENDIDIKAN EKONOMI"; pisahkan jenjang di depan bila tidak diberikan terpisah
+      let wantedName = program.trim();
+      let wantedLevel = String(origin.level ?? '').trim();
+      const m = /^(D[1-4]|S[1-3]|Sp-?[12]|Profesi)\s+(.+)$/i.exec(wantedName);
+      if (m) {
+        if (!wantedLevel) wantedLevel = m[1];
+        wantedName = m[2];
+      }
+      const nameTarget = this.normalizeName(wantedName);
+      let candidates = rows.filter((r) => this.normalizeName(String(r.nama_program_studi ?? '')) === nameTarget);
+      if (candidates.length === 0) {
+        candidates = rows.filter((r) => this.normalizeName(String(r.nama_program_studi ?? '')).includes(nameTarget));
+      }
+      if (wantedLevel && candidates.length > 1) {
+        const level = this.normalizeName(wantedLevel);
+        const sameLevel = candidates.filter((r) => this.normalizeName(String(r.nama_jenjang_pendidikan ?? '')) === level);
+        if (sameLevel.length > 0) candidates = sameLevel;
+      }
+      if (candidates.length === 0) {
+        return { reason: `Program studi asal '${program}' tidak ditemukan pada perguruan tinggi asal di Feeder.` };
+      }
+      if (candidates.length > 1) {
+        return { reason: `Program studi asal '${program}' cocok dengan ${candidates.length} program studi di perguruan tinggi asal (beda jenjang?). Pilih dari daftar pencarian beserta jenjangnya.` };
+      }
+      return { idPt, idProdi: String(candidates[0].id_prodi) };
+    } catch (err: any) {
+      return { reason: `Gagal mencari data asal di Feeder: ${err?.message || 'Unknown error'}` };
+    }
+  }
+
   private async resolveFeederWilayah(
     baseUrl: string,
     token: string,
@@ -3411,13 +3625,15 @@ export class IntegrationSettingsService {
         // ditangani per-mahasiswa di bawah (gagal kalau prodi tidak ketemu)
       }
 
+      const jenisDaftar = await this.resolveJenisDaftar(setting.baseUrl, token);
+
       const eligible = await this.prisma.student.findMany({
         where: {
           status: 'ACTIVE',
           feederRegistrationId: null,
           ...(studentIds && studentIds.length > 0 ? { id: { in: studentIds } } : {}),
         },
-        include: { user: true, studyProgram: true },
+        include: { user: true, studyProgram: true, track: { select: { kind: true, name: true } } },
         take: LIMIT_PER_RUN,
         orderBy: { createdAt: 'asc' },
       });
@@ -3554,10 +3770,54 @@ export class IntegrationSettingsService {
         }
 
         // 3. Tahap 2: InsertRiwayatPendidikanMahasiswa (pendaftaran/registrasi).
+        // Jenis daftar mengikuti label jenis mahasiswa (BARU / TRANSFER / RPL). Selain mahasiswa baru, Feeder
+        // meminta perguruan tinggi dan program studi asal.
+        const trackKind = (student as any).track?.kind as string | undefined;
+        let idJenisDaftar = jenisDaftar.BARU || '1'; // Peserta didik baru
+        let originFields: Record<string, any> = {};
+        if (trackKind && trackKind !== 'BARU') {
+          const mapped = jenisDaftar[trackKind];
+          if (!mapped) {
+            await markFailed(student.id, `Jenis daftar untuk '${(student as any).track?.name}' (${trackKind}) tidak ditemukan di referensi Feeder`);
+            continue;
+          }
+          idJenisDaftar = mapped;
+          const instName = String((student as any).originInstitution || '').trim();
+          const progName = String((student as any).originStudyProgram || '').trim();
+          const hasOrigin = !!instName && !!progName;
+          if ((trackKind === 'TRANSFER' || trackKind === 'RPL_TRANSFER') && !hasOrigin) {
+            await markFailed(student.id, 'Perguruan tinggi asal dan program studi asal belum diisi (wajib untuk mahasiswa pindahan / RPL Transfer SKS)');
+            continue;
+          }
+          // Dipilih dari pencarian referensi Feeder: ID sudah pasti, tidak perlu menebak dari nama
+          const pickedPt = String((student as any).originInstitutionId || '').trim();
+          const pickedProdi = String((student as any).originStudyProgramId || '').trim();
+          // Kategori lain boleh tanpa asal (mis. RPL Perolehan SKS dari pengalaman kerja); bila diisi tetap harus cocok dengan referensi Feeder
+          if (pickedPt && pickedProdi) {
+            originFields = { id_perguruan_tinggi_asal: pickedPt, id_prodi_asal: pickedProdi };
+          } else if (hasOrigin) {
+            const origin = await this.resolveFeederOrigin(setting.baseUrl, token, {
+              institution: instName,
+              institutionCode: (student as any).originInstitutionCode,
+              program: progName,
+              level: (student as any).originStudyProgramLevel,
+            });
+            if (!origin.idPt || !origin.idProdi) {
+              await markFailed(student.id, origin.reason || 'Perguruan tinggi/program studi asal tidak dapat dicocokkan ke Feeder');
+              continue;
+            }
+            originFields = {
+              id_perguruan_tinggi_asal: origin.idPt,
+              id_prodi_asal: origin.idProdi,
+            };
+          }
+        }
+
         const recordReg: Record<string, any> = {
           id_mahasiswa: idMahasiswaFeeder,
           nim,
-          id_jenis_daftar: 1, // Peserta didik baru -- SIAKAD belum membedakan RPL/Pindahan/Penyetaraan
+          id_jenis_daftar: idJenisDaftar,
+          ...originFields,
           id_jalur_daftar: 12, // Seleksi Mandiri -- default kebijakan kampus, SIAKAD belum menyimpan jalur nasional
           biaya_masuk: '4000000.00',
           id_pembiayaan: '1', // Mandiri -- SIAKAD belum melacak status KIP/beasiswa di Student
@@ -3565,7 +3825,7 @@ export class IntegrationSettingsService {
           id_perguruan_tinggi: idPerguruanTinggi,
           id_prodi: idProdiFeeder,
           id_periode_masuk: `${student.entryYear}1`,
-          sks_diakui: 0,
+          sks_diakui: Number((student as any).originCredits ?? 0),
         };
 
         const { data: insertRegData, errorCode: insertRegErr, errorDesc: insertRegErrDesc } = await this.callFeeder(setting.baseUrl, {

@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { JwtService } from '@nestjs/jwt';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../shared/prisma/prisma.service';
+import { PmbChatGateway } from './pmb-chat.gateway';
 
 const MAX_LEN = 1000;
 const PAGE = 200;
@@ -36,6 +37,7 @@ export class PmbChatService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly gateway: PmbChatGateway,
   ) {}
 
   // ============================ JAM OPERASIONAL ============================
@@ -79,6 +81,7 @@ export class PmbChatService {
     if (offlineMessage.length > 300) throw new BadRequestException('Pesan di luar jam operasional maksimal 300 karakter.');
     const data = { mode: String(dto.mode), schedule: schedule as any, offlineMessage, allowOfflineMessages: dto.allowOfflineMessages !== false };
     await this.prisma.pmbChatSetting.upsert({ where: { id: 'default' }, update: data, create: { id: 'default', ...data } });
+    this.gateway.notifyStatus();
     return this.status();
   }
 
@@ -145,7 +148,16 @@ export class PmbChatService {
     if (actor.kind === 'applicant') {
       const account = await this.prisma.pmbAccount.findUnique({ where: { id: actor.id }, select: { id: true } });
       if (!account) throw new NotFoundException('Akun PMB tidak ditemukan.');
-      return this.prisma.pmbChatThread.upsert({ where: { accountId: actor.id }, update: {}, create: { accountId: actor.id } });
+      // Beberapa permintaan bisa tiba bersamaan saat widget dibuka; bila yang lain lebih dulu membuat percakapan
+      // (pelanggaran kunci unik accountId), pakai percakapan itu, bukan gagal dengan galat 500.
+      try {
+        return await this.prisma.pmbChatThread.upsert({ where: { accountId: actor.id }, update: {}, create: { accountId: actor.id } });
+      } catch (err: any) {
+        if (err?.code !== 'P2002') throw err;
+        const existing = await this.prisma.pmbChatThread.findUnique({ where: { accountId: actor.id } });
+        if (!existing) throw err;
+        return existing;
+      }
     }
     const thread = await this.prisma.pmbChatThread.findUnique({ where: { visitorKey: actor.id } });
     if (!thread) throw new NotFoundException('Percakapan tidak ditemukan.');
@@ -176,6 +188,7 @@ export class PmbChatService {
     });
     await this.prisma.pmbChatThread.update({ where: { id: thread.id }, data: { lastMessageAt: msg.createdAt } });
     const token = this.jwt.sign({ sub: visitorKey, role: 'PMB_VISITOR' }, { expiresIn: '7d' });
+    this.gateway.notifyStaff(thread.id);
     return { token, createdAt: msg.createdAt.toISOString() };
   }
 
@@ -220,6 +233,7 @@ export class PmbChatService {
       // pesan baru dari peserta membuka kembali percakapan yang sempat ditutup
       data: { lastMessageAt: msg.createdAt, staffUnread: { increment: 1 }, status: 'OPEN' },
     });
+    this.gateway.notifyStaff(thread.id);
     return { id: msg.id, createdAt: msg.createdAt.toISOString() };
   }
 
@@ -322,7 +336,7 @@ export class PmbChatService {
 
   async staffSend(threadId: string, user: { sub?: string; fullName?: string }, message: unknown) {
     const body = this.cleanBody(message);
-    await this.requireThread(threadId);
+    const thread = await this.requireThread(threadId);
     // akun demo tidak punya baris User -- hanya simpan relasi bila akunnya ada
     const exists = user?.sub ? await this.prisma.user.findUnique({ where: { id: user.sub }, select: { id: true } }) : null;
     const msg = await this.prisma.pmbChatMessage.create({
@@ -332,19 +346,24 @@ export class PmbChatService {
       where: { id: threadId },
       data: { lastMessageAt: msg.createdAt, applicantUnread: { increment: 1 }, staffUnread: 0 },
     });
+    this.gateway.notifyOwner(thread);
+    this.gateway.notifyStaff(threadId);
     return { id: msg.id, createdAt: msg.createdAt.toISOString() };
   }
 
   async staffRead(threadId: string) {
     await this.requireThread(threadId);
     await this.prisma.pmbChatThread.update({ where: { id: threadId }, data: { staffUnread: 0 } });
+    this.gateway.notifyStaff(threadId);
     return { success: true };
   }
 
   async staffSetStatus(threadId: string, status: string) {
     if (status !== 'OPEN' && status !== 'CLOSED') throw new BadRequestException('Status harus OPEN atau CLOSED.');
-    await this.requireThread(threadId);
+    const thread = await this.requireThread(threadId);
     await this.prisma.pmbChatThread.update({ where: { id: threadId }, data: { status } });
+    this.gateway.notifyOwner(thread);
+    this.gateway.notifyStaff(threadId);
     return { success: true, status };
   }
 }

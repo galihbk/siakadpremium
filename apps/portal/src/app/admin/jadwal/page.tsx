@@ -57,6 +57,8 @@ export interface ScheduleItem {
   practice?: PracticeSlot | null;
   className: string;
   isFlexibleSchedule: boolean;
+  admissionClassId?: string | null;
+  kelasKuliah?: string | null;
   day: string | null;
   startTime: string | null;
   endTime: string | null;
@@ -132,6 +134,7 @@ export default function AdminJadwalPage() {
     courseName: '',
     sks: 3,
     className: '',
+    admissionClassId: '',
     isFlexibleSchedule: false,
     day: 'Senin',
     startTime: '08:00',
@@ -156,6 +159,39 @@ export default function AdminJadwalPage() {
   });
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
+  // Pilihan Kelas Kuliah (mis. Reguler Pagi / Karyawan Sore) dari master PMB
+  const [kelasOptions, setKelasOptions] = useState<Array<{ id: string; name: string; shift: string }>>([]);
+  useEffect(() => {
+    fetch(`${apiBase}/admissions/admin/pmb/classes`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const list = Array.isArray(j?.data) ? j.data : Array.isArray(j) ? j : [];
+        setKelasOptions(list.filter((k: any) => k.isActive !== false).map((k: any) => ({ id: k.id, name: k.name, shift: k.shift ?? 'PAGI' })));
+      })
+      .catch(() => setKelasOptions([]));
+  }, [apiBase]);
+
+  const SHIFT_LABEL: Record<string, string> = { PAGI: 'Pagi', SIANG: 'Siang', SORE: 'Sore', MALAM: 'Malam', AKHIR_PEKAN: 'Akhir Pekan' };
+  // Peringatan lunak (tidak memblokir): jam atau hari jadwal tidak lazim untuk kategori kelas kuliah yang dipilih
+  const shiftWarning = (() => {
+    const k = kelasOptions.find((o) => o.id === formData.admissionClassId);
+    if (!k || formData.isFlexibleSchedule) return null;
+    const [h, m] = (formData.startTime || '').split(':').map(Number);
+    const start = (h || 0) * 60 + (m || 0);
+    const label = SHIFT_LABEL[k.shift] ?? k.shift;
+    const ok =
+      k.shift === 'PAGI' ? start < 12 * 60
+      : k.shift === 'SIANG' ? start >= 11 * 60 && start < 15 * 60
+      : k.shift === 'SORE' ? start >= 15 * 60 && start < 19 * 60
+      : k.shift === 'MALAM' ? start >= 18 * 60
+      : k.shift === 'AKHIR_PEKAN' ? /^(sabtu|minggu)$/i.test(formData.day)
+      : true;
+    if (ok) return null;
+    return k.shift === 'AKHIR_PEKAN'
+      ? `Hari ${formData.day} tidak sesuai kategori ${label} (Sabtu atau Minggu).`
+      : `Jam mulai ${formData.startTime} tidak lazim untuk kategori ${label}.`;
+  })();
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToastMessage({ text, type });
@@ -316,6 +352,7 @@ export default function AdminJadwalPage() {
       courseName: '',
       sks: 3,
       className: '',
+      admissionClassId: '',
       isFlexibleSchedule: false,
       day: 'Senin',
       startTime: '08:00',
@@ -364,6 +401,7 @@ export default function AdminJadwalPage() {
       courseName: sch.courseName,
       sks: sch.sks,
       className: sch.className,
+      admissionClassId: sch.admissionClassId ?? '',
       isFlexibleSchedule: sch.isFlexibleSchedule,
       day: sch.day ?? 'Senin',
       startTime: sch.startTime ?? '08:00',
@@ -836,6 +874,9 @@ export default function AdminJadwalPage() {
 
                       <td className="px-4 py-3.5 whitespace-nowrap">
                         <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-blue-50 text-[#1E3A8A] border border-blue-100">{sch.className}</span>
+                        {sch.kelasKuliah && (
+                          <span className="ml-1.5 px-2 py-1 rounded-lg text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-100">{sch.kelasKuliah}</span>
+                        )}
                         <div className="text-[11px] text-slate-400 mt-1">Semester {sch.semester}</div>
                       </td>
 
@@ -1248,6 +1289,23 @@ export default function AdminJadwalPage() {
             {!formData.isFlexibleSchedule && Number(courseOfForm?.sksPraktik) > 0 &&
               renderPracticeFields(Number(courseOfForm?.sksTeori) || 0, Number(courseOfForm?.sksPraktik) || 0, Number(courseOfForm?.sks) || 3)}
 
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Kelas Kuliah</label>
+              <select
+                value={formData.admissionClassId}
+                onChange={(e) => setFormData({ ...formData, admissionClassId: e.target.value })}
+                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+              >
+                <option value="">Semua kelas</option>
+                {kelasOptions.map((k) => (
+                  <option key={k.id} value={k.id}>
+                    {k.name} ({SHIFT_LABEL[k.shift] ?? k.shift})
+                  </option>
+                ))}
+              </select>
+              {shiftWarning && <p className="mt-1 text-[10px] text-amber-600">{shiftWarning}</p>}
+            </div>
+
             {/* Kuota */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Kapasitas Kuota Mahasiswa</label>
@@ -1365,6 +1423,23 @@ export default function AdminJadwalPage() {
 
             {!formData.isFlexibleSchedule && Number(editingSchedule?.sksPraktik) > 0 &&
               renderPracticeFields(Number(editingSchedule?.sksTeori) || 0, Number(editingSchedule?.sksPraktik) || 0, Number(editingSchedule?.sks) || 3)}
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Kelas Kuliah</label>
+              <select
+                value={formData.admissionClassId}
+                onChange={(e) => setFormData({ ...formData, admissionClassId: e.target.value })}
+                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+              >
+                <option value="">Semua kelas</option>
+                {kelasOptions.map((k) => (
+                  <option key={k.id} value={k.id}>
+                    {k.name} ({SHIFT_LABEL[k.shift] ?? k.shift})
+                  </option>
+                ))}
+              </select>
+              {shiftWarning && <p className="mt-1 text-[10px] text-amber-600">{shiftWarning}</p>}
+            </div>
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Kapasitas Kuota</label>
