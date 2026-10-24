@@ -1,10 +1,15 @@
 'use client';
 
+import { FileUploadField } from '@/components/ui/FileUploadField';
+import { useInstitution } from '@/lib/useInstitution';
 import React, { useCallback, useEffect, useState } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getAuthSession } from '@/lib/auth';
 import {
   ThesisProject,
+  ThesisSettings,
+  DEFAULT_THESIS_SETTINGS,
+  guidanceCounts,
   THESIS_STAGE_ORDER,
   THESIS_STAGE_LABEL,
   DEFENSE_TYPE_LABEL,
@@ -14,7 +19,7 @@ import {
   formatDateTime,
   thesisFetch,
 } from '@/lib/thesis';
-import {
+import { Download,
   GraduationCap,
   CheckCircle2,
   Circle,
@@ -45,12 +50,13 @@ export default function StudentSkripsiPage() {
   const [abstract, setAbstract] = useState('');
   const [fileUrl, setFileUrl] = useState('');
   // form bimbingan
-  const [topic, setTopic] = useState('');
-  const [notes, setNotes] = useState('');
-  const [guidanceFile, setGuidanceFile] = useState('');
-  const [guidanceLecturer, setGuidanceLecturer] = useState('');
+  const [settings, setSettings] = useState<ThesisSettings>(DEFAULT_THESIS_SETTINGS);
   // form daftar sidang
   const [defenseFile, setDefenseFile] = useState('');
+
+  useEffect(() => {
+    thesisFetch<ThesisSettings>('/settings').then(setSettings).catch(() => undefined);
+  }, []);
 
   const notify = (ok: boolean, text: string) => {
     setToast({ ok, text });
@@ -98,21 +104,6 @@ export default function StudentSkripsiPage() {
       'Proposal berhasil diajukan. Menunggu plotting dosen pembimbing oleh BAAK.'
     );
 
-  const addGuidance = () =>
-    run(
-      () =>
-        thesisFetch('/me/guidance', {
-          method: 'POST',
-          body: { topic, notes, fileUrl: guidanceFile, lecturerId: guidanceLecturer || undefined },
-        }),
-      'Catatan bimbingan terkirim ke dosen pembimbing.',
-      () => {
-        setTopic('');
-        setNotes('');
-        setGuidanceFile('');
-      }
-    );
-
   const registerDefense = (type: 'SEMPRO' | 'UJIAN') =>
     run(
       () => thesisFetch('/me/defense', { method: 'POST', body: { type, fileUrl: defenseFile } }),
@@ -125,6 +116,71 @@ export default function StudentSkripsiPage() {
   const inGuidance = stage === 'PROPOSAL_GUIDANCE' || stage === 'SKRIPSI_GUIDANCE';
   const currentPhase = stage === 'SKRIPSI_GUIDANCE' ? 'SKRIPSI' : 'PROPOSAL';
   const supervisors = project ? [project.supervisor1, project.supervisor2].filter(Boolean) : [];
+  const institution = useInstitution();
+  const [cardBusy, setCardBusy] = useState(false);
+  const stageIdx = project ? THESIS_STAGE_ORDER.indexOf(project.stage) : -1;
+  const canCardProposal = stageIdx >= THESIS_STAGE_ORDER.indexOf('PROPOSAL_APPROVED');
+  const canCardSkripsi = stageIdx >= THESIS_STAGE_ORDER.indexOf('SKRIPSI_APPROVED');
+  const downloadCard = async (phase: 'PROPOSAL' | 'SKRIPSI') => {
+    if (!project) return;
+    setCardBusy(true);
+    try {
+      const { downloadGuidanceCardPdf } = await import('@/lib/academicPdf');
+      const label = phase === 'PROPOSAL' ? 'Proposal' : 'Skripsi';
+      const sessionsOf = (lecturerId: string) =>
+        project.guidances
+          .filter((g) => g.phase === phase && g.status !== 'SUBMITTED' && g.lecturerId === lecturerId)
+          .sort((x, y) => new Date(x.meetingDate).getTime() - new Date(y.meetingDate).getTime())
+          .map((g) => ({
+            date: new Date(g.meetingDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+            chapter: g.chapter || g.topic,
+            notes: [g.notes, g.feedback].filter(Boolean).join(' — '),
+          }));
+      const approvals = project.approvals.filter((a) => a.phase === phase).map((a) => new Date(a.approvedAt).getTime());
+      const approvedAt = approvals.length
+        ? new Date(Math.max(...approvals)).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+        : null;
+      await downloadGuidanceCardPdf({
+        inst: institution,
+        phaseLabel: label,
+        student: { name: project.student?.name || user?.fullName || '-', nim: project.student?.nim || '-', prodi: project.student?.studyProgram || '-' },
+        title: project.title,
+        supervisors: [
+          project.supervisor1 ? { role: 'Pembimbing 1', name: project.supervisor1.name || '-', sessions: sessionsOf(project.supervisor1.id) } : null,
+          project.supervisor2 ? { role: 'Pembimbing 2', name: project.supervisor2.name || '-', sessions: sessionsOf(project.supervisor2.id) } : null,
+        ].filter(Boolean) as { role: string; name: string; sessions: { date: string; chapter: string; notes: string }[] }[],
+        approvedAt,
+        filename: `Kartu-Bimbingan-${label}-${project.student?.nim || 'mahasiswa'}.pdf`,
+      });
+    } catch (err) {
+      notify(false, err instanceof Error ? err.message : 'Gagal membuat kartu bimbingan.');
+    } finally {
+      setCardBusy(false);
+    }
+  };
+  const supervisorRows = project
+    ? ([
+        project.supervisor1 ? { role: 'Pembimbing 1', ref: project.supervisor1 } : null,
+        project.supervisor2 ? { role: 'Pembimbing 2', ref: project.supervisor2 } : null,
+      ].filter(Boolean) as { role: string; ref: { id: string; name: string | null } }[])
+    : [];
+  const doneOf = (lecturerId: string) =>
+    project ? project.guidances.filter((g) => g.phase === currentPhase && g.lecturerId === lecturerId && guidanceCounts(g)).length : 0;
+  // Riwayat bimbingan ditampilkan per pembimbing dalam tab
+  // Riwayat bimbingan: tab tahap (Proposal | Skripsi), lalu tab per pembimbing
+  const hasSkripsiPhase = stageIdx >= THESIS_STAGE_ORDER.indexOf('SKRIPSI_GUIDANCE') || (project?.guidances.some((g) => g.phase === 'SKRIPSI') ?? false);
+  const [phaseTab, setPhaseTab] = useState<'PROPOSAL' | 'SKRIPSI' | ''>('');
+  const historyPhase: 'PROPOSAL' | 'SKRIPSI' = phaseTab === 'SKRIPSI' && hasSkripsiPhase ? 'SKRIPSI' : phaseTab === 'PROPOSAL' ? 'PROPOSAL' : hasSkripsiPhase ? 'SKRIPSI' : 'PROPOSAL';
+  const phaseGuidances = project ? project.guidances.filter((g) => g.phase === historyPhase) : [];
+  const [historyTab, setHistoryTab] = useState('');
+  const historyGroups = project
+    ? [
+        ...supervisorRows.map((sv) => ({ key: sv.ref.id, label: `${sv.role} · ${sv.ref.name}`, items: phaseGuidances.filter((g) => g.lecturerId === sv.ref.id) })),
+        { key: 'lain', label: 'Catatan lain', items: phaseGuidances.filter((g) => !supervisorRows.some((sv) => sv.ref.id === g.lecturerId)) },
+      ].filter((grp) => grp.items.length > 0 || grp.key !== 'lain')
+    : [];
+  const activeHistory = historyGroups.some((grp) => grp.key === historyTab) ? historyTab : historyGroups[0]?.key;
+  const minRequired = Math.max(1, currentPhase === 'PROPOSAL' ? settings.minGuidanceProposal : settings.minGuidanceSkripsi);
 
   const stepNote = (s: (typeof THESIS_STAGE_ORDER)[number]) => {
     if (!project) return '';
@@ -242,8 +298,8 @@ export default function StudentSkripsiPage() {
                     <textarea className={inputCls} rows={4} value={abstract} onChange={(e) => setAbstract(e.target.value)} />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Tautan Berkas Proposal (opsional)</label>
-                    <input className={inputCls} value={fileUrl} onChange={(e) => setFileUrl(e.target.value)} placeholder="https://drive.google.com/..." />
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Berkas Proposal (opsional)</label>
+                    <FileUploadField value={fileUrl} onChange={setFileUrl} folder="thesis" />
                   </div>
                 </div>
                 <button
@@ -283,49 +339,24 @@ export default function StudentSkripsiPage() {
                   )}
 
                   {inGuidance && (
-                    <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
-                      <div>
-                        <h2 className="font-bold text-sm text-slate-900">
-                          Catat Bimbingan {currentPhase === 'PROPOSAL' ? 'Proposal' : 'Skripsi'}
-                        </h2>
-                        <p className="text-[12px] text-slate-500 mt-0.5">
-                          Dosen pembimbing akan menanggapi catatan Anda. Setelah semua pembimbing memberi ACC, Anda bisa mendaftar{' '}
-                          {currentPhase === 'PROPOSAL' ? 'seminar proposal' : 'ujian skripsi'}.
-                        </p>
-                      </div>
-                      <div className="grid sm:grid-cols-2 gap-3">
-                        <div className="sm:col-span-2">
-                          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Topik Bimbingan</label>
-                          <input className={inputCls} value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="mis. Revisi Bab 2 Tinjauan Pustaka" />
-                        </div>
-                        <div className="sm:col-span-2">
-                          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Uraian / Pertanyaan</label>
-                          <textarea className={inputCls} rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Dosen Pembimbing</label>
-                          <select className={inputCls} value={guidanceLecturer} onChange={(e) => setGuidanceLecturer(e.target.value)}>
-                            <option value="">Pembimbing 1 (default)</option>
-                            {supervisors.map((s) => (
-                              <option key={s!.id} value={s!.id}>
-                                {s!.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Tautan Berkas (opsional)</label>
-                          <input className={inputCls} value={guidanceFile} onChange={(e) => setGuidanceFile(e.target.value)} placeholder="https://..." />
-                        </div>
-                      </div>
-                      <button
-                        onClick={addGuidance}
-                        disabled={busy || topic.trim().length < 3}
-                        className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-900 rounded-xl disabled:opacity-60 cursor-pointer"
-                      >
-                        {busy ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                        Kirim ke Pembimbing
-                      </button>
+                    <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 text-[13px] text-blue-900 space-y-1">
+                      <p className="font-bold">
+                        Bimbingan {currentPhase === 'PROPOSAL' ? 'Proposal' : 'Skripsi'} (minimal {minRequired} catatan per pembimbing)
+                      </p>
+                      <ul className="space-y-0.5">
+                        {supervisorRows.map((sv) => {
+                          const n = doneOf(sv.ref.id);
+                          return (
+                            <li key={sv.ref.id}>
+                              {sv.role} <b>{sv.ref.name}</b>: <b className={n >= minRequired ? 'text-emerald-700' : 'text-amber-700'}>{n}</b> dari {minRequired}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      <p className="text-blue-800">
+                        Catatan bimbingan diisi oleh dosen pembimbing setelah Anda bimbingan. Setelah syarat bimbingan terpenuhi dan semua
+                        pembimbing memberi ACC, Anda bisa mendaftar {currentPhase === 'PROPOSAL' ? 'seminar proposal' : 'ujian skripsi'}.
+                      </p>
                     </div>
                   )}
 
@@ -345,9 +376,9 @@ export default function StudentSkripsiPage() {
                       </div>
                       <div>
                         <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">
-                          Tautan Naskah {project.stage === 'PROPOSAL_APPROVED' ? 'Proposal' : 'Skripsi'} (opsional)
+                          Berkas Naskah {project.stage === 'PROPOSAL_APPROVED' ? 'Proposal' : 'Skripsi'} (opsional)
                         </label>
-                        <input className={inputCls} value={defenseFile} onChange={(e) => setDefenseFile(e.target.value)} placeholder="https://..." />
+                        <FileUploadField value={defenseFile} onChange={setDefenseFile} folder="thesis" />
                       </div>
                       <button
                         onClick={() => registerDefense(project.stage === 'PROPOSAL_APPROVED' ? 'SEMPRO' : 'UJIAN')}
@@ -387,25 +418,84 @@ export default function StudentSkripsiPage() {
 
                   {/* Riwayat bimbingan */}
                   <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
-                    <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                      <MessageSquare className="w-4 h-4" /> Riwayat Bimbingan ({project.guidances.length})
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                        <MessageSquare className="w-4 h-4" /> Riwayat Bimbingan
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {((historyPhase === 'PROPOSAL' && canCardProposal) || (historyPhase === 'SKRIPSI' && canCardSkripsi)) && (
+                          <button
+                            disabled={cardBusy}
+                            onClick={() => downloadCard(historyPhase)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-[#1E3A8A] bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg disabled:opacity-60 cursor-pointer"
+                          >
+                            <Download className="w-3.5 h-3.5" /> Kartu Bimbingan {historyPhase === 'PROPOSAL' ? 'Proposal' : 'Skripsi'}
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    {project.guidances.length === 0 ? (
-                      <p className="text-[13px] text-slate-400">Belum ada catatan bimbingan.</p>
+                    {/* Tab tahap */}
+                    <div className="flex gap-2">
+                      {(['PROPOSAL', ...(hasSkripsiPhase ? ['SKRIPSI'] : [])] as ('PROPOSAL' | 'SKRIPSI')[]).map((ph) => (
+                        <button
+                          key={ph}
+                          type="button"
+                          onClick={() => {
+                            setPhaseTab(ph);
+                            setHistoryTab('');
+                          }}
+                          className={`px-4 py-2 rounded-xl text-xs font-bold border cursor-pointer ${
+                            historyPhase === ph ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          Bimbingan {ph === 'PROPOSAL' ? 'Proposal' : 'Skripsi'} ({project.guidances.filter((g) => g.phase === ph).length})
+                        </button>
+                      ))}
+                    </div>
+                    {phaseGuidances.length === 0 ? (
+                      <p className="text-[13px] text-slate-400">Belum ada catatan bimbingan {historyPhase === 'PROPOSAL' ? 'proposal' : 'skripsi'}.</p>
                     ) : (
-                      <ul className="space-y-3">
-                        {project.guidances.map((g) => (
-                          <li key={g.id} className="border border-slate-200 rounded-xl p-3 space-y-1.5">
+                      <div className="space-y-5">
+                        <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-2">
+                          {historyGroups.map((grp) => (
+                            <button
+                              key={grp.key}
+                              type="button"
+                              onClick={() => setHistoryTab(grp.key)}
+                              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold border cursor-pointer ${
+                                activeHistory === grp.key
+                                  ? 'bg-[#1E3A8A] text-white border-[#1E3A8A]'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                              }`}
+                            >
+                              {grp.label} ({grp.items.length})
+                            </button>
+                          ))}
+                        </div>
+                        {historyGroups
+                          .filter((grp) => grp.key === activeHistory)
+                          .map((grp) => (
+
+                            <div key={grp.key} className="space-y-2">
+                              <p className="text-[12px] font-bold text-slate-700">
+                                {grp.label} <span className="font-normal text-slate-400">({grp.items.length} catatan)</span>
+                              </p>
+                              {grp.items.length === 0 ? (
+                                <p className="text-[13px] text-slate-400">Belum ada catatan dari pembimbing ini.</p>
+                              ) : (
+                                <ul className="space-y-3">
+                                  {grp.items.map((g) => (
+                                    <li key={g.id} className="border border-slate-200 rounded-xl p-3 space-y-1.5">
                             <div className="flex flex-wrap items-center gap-2 justify-between">
-                              <p className="text-[13px] font-bold text-slate-900">{g.topic}</p>
+                              <p className="text-[13px] font-bold text-slate-900">{g.chapter || g.topic}</p>
                               <span
                                 className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
-                                  g.status === 'REVIEWED'
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                    : 'bg-slate-100 text-slate-500 border-slate-200'
+                                  g.status === 'SUBMITTED'
+                                    ? 'bg-slate-100 text-slate-500 border-slate-200'
+                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                 }`}
                               >
-                                {g.status === 'REVIEWED' ? 'Sudah ditanggapi' : 'Menunggu tanggapan'}
+                                {g.status === 'RECORDED' ? 'Dicatat dosen' : g.status === 'REVIEWED' ? 'Sudah ditanggapi' : 'Menunggu tanggapan'}
                               </span>
                             </div>
                             <p className="text-[11px] text-slate-400">
@@ -418,9 +508,13 @@ export default function StudentSkripsiPage() {
                                 <b>Tanggapan pembimbing:</b> {g.feedback}
                               </div>
                             )}
-                          </li>
-                        ))}
-                      </ul>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          ))}
+                      </div>
                     )}
                   </div>
                 </div>

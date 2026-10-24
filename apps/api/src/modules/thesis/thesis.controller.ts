@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@siakad/types';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -8,10 +8,12 @@ import {
   AddGuidanceDto,
   AssignSupervisorsDto,
   DefenseResultDto,
+  RecordGuidanceDto,
   RegisterDefenseDto,
   ScheduleDefenseDto,
   SubmitProposalDto,
   ThesisService,
+  UpdateThesisSettingsDto,
 } from './thesis.service';
 
 /**
@@ -68,6 +70,27 @@ export class ThesisController {
     return this.thesisService.reviewGuidance(req.user.sub, id, body?.feedback);
   }
 
+  @Post('lecturer/:projectId/guidance')
+  @Roles(UserRole.LECTURER)
+  @ApiOperation({ summary: 'Dosen pembimbing mencatat sesi bimbingan (tanggal, bab, deskripsi)' })
+  recordGuidance(@Req() req: any, @Param('projectId') projectId: string, @Body() dto: RecordGuidanceDto) {
+    return this.thesisService.recordGuidance(req.user.sub, projectId, dto);
+  }
+
+  @Get('settings')
+  @Roles(UserRole.LECTURER, UserRole.STUDENT, UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Pengaturan bimbingan tugas akhir (minimal bimbingan & daftar bab)' })
+  getSettings() {
+    return this.thesisService.getSettings();
+  }
+
+  @Put('admin/settings')
+  @Roles(UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Mengubah pengaturan bimbingan tugas akhir' })
+  updateSettings(@Body() dto: UpdateThesisSettingsDto) {
+    return this.thesisService.updateSettings(dto);
+  }
+
   @Post('lecturer/:projectId/approve')
   @Roles(UserRole.LECTURER)
   @ApiOperation({ summary: 'ACC proposal atau skripsi oleh dosen pembimbing' })
@@ -76,6 +99,41 @@ export class ThesisController {
   }
 
   // ================= ADMIN (BAAK) =================
+  @Get('admin/grades/pending')
+  @Roles(UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Jumlah nilai sidang yang tertunda ditulis ke KRS' })
+  pendingGrades() {
+    return this.thesisService.pendingGradeCount();
+  }
+
+  @Post('admin/grades/sync')
+  @Roles(UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Terapkan ulang nilai sidang yang tertunda ke KRS' })
+  syncGrades() {
+    return this.thesisService.syncPendingGrades();
+  }
+
+  @Post('admin/defenses/:defenseId/grade')
+  @Roles(UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Terapkan ulang nilai satu sidang ke KRS' })
+  applyGrade(@Param('defenseId') defenseId: string) {
+    return this.thesisService.applyDefenseGrade(defenseId);
+  }
+
+  @Get('admin/supervisor-load')
+  @Roles(UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Jumlah mahasiswa bimbingan aktif per dosen (untuk plotting pembimbing)' })
+  supervisorLoad() {
+    return this.thesisService.supervisorLoad();
+  }
+
+  @Get('admin/pending-count')
+  @Roles(UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Jumlah tugas akhir yang menunggu tindakan BAAK (lencana sidebar)' })
+  pendingCount() {
+    return this.thesisService.pendingCountForAdmin();
+  }
+
   @Get('admin')
   @Roles(UserRole.ADMIN_BAAK, UserRole.STAFF)
   @ApiOperation({ summary: 'Daftar tugas akhir seluruh mahasiswa (filter tahap & pencarian, server-side)' })

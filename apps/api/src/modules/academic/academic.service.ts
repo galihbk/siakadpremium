@@ -543,7 +543,8 @@ export class AcademicService {
         type: data.type || 'Wajib Prodi',
         // Label kategori (Skripsi/TA, KKN, dst.) adalah sumber kebenaran -- kalau diisi,
         // mata kuliahnya otomatis masuk kategori tugas akhir/lapangan.
-        requiresThesisSupervision: finalProjectLabel ? true : Boolean(data.requiresThesisSupervision),
+        // "Seminar Proposal" hanya penanda nilai tahap tugas akhir: tidak otomatis tanpa jadwal / masuk daftar bimbingan
+        requiresThesisSupervision: finalProjectLabel ? finalProjectLabel !== 'Seminar Proposal' : Boolean(data.requiresThesisSupervision),
         finalProjectLabel,
         coordinator: data.coordinator?.trim() || null,
         status: data.status || 'Aktif',
@@ -575,7 +576,7 @@ export class AcademicService {
         type: data.type !== undefined ? data.type : undefined,
         requiresThesisSupervision:
           finalProjectLabel !== undefined
-            ? Boolean(finalProjectLabel)
+            ? Boolean(finalProjectLabel) && finalProjectLabel !== 'Seminar Proposal'
             : data.requiresThesisSupervision !== undefined
               ? Boolean(data.requiresThesisSupervision)
               : undefined,
@@ -657,6 +658,23 @@ export class AcademicService {
   }
 
   async updateCurriculum(id: string, data: any) {
+    const before = data.status !== undefined ? await this.prisma.curriculum.findUnique({ where: { id }, select: { status: true } }) : null;
+    const updated = await this.updateCurriculumRow(id, data);
+    // Kurikulum dinonaktifkan/diarsipkan -> semua mata kuliahnya ikut nonaktif. "Masa Transisi" tidak memengaruhi mata kuliah
+    // (angkatan lama masih memakainya). Mengaktifkan kembali hanya mengaktifkan mata kuliahnya bila diminta (activateCourses).
+    const isOff = (s?: string | null) => s === 'Nonaktif' || s === 'Arsip';
+    let coursesUpdated = 0;
+    if (before && data.status !== undefined) {
+      if (isOff(data.status) && !isOff(before.status)) {
+        coursesUpdated = (await this.prisma.course.updateMany({ where: { curriculumId: id, status: 'Aktif' }, data: { status: 'Nonaktif' } })).count;
+      } else if (!isOff(data.status) && isOff(before.status) && data.activateCourses === true) {
+        coursesUpdated = (await this.prisma.course.updateMany({ where: { curriculumId: id, status: 'Nonaktif' }, data: { status: 'Aktif' } })).count;
+      }
+    }
+    return { ...updated, coursesUpdated };
+  }
+
+  private async updateCurriculumRow(id: string, data: any) {
     return this.prisma.curriculum.update({
       where: { id },
       data: {

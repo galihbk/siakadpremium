@@ -18,6 +18,23 @@ export type ThesisStage =
   | 'UJIAN_SCHEDULED'
   | 'COMPLETED';
 
+export interface ThesisSettings {
+  minGuidanceProposal: number;
+  minGuidanceSkripsi: number;
+  chapters: string[];
+  gradeStatus?: 'FINAL' | 'DRAFT';
+}
+
+export const DEFAULT_THESIS_SETTINGS: ThesisSettings = {
+  minGuidanceProposal: 1,
+  minGuidanceSkripsi: 1,
+  chapters: ['Bab I', 'Bab II', 'Bab III', 'Bab IV', 'Bab V'],
+  gradeStatus: 'FINAL',
+};
+
+/** Catatan bimbingan yang dihitung untuk syarat ACC (dicatat dosen, atau catatan lama yang sudah ditanggapi). */
+export const guidanceCounts = (g: { status: string }) => g.status === 'RECORDED' || g.status === 'REVIEWED';
+
 export interface ThesisLecturerRef {
   id: string;
   name: string | null;
@@ -29,11 +46,12 @@ export interface ThesisGuidance {
   phase: 'PROPOSAL' | 'SKRIPSI';
   lecturerId: string | null;
   lecturerName: string | null;
+  chapter?: string | null;
   topic: string;
   notes: string | null;
   fileUrl: string | null;
   meetingDate: string;
-  status: 'SUBMITTED' | 'REVIEWED';
+  status: 'SUBMITTED' | 'REVIEWED' | 'RECORDED';
   feedback: string | null;
   reviewedAt: string | null;
   createdAt: string;
@@ -56,6 +74,8 @@ export interface ThesisDefense {
   result: 'LULUS' | 'REVISI' | 'TIDAK_LULUS' | null;
   score: number | null;
   gradeLetter: string | null;
+  gradeSyncedAt?: string | null;
+  gradeSyncNote?: string | null;
   notes: string | null;
   examiners: ThesisDefenseExaminer[];
 }

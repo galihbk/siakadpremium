@@ -1782,12 +1782,13 @@ model ThesisGuidance {
   id          String      @id @default(uuid())
   projectId   String
   phase       ThesisPhase
-  lecturerId  String? // pembimbing yang dituju
+  lecturerId  String? // pembimbing yang mencatat / dituju
+  chapter     String? // bab yang dibahas (dicatat dosen)
   topic       String
   notes       String?     @db.Text
   fileUrl     String?     @db.Text
   meetingDate DateTime    @default(now())
-  status      String      @default("SUBMITTED") // SUBMITTED | REVIEWED
+  status      String      @default("SUBMITTED") // SUBMITTED | REVIEWED (lama, dari mahasiswa) | RECORDED (dicatat dosen)
   feedback    String?     @db.Text
   reviewedAt  DateTime?
   createdAt   DateTime    @default(now())
@@ -1797,6 +1798,19 @@ model ThesisGuidance {
 
   @@index([projectId, phase])
   @@map("thesis_guidances")
+}
+
+/// Pengaturan bimbingan tugas akhir per kampus (satu baris): minimal bimbingan sebelum ACC dan daftar bab.
+model ThesisSetting {
+  id                  String   @id @default("default")
+  minGuidanceProposal Int      @default(1)
+  minGuidanceSkripsi  Int      @default(1)
+  chapters            String[] @default(["Bab I", "Bab II", "Bab III", "Bab IV", "Bab V"])
+  // Status nilai yang ditulis ke KRS dari hasil seminar/ujian: FINAL atau DRAFT
+  gradeStatus         String   @default("FINAL")
+  updatedAt           DateTime @updatedAt
+
+  @@map("thesis_settings")
 }
 
 model ThesisApproval {
@@ -1825,6 +1839,8 @@ model ThesisDefense {
   result       String? // LULUS | REVISI | TIDAK_LULUS
   score        Float?
   gradeLetter  String?
+  gradeSyncedAt DateTime? // kapan nilai ini ditulis ke KRS (mata kuliah hasil pemetaan)
+  gradeSyncNote String? // catatan penulisan nilai (berhasil / alasan tertunda)
   notes        String?             @db.Text
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt

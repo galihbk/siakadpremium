@@ -38,7 +38,7 @@ interface CurriculumOption {
   studyProgram: string;
 }
 
-const FINAL_PROJECT_LABELS = ['Skripsi/TA', 'KKN', 'PLP', 'Kerja Praktik', 'Magang', 'Lainnya'];
+const FINAL_PROJECT_LABELS = ['Skripsi/TA', 'Seminar Proposal', 'KKN', 'PLP', 'Kerja Praktik', 'Magang', 'Lainnya'];
 
 const emptyForm = {
   code: '',
@@ -64,7 +64,8 @@ export function KurikulumTable({ initialCourses }: { initialCourses: CourseData[
   const [curriculums, setCurriculums] = useState<CurriculumOption[]>([]);
   const [curriculumFilter, setCurriculumFilter] = useState('ALL');
   const [prodiFilter, setProdiFilter] = useState('ALL');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  // Bawaan: hanya mata kuliah aktif (yang nonaktif bisa dilihat lewat Filter > Status)
+  const [statusFilter, setStatusFilter] = useState('Aktif');
   const [jenisFilter, setJenisFilter] = useState('ALL');
   const [semesterFilter, setSemesterFilter] = useState('ALL');
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
@@ -242,11 +243,11 @@ export function KurikulumTable({ initialCourses }: { initialCourses: CourseData[
     (d) => matchesNonProdiFilters(d) && (prodiFilter === 'ALL' || (d.studyProgram || 'Semua Prodi (MKDU)') === prodiFilter),
   );
 
-  const activeFilterCount = [curriculumFilter, prodiFilter, statusFilter, jenisFilter, semesterFilter].filter((f) => f !== 'ALL').length;
+  const activeFilterCount = [curriculumFilter, prodiFilter, jenisFilter, semesterFilter].filter((f) => f !== 'ALL').length + (statusFilter !== 'Aktif' ? 1 : 0);
   const resetFilters = () => {
     setCurriculumFilter('ALL');
     setProdiFilter('ALL');
-    setStatusFilter('ALL');
+    setStatusFilter('Aktif');
     setJenisFilter('ALL');
     setSemesterFilter('ALL');
   };
@@ -282,8 +283,11 @@ export function KurikulumTable({ initialCourses }: { initialCourses: CourseData[
           </p>
         </div>
         <div className="bg-white/10 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-white/15 text-right">
-          <p className="text-xs text-blue-200">Total Mata Kuliah</p>
-          <p className="text-xl font-black text-white">{courses.length} Mata Kuliah</p>
+          <p className="text-xs text-blue-200">Katalog Saat Ini</p>
+          <p className="text-xl font-black text-white">{courses.filter((c) => (c.status || 'Aktif') === 'Aktif').length} Mata Kuliah Aktif</p>
+          {courses.some((c) => (c.status || 'Aktif') !== 'Aktif') && (
+            <p className="text-[10px] text-blue-200 mt-0.5">{courses.filter((c) => (c.status || 'Aktif') !== 'Aktif').length} nonaktif tidak ditampilkan</p>
+          )}
         </div>
       </div>
 
@@ -742,7 +746,7 @@ export function KurikulumTable({ initialCourses }: { initialCourses: CourseData[
                 setFormData({
                   ...formData,
                   finalProjectLabel: e.target.value,
-                  requiresThesisSupervision: Boolean(e.target.value),
+                  requiresThesisSupervision: Boolean(e.target.value) && e.target.value !== 'Seminar Proposal',
                 })
               }
               className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white"
@@ -756,7 +760,9 @@ export function KurikulumTable({ initialCourses }: { initialCourses: CourseData[
             </select>
             <p className="text-[11px] text-slate-500 mt-1.5">
               Semua kelas dari mata kuliah ini otomatis tanpa jadwal/ruang tetap, dan mahasiswa yang mengambilnya otomatis masuk daftar
-              Bimbingan Tugas Akhir untuk ditetapkan pembimbingnya.
+              Bimbingan Tugas Akhir untuk ditetapkan pembimbingnya. Kategori <b>Skripsi/TA</b> dan <b>Seminar Proposal</b> juga dipakai sistem
+              Tugas Akhir: nilai ujian skripsi dan nilai seminar proposal otomatis ditulis ke mata kuliah dengan kategori itu. Kategori
+              <b>Seminar Proposal</b> tidak mengubah jadwal kelas dan tidak masuk daftar bimbingan. Kosongkan bila seminar proposal tidak punya nilai sendiri.
             </p>
           </div>
 

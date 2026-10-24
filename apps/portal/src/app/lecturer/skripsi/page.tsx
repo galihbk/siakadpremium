@@ -5,6 +5,9 @@ import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getAuthSession } from '@/lib/auth';
 import {
   ThesisProject,
+  ThesisSettings,
+  DEFAULT_THESIS_SETTINGS,
+  guidanceCounts,
   THESIS_STAGE_LABEL,
   DEFENSE_TYPE_LABEL,
   DEFENSE_RESULT_LABEL,
@@ -33,6 +36,13 @@ export default function LecturerSkripsiPage() {
   const [roleFilter, setRoleFilter] = useState<'ALL' | 'PEMBIMBING' | 'PENGUJI'>('ALL');
   const [expanded, setExpanded] = useState<string | null>(null);
   const [feedbackDraft, setFeedbackDraft] = useState<Record<string, string>>({});
+  const [settings, setSettings] = useState<ThesisSettings>(DEFAULT_THESIS_SETTINGS);
+  // Form catat bimbingan per mahasiswa: tanggal, bab, deskripsi
+  const today = new Date().toISOString().slice(0, 10);
+  const [noteDraft, setNoteDraft] = useState<Record<string, { date: string; chapter: string; custom: string; notes: string }>>({});
+  const draftOf = (id: string) => noteDraft[id] ?? { date: today, chapter: '', custom: '', notes: '' };
+  const setDraft = (id: string, patch: Partial<{ date: string; chapter: string; custom: string; notes: string }>) =>
+    setNoteDraft((prev) => ({ ...prev, [id]: { ...draftOf(id), ...patch } }));
 
   const notify = (ok: boolean, text: string) => {
     setToast({ ok, text });
@@ -54,6 +64,7 @@ export default function LecturerSkripsiPage() {
 
   useEffect(() => {
     load();
+    thesisFetch<ThesisSettings>('/settings').then(setSettings).catch(() => undefined);
   }, [load]);
 
   const act = async (key: string, fn: () => Promise<unknown>, okText: string) => {
@@ -155,6 +166,13 @@ export default function LecturerSkripsiPage() {
               const isSupervisor = p.myRole === 'PEMBIMBING';
               const phase = p.stage === 'PROPOSAL_GUIDANCE' ? 'PROPOSAL' : p.stage === 'SKRIPSI_GUIDANCE' ? 'SKRIPSI' : null;
               const alreadyApproved = phase ? p.iHaveApproved.includes(phase) : false;
+              const doneCount = phase ? p.guidances.filter((g) => g.phase === phase && g.lecturerId === lecturerId && guidanceCounts(g)).length : 0;
+              const otherSupervisor = [p.supervisor1, p.supervisor2].find((sv) => sv && sv.id !== lecturerId) || null;
+              const otherCount = phase && otherSupervisor ? p.guidances.filter((g) => g.phase === phase && g.lecturerId === otherSupervisor.id && guidanceCounts(g)).length : 0;
+              const requiredCount = phase ? Math.max(1, phase === 'PROPOSAL' ? settings.minGuidanceProposal : settings.minGuidanceSkripsi) : 0;
+              const enough = doneCount >= requiredCount;
+              const draft = draftOf(p.id);
+              const chapterValue = draft.chapter === '__lain' ? draft.custom.trim() : draft.chapter;
               const pending = pendingCount(p);
               return (
                 <li key={p.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
@@ -197,14 +215,21 @@ export default function LecturerSkripsiPage() {
                               </>
                             ) : (
                               <>
-                                Setelah bimbingan memadai, beri <b>ACC {phase === 'PROPOSAL' ? 'proposal' : 'skripsi'}</b> agar
-                                mahasiswa dapat mendaftar {phase === 'PROPOSAL' ? 'seminar proposal' : 'ujian skripsi'}.
+                                Catatan bimbingan <b>Anda</b>: <b>{doneCount}</b> dari minimal <b>{requiredCount}</b>.{' '}
+                                {enough ? (
+                                  <>
+                                    Beri <b>ACC {phase === 'PROPOSAL' ? 'proposal' : 'skripsi'}</b> agar mahasiswa dapat mendaftar{' '}
+                                    {phase === 'PROPOSAL' ? 'seminar proposal' : 'ujian skripsi'}.
+                                  </>
+                                ) : (
+                                  'ACC dapat diberikan setelah jumlah bimbingan terpenuhi.'
+                                )}
                               </>
                             )}
                           </p>
                           {!alreadyApproved && (
                             <button
-                              disabled={busyKey === `acc-${p.id}`}
+                              disabled={busyKey === `acc-${p.id}` || !enough}
                               onClick={() =>
                                 act(
                                   `acc-${p.id}`,
@@ -250,29 +275,84 @@ export default function LecturerSkripsiPage() {
                         </div>
                       )}
 
+                      {/* Catat bimbingan (hanya dosen pembimbing, saat tahap bimbingan) */}
+                      {isSupervisor && phase && (
+                        <div className="border border-slate-200 rounded-xl p-4 space-y-3">
+                          <p className="text-[12px] font-bold text-slate-700">
+                            Catat Bimbingan {phase === 'PROPOSAL' ? 'Proposal' : 'Skripsi'}
+                          </p>
+                          <div className="grid sm:grid-cols-3 gap-3">
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Tanggal</label>
+                              <input type="date" max={today} className={inputCls} value={draft.date} onChange={(e) => setDraft(p.id, { date: e.target.value })} />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Bab yang dibahas</label>
+                              <select className={inputCls} value={draft.chapter} onChange={(e) => setDraft(p.id, { chapter: e.target.value })}>
+                                <option value="">-- Pilih bab --</option>
+                                {settings.chapters.map((c) => (
+                                  <option key={c} value={c}>{c}</option>
+                                ))}
+                                <option value="__lain">Lainnya...</option>
+                              </select>
+                            </div>
+                            {draft.chapter === '__lain' && (
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Nama bab/bagian</label>
+                                <input className={inputCls} value={draft.custom} onChange={(e) => setDraft(p.id, { custom: e.target.value })} placeholder="mis. Abstrak" />
+                              </div>
+                            )}
+                            <div className="sm:col-span-3">
+                              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Deskripsi bimbingan</label>
+                              <textarea rows={3} className={inputCls} value={draft.notes} onChange={(e) => setDraft(p.id, { notes: e.target.value })} placeholder="Apa yang dibahas, arahan, dan revisi yang diminta..." />
+                            </div>
+                          </div>
+                          <button
+                            disabled={busyKey === `rec-${p.id}` || !chapterValue || draft.notes.trim().length < 3 || !draft.date}
+                            onClick={() =>
+                              act(
+                                `rec-${p.id}`,
+                                async () => {
+                                  await thesisFetch(`/lecturer/${p.id}/guidance`, {
+                                    method: 'POST',
+                                    body: { chapter: chapterValue, notes: draft.notes, meetingDate: draft.date },
+                                  });
+                                  setNoteDraft((prev) => ({ ...prev, [p.id]: { date: today, chapter: '', custom: '', notes: '' } }));
+                                },
+                                'Catatan bimbingan tersimpan.'
+                              )
+                            }
+                            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-900 rounded-xl disabled:opacity-60 cursor-pointer"
+                          >
+                            {busyKey === `rec-${p.id}` ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                            Simpan Catatan
+                          </button>
+                        </div>
+                      )}
+
                       {/* Bimbingan */}
                       <div className="space-y-2">
                         <p className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                          <MessageSquare className="w-4 h-4" /> Catatan Bimbingan ({p.guidances.length})
+                          <MessageSquare className="w-4 h-4" /> Catatan Bimbingan Anda ({p.guidances.filter((g) => g.lecturerId === lecturerId).length})
                         </p>
-                        {p.guidances.length === 0 ? (
-                          <p className="text-[13px] text-slate-400">Belum ada catatan bimbingan.</p>
+                        {p.guidances.filter((g) => g.lecturerId === lecturerId).length === 0 ? (
+                          <p className="text-[13px] text-slate-400">Belum ada catatan bimbingan dari Anda.</p>
                         ) : (
                           <ul className="space-y-3">
-                            {p.guidances.map((g) => {
+                            {p.guidances.filter((g) => g.lecturerId === lecturerId).map((g) => {
                               const canReply = isSupervisor && (!g.lecturerId || g.lecturerId === lecturerId || p.supervisorIds.includes(lecturerId));
                               return (
                                 <li key={g.id} className="border border-slate-200 rounded-xl p-3 space-y-2">
                                   <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <p className="text-[13px] font-bold text-slate-900">{g.topic}</p>
+                                    <p className="text-[13px] font-bold text-slate-900">{g.chapter || g.topic}</p>
                                     <span
                                       className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
-                                        g.status === 'REVIEWED'
-                                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                          : 'bg-amber-50 text-amber-700 border-amber-200'
+                                        g.status === 'SUBMITTED'
+                                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                       }`}
                                     >
-                                      {g.status === 'REVIEWED' ? 'Sudah ditanggapi' : 'Menunggu tanggapan'}
+                                      {g.status === 'RECORDED' ? 'Tercatat' : g.status === 'REVIEWED' ? 'Sudah ditanggapi' : 'Menunggu tanggapan'}
                                     </span>
                                   </div>
                                   <p className="text-[11px] text-slate-400">
@@ -324,6 +404,29 @@ export default function LecturerSkripsiPage() {
                           </ul>
                         )}
                       </div>
+
+                      {/* Catatan pembimbing lain (hanya dibaca, tidak dijumlahkan dengan catatan Anda) */}
+                      {otherSupervisor && (
+                        <div className="space-y-2">
+                          <p className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                            <MessageSquare className="w-4 h-4" /> Catatan {otherSupervisor.name} ({p.guidances.filter((g) => g.lecturerId === otherSupervisor.id).length}) · hanya dibaca
+                          </p>
+                          {p.guidances.filter((g) => g.lecturerId === otherSupervisor.id).length === 0 ? (
+                            <p className="text-[13px] text-slate-400">Belum ada catatan dari pembimbing ini.</p>
+                          ) : (
+                            <ul className="space-y-2">
+                              {p.guidances.filter((g) => g.lecturerId === otherSupervisor.id).map((g) => (
+                                <li key={g.id} className="border border-slate-100 bg-slate-50/60 rounded-xl p-3">
+                                  <p className="text-[12px] font-bold text-slate-800">
+                                    {g.chapter || g.topic} <span className="font-normal text-slate-400">· {formatDateTime(g.meetingDate)}</span>
+                                  </p>
+                                  {g.notes && <p className="text-[12px] text-slate-600 whitespace-pre-line">{g.notes}</p>}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </li>

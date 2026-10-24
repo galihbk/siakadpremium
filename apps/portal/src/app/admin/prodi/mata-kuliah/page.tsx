@@ -49,7 +49,7 @@ interface CurriculumOption {
   studyProgram: string;
 }
 
-const FINAL_PROJECT_LABELS = ['Skripsi/TA', 'KKN', 'PLP', 'Kerja Praktik', 'Magang', 'Lainnya'];
+const FINAL_PROJECT_LABELS = ['Skripsi/TA', 'Seminar Proposal', 'KKN', 'PLP', 'Kerja Praktik', 'Magang', 'Lainnya'];
 
 const emptyForm = {
   code: '',
@@ -606,7 +606,7 @@ export default function AdminProdiMataKuliahPage() {
               <select
                 value={formData.finalProjectLabel}
                 onChange={(e) =>
-                  setFormData({ ...formData, finalProjectLabel: e.target.value, requiresThesisSupervision: Boolean(e.target.value) })
+                  setFormData({ ...formData, finalProjectLabel: e.target.value, requiresThesisSupervision: Boolean(e.target.value) && e.target.value !== 'Seminar Proposal' })
                 }
                 className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white"
               >

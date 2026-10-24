@@ -98,6 +98,8 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
   const [chatUnread, setChatUnread] = useState(0);
   // Lencana Layanan Surat (BAAK): permohonan surat yang menunggu diproses
   const [letterPending, setLetterPending] = useState(0);
+  // Lencana Tugas Akhir/Skripsi (BAAK): proposal baru & pendaftar seminar/ujian yang menunggu tindakan
+  const [thesisPending, setThesisPending] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [institutionProfile, setInstitutionProfile] = useState<InstitutionProfile>(FALLBACK_INSTITUTION_PROFILE);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -138,6 +140,31 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       })
       .catch(() => undefined);
   }, []);
+
+  const loadThesisPending = useCallback(() => {
+    const { token } = getAuthSession();
+    fetch(`${getApiBaseUrl()}/thesis/admin/pending-count`, { cache: 'no-store', headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const d = j?.data ?? j;
+        if (typeof d?.pending === 'number') setThesisPending(d.pending);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (effectiveRole !== 'admin') return;
+    loadThesisPending();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') loadThesisPending();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('siakad:thesis-updated', loadThesisPending);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('siakad:thesis-updated', loadThesisPending);
+    };
+  }, [effectiveRole, pathname, loadThesisPending]);
 
   useEffect(() => {
     if (effectiveRole !== 'admin') return;
@@ -1000,6 +1027,11 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                       {item.href === '/admin/pmb/live-chat' && chatUnread > 0 && (
                         <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-[#D4A017] text-slate-950 text-[10px] font-extrabold flex items-center justify-center">
                           {chatUnread}
+                        </span>
+                      )}
+                      {item.href === '/admin/skripsi' && thesisPending > 0 && (
+                        <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-[#D4A017] text-slate-950 text-[10px] font-extrabold flex items-center justify-center">
+                          {thesisPending}
                         </span>
                       )}
                       {item.href === '/admin/surat' && letterPending > 0 && (

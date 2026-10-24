@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, ThesisDefenseType, ThesisPhase, ThesisStage } from '@siakad/database';
 import { PrismaService } from '../../shared/prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 
 export interface SubmitProposalDto {
   title?: string;
@@ -14,6 +15,19 @@ export interface AddGuidanceDto {
   fileUrl?: string;
   meetingDate?: string;
   lecturerId?: string;
+}
+
+export interface RecordGuidanceDto {
+  chapter?: string;
+  notes?: string;
+  meetingDate?: string;
+}
+
+export interface UpdateThesisSettingsDto {
+  gradeStatus?: string;
+  minGuidanceProposal?: number;
+  minGuidanceSkripsi?: number;
+  chapters?: string[];
 }
 
 export interface RegisterDefenseDto {
@@ -79,7 +93,15 @@ const projectInclude = {
 
 @Injectable()
 export class ThesisService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private storage: StorageService,
+  ) {}
+
+  /** Berkas yang diunggah tersimpan privat (tautan bertanda tangan); diperbarui tiap dibaca agar tidak kedaluwarsa. */
+  private fresh(url?: string | null) {
+    return url ? this.storage.refreshPrivateUrl(url) : url;
+  }
 
   // ---------------------------------------------------------------- util
   private lecturerName(l?: { titlePrefix?: string | null; titleSuffix?: string | null; user?: { fullName: string } | null } | null) {
@@ -106,7 +128,7 @@ export class ThesisService {
       id: project.id,
       title: project.title,
       abstract: project.abstract,
-      proposalFileUrl: project.proposalFileUrl,
+      proposalFileUrl: this.fresh(project.proposalFileUrl),
       stage: project.stage as ThesisStage,
       adminNote: project.adminNote,
       finalScore: project.finalScore,
@@ -136,9 +158,10 @@ export class ThesisService {
         phase: g.phase,
         lecturerId: g.lecturerId,
         lecturerName: g.lecturer ? g.lecturer.user?.fullName : null,
+        chapter: g.chapter,
         topic: g.topic,
         notes: g.notes,
-        fileUrl: g.fileUrl,
+        fileUrl: this.fresh(g.fileUrl),
         meetingDate: g.meetingDate,
         status: g.status,
         feedback: g.feedback,
@@ -149,13 +172,15 @@ export class ThesisService {
         id: d.id,
         type: d.type,
         status: d.status,
-        fileUrl: d.fileUrl,
+        fileUrl: this.fresh(d.fileUrl),
         registeredAt: d.registeredAt,
         scheduledAt: d.scheduledAt,
         location: d.location,
         result: d.result,
         score: d.score,
         gradeLetter: d.gradeLetter,
+        gradeSyncedAt: d.gradeSyncedAt,
+        gradeSyncNote: d.gradeSyncNote,
         notes: d.notes,
         examiners: (d.examiners ?? []).map((e: any) => ({
           lecturerId: e.lecturerId,
@@ -223,6 +248,8 @@ export class ThesisService {
   }
 
   async addGuidance(userId: string, dto: AddGuidanceDto) {
+    // Catatan bimbingan kini hanya dicatat dosen pembimbing (lihat recordGuidance).
+    throw new ForbiddenException('Catatan bimbingan dicatat oleh dosen pembimbing. Mahasiswa hanya dapat melihat riwayatnya.');
     const student = await this.studentByUser(userId);
     const project = await this.prisma.thesisProject.findUnique({ where: { studentId: student.id } });
     if (!project) throw new NotFoundException('Belum ada pengajuan proposal.');
@@ -319,6 +346,59 @@ export class ThesisService {
     return { lecturer, project };
   }
 
+  // ---------------------------------------------------------------- pengaturan bimbingan
+  async getSettings() {
+    const row = await this.prisma.thesisSetting.findUnique({ where: { id: 'default' } });
+    return {
+      minGuidanceProposal: row?.minGuidanceProposal ?? 1,
+      minGuidanceSkripsi: row?.minGuidanceSkripsi ?? 1,
+      chapters: row?.chapters?.length ? row.chapters : ['Bab I', 'Bab II', 'Bab III', 'Bab IV', 'Bab V'],
+      gradeStatus: row?.gradeStatus === 'DRAFT' ? 'DRAFT' : 'FINAL',
+    };
+  }
+
+  async updateSettings(dto: UpdateThesisSettingsDto) {
+    const toInt = (v: unknown, label: string) => {
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < 0 || n > 50) throw new BadRequestException(`${label} harus berupa angka bulat 0-50.`);
+      return n;
+    };
+    const minGuidanceProposal = toInt(dto.minGuidanceProposal ?? 1, 'Minimal bimbingan proposal');
+    const minGuidanceSkripsi = toInt(dto.minGuidanceSkripsi ?? 1, 'Minimal bimbingan skripsi');
+    const chapters = Array.from(new Set((dto.chapters ?? []).map((c) => String(c).trim()).filter(Boolean)));
+    if (chapters.length === 0) throw new BadRequestException('Daftar bab minimal berisi satu bab.');
+    if (chapters.some((c) => c.length > 60)) throw new BadRequestException('Nama bab maksimal 60 karakter.');
+    const gradeStatus = dto.gradeStatus === 'DRAFT' ? 'DRAFT' : 'FINAL';
+    await this.prisma.thesisSetting.upsert({
+      where: { id: 'default' },
+      create: { id: 'default', minGuidanceProposal, minGuidanceSkripsi, chapters, gradeStatus },
+      update: { minGuidanceProposal, minGuidanceSkripsi, chapters, gradeStatus },
+    });
+    return this.getSettings();
+  }
+
+  /** Dosen pembimbing mencatat satu sesi bimbingan (tatap muka): tanggal, bab, dan deskripsi. */
+  async recordGuidance(userId: string, projectId: string, dto: RecordGuidanceDto) {
+    const { lecturer, project } = await this.assertSupervisor(userId, projectId);
+    let phase: ThesisPhase;
+    if (project.stage === 'PROPOSAL_GUIDANCE') phase = 'PROPOSAL';
+    else if (project.stage === 'SKRIPSI_GUIDANCE') phase = 'SKRIPSI';
+    else throw new BadRequestException('Bimbingan hanya dicatat saat tahap bimbingan proposal atau bimbingan skripsi.');
+
+    const chapter = (dto.chapter ?? '').trim();
+    if (!chapter) throw new BadRequestException('Bab yang dibahas wajib diisi.');
+    if (chapter.length > 60) throw new BadRequestException('Nama bab maksimal 60 karakter.');
+    const notes = (dto.notes ?? '').trim();
+    if (notes.length < 3) throw new BadRequestException('Deskripsi bimbingan wajib diisi.');
+    const meetingDate = dto.meetingDate ? this.parseDate(dto.meetingDate, 'Tanggal bimbingan') : new Date();
+    if (meetingDate.getTime() > Date.now() + 24 * 3600 * 1000) throw new BadRequestException('Tanggal bimbingan tidak boleh di masa depan.');
+
+    const created = await this.prisma.thesisGuidance.create({
+      data: { projectId, phase, lecturerId: lecturer.id, chapter, topic: chapter, notes, meetingDate, status: 'RECORDED' },
+    });
+    return { id: created.id };
+  }
+
   async reviewGuidance(userId: string, guidanceId: string, feedback?: string) {
     const guidance = await this.prisma.thesisGuidance.findUnique({ where: { id: guidanceId } });
     if (!guidance) throw new NotFoundException('Catatan bimbingan tidak ditemukan.');
@@ -341,9 +421,16 @@ export class ThesisService {
     if (project.stage !== requiredStage) {
       throw new BadRequestException('ACC hanya dapat diberikan pada tahap bimbingan yang sesuai.');
     }
-    const reviewed = await this.prisma.thesisGuidance.count({ where: { projectId, phase, status: 'REVIEWED' } });
-    if (reviewed === 0) {
-      throw new BadRequestException('Belum ada catatan bimbingan yang Anda tanggapi pada tahap ini.');
+    const settings = await this.getSettings();
+    const required = Math.max(1, phase === 'PROPOSAL' ? settings.minGuidanceProposal : settings.minGuidanceSkripsi);
+    // Minimal bimbingan berlaku PER PEMBIMBING: hanya catatan yang dibuat dosen ini yang dihitung untuk ACC-nya.
+    const done = await this.prisma.thesisGuidance.count({
+      where: { projectId, phase, lecturerId: lecturer.id, status: { in: ['REVIEWED', 'RECORDED'] } },
+    });
+    if (done < required) {
+      throw new BadRequestException(
+        `Catatan bimbingan ${phase === 'PROPOSAL' ? 'proposal' : 'skripsi'} Anda baru ${done}, minimal ${required} sebelum ACC.`,
+      );
     }
 
     await this.prisma.thesisApproval.upsert({
@@ -394,6 +481,31 @@ export class ThesisService {
     const counts: Record<string, number> = {};
     byStage.forEach((b) => (counts[b.stage] = b._count._all));
     return { total, page, pageSize, counts, items: rows.map((r) => this.shape(r)) };
+  }
+
+  /** Pekerjaan baru untuk BAAK (lencana sidebar): proposal menunggu plotting, serta pendaftar sempro/ujian menunggu jadwal. */
+  async pendingCountForAdmin() {
+    const groups = await this.prisma.thesisProject.groupBy({
+      by: ['stage'],
+      where: { stage: { in: ['PROPOSAL_SUBMITTED', 'SEMPRO_REGISTERED', 'UJIAN_REGISTERED'] } },
+      _count: { _all: true },
+    });
+    const by = (s: string) => groups.find((g) => g.stage === s)?._count._all ?? 0;
+    const proposal = by('PROPOSAL_SUBMITTED');
+    const sempro = by('SEMPRO_REGISTERED');
+    const ujian = by('UJIAN_REGISTERED');
+    return { pending: proposal + sempro + ujian, proposal, sempro, ujian };
+  }
+
+  /** Jumlah mahasiswa yang sedang dibimbing tiap dosen (pembimbing 1 atau 2, tugas akhir yang belum selesai/ditolak). */
+  async supervisorLoad() {
+    const rows = await this.prisma.thesisProject.findMany({
+      where: { stage: { notIn: ['COMPLETED', 'PROPOSAL_REJECTED'] }, OR: [{ supervisor1Id: { not: null } }, { supervisor2Id: { not: null } }] },
+      select: { supervisor1Id: true, supervisor2Id: true },
+    });
+    const load: Record<string, number> = {};
+    for (const r of rows) for (const id of [r.supervisor1Id, r.supervisor2Id]) if (id) load[id] = (load[id] ?? 0) + 1;
+    return { load };
   }
 
   private async getProjectOrThrow(id: string) {
@@ -500,7 +612,8 @@ export class ThesisService {
         }),
         this.prisma.thesisProject.update({ where: { id: defense.projectId }, data: { stage: nextStage } }),
       ]);
-      return { success: true, stage: nextStage };
+      const grade = await this.applyDefenseGrade(defenseId);
+      return { success: true, stage: nextStage, grade };
     }
 
     // UJIAN skripsi
@@ -512,7 +625,7 @@ export class ThesisService {
         }),
         this.prisma.thesisProject.update({ where: { id: defense.projectId }, data: { stage: 'SKRIPSI_APPROVED' } }),
       ]);
-      return { success: true, stage: 'SKRIPSI_APPROVED' as ThesisStage };
+      return { success: true, stage: 'SKRIPSI_APPROVED' as ThesisStage, grade: await this.applyDefenseGrade(defenseId) };
     }
     await this.prisma.$transaction([
       this.prisma.thesisDefense.update({
@@ -524,6 +637,109 @@ export class ThesisService {
         data: { stage: 'COMPLETED', finalScore: score, finalGrade: gradeLetter, completedAt: new Date() },
       }),
     ]);
-    return { success: true, stage: 'COMPLETED' as ThesisStage };
+    return { success: true, stage: 'COMPLETED' as ThesisStage, grade: await this.applyDefenseGrade(defenseId) };
+  }
+
+  // ---------------------------------------------------------------- pemetaan mata kuliah & penulisan nilai
+  /** Huruf mutu & bobot dari Skala Nilai master (grup skala tahun akademik aktif); cadangan: rumus bawaan. */
+  private async resolveGrade(score: number): Promise<{ letter: string; point: number }> {
+    const activeYear = await this.prisma.academicYear.findFirst({ where: { isActive: true }, select: { id: true } });
+    const group = activeYear
+      ? await this.prisma.gradeScaleVersion.findFirst({
+          where: { academicYearId: activeYear.id },
+          orderBy: { createdAt: 'desc' },
+          include: { scales: { where: { isActive: true }, orderBy: { minScore: 'desc' } } },
+        })
+      : null;
+    const scales = group?.scales ?? [];
+    if (scales.length) {
+      const m = scales.find((x) => score >= x.minScore) || scales[scales.length - 1];
+      return { letter: m.letter, point: m.gradePoint };
+    }
+    const letter = this.gradeFromScore(score);
+    const points: Record<string, number> = { A: 4, 'A-': 3.7, 'B+': 3.3, B: 3, 'B-': 2.7, 'C+': 2.3, C: 2, D: 1, E: 0 };
+    return { letter, point: points[letter] ?? 0 };
+  }
+
+  /**
+   * Menulis nilai hasil seminar/ujian ke KRS mahasiswa pada mata kuliah hasil pemetaan prodinya.
+   * Tidak ada pemetaan = tahap itu hanya syarat (tidak ada nilai). Mahasiswa belum KRS mata kuliahnya = nilai ditahan
+   * (tercatat tertunda, bisa diterapkan ulang). KRS tidak pernah dibuat otomatis.
+   */
+  async applyDefenseGrade(defenseId: string): Promise<{ status: 'APPLIED' | 'SKIPPED' | 'PENDING'; note: string }> {
+    const defense = await this.prisma.thesisDefense.findUnique({
+      where: { id: defenseId },
+      include: { project: { select: { studentId: true, student: { select: { studyProgramId: true } } } } },
+    });
+    if (!defense) throw new NotFoundException('Data sidang tidak ditemukan.');
+    const save = async (status: 'APPLIED' | 'SKIPPED' | 'PENDING', note: string) => {
+      await this.prisma.thesisDefense.update({
+        where: { id: defenseId },
+        data: { gradeSyncNote: note, gradeSyncedAt: status === 'PENDING' ? null : new Date() },
+      });
+      return { status, note };
+    };
+
+    if (defense.status !== 'DONE' || defense.result === 'TIDAK_LULUS') return save('SKIPPED', 'Tidak lulus: nilai tidak ditulis ke mata kuliah.');
+    if (defense.score === null) return save('PENDING', 'Nilai belum diisi; belum bisa ditulis ke mata kuliah.');
+    const programId = defense.project.student.studyProgramId;
+
+    // Mata kuliah tujuan ditentukan oleh KATEGORI yang ditempel pada mata kuliah (Kurikulum & Mata Kuliah):
+    // seminar proposal -> kategori "Seminar Proposal"; ujian skripsi -> kategori "Skripsi/TA".
+    const label = defense.type === 'SEMPRO' ? 'Seminar Proposal' : 'Skripsi/TA';
+    const stageName = defense.type === 'SEMPRO' ? 'seminar proposal' : 'skripsi';
+    const enrollments = await this.prisma.courseEnrollment.findMany({
+      where: { studentId: defense.project.studentId, status: 'APPROVED', course: { studyProgramId: programId, finalProjectLabel: label } },
+      include: { academicYear: { select: { isActive: true, code: true } }, course: { select: { code: true, name: true } } },
+      orderBy: { academicYear: { code: 'desc' } },
+    });
+    if (enrollments.length === 0) {
+      const exists = await this.prisma.course.count({ where: { studyProgramId: programId, finalProjectLabel: label } });
+      if (exists === 0) {
+        return save(
+          'SKIPPED',
+          `Program studi ini belum punya mata kuliah berkategori "${label}" (hanya syarat melanjutkan). Tandai mata kuliahnya di Kurikulum & Mata Kuliah bila ${stageName} memiliki nilai.`,
+        );
+      }
+      return save('PENDING', `Mahasiswa belum mengambil mata kuliah ${stageName} (kategori "${label}") di KRS. Nilai ditahan.`);
+    }
+    const open = enrollments.filter((e) => e.gradeStatus !== 'FINAL');
+    if (open.length === 0) return save('SKIPPED', `Mata kuliah ${stageName} sudah memiliki nilai final; tidak ditimpa.`);
+    const pool = open.some((e) => e.academicYear.isActive) ? open.filter((e) => e.academicYear.isActive) : open.filter((e) => e.academicYear.code === open[0].academicYear.code);
+    const distinct = Array.from(new Map(pool.map((e) => [e.courseId, e])).values());
+    if (distinct.length > 1) {
+      return save('PENDING', `Ada lebih dari satu mata kuliah ${stageName} di KRS (${distinct.map((e) => e.course.code).join(', ')}). Tandai satu saja dengan kategori "${label}".`);
+    }
+    const target = distinct[0];
+    const courseLabel = `${target.course.code} ${target.course.name}`;
+
+    const settings = await this.getSettings();
+    const grade = await this.resolveGrade(defense.score);
+    await this.prisma.courseEnrollment.update({
+      where: { id: target.id },
+      data: { totalScore: defense.score, gradeLetter: grade.letter, gradePoint: grade.point, gradeStatus: settings.gradeStatus },
+    });
+    return save('APPLIED', `Nilai ${defense.score} (${grade.letter}) ditulis ke ${courseLabel} (${settings.gradeStatus}).`);
+  }
+
+  /** Terapkan ulang semua nilai sidang yang masih tertunda (mis. setelah mahasiswa mengisi KRS atau pemetaan diubah). */
+  async syncPendingGrades() {
+    const pending = await this.prisma.thesisDefense.findMany({
+      where: { status: 'DONE', gradeSyncedAt: null, result: { not: 'TIDAK_LULUS' } },
+      select: { id: true },
+    });
+    let applied = 0;
+    let stillPending = 0;
+    for (const d of pending) {
+      const r = await this.applyDefenseGrade(d.id);
+      if (r.status === 'APPLIED') applied++;
+      else if (r.status === 'PENDING') stillPending++;
+    }
+    return { checked: pending.length, applied, stillPending };
+  }
+
+  async pendingGradeCount() {
+    const count = await this.prisma.thesisDefense.count({ where: { status: 'DONE', gradeSyncedAt: null, result: { not: 'TIDAK_LULUS' }, gradeSyncNote: { not: null } } });
+    return { pending: count };
   }
 }

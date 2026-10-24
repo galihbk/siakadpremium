@@ -44,7 +44,7 @@ interface CurriculumItem {
   totalSks: number;
   curriculumType: 'Kurikulum OBE' | 'Kurikulum MBKM' | 'Vokasi Terapan';
   skRektor: string;
-  status: 'Aktif' | 'Masa Transisi' | 'Arsip';
+  status: 'Aktif' | 'Nonaktif' | 'Masa Transisi' | 'Arsip';
   description: string;
 }
 
@@ -69,6 +69,39 @@ export default function AdminMasterKurikulumPage() {
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  // Toggle status kurikulum: menonaktifkan membuat SEMUA mata kuliahnya nonaktif; mengaktifkan bisa sekaligus mengaktifkan mata kuliahnya.
+  const handleToggleStatus = async (c: CurriculumItem) => {
+    const isOn = c.status === 'Aktif' || c.status === 'Masa Transisi';
+    let activateCourses = false;
+    if (isOn) {
+      const ok = await confirmDialog(`Nonaktifkan kurikulum "${c.name}"? Semua mata kuliah di kurikulum ini ikut dinonaktifkan.`);
+      if (!ok) return;
+    } else {
+      const ok = await confirmDialog(`Aktifkan kembali kurikulum "${c.name}"?`);
+      if (!ok) return;
+      activateCourses = await confirmDialog('Aktifkan juga semua mata kuliah di kurikulum ini? (Pilih Batal bila hanya kurikulumnya yang diaktifkan.)');
+    }
+    const next = isOn ? 'Nonaktif' : 'Aktif';
+    setTogglingId(c.id);
+    try {
+      const res = await fetch(`${apiBase}/academic/curriculums/${c.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: next, activateCourses }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error('Gagal mengubah status kurikulum.');
+      const n = json?.data?.coursesUpdated ?? json?.coursesUpdated ?? 0;
+      showToast(isOn ? `Kurikulum dinonaktifkan; ${n} mata kuliah ikut nonaktif.` : `Kurikulum diaktifkan${activateCourses ? `; ${n} mata kuliah ikut aktif` : ''}.`);
+      await loadCurriculums();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Gagal mengubah status kurikulum.');
+    } finally {
+      setTogglingId(null);
+    }
   };
 
   const loadCurriculums = async () => {
@@ -470,6 +503,7 @@ export default function AdminMasterKurikulumPage() {
             >
               <option value="Semua">Semua Status</option>
               <option value="Aktif">Aktif</option>
+              <option value="Nonaktif">Nonaktif</option>
               <option value="Masa Transisi">Masa Transisi</option>
               <option value="Arsip">Arsip</option>
             </select>
@@ -634,20 +668,22 @@ export default function AdminMasterKurikulumPage() {
                       </td>
 
                       <td className="py-4 px-4 text-center">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            c.status === 'Aktif'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}
-                        >
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full ${
-                              c.status === 'Aktif' ? 'bg-emerald-500' : 'bg-amber-500'
-                            }`}
-                          ></span>
-                          {c.status}
-                        </span>
+                        {(() => {
+                          const isOn = c.status === 'Aktif' || c.status === 'Masa Transisi';
+                          return (
+                            <button
+                              onClick={() => handleToggleStatus(c)}
+                              disabled={togglingId === c.id}
+                              title={isOn ? 'Klik untuk nonaktifkan (mata kuliahnya ikut nonaktif)' : 'Klik untuk aktifkan'}
+                              className="inline-flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                            >
+                              <span className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isOn ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${isOn ? 'translate-x-5' : 'translate-x-1'}`} />
+                              </span>
+                              <span className={`text-[10px] font-bold ${isOn ? 'text-emerald-700' : 'text-slate-500'}`}>{c.status}</span>
+                            </button>
+                          );
+                        })()}
                       </td>
 
                       <td className="py-4 px-5 text-right">
@@ -884,8 +920,9 @@ export default function AdminMasterKurikulumPage() {
                     className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white font-medium"
                   >
                     <option value="Aktif">Aktif</option>
+                    <option value="Nonaktif">Nonaktif (mata kuliahnya ikut nonaktif)</option>
                     <option value="Masa Transisi">Masa Transisi</option>
-                    <option value="Arsip">Arsip</option>
+                    <option value="Arsip">Arsip (mata kuliahnya ikut nonaktif)</option>
                   </select>
                 </div>
 

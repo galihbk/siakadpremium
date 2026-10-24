@@ -635,3 +635,86 @@ export async function downloadLetterPdf(args: {
   drawPageNumbers(doc);
   doc.save(args.filename);
 }
+
+// ======================================================================================
+// Kartu Bimbingan Tugas Akhir (proposal / skripsi): satu kartu (halaman) per pembimbing
+// ======================================================================================
+export async function downloadGuidanceCardPdf(args: {
+  inst: PdfInstitution;
+  phaseLabel: 'Proposal' | 'Skripsi';
+  student: { name: string; nim: string; prodi: string };
+  title: string;
+  supervisors: Array<{ role: string; name: string; sessions: Array<{ date: string; chapter: string; notes: string }> }>;
+  approvedAt?: string | null;
+  filename: string;
+}): Promise<void> {
+  const { jsPDF } = await import('jspdf');
+  const autoTable = (await import('jspdf-autotable')).default;
+  const { inst } = args;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const textW = W - 2 * M;
+
+  for (let idx = 0; idx < args.supervisors.length; idx++) {
+    const sv = args.supervisors[idx];
+    if (idx > 0) doc.addPage();
+    let y = await drawKop(doc, inst);
+    y = drawTitle(doc, y, `KARTU BIMBINGAN ${args.phaseLabel.toUpperCase()}`, `Tugas Akhir / Skripsi - ${sv.role}`);
+
+    doc.setFontSize(9.5);
+    doc.setTextColor(15, 23, 42);
+    const rows: Array<[string, string]> = [
+      ['Nama Mahasiswa', args.student.name],
+      ['NIM', args.student.nim],
+      ['Program Studi', args.student.prodi],
+      ['Judul', args.title],
+      [sv.role, sv.name],
+    ];
+    for (const [k, v] of rows) {
+      doc.setFont('helvetica', 'normal');
+      doc.text(k, M, y);
+      doc.setFont('helvetica', 'bold');
+      const lines = doc.splitTextToSize(`: ${v}`, textW - 36) as string[];
+      doc.text(lines, M + 36, y);
+      y += lines.length * 4.8;
+    }
+    y += 3;
+
+    autoTable(doc, {
+      ...tableBase(),
+      startY: y,
+      head: [['No', 'Tanggal', 'Bab', 'Uraian / Arahan Bimbingan', 'Paraf Pembimbing']],
+      body: sv.sessions.length
+        ? sv.sessions.map((x, i) => [String(i + 1), x.date, x.chapter, x.notes, ''])
+        : [[{ content: 'Belum ada catatan bimbingan dari pembimbing ini.', colSpan: 5, styles: { halign: 'center', textColor: [100, 116, 139] } }]],
+      styles: { ...tableBase().styles, fontSize: 8.5, minCellHeight: 10, valign: 'top' },
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 9 },
+        1: { cellWidth: 24 },
+        2: { cellWidth: 20 },
+        3: { cellWidth: 'auto' },
+        4: { cellWidth: 28 },
+      },
+    });
+    y = ((doc as any).lastAutoTable?.finalY ?? y) + 8;
+
+    // Pengesahan: dikosongkan, ditandatangani manual setelah dicetak
+    if (y > H - 55) {
+      doc.addPage();
+      y = 22;
+    }
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`Telah di-ACC ${args.phaseLabel.toLowerCase()}${args.approvedAt ? ` pada ${args.approvedAt}` : ''}.`, M, y);
+    y += 8;
+    const cx = W - M - 38;
+    doc.text(sv.role, cx, y, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.text(sv.name, cx, y + 24, { align: 'center' });
+    doc.setLineWidth(0.25);
+    const w = Math.min(70, doc.getTextWidth(sv.name) + 4);
+    doc.line(cx - w / 2, y + 25, cx + w / 2, y + 25);
+  }
+  drawPageNumbers(doc);
+  doc.save(args.filename);
+}

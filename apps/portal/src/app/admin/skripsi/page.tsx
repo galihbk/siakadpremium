@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { Modal } from '@/components/ui/Modal';
 import { TablePagination } from '@/components/ui/TablePagination';
@@ -19,6 +19,9 @@ import {
   formatDateTime,
   thesisFetch,
 } from '@/lib/thesis';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { ThesisSettings, DEFAULT_THESIS_SETTINGS } from '@/lib/thesis';
+import { examsFetch } from '@/lib/exams';
 import { GraduationCap, CheckCircle2, AlertTriangle, RefreshCw, X, Search, Settings2 } from 'lucide-react';
 
 interface LecturerOption {
@@ -34,7 +37,7 @@ const inputCls =
 const labelCls = 'block text-[11px] font-bold text-slate-500 uppercase mb-1';
 
 const lecturerLabel = (l: LecturerOption) =>
-  `${[l.titlePrefix, l.fullName].filter(Boolean).join(' ')}${l.titleSuffix ? `, ${l.titleSuffix}` : ''}${l.nidn && l.nidn !== '-' ? ` (${l.nidn})` : ''}`;
+  `${[l.titlePrefix, l.fullName].filter(Boolean).join(' ')}${l.titleSuffix ? `, ${l.titleSuffix}` : ''}`;
 
 export default function AdminSkripsiPage() {
   const [stageFilter, setStageFilter] = useState<'' | ThesisStage>('');
@@ -46,6 +49,61 @@ export default function AdminSkripsiPage() {
   });
 
   const [lecturers, setLecturers] = useState<LecturerOption[]>([]);
+  const [supervisorLoad, setSupervisorLoad] = useState<Record<string, number>>({});
+  // Pengaturan bimbingan (per kampus): minimal bimbingan sebelum ACC & daftar bab
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState<ThesisSettings>(DEFAULT_THESIS_SETTINGS);
+  const [settingsDraft, setSettingsDraft] = useState({ minP: '1', minS: '1', chapters: '', gradeStatus: 'FINAL' });
+  const [pendingGrades, setPendingGrades] = useState(0);
+  const [syncBusy, setSyncBusy] = useState(false);
+  const loadPendingGrades = useCallback(() => {
+    thesisFetch<{ pending: number }>('/admin/grades/pending').then((d) => setPendingGrades(d.pending)).catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    loadPendingGrades();
+  }, [loadPendingGrades]);
+  const syncGrades = async () => {
+    setSyncBusy(true);
+    try {
+      const r = await thesisFetch<{ checked: number; applied: number; stillPending: number }>('/admin/grades/sync', { method: 'POST' });
+      notify(true, `${r.applied} nilai ditulis ke KRS, ${r.stillPending} masih tertunda (dari ${r.checked} sidang).`);
+      loadPendingGrades();
+      table.reload();
+    } catch (err) {
+      notify(false, err instanceof Error ? err.message : 'Gagal menerapkan nilai.');
+    } finally {
+      setSyncBusy(false);
+    }
+  };
+  const [settingsBusy, setSettingsBusy] = useState(false);
+  useEffect(() => {
+    thesisFetch<ThesisSettings>('/settings').then(setSettings).catch(() => undefined);
+  }, []);
+  const openSettings = () => {
+    setSettingsDraft({ minP: String(settings.minGuidanceProposal), minS: String(settings.minGuidanceSkripsi), chapters: settings.chapters.join('\n'), gradeStatus: settings.gradeStatus || 'FINAL' });
+    setSettingsOpen(true);
+  };
+  const saveSettings = async () => {
+    setSettingsBusy(true);
+    try {
+      const saved = await thesisFetch<ThesisSettings>('/admin/settings', {
+        method: 'PUT',
+        body: {
+          minGuidanceProposal: Number(settingsDraft.minP),
+          minGuidanceSkripsi: Number(settingsDraft.minS),
+          chapters: settingsDraft.chapters.split('\n').map((c) => c.trim()).filter(Boolean),
+          gradeStatus: settingsDraft.gradeStatus,
+        },
+      });
+      setSettings(saved);
+      setSettingsOpen(false);
+      notify(true, 'Pengaturan bimbingan tersimpan.');
+    } catch (err) {
+      notify(false, err instanceof Error ? err.message : 'Gagal menyimpan pengaturan.');
+    } finally {
+      setSettingsBusy(false);
+    }
+  };
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -54,7 +112,14 @@ export default function AdminSkripsiPage() {
     setTimeout(() => setToast((t) => (t?.text === text ? null : t)), 5000);
   };
 
+  const loadSupervisorLoad = useCallback(() => {
+    thesisFetch<{ load: Record<string, number> }>('/admin/supervisor-load')
+      .then((d) => setSupervisorLoad(d.load || {}))
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
+    loadSupervisorLoad();
     fetch(`${getApiBaseUrl()}/lecturers`)
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
@@ -88,16 +153,35 @@ export default function AdminSkripsiPage() {
         )}
 
         <div className="bg-gradient-to-r from-[#0F172A] via-[#1E3A8A] to-[#1E293B] text-white p-6 sm:p-8 rounded-3xl shadow-xl border border-slate-700/50">
-          <div className="flex items-start gap-4">
-            <div className="w-11 h-11 rounded-2xl bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
-              <GraduationCap className="w-5 h-5" />
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="flex items-start gap-4">
+              <div className="w-11 h-11 rounded-2xl bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
+                <GraduationCap className="w-5 h-5" />
+              </div>
+              <div>
+                <h1 className="text-xl sm:text-2xl font-black tracking-tight">Tugas Akhir / Skripsi</h1>
+                <p className="text-xs text-blue-100 mt-1 max-w-3xl leading-relaxed">
+                  Pantau seluruh tahapan tugas akhir mahasiswa: plotting dosen pembimbing, jadwal seminar proposal dan ujian skripsi
+                  beserta dosen penguji, hingga input nilai akhir.
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-black tracking-tight">Tugas Akhir / Skripsi</h1>
-              <p className="text-xs text-blue-100 mt-1 max-w-3xl leading-relaxed">
-                Pantau seluruh tahapan tugas akhir mahasiswa: plotting dosen pembimbing, jadwal seminar proposal dan ujian skripsi
-                beserta dosen penguji, hingga input nilai akhir.
-              </p>
+            <div className="flex flex-wrap items-center gap-2">
+              {pendingGrades > 0 && (
+                <button
+                  disabled={syncBusy}
+                  onClick={syncGrades}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-xl disabled:opacity-60 cursor-pointer"
+                >
+                  {syncBusy && <RefreshCw className="w-3.5 h-3.5 animate-spin" />} Terapkan {pendingGrades} Nilai Tertunda ke KRS
+                </button>
+              )}
+              <button
+                onClick={openSettings}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-white/15 hover:bg-white/25 border border-white/25 rounded-xl cursor-pointer"
+              >
+                <Settings2 className="w-3.5 h-3.5" /> Pengaturan
+              </button>
             </div>
           </div>
         </div>
@@ -228,6 +312,57 @@ export default function AdminSkripsiPage() {
       </div>
 
       <Modal
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        title="Pengaturan Bimbingan Tugas Akhir"
+        subtitle="Aturan ini berlaku untuk semua mahasiswa dan dosen pembimbing"
+        icon={<Settings2 className="w-5 h-5" />}
+        maxWidth="2xl"
+      >
+        <div className="space-y-4">
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Minimal bimbingan proposal sebelum ACC</label>
+              <input type="number" min={0} max={50} className={inputCls} value={settingsDraft.minP} onChange={(e) => setSettingsDraft({ ...settingsDraft, minP: e.target.value })} />
+            </div>
+            <div>
+              <label className={labelCls}>Minimal bimbingan skripsi sebelum ACC</label>
+              <input type="number" min={0} max={50} className={inputCls} value={settingsDraft.minS} onChange={(e) => setSettingsDraft({ ...settingsDraft, minS: e.target.value })} />
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-500 -mt-2">Dosen baru bisa memberi ACC setelah jumlah catatan bimbingan terpenuhi. Nilai terkecil yang berlaku adalah 1.</p>
+          <div>
+            <label className={labelCls}>Daftar bab / bagian (satu per baris)</label>
+            <textarea rows={7} className={inputCls} value={settingsDraft.chapters} onChange={(e) => setSettingsDraft({ ...settingsDraft, chapters: e.target.value })} />
+            <p className="text-[11px] text-slate-500 mt-1">Muncul sebagai pilihan "Bab yang dibahas" saat dosen mencatat bimbingan. Dosen tetap bisa memilih "Lainnya".</p>
+          </div>
+          <div>
+            <label className={labelCls}>Status nilai yang ditulis ke KRS dari hasil seminar/ujian</label>
+            <select className={inputCls} value={settingsDraft.gradeStatus} onChange={(e) => setSettingsDraft({ ...settingsDraft, gradeStatus: e.target.value })}>
+              <option value="FINAL">FINAL (langsung tercatat di KHS/transkrip)</option>
+              <option value="DRAFT">DRAFT (menunggu difinalkan dosen pengampu)</option>
+            </select>
+          </div>
+          <div className="border-t border-slate-100 pt-4 space-y-1.5 text-[12px] text-slate-600">
+            <p className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Nilai seminar &amp; ujian ke mata kuliah</p>
+            <p>
+              Ditentukan oleh <b>Kategori Tugas Akhir &amp; Lapangan</b> pada mata kuliah (menu Kurikulum &amp; Mata Kuliah): kategori <b>Seminar Proposal</b> menerima
+              nilai seminar proposal, dan kategori <b>Skripsi/TA</b> menerima nilai ujian skripsi. Nilai ditulis ke KRS mahasiswa pada mata kuliah itu.
+            </p>
+            <p>
+              Bila prodi tidak punya mata kuliah berkategori <b>Seminar Proposal</b>, seminar hanya menjadi syarat melanjutkan ke skripsi (tanpa nilai).
+              KRS tidak pernah dibuat otomatis; nilai ditahan sampai mahasiswa mengambil mata kuliahnya.
+            </p>
+          </div>
+          <div className="flex justify-end">
+            <button disabled={settingsBusy} onClick={saveSettings} className="inline-flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-900 rounded-xl disabled:opacity-60 cursor-pointer">
+              {settingsBusy && <RefreshCw className="w-4 h-4 animate-spin" />} Simpan
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
         isOpen={!!selected}
         onClose={() => setSelectedId(null)}
         title={selected ? `${selected.student?.name} (${selected.student?.nim})` : ''}
@@ -239,9 +374,12 @@ export default function AdminSkripsiPage() {
           <ProjectManager
             project={selected}
             lecturers={lecturers}
+            supervisorLoad={supervisorLoad}
             onDone={(text) => {
               notify(true, text);
               table.reload();
+              loadSupervisorLoad();
+              window.dispatchEvent(new Event('siakad:thesis-updated'));
             }}
             onError={(text) => notify(false, text)}
           />
@@ -258,11 +396,13 @@ export default function AdminSkripsiPage() {
 function ProjectManager({
   project,
   lecturers,
+  supervisorLoad,
   onDone,
   onError,
 }: {
   project: ThesisProject;
   lecturers: LecturerOption[];
+  supervisorLoad: Record<string, number>;
   onDone: (text: string) => void;
   onError: (text: string) => void;
 }) {
@@ -332,27 +472,26 @@ function ProjectManager({
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Pembimbing 1</label>
-              <select className={inputCls} value={s1} onChange={(e) => setS1(e.target.value)}>
-                <option value="">-- Pilih dosen --</option>
-                {lecturers.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {lecturerLabel(l)}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={s1}
+                onChange={setS1}
+                options={lecturers.map((l) => ({ value: l.id, label: `${lecturerLabel(l)} — membimbing ${supervisorLoad[l.id] ?? 0}` }))}
+                placeholder="-- Pilih dosen --"
+                searchPlaceholder="Cari nama dosen..."
+              />
             </div>
             <div>
               <label className={labelCls}>Pembimbing 2 (opsional)</label>
-              <select className={inputCls} value={s2} onChange={(e) => setS2(e.target.value)}>
-                <option value="">-- Tanpa pembimbing 2 --</option>
-                {lecturers
+              <SearchableSelect
+                value={s2}
+                onChange={setS2}
+                options={lecturers
                   .filter((l) => l.id !== s1)
-                  .map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {lecturerLabel(l)}
-                    </option>
-                  ))}
-              </select>
+                  .map((l) => ({ value: l.id, label: `${lecturerLabel(l)} — membimbing ${supervisorLoad[l.id] ?? 0}` }))}
+                placeholder="-- Tanpa pembimbing 2 --"
+                searchPlaceholder="Cari nama dosen..."
+                emptyLabel="-- Tanpa pembimbing 2 --"
+              />
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -451,6 +590,14 @@ function DefenseManager({
 
   const [when, setWhen] = useState(toLocalInput(defense.scheduledAt));
   const [location, setLocation] = useState(defense.location || '');
+  // Ruang diambil dari master ruang (nama ruang + gedung)
+  const [rooms, setRooms] = useState<{ id: string; name: string; buildingName: string; capacity: number }[]>([]);
+  useEffect(() => {
+    examsFetch<{ rooms: { id: string; name: string; buildingName: string; capacity: number }[] }>('/admin/options')
+      .then((d) => setRooms(d.rooms))
+      .catch(() => undefined);
+  }, []);
+  const roomLabel = (r: { name: string; buildingName: string }) => `${r.name} (${r.buildingName})`;
   const [examinerIds, setExaminerIds] = useState<string[]>(defense.examiners.map((e) => e.lecturerId));
   const [chairId, setChairId] = useState(defense.examiners.find((e) => e.role === 'KETUA')?.lecturerId || '');
   const [examinerSearch, setExaminerSearch] = useState('');
@@ -487,6 +634,28 @@ function DefenseManager({
           {defense.score !== null ? ` · Nilai ${defense.score} (${defense.gradeLetter})` : ''}
         </p>
         {defense.notes && <p className="text-slate-500">{defense.notes}</p>}
+        {defense.gradeSyncNote && (
+          <div
+            className={`flex flex-wrap items-center justify-between gap-2 text-[12px] rounded-lg px-3 py-2 border ${
+              defense.gradeSyncedAt && defense.gradeSyncNote.startsWith('Nilai ')
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : defense.gradeSyncedAt
+                ? 'bg-slate-50 border-slate-200 text-slate-600'
+                : 'bg-amber-50 border-amber-200 text-amber-800'
+            }`}
+          >
+            <span>{defense.gradeSyncNote}</span>
+            {!defense.gradeSyncedAt && (
+              <button
+                disabled={busy}
+                onClick={() => run(() => thesisFetch(`/admin/defenses/${defense.id}/grade`, { method: 'POST' }), 'Penerapan nilai dicoba ulang.')}
+                className="font-bold underline cursor-pointer"
+              >
+                Coba terapkan
+              </button>
+            )}
+          </div>
+        )}
       </section>
     );
   }
@@ -520,7 +689,16 @@ function DefenseManager({
           </div>
           <div>
             <label className={labelCls}>Tempat / Ruang</label>
-            <input className={inputCls} value={location} onChange={(e) => setLocation(e.target.value)} placeholder="mis. Ruang Sidang A" />
+            <select className={inputCls} value={location} onChange={(e) => setLocation(e.target.value)}>
+              <option value="">-- Pilih ruang --</option>
+              {location && !rooms.some((r) => roomLabel(r) === location) && <option value={location}>{location}</option>}
+              {rooms.map((r) => (
+                <option key={r.id} value={roomLabel(r)}>
+                  {roomLabel(r)} · kap. {r.capacity}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-slate-400 mt-1">Dipilih dari master ruang.</p>
           </div>
         </div>
         <div>
