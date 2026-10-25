@@ -1,10 +1,30 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { LETTER_CATALOG, ROMAN_MONTHS } from './letters.catalog';
 
 @Injectable()
 export class LettersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
+
+  private readonly BAAK_ROLES = ['ADMIN_BAAK', 'STAFF'];
+
+  /**
+   * Nomor urut atomik: kenaikan dilakukan di database (UPDATE ... SET value = value + 1), sehingga dua surat yang terbit
+   * bersamaan tidak mendapat nomor yang sama dan menghapus surat tidak menggeser nomor berikutnya.
+   */
+  private async nextCounter(key: string, initial: () => Promise<number>): Promise<number> {
+    const existing = await this.prisma.letterCounter.findUnique({ where: { key } });
+    if (!existing) {
+      // skipDuplicates: bila proses lain membuatnya bersamaan, lanjut saja menaikkan nilainya
+      await this.prisma.letterCounter.createMany({ data: [{ key, value: await initial() }], skipDuplicates: true });
+    }
+    const row = await this.prisma.letterCounter.update({ where: { key }, data: { value: { increment: 1 } } });
+    return row.value;
+  }
 
   getCatalog() {
     return Object.values(LETTER_CATALOG);
@@ -20,7 +40,10 @@ export class LettersService {
 
   private async generateRequestNo(): Promise<string> {
     const year = new Date().getFullYear();
-    return `LTR/${year}/${Date.now().toString().slice(-6)}`;
+    const seq = await this.nextCounter(`req-${year}`, () =>
+      this.prisma.letterRequest.count({ where: { createdAt: { gte: new Date(`${year}-01-01T00:00:00.000Z`), lt: new Date(`${year + 1}-01-01T00:00:00.000Z`) } } }),
+    );
+    return `LTR/${year}/${String(seq).padStart(5, '0')}`;
   }
 
   private async generateLetterNo(typeCode: string): Promise<string> {
@@ -29,10 +52,9 @@ export class LettersService {
     const romanMonth = ROMAN_MONTHS[new Date().getMonth()];
     const yearStart = new Date(`${year}-01-01T00:00:00.000Z`);
     const yearEnd = new Date(`${year + 1}-01-01T00:00:00.000Z`);
-    const countThisYear = await this.prisma.letterRequest.count({
-      where: { letterNo: { not: null }, createdAt: { gte: yearStart, lt: yearEnd } },
-    });
-    const seqNo = countThisYear + 1;
+    const seqNo = await this.nextCounter(`letter-${year}`, () =>
+      this.prisma.letterRequest.count({ where: { letterNo: { not: null }, createdAt: { gte: yearStart, lt: yearEnd } } }),
+    );
 
     // Format dari Profil Institusi > Pengaturan Identitas > Format Nomor. Isi bawaan contoh (ITN) dianggap belum diatur.
     const setting = await this.prisma.landingPageSetting
@@ -182,6 +204,24 @@ export class LettersService {
       },
     });
 
+    if (status === 'MENUNGGU_PA') {
+      void this.notifications.notifyLecturers([student.advisorLecturerId], {
+        type: 'LETTER',
+        title: 'Surat menunggu persetujuan Anda',
+        body: `${student.user.fullName} (${student.nim}) mengajukan ${catalogEntry.name}.`,
+        link: '/lecturer/surat',
+      });
+    } else if (status === 'DIPROSES_BAAK') {
+      void this.notifications.notifyRoles(this.BAAK_ROLES, {
+        type: 'LETTER',
+        title: 'Permohonan surat baru',
+        body: `${student.user.fullName} (${student.nim}) mengajukan ${catalogEntry.name}.`,
+        link: '/admin/surat',
+      });
+    } else if (status === 'SELESAI') {
+      void this.notifications.notifyUser(student.userId, { type: 'LETTER', title: `${catalogEntry.name} terbit`, body: `Nomor ${letterNo}. Surat siap diunduh.`, link: '/student/surat' });
+    }
+
     return {
       success: true,
       message:
@@ -228,6 +268,13 @@ export class LettersService {
         where: { id },
         data: { status: 'DIPROSES_BAAK', advisorApprovedAt: new Date(), advisorNote: note?.trim() || null },
       });
+      void this.notifications.notifyRoles(this.BAAK_ROLES, {
+        type: 'LETTER',
+        title: 'Permohonan surat baru',
+        body: `${letter.typeName} milik ${letter.student.nim} sudah disetujui Dosen PA.`,
+        link: '/admin/surat',
+      });
+      void this.notifications.notifyUser(letter.student.userId, { type: 'LETTER', title: 'Permohonan surat disetujui Dosen PA', body: `${letter.typeName} diteruskan ke BAAK.`, link: '/student/surat' });
       return { success: true, message: 'Permohonan disetujui dan diteruskan ke BAAK.', data: updated };
     }
 
@@ -236,7 +283,63 @@ export class LettersService {
       where: { id },
       data: { status: 'DITOLAK', rejectedBy: 'ADVISOR', rejectionReason: note.trim() },
     });
+    void this.notifications.notifyUser(letter.student.userId, { type: 'LETTER', title: 'Permohonan surat ditolak Dosen PA', body: `${letter.typeName}: ${note.trim()}`, link: '/student/surat' });
     return { success: true, message: 'Permohonan surat ditolak.', data: updated };
+  }
+
+  /**
+   * Validasi dokumen untuk umum (dipindai lewat QR). Hanya data minimum: tidak ada isi surat, NIK, atau kontak.
+   * type: surat (kode = nomor tiket), ktm (kode = NIM), pmb (kode = nomor registrasi).
+   */
+  async verifyDocument(type: string, code: string) {
+    const c = String(code ?? '').trim();
+    const maskName = (n: string) => n.split(' ').map((w, i) => (i === 0 ? w : `${w.charAt(0)}${'*'.repeat(Math.max(0, Math.min(w.length - 1, 5)))}`)).join(' ');
+    const maskNim = (nim: string) => (nim.length > 4 ? `${'*'.repeat(nim.length - 3)}${nim.slice(-3)}` : nim);
+    const campus = await this.campusName();
+    if (!c) return { valid: false, campus, message: 'Kode dokumen kosong.' };
+
+    if (type === 'surat') {
+      const l = await this.prisma.letterRequest.findUnique({ where: { requestNo: c }, include: { student: { include: { user: { select: { fullName: true } } } } } }).catch(() => null);
+      if (!l) return { valid: false, campus, message: 'Dokumen tidak ditemukan dalam sistem.' };
+      const issued = l.status === 'SELESAI';
+      return {
+        valid: issued,
+        campus,
+        documentType: l.typeName,
+        number: l.letterNo,
+        holder: maskName(l.student.user.fullName),
+        identifier: maskNim(l.student.nim),
+        issuedAt: l.processedAt,
+        message: issued ? 'Dokumen ini diterbitkan secara resmi.' : l.status === 'DITOLAK' ? 'Permohonan ini ditolak; dokumen tidak pernah diterbitkan.' : 'Dokumen ini belum diterbitkan.',
+      };
+    }
+    if (type === 'ktm') {
+      const s = await this.prisma.student.findUnique({ where: { nim: c }, include: { user: { select: { fullName: true } }, studyProgram: { select: { name: true } } } }).catch(() => null);
+      if (!s) return { valid: false, campus, message: 'NIM tidak ditemukan dalam sistem.' };
+      return {
+        valid: s.status === 'ACTIVE',
+        campus,
+        documentType: 'Kartu Tanda Mahasiswa',
+        number: s.nim,
+        holder: maskName(s.user.fullName),
+        identifier: s.studyProgram?.name ?? null,
+        message: s.status === 'ACTIVE' ? 'Mahasiswa terdaftar dan berstatus aktif.' : `Status mahasiswa saat ini: ${s.status}.`,
+      };
+    }
+    if (type === 'pmb') {
+      const a = await this.prisma.admissionApplication.findFirst({ where: { registrationNumber: c }, select: { fullName: true, registrationNumber: true, createdAt: true } }).catch(() => null);
+      if (!a) return { valid: false, campus, message: 'Nomor registrasi tidak ditemukan dalam sistem.' };
+      return {
+        valid: true,
+        campus,
+        documentType: 'Kartu Bukti Pendaftaran PMB',
+        number: a.registrationNumber,
+        holder: maskName(a.fullName),
+        issuedAt: a.createdAt,
+        message: 'Pendaftaran ini tercatat resmi di sistem PMB.',
+      };
+    }
+    return { valid: false, campus, message: 'Jenis dokumen tidak dikenali.' };
   }
 
   /** Jumlah permohonan yang menunggu diproses BAAK (untuk lencana sidebar). */
@@ -312,12 +415,13 @@ export class LettersService {
         processedByEmail: processedByEmail || 'baak@itn.ac.id',
       },
     });
+    void this.notifications.notifyUser(letter.student.userId, { type: 'LETTER', title: `${letter.typeName} terbit`, body: `Nomor ${letterNo}. Surat siap diunduh.`, link: '/student/surat' });
     return { success: true, message: `Surat ${letterNo} berhasil diterbitkan.`, data: updated };
   }
 
   async baakReject(id: string, processedByEmail: string | undefined, reason: string) {
     if (!reason?.trim()) throw new BadRequestException('Alasan penolakan wajib diisi.');
-    const letter = await this.prisma.letterRequest.findUnique({ where: { id } });
+    const letter = await this.prisma.letterRequest.findUnique({ where: { id }, include: { student: { select: { userId: true } } } });
     if (!letter) throw new NotFoundException(`Permohonan surat dengan ID "${id}" tidak ditemukan.`);
     if (letter.status === 'SELESAI' || letter.status === 'DITOLAK') {
       throw new BadRequestException('Permohonan ini sudah final dan tidak dapat ditolak lagi.');
@@ -333,6 +437,7 @@ export class LettersService {
         processedByEmail: processedByEmail || 'baak@itn.ac.id',
       },
     });
+    void this.notifications.notifyUser(letter.student.userId, { type: 'LETTER', title: 'Permohonan surat ditolak BAAK', body: `${letter.typeName}: ${reason.trim()}`, link: '/student/surat' });
     return { success: true, message: 'Permohonan surat ditolak.', data: updated };
   }
 }

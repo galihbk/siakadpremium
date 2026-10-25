@@ -4,6 +4,19 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { LettersService } from './letters.service';
 
+/** Validasi dokumen publik (tujuan QR di surat, KTM, kartu PMB). Tanpa login; hanya data minimum. */
+@ApiTags('Verifikasi Dokumen')
+@Controller('verify')
+export class VerifyController {
+  constructor(private readonly lettersService: LettersService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Memeriksa keaslian dokumen lewat jenis dan kode (hasil dipindai dari QR)' })
+  verify(@Query('type') type: string, @Query('code') code: string) {
+    return this.lettersService.verifyDocument(type, code);
+  }
+}
+
 @ApiTags('Letters (Layanan Surat Mahasiswa)')
 @Controller('letters')
 export class LettersController {

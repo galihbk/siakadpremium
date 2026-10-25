@@ -16,7 +16,7 @@ export default function PengaturanSistemPage() {
         <div className="bg-gradient-to-r from-[#1E3A8A] to-[#1e40af] rounded-2xl p-6 sm:p-8 text-white shadow-sm">
           <span className="inline-block text-xs font-semibold px-2.5 py-0.5 rounded-md bg-white/10 text-[#D4A017] mb-2">Konfigurasi Sistem</span>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight">Pengaturan Sistem</h1>
-          <p className="text-xs sm:text-sm text-blue-200 mt-1">Ringkasan pengaturan SIAKAD Premium dan tautan ke halaman pengelolaannya</p>
+          <p className="text-xs sm:text-sm text-blue-200 mt-1">Ringkasan pengaturan SIAKAD dan tautan ke halaman pengelolaannya</p>
         </div>
 
         {/* Tautan ke pengaturan yang sudah nyata & tersambung database */}

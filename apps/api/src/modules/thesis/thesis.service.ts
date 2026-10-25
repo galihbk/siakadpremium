@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { Prisma, ThesisDefenseType, ThesisPhase, ThesisStage } from '@siakad/database';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export interface SubmitProposalDto {
   title?: string;
@@ -96,7 +97,24 @@ export class ThesisService {
   constructor(
     private prisma: PrismaService,
     private storage: StorageService,
+    private notifications: NotificationsService,
   ) {}
+
+  private readonly BAAK_ROLES = ['ADMIN_BAAK', 'STAFF'];
+
+  /** Notifikasi ke mahasiswa pemilik proyek tugas akhir. */
+  private async notifyProjectStudent(projectId: string, input: { title: string; body?: string; link?: string }) {
+    const p = await this.prisma.thesisProject.findUnique({ where: { id: projectId }, select: { studentId: true } }).catch(() => null);
+    await this.notifications.notifyStudent(p?.studentId, { type: 'THESIS', link: '/student/skripsi', ...input });
+  }
+
+  private async studentNameOfProject(projectId: string) {
+    const p = await this.prisma.thesisProject.findUnique({
+      where: { id: projectId },
+      select: { student: { select: { nim: true, user: { select: { fullName: true } } } } },
+    });
+    return p ? `${p.student.user.fullName} (${p.student.nim})` : 'Mahasiswa';
+  }
 
   /** Berkas yang diunggah tersimpan privat (tautan bertanda tangan); diperbarui tiap dibaca agar tidak kedaluwarsa. */
   private fresh(url?: string | null) {
@@ -244,6 +262,12 @@ export class ThesisService {
           data: { studentId: student.id, title, abstract, proposalFileUrl: fileUrl },
           include: projectInclude,
         });
+    void this.notifications.notifyRoles(this.BAAK_ROLES, {
+      type: 'THESIS',
+      title: 'Proposal tugas akhir baru',
+      body: `${await this.studentNameOfProject(project.id)} mengajukan proposal: ${title}`,
+      link: '/admin/skripsi',
+    });
     return this.shape(project);
   }
 
@@ -306,6 +330,12 @@ export class ThesisService {
       this.prisma.thesisDefense.create({ data: { projectId: project.id, type, fileUrl } }),
       this.prisma.thesisProject.update({ where: { id: project.id }, data: { stage: next } }),
     ]);
+    void this.notifications.notifyRoles(this.BAAK_ROLES, {
+      type: 'THESIS',
+      title: type === 'SEMPRO' ? 'Pendaftaran seminar proposal' : 'Pendaftaran ujian skripsi',
+      body: `${await this.studentNameOfProject(project.id)} menunggu jadwal dan penguji.`,
+      link: '/admin/skripsi',
+    });
     return { success: true };
   }
 
@@ -396,6 +426,11 @@ export class ThesisService {
     const created = await this.prisma.thesisGuidance.create({
       data: { projectId, phase, lecturerId: lecturer.id, chapter, topic: chapter, notes, meetingDate, status: 'RECORDED' },
     });
+    const lec = await this.prisma.lecturer.findUnique({ where: { id: lecturer.id }, select: { user: { select: { fullName: true } } } });
+    void this.notifyProjectStudent(projectId, {
+      title: `Catatan bimbingan ${phase === 'PROPOSAL' ? 'proposal' : 'skripsi'} baru`,
+      body: `${lec?.user.fullName ?? 'Pembimbing'} mencatat bimbingan ${chapter}.`,
+    });
     return { id: created.id };
   }
 
@@ -448,6 +483,14 @@ export class ThesisService {
       stage = phase === 'PROPOSAL' ? 'PROPOSAL_APPROVED' : 'SKRIPSI_APPROVED';
       await this.prisma.thesisProject.update({ where: { id: projectId }, data: { stage } });
     }
+    const who = await this.prisma.lecturer.findUnique({ where: { id: lecturer.id }, select: { user: { select: { fullName: true } } } });
+    const phaseName = phase === 'PROPOSAL' ? 'proposal' : 'skripsi';
+    void this.notifyProjectStudent(
+      projectId,
+      allApproved
+        ? { title: `ACC ${phaseName} lengkap`, body: `Semua pembimbing sudah ACC. Anda dapat mendaftar ${phase === 'PROPOSAL' ? 'seminar proposal' : 'ujian skripsi'}.` }
+        : { title: `ACC ${phaseName} dari ${who?.user.fullName ?? 'pembimbing'}`, body: 'Menunggu ACC pembimbing lainnya.' },
+    );
     return { success: true, stage, waitingOther: !allApproved };
   }
 
@@ -540,6 +583,13 @@ export class ThesisService {
         },
       }),
     ]);
+    void this.notifyProjectStudent(projectId, { title: 'Dosen pembimbing ditetapkan', body: 'BAAK telah menetapkan dosen pembimbing Anda. Bimbingan dapat dimulai.' });
+    void this.notifications.notifyLecturers(keep, {
+      type: 'THESIS',
+      title: 'Mahasiswa bimbingan baru',
+      body: `${await this.studentNameOfProject(projectId)} ditetapkan sebagai mahasiswa bimbingan tugas akhir Anda.`,
+      link: '/lecturer/skripsi',
+    });
     return { success: true };
   }
 
@@ -551,6 +601,7 @@ export class ThesisService {
     const text = (note ?? '').trim();
     if (text.length < 3) throw new BadRequestException('Alasan penolakan wajib diisi.');
     await this.prisma.thesisProject.update({ where: { id: projectId }, data: { stage: 'PROPOSAL_REJECTED', adminNote: text } });
+    void this.notifyProjectStudent(projectId, { title: 'Proposal ditolak', body: `Alasan: ${text}. Silakan ajukan ulang.` });
     return { success: true };
   }
 
@@ -569,6 +620,8 @@ export class ThesisService {
     if (found !== examinerIds.length) throw new BadRequestException('Ada dosen penguji yang tidak ditemukan.');
     const chairId = dto.chairId && examinerIds.includes(dto.chairId) ? dto.chairId : examinerIds[0];
 
+    const warnings = await this.checkDefenseConflicts(defenseId, scheduledAt, location, examinerIds);
+
     const nextStage: ThesisStage = defense.type === 'SEMPRO' ? 'SEMPRO_SCHEDULED' : 'UJIAN_SCHEDULED';
     await this.prisma.$transaction([
       this.prisma.thesisDefenseExaminer.deleteMany({ where: { defenseId } }),
@@ -578,7 +631,82 @@ export class ThesisService {
       this.prisma.thesisDefense.update({ where: { id: defenseId }, data: { scheduledAt, location, status: 'SCHEDULED' } }),
       this.prisma.thesisProject.update({ where: { id: defense.projectId }, data: { stage: nextStage } }),
     ]);
-    return { success: true };
+    const when = new Date(scheduledAt.getTime() + 7 * 3600 * 1000).toISOString().replace('T', ' ').slice(0, 16);
+    const label = defense.type === 'SEMPRO' ? 'Seminar proposal' : 'Ujian skripsi';
+    void this.notifyProjectStudent(defense.projectId, { title: `${label} dijadwalkan`, body: `${when} WIB di ${location}.` });
+    void this.notifications.notifyLecturers(examinerIds, {
+      type: 'THESIS',
+      title: `Jadwal menguji ${label.toLowerCase()}`,
+      body: `${await this.studentNameOfProject(defense.projectId)} · ${when} WIB · ${location}`,
+      link: '/lecturer/skripsi',
+    });
+    return { success: true, warnings };
+  }
+
+  /**
+   * Bentrok jadwal seminar/ujian: ruang yang sama atau dosen penguji yang sama pada jam yang berdekatan (diasumsikan 2 jam)
+   * dengan sidang lain DAN dengan jadwal UTS/UAS dibatasi (diblokir). Dosen yang pada jam itu sedang mengajar kelas reguler
+   * hanya diberi peringatan.
+   */
+  private async checkDefenseConflicts(defenseId: string, scheduledAt: Date, location: string, examinerIds: string[]): Promise<string[]> {
+    const SLOT_MS = 120 * 60 * 1000;
+    const start = scheduledAt;
+    const end = new Date(start.getTime() + SLOT_MS);
+    const hhmm = (d: Date) => new Date(d.getTime() + 7 * 3600 * 1000).toISOString().slice(11, 16);
+    const names = new Map(
+      (await this.prisma.lecturer.findMany({ where: { id: { in: examinerIds } }, select: { id: true, user: { select: { fullName: true } } } })).map((l) => [l.id, l.user.fullName]),
+    );
+
+    // 1. Sidang lain (seminar / ujian) yang waktunya beririsan
+    const near = await this.prisma.thesisDefense.findMany({
+      where: { id: { not: defenseId }, status: 'SCHEDULED', scheduledAt: { gt: new Date(start.getTime() - SLOT_MS), lt: end } },
+      include: { examiners: true, project: { select: { student: { select: { nim: true, user: { select: { fullName: true } } } } } } },
+    });
+    for (const d of near) {
+      const who = `${d.type === 'SEMPRO' ? 'seminar proposal' : 'ujian skripsi'} ${d.project.student.user.fullName} pukul ${hhmm(d.scheduledAt!)}`;
+      if (d.location && d.location.trim().toLowerCase() === location.trim().toLowerCase()) {
+        throw new BadRequestException(`Ruang ${location} sudah dipakai ${who}.`);
+      }
+      const dup = d.examiners.find((e) => examinerIds.includes(e.lecturerId));
+      if (dup) throw new BadRequestException(`${names.get(dup.lecturerId) ?? 'Dosen penguji'} sudah menguji ${who}.`);
+    }
+
+    // 2. Jadwal UTS/UAS pada hari yang sama (ruang dan pengawas)
+    const wib = new Date(start.getTime() + 7 * 3600 * 1000);
+    const dayStr = wib.toISOString().slice(0, 10);
+    const toMin = (t: string) => parseInt(t.slice(0, 2), 10) * 60 + parseInt(t.slice(3, 5), 10);
+    const startMin = wib.getUTCHours() * 60 + wib.getUTCMinutes();
+    const exams = await this.prisma.examSchedule.findMany({
+      where: { examDate: new Date(`${dayStr}T00:00:00.000Z`) },
+      include: { room: { select: { name: true, buildingName: true } }, courseClass: { select: { className: true, course: { select: { code: true } } } } },
+    });
+    for (const e of exams) {
+      if (!(startMin < toMin(e.endTime) && toMin(e.startTime) < startMin + 120)) continue;
+      const tag = `${e.type} ${e.courseClass.course?.code ?? ''} ${e.courseClass.className} (${e.startTime}-${e.endTime})`;
+      if (e.room && `${e.room.name} (${e.room.buildingName})`.toLowerCase() === location.trim().toLowerCase()) {
+        throw new BadRequestException(`Ruang ${location} dipakai ${tag}.`);
+      }
+      const dup = [e.proctor1Id, e.proctor2Id].find((p) => p && examinerIds.includes(p));
+      if (dup) throw new BadRequestException(`${names.get(dup) ?? 'Dosen penguji'} bertugas mengawas ${tag}.`);
+    }
+
+    // 3. Dosen yang mengajar kelas reguler pada hari & jam itu (peringatan saja)
+    const warnings: string[] = [];
+    const DAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const dayName = DAYS[wib.getUTCDay()];
+    const active = await this.prisma.academicYear.findFirst({ where: { isActive: true }, select: { id: true } });
+    if (active) {
+      const classes = await this.prisma.courseClass.findMany({
+        where: { academicYearId: active.id, isFlexibleSchedule: false, day: dayName, lecturerId: { in: examinerIds } },
+        select: { lecturerId: true, startTime: true, endTime: true, className: true, course: { select: { code: true, name: true } } },
+      });
+      for (const c of classes) {
+        if (startMin < toMin(c.endTime) && toMin(c.startTime) < startMin + 120) {
+          warnings.push(`${names.get(c.lecturerId!) ?? 'Dosen penguji'} mengajar ${c.course?.code ?? ''} ${c.course?.name ?? ''} (${c.className}) ${dayName} ${c.startTime}-${c.endTime}.`);
+        }
+      }
+    }
+    return warnings;
   }
 
   async inputDefenseResult(defenseId: string, dto: DefenseResultDto) {
@@ -613,6 +741,7 @@ export class ThesisService {
         this.prisma.thesisProject.update({ where: { id: defense.projectId }, data: { stage: nextStage } }),
       ]);
       const grade = await this.applyDefenseGrade(defenseId);
+      void this.notifyDefenseResult(defense.projectId, 'SEMPRO', result, score, gradeLetter);
       return { success: true, stage: nextStage, grade };
     }
 
@@ -625,6 +754,7 @@ export class ThesisService {
         }),
         this.prisma.thesisProject.update({ where: { id: defense.projectId }, data: { stage: 'SKRIPSI_APPROVED' } }),
       ]);
+      void this.notifyDefenseResult(defense.projectId, 'UJIAN', result, score, gradeLetter);
       return { success: true, stage: 'SKRIPSI_APPROVED' as ThesisStage, grade: await this.applyDefenseGrade(defenseId) };
     }
     await this.prisma.$transaction([
@@ -637,7 +767,17 @@ export class ThesisService {
         data: { stage: 'COMPLETED', finalScore: score, finalGrade: gradeLetter, completedAt: new Date() },
       }),
     ]);
+    void this.notifyDefenseResult(defense.projectId, 'UJIAN', result, score, gradeLetter);
     return { success: true, stage: 'COMPLETED' as ThesisStage, grade: await this.applyDefenseGrade(defenseId) };
+  }
+
+  private async notifyDefenseResult(projectId: string, type: 'SEMPRO' | 'UJIAN', result: string, score: number | null, letter: string | null) {
+    const label = type === 'SEMPRO' ? 'Seminar proposal' : 'Ujian skripsi';
+    const res = result === 'LULUS' ? 'LULUS' : result === 'REVISI' ? 'LULUS dengan revisi' : 'TIDAK LULUS';
+    await this.notifyProjectStudent(projectId, {
+      title: `Hasil ${label.toLowerCase()}: ${res}`,
+      body: score !== null ? `Nilai ${score}${letter ? ` (${letter})` : ''}.` : undefined,
+    });
   }
 
   // ---------------------------------------------------------------- pemetaan mata kuliah & penulisan nilai
@@ -677,6 +817,9 @@ export class ThesisService {
         where: { id: defenseId },
         data: { gradeSyncNote: note, gradeSyncedAt: status === 'PENDING' ? null : new Date() },
       });
+      if (status === 'APPLIED') {
+        void this.notifications.notifyStudent(defense.project.studentId, { type: 'THESIS', title: 'Nilai masuk ke KRS', body: note, link: '/student/khs' });
+      }
       return { status, note };
     };
 
@@ -736,6 +879,19 @@ export class ThesisService {
       else if (r.status === 'PENDING') stillPending++;
     }
     return { checked: pending.length, applied, stillPending };
+  }
+
+  /** Menerapkan nilai sidang yang tertunda milik satu mahasiswa; dipanggil otomatis begitu KRS-nya disetujui. */
+  async syncPendingGradesForStudent(studentId: string) {
+    try {
+      const pending = await this.prisma.thesisDefense.findMany({
+        where: { status: 'DONE', gradeSyncedAt: null, result: { not: 'TIDAK_LULUS' }, project: { studentId } },
+        select: { id: true },
+      });
+      for (const d of pending) await this.applyDefenseGrade(d.id);
+    } catch {
+      // tidak boleh menggagalkan persetujuan KRS
+    }
   }
 
   async pendingGradeCount() {

@@ -57,7 +57,7 @@ export default function KontakPage() {
       location: 'Gedung Pelayanan Terpadu Lt. 2',
     },
     {
-      name: 'Helpdesk SIAKAD Premium & IT Center',
+      name: 'Helpdesk SIAKAD & IT Center',
       phone: '(021) 7890-1234 ext. 303',
       wa: '+62 811-2233-4455',
       email: 'support.siakad@itn.ac.id',
@@ -74,7 +74,7 @@ export default function KontakPage() {
 
   const faqs = [
     {
-      q: 'Bagaimana cara mengakses akun Portal SIAKAD Premium?',
+      q: 'Bagaimana cara mengakses akun Portal SIAKAD?',
       a: 'Mahasiswa dan dosen dapat masuk melalui tautan "Portal Akademik" di navbar atas menggunakan NIM/NIDN dan kata sandi yang diterbitkan oleh BAAK saat awal semester.',
     },
     {
@@ -224,7 +224,7 @@ export default function KontakPage() {
                       >
                         <option value="PMB">Penerimaan Mahasiswa Baru (PMB)</option>
                         <option value="BAAK">Administrasi Akademik (BAAK / KRS)</option>
-                        <option value="SIAKAD">Kendala Teknis SIAKAD Premium</option>
+                        <option value="SIAKAD">Kendala Teknis SIAKAD</option>
                         <option value="Keuangan">UKT / Tagihan Keuangan</option>
                         <option value="Kerjasama">Kemitraan Industri / Kampus</option>
                         <option value="Umum">Pertanyaan Umum Lainnya</option>

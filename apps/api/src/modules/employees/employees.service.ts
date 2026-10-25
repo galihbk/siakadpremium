@@ -29,9 +29,10 @@ export interface PegawaiResponse {
   fullName: string;
   titlePrefix?: string;
   titleSuffix?: string;
-  gender: 'Laki-laki' | 'Perempuan';
+  /** Kosong = belum diisi (tidak ditebak). */
+  gender: 'Laki-laki' | 'Perempuan' | '';
   category: 'Dosen Tetap' | 'Dosen Luar Biasa' | 'Tenaga Kependidikan' | SupportCategory;
-  employmentStatus: 'PNS / ASN' | 'Tetap Yayasan' | 'Kontrak (PKWT)' | 'Honorer' | 'Outsourcing (Alih Daya)';
+  employmentStatus: 'PNS / ASN' | 'Tetap Yayasan' | 'Kontrak (PKWT)' | 'Honorer' | 'Outsourcing (Alih Daya)' | '';
   streetAddress?: string;
   rtRw?: string;
   kelurahan?: string;
@@ -53,7 +54,7 @@ export interface PegawaiResponse {
   functionalPosition: string;
   email: string;
   phone: string;
-  education: 'D3' | 'S1' | 'S2' | 'S3' | 'Profesi';
+  education: 'D3' | 'S1' | 'S2' | 'S3' | 'Profesi' | '';
   joinDate: string;
   status: 'Aktif' | 'Cuti' | 'Pensiun' | 'Tugas Belajar';
   avatarUrl?: string;
@@ -137,130 +138,45 @@ export class EmployeesService {
     return users.map((u) => {
       const isLecturer = u.role === Role.LECTURER;
       const lec = u.lecturer;
+      const prof = u.employeeProfile;
 
-      // Deterministic nip fallback if not stored
-      const nip = lec?.nip || (
-        u.role === Role.SUPER_ADMIN ? '19820415 200801 1 003' :
-        u.role === Role.ADMIN_BAAK ? '19850620 201202 1 004' :
-        u.role === Role.ADMIN_KEUANGAN ? '19901115 201802 2 001' :
-        '19930510 202008 1 005'
-      );
-
-      // Title & Name parsing
+      // Gelar: dari data dosen; bila kosong, diambil dari penulisan nama itu sendiri (tidak mengarang gelar)
       let titlePrefix = lec?.titlePrefix || '';
       let titleSuffix = lec?.titleSuffix || '';
       let cleanFullName = u.fullName;
-
-      if (!titlePrefix && u.fullName.includes('Prof.')) titlePrefix = 'Prof. Dr. Ir.';
-      else if (!titlePrefix && u.fullName.includes('Dr.')) titlePrefix = 'Dr.';
-
-      if (!titleSuffix && u.fullName.includes(',')) {
-        const parts = u.fullName.split(',');
-        cleanFullName = parts[0].replace(/^(Prof\.|Dr\.|Ir\.|Dr\. Eng\.)\s*/, '').trim();
+      if (!titlePrefix) {
+        const m = cleanFullName.match(/^((?:Prof\.|Dr\.|Ir\.|Drs\.|Dra\.|H\.|Hj\.)\s*)+/i);
+        if (m) {
+          titlePrefix = m[0].trim();
+          cleanFullName = cleanFullName.slice(m[0].length).trim();
+        }
+      }
+      if (!titleSuffix && cleanFullName.includes(',')) {
+        const parts = cleanFullName.split(',');
+        cleanFullName = parts[0].trim();
         titleSuffix = parts.slice(1).join(',').trim();
       }
 
-      // Department & Position
-      let department = 'Biro Administrasi Akademik & Kemahasiswaan (BAAK)';
-      let position = 'Staf Administrasi Akademik';
-      let category: PegawaiResponse['category'] = 'Tenaga Kependidikan';
-      let employmentStatus: PegawaiResponse['employmentStatus'] = 'Tetap Yayasan';
+      // Hanya data yang tercatat (profil SDM / data dosen). Tidak ada tebakan dari nama, peran, atau nilai contoh.
+      let category: PegawaiResponse['category'] = isLecturer ? 'Dosen Tetap' : 'Tenaga Kependidikan';
+      if (prof?.category) category = isKnownCategory(prof.category) ? (prof.category as PegawaiResponse['category']) : 'Tenaga Kependidikan';
+      const employmentStatus = ((prof?.employmentStatus || lec?.employmentStatus || '') as PegawaiResponse['employmentStatus']) || '';
+      const department = prof?.department || (isLecturer ? lec?.studyProgram?.faculty?.name || '' : '') || '';
 
-      if (isLecturer) {
-        category = 'Dosen Tetap';
-        department = lec?.studyProgram?.faculty?.name || 'Fakultas Ilmu Komputer';
-        if (cleanFullName.includes('Hendra')) {
-          position = 'Guru Besar / Dekan Fakultas Teknik';
-          department = 'Fakultas Teknik';
-          employmentStatus = 'PNS / ASN';
-        } else if (cleanFullName.includes('Satria')) {
-          position = 'Dekan Fakultas Ilmu Komputer';
-          department = 'Fakultas Ilmu Komputer';
-        } else if (cleanFullName.includes('Nurul')) {
-          position = 'Dekan Fakultas Ekonomi & Bisnis';
-          department = 'Fakultas Ekonomi & Bisnis';
-          employmentStatus = 'PNS / ASN';
-        } else if (cleanFullName.includes('Siti')) {
-          position = 'Ketua Program Studi Teknik Informatika';
-          department = 'Fakultas Ilmu Komputer';
-        } else {
-          position = `Dosen Pengajar (${lec?.studyProgram?.name || 'Informatika'})`;
-        }
-      } else if (u.role === Role.SUPER_ADMIN) {
-        position = 'Kepala Bagian Sistem Informasi & BAAK';
-        department = 'Biro Administrasi Akademik & Kemahasiswaan (BAAK)';
-        category = 'Tenaga Kependidikan';
-      } else if (u.role === Role.ADMIN_BAAK) {
-        position = 'Kasubag Pelayanan Mahasiswa & Registrasi';
-        department = 'Biro Administrasi Akademik & Kemahasiswaan (BAAK)';
-        category = 'Tenaga Kependidikan';
-      } else if (u.role === Role.ADMIN_KEUANGAN) {
-        position = 'Kepala Bagian Verifikasi & Penggajian';
-        department = 'Biro Administrasi Keuangan (BAK)';
-        category = 'Tenaga Kependidikan';
-      } else if (u.role === Role.STAFF) {
-        if (cleanFullName.includes('Rizky')) {
-          position = 'Network & Cloud Infrastructure Engineer';
-          department = 'Direktorat Sistem Teknologi Informasi (DSTI)';
-          category = 'Tenaga Kependidikan';
-          employmentStatus = 'Kontrak (PKWT)';
-        } else {
-          position = 'Koordinator Sarana & Pemeliharaan Gedung';
-          department = 'Biro Urusan Rumah Tangga & Sarpras (URT)';
-          category = 'Tenaga Kependidikan';
-          employmentStatus = 'Kontrak (PKWT)';
-        }
-      }
-
-      // Gender estimate
-      const gender: 'Laki-laki' | 'Perempuan' =
-        cleanFullName.toLowerCase().includes('dewi') ||
-        cleanFullName.toLowerCase().includes('siti') ||
-        cleanFullName.toLowerCase().includes('nurul') ||
-        cleanFullName.toLowerCase().includes('rahma')
-          ? 'Perempuan'
-          : 'Laki-laki';
-
-      // Education estimate
-      let education: PegawaiResponse['education'] = 'S1';
-      if (titlePrefix.includes('Dr') || titlePrefix.includes('Prof')) education = 'S3';
-      else if (titleSuffix.includes('M.') || titleSuffix.includes('M.Kom') || titleSuffix.includes('M.Cs') || titleSuffix.includes('M.Ak') || titleSuffix.includes('M.Eng')) education = 'S2';
-      else if (titleSuffix.includes('A.Md')) education = 'D3';
-
-      // Jabatan bawaan (belum diisi SDM). Jabatan fungsional hanya untuk dosen (Tenaga Pengajar, Asisten Ahli,
-      // Lektor, Lektor Kepala, Profesor); tenaga kependidikan hanya punya jabatan struktural/penugasan.
-      let structuralPosition = '';
-      let functionalPosition = '';
-      if (isLecturer) {
-        functionalPosition = lec?.functionalPosition || (position.includes('Guru Besar') ? 'Profesor' : 'Tenaga Pengajar');
-        if (/(Dekan|Ketua Program Studi)/i.test(position)) {
-          structuralPosition = position.replace(/^Guru Besar \/ /, '');
-        }
-      } else {
-        structuralPosition = position;
-      }
-
-      // Profil yang diisi Biro SDM menimpa nilai bawaan
-      const prof = u.employeeProfile;
-      if (prof) {
-        if (prof.structuralPosition !== null || prof.functionalPosition !== null) {
-          structuralPosition = prof.structuralPosition ?? '';
-          functionalPosition = prof.functionalPosition ?? '';
-        }
-        // kategori lama (Laboran & IT / Staf Layanan & Umum) dilebur ke Tenaga Kependidikan
-        // kategori lama yang sudah tidak dipakai (Laboran & IT, Staf Layanan & Umum, Tenaga Outsourcing) -> Tenaga Kependidikan
-        if (prof.category) category = isKnownCategory(prof.category) ? (prof.category as PegawaiResponse['category']) : 'Tenaga Kependidikan';
-        if (prof.employmentStatus) employmentStatus = prof.employmentStatus as PegawaiResponse['employmentStatus'];
-        if (prof.department) department = prof.department;
-      }
-      const isOutsourcing = employmentStatus === OUTSOURCING_STATUS;
+      let structuralPosition = prof?.structuralPosition ?? '';
+      let functionalPosition = prof?.functionalPosition ?? lec?.functionalPosition ?? '';
       if (!category.includes('Dosen')) functionalPosition = '';
+      const isOutsourcing = employmentStatus === OUTSOURCING_STATUS;
       const noLogin = u.email.endsWith(NO_EMAIL_DOMAIN);
-      position = [structuralPosition, functionalPosition].filter(Boolean).join(' · ') || '-';
+      const position = [structuralPosition, functionalPosition].filter(Boolean).join(' · ') || '-';
+
+      const genderFromLec = lec?.gender === 'FEMALE' ? 'Perempuan' : lec?.gender === 'MALE' ? 'Laki-laki' : '';
+      const educationRaw = prof?.education || lec?.lastEducation || '';
+      const education = (['D3', 'S1', 'S2', 'S3', 'Profesi'] as const).find((e) => e === educationRaw) ?? '';
 
       return {
         id: u.id,
-        nip: prof?.nip || (isOutsourcing ? '-' : nip),
+        nip: prof?.nip || lec?.nip || '-',
         nidn: lec?.nidn || prof?.nidn || undefined,
         nuptk: lec?.nuptk || undefined,
         streetAddress: prof?.streetAddress || lec?.address || undefined,
@@ -276,7 +192,7 @@ export class EmployeesService {
         fullName: cleanFullName,
         titlePrefix: titlePrefix || undefined,
         titleSuffix: titleSuffix || undefined,
-        gender: (prof?.gender as PegawaiResponse['gender']) || gender,
+        gender: ((prof?.gender as PegawaiResponse['gender']) || genderFromLec) as PegawaiResponse['gender'],
         category,
         employmentStatus,
         department,
@@ -286,10 +202,10 @@ export class EmployeesService {
         email: noLogin ? prof?.contactEmail || '' : u.email,
         hasLogin: !noLogin,
         vendorName: isOutsourcing ? prof?.vendorName || undefined : undefined,
-        phone: prof?.phone || lec?.phone || (isOutsourcing ? '' : '0812-3456-7890'),
-        education: (prof?.education as PegawaiResponse['education']) || education,
-        joinDate: prof?.joinDate || u.createdAt.toISOString().split('T')[0],
-        status: u.isActive ? 'Aktif' : 'Cuti',
+        phone: prof?.phone || lec?.phone || '',
+        education: education as PegawaiResponse['education'],
+        joinDate: prof?.joinDate || '',
+        status: (u.isActive ? 'Aktif' : 'Cuti') as PegawaiResponse['status'],
         avatarUrl: u.avatarUrl || undefined,
         shiftId: u.shiftId || null,
         shiftName: u.shift?.name || null,
@@ -323,7 +239,7 @@ export class EmployeesService {
             Accept: 'application/json',
             Origin: 'https://pddikti.kemdiktisaintek.go.id',
             Referer: 'https://pddikti.kemdiktisaintek.go.id/',
-            'User-Agent': 'Mozilla/5.0 (compatible; SIAKAD-Premium)',
+            'User-Agent': 'Mozilla/5.0 (compatible; SIAKAD)',
           },
         });
         if (res.status === 429 && attempt === 0) {

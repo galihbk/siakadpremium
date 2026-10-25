@@ -7,6 +7,7 @@ import { alertDialog } from '@/components/AlertHost';
 import { CampusLogo } from '@/components/CampusLogo';
 import { useCampus } from '@/lib/campusProfile';
 import { PmbUrl } from '@/components/PmbUrl';
+import { QrImage } from '@/components/QrImage';
 import { useServiceUrl } from '@/lib/publicUrls';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -308,50 +309,15 @@ function UniversitySealLogo({ className = 'w-18 h-18' }: { className?: string })
 
 /** QR Code Validasi Dokumen (SVG Vector) */
 function DocumentQrCode({ text, size = 68 }: { text: string; size?: number }) {
-  const campus = useCampus();
+  // QR sungguhan: mengarah ke halaman validasi publik di portal (nomor registrasi pendaftar)
+  const portalBase = useServiceUrl('portal', '');
+  const base = portalBase || (typeof window !== 'undefined' ? window.location.origin : '');
   return (
     <div className="flex flex-col items-center">
       <div className="p-1 bg-white border border-slate-300 rounded shadow-2xs">
-        <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="100" height="100" fill="white" />
-          {/* Pojok Kiri Atas */}
-          <rect x="6" y="6" width="26" height="26" stroke="#0F172A" strokeWidth="4" fill="none" />
-          <rect x="13" y="13" width="12" height="12" fill="#1E3A8A" />
-          {/* Pojok Kanan Atas */}
-          <rect x="68" y="6" width="26" height="26" stroke="#0F172A" strokeWidth="4" fill="none" />
-          <rect x="75" y="13" width="12" height="12" fill="#1E3A8A" />
-          {/* Pojok Kiri Bawah */}
-          <rect x="6" y="68" width="26" height="26" stroke="#0F172A" strokeWidth="4" fill="none" />
-          <rect x="13" y="75" width="12" height="12" fill="#1E3A8A" />
-          {/* Pola Data Titik */}
-          <rect x="42" y="8" width="6" height="6" fill="#0F172A" />
-          <rect x="52" y="8" width="6" height="6" fill="#0F172A" />
-          <rect x="8" y="42" width="6" height="6" fill="#0F172A" />
-          <rect x="8" y="52" width="6" height="6" fill="#0F172A" />
-          <line x1="38" y1="18" x2="62" y2="18" stroke="#0F172A" strokeWidth="3" strokeDasharray="3 3" />
-          <line x1="18" y1="38" x2="18" y2="62" stroke="#0F172A" strokeWidth="3" strokeDasharray="3 3" />
-          <rect x="38" y="38" width="7" height="7" fill="#1E3A8A" />
-          <rect x="54" y="38" width="6" height="6" fill="#0F172A" />
-          <rect x="38" y="54" width="6" height="6" fill="#0F172A" />
-          <rect x="62" y="52" width="7" height="7" fill="#1E3A8A" />
-          <rect x="74" y="40" width="6" height="6" fill="#0F172A" />
-          <rect x="84" y="48" width="6" height="6" fill="#0F172A" />
-          <rect x="42" y="72" width="6" height="6" fill="#0F172A" />
-          <rect x="54" y="68" width="6" height="6" fill="#1E3A8A" />
-          <rect x="68" y="72" width="6" height="6" fill="#0F172A" />
-          <rect x="80" y="80" width="8" height="8" fill="#1E3A8A" />
-          <rect x="70" y="82" width="5" height="5" fill="#0F172A" />
-          <rect x="44" y="84" width="6" height="6" fill="#0F172A" />
-          {/* Logo Tengah {campus.short} */}
-          <rect x="43" y="43" width="14" height="14" fill="#D4A017" rx="2" />
-          <text x="50" y="52" textAnchor="middle" fill="#1E3A8A" fontSize="6.5" fontWeight="900">
-            {campus.short}
-          </text>
-        </svg>
+        <QrImage text={`${base.replace(/\/+$/, '')}/verifikasi?type=pmb&code=${encodeURIComponent(text)}`} size={size} />
       </div>
-      <span className="text-[8px] font-mono font-bold text-slate-500 mt-0.5 uppercase tracking-tighter">
-        Validasi PMB
-      </span>
+      <span className="text-[8px] font-mono font-bold text-slate-500 mt-0.5 uppercase tracking-tighter">Validasi PMB</span>
     </div>
   );
 }
@@ -774,7 +740,7 @@ function BuktiPendaftaranDocument({
                   <td className="w-1/4 py-0.5 px-2 font-semibold text-slate-600 bg-emerald-50">NIM / Username</td>
                   <td className="w-1/4 py-0.5 px-2 font-mono font-black text-slate-900">{application?.nim}</td>
                   <td className="w-1/4 py-0.5 px-2 font-semibold text-slate-600 bg-emerald-50">Password Awal</td>
-                  <td className="w-1/4 py-0.5 px-2 font-mono font-black text-slate-900">{portalPassword || '-'}</td>
+                  <td className="w-1/4 py-0.5 px-2 font-mono font-black text-slate-900">{portalPassword || 'sudah diganti'}</td>
                 </tr>
                 <tr>
                   <td className="py-0.5 px-2 font-semibold text-slate-600 bg-emerald-50">Alamat Portal</td>
@@ -2530,7 +2496,8 @@ export default function PmbDashboardPage() {
                     </button>
                   </div>
 
-                  {/* 2. Password Login */}
+                  {/* 2. Password Login: hanya selama masih password awal */}
+                  {(application as any).initialPasswordActive ? (
                   <div className="bg-white p-4 rounded-lg border border-slate-200 flex items-center justify-between shadow-2xs">
                     <div>
                       <span className="text-[11px] text-slate-500 font-semibold block">
@@ -2549,6 +2516,11 @@ export default function PmbDashboardPage() {
                       <Check className={`w-3.5 h-3.5 ${copiedField === 'password' ? 'text-emerald-600' : 'text-slate-400'}`} />
                     </button>
                   </div>
+                  ) : (
+                    <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs flex items-center">
+                      <span className="text-xs text-slate-500">Password portal sudah Anda ganti. Gunakan password baru Anda untuk masuk.</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -4640,7 +4612,7 @@ export default function PmbDashboardPage() {
               reRegPayment={reRegPayment}
               isReRegistrationPaid={isReRegistrationPaid}
               isConverted={isConvertedStudent}
-              portalPassword={formatStudentPassword(application?.birthDate)}
+              portalPassword={(application as any)?.initialPasswordActive ? formatStudentPassword(application?.birthDate) : ''}
               portalUrl={portalLoginUrl !== '#' ? portalLoginUrl : ''}
             />
           </div>
@@ -4658,7 +4630,7 @@ export default function PmbDashboardPage() {
             reRegPayment={reRegPayment}
             isReRegistrationPaid={isReRegistrationPaid}
             isConverted={isConvertedStudent}
-            portalPassword={formatStudentPassword(application?.birthDate)}
+            portalPassword={(application as any)?.initialPasswordActive ? formatStudentPassword(application?.birthDate) : ''}
             portalUrl={portalLoginUrl !== '#' ? portalLoginUrl : ''}
           />
         </div>

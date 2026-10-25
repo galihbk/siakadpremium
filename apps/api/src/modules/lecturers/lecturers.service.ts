@@ -1,3 +1,5 @@
+import { ThesisService } from '../thesis/thesis.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../shared/prisma/prisma.service';
@@ -74,6 +76,8 @@ export class LecturersService {
     private prisma: PrismaService,
     private storageService: StorageService,
     private assessmentSchemes: AssessmentSchemesService,
+    private thesis: ThesisService,
+    private notifications: NotificationsService,
   ) {}
 
   /** Pilihan status kepegawaian dosen yang diterima (diatur SDM). */
@@ -1204,6 +1208,9 @@ export class LecturersService {
       data: { status: 'APPROVED' },
     });
 
+    void this.notifications.notifyUser(student.userId, { type: 'KRS', title: 'KRS disetujui Dosen PA', body: 'KRS semester berjalan telah disetujui.', link: '/student/krs' });
+    void this.thesis.syncPendingGradesForStudent(student.id);
+
     if (note) {
       await this.prisma.systemAuditLog
         .create({ data: { action: 'PA_APPROVE_KRS', detail: `${note} (KRS ${student.nim} disetujui Dosen PA)`, userEmail: student.user.email } })
@@ -1254,205 +1261,147 @@ export class LecturersService {
   }
 
   // ================= P3M (PENELITIAN & PENGABDIAN KEPADA MASYARAKAT) =================
-  private static p3mStore: any[] = [
-    {
-      id: 'p3m-1',
-      type: 'Penelitian',
-      title: 'Rancang Bangun Framework Microservices Berbasis Event-Driven untuk Skalabilitas Sistem Informasi Pendidikan Tinggi',
-      scheme: 'Penelitian Terapan Kemendikbudristek (BIMA)',
-      focusArea: 'Rekayasa Perangkat Lunak Terdistribusi',
-      year: 2025,
-      status: 'Selesai',
-      fundingAmount: 45000000,
-      fundingSource: 'Kemendikbudristek / BIMA',
-      leader: 'Dr. Bayu Wicaksono, M.Kom.',
-      members: ['Ir. Rahmat Hidayat, M.T.', 'Muhammad Rizky Pratama (Mhs - 2311501001)'],
-      targetOutput: 'Jurnal Terakreditasi SINTA 2 & Prototipe Sistem Teruji',
-      documentUrl: 'https://siakad.itn.ac.id/dokumen/p3m/laporan-akhir-p3m-1.pdf',
-      submittedAt: '15 Maret 2025',
-      verifiedAt: '20 April 2025',
-      reviewerNote: 'Laporan akhir dan luaran publikasi SINTA 2 telah lengkap diverifikasi LP3M.',
-    },
-    {
-      id: 'p3m-2',
-      type: 'Penelitian',
-      title: 'Implementasi Algoritma Deep Learning Transformer untuk Deteksi Dini Kerentanan Keamanan Kode Sumber Aplikasi Web',
-      scheme: 'Penelitian Fundamental Internal ITN',
-      focusArea: 'Kecerdasan Buatan & Keamanan Siber',
-      year: 2026,
-      status: 'Sedang Berjalan',
-      fundingAmount: 20000000,
-      fundingSource: 'DIPA Internal ITN',
-      leader: 'Dr. Bayu Wicaksono, M.Kom.',
-      members: ['Nadia Salsabila Putri (Mhs - 2311501045)'],
-      targetOutput: 'Prosiding Internasional Terindeks Scopus & Hak Cipta Perangkat Lunak',
-      documentUrl: 'https://siakad.itn.ac.id/dokumen/p3m/laporan-kemajuan-p3m-2.pdf',
-      submittedAt: '10 Februari 2026',
-      verifiedAt: '05 Maret 2026',
-      reviewerNote: 'Laporan kemajuan 70% disetujui. Siap publikasi prosiding konferensi internasional.',
-    },
-    {
-      id: 'p3m-3',
-      type: 'Pengabdian',
-      title: 'Digitalisasi Tata Kelola Administrasi dan Promosi Produk UMKM Berbasis Web di Desa Wisata Sumbersekar',
-      scheme: 'Pengabdian Kemitraan Wilayah Berkelanjutan',
-      focusArea: 'Pemberdayaan Ekonomi Digital Desa',
-      year: 2025,
-      status: 'Selesai',
-      fundingAmount: 18000000,
-      fundingSource: 'DIPA Internal ITN & CSR Mitra',
-      leader: 'Dr. Bayu Wicaksono, M.Kom.',
-      members: ['Siti Aminah, S.Kom., M.Cs.', 'Dimas Aditya Saputra (Mhs - 2411501008)'],
-      targetOutput: 'Publikasi Jurnal Pengabdian SINTA 4, Video Dokumenter & Website Desa',
-      documentUrl: 'https://siakad.itn.ac.id/dokumen/p3m/laporan-akhir-pkm-3.pdf',
-      submittedAt: '01 Juni 2025',
-      verifiedAt: '15 Agustus 2025',
-      reviewerNote: 'Pengabdian selesai dengan hasil kepuasan mitra desa 94%. Luaran video dan web tuntas.',
-    },
-    {
-      id: 'p3m-4',
-      type: 'Pengabdian',
-      title: 'Pelatihan Literasi Keamanan Siber dan Perlindungan Data Pribadi bagi Siswa dan Guru SMK Informatika Nusantara',
-      scheme: 'Penerapan Iptek bagi Masyarakat (PIM)',
-      focusArea: 'Literasi Digital & Cyber Hygiene',
-      year: 2026,
-      status: 'Laporan Akhir',
-      fundingAmount: 15000000,
-      fundingSource: 'DIPA Internal ITN',
-      leader: 'Dr. Bayu Wicaksono, M.Kom.',
-      members: ['Fajar Nugroho Wicaksono (Mhs - 2211501012)'],
-      targetOutput: 'Modul Pelatihan Ber-ISBN, Sertifikat Hak Cipta & Publikasi Media',
-      documentUrl: 'https://siakad.itn.ac.id/dokumen/p3m/draft-laporan-pkm-4.pdf',
-      submittedAt: '20 Januari 2026',
-      verifiedAt: '28 Februari 2026',
-      reviewerNote: 'Draft laporan akhir sedang dalam proses telaah reviewer akhir P3M.',
-    },
-    {
-      id: 'p3m-5',
-      type: 'Penelitian',
-      title: 'Optimasi Resource Allocation pada Arsitektur Serverless Multi-Cloud Berbantuan Artificial Intelligence',
-      scheme: 'Penelitian Terapan Kerjasama Industri',
-      focusArea: 'Cloud Computing & Distributed Systems',
-      year: 2026,
-      status: 'Laporan Masuk',
-      fundingAmount: 35000000,
-      fundingSource: 'Hibah Kolaborasi Riset Industri',
-      leader: 'Dr. Bayu Wicaksono, M.Kom.',
-      members: ['Ir. Bambang Tri, M.T.', 'Aulia Rahmadani (Mhs - 2211501024)'],
-      targetOutput: 'Jurnal Internasional Terindeks Scopus Q2 & Paten Sederhana',
-      documentUrl: 'https://siakad.itn.ac.id/dokumen/p3m/laporan-riset-p3m-5.pdf',
-      submittedAt: '12 Agustus 2026',
-      verifiedAt: '25 Agustus 2026',
-      reviewerNote: 'Laporan kegiatan riset telah diverifikasi dan tercatat dalam arsip akreditasi kampus.',
-    },
-  ];
+  // Laporan kegiatan milik dosen yang login, tersimpan di database (tabel yang sama dengan modul LP3M).
+  // Laporan baru berstatus "Menunggu Verifikasi" sampai LP3M memverifikasinya; yang sudah terverifikasi terkunci.
+  private static readonly P3M_PROGRESS = ['Laporan Masuk', 'Sedang Berjalan', 'Laporan Kemajuan', 'Laporan Akhir', 'Selesai'];
 
-  async getP3mReports(query?: { type?: string; year?: number; status?: string; search?: string }) {
-    let list = [...LecturersService.p3mStore];
+  private toP3mReport(r: any) {
+    return {
+      id: r.id,
+      type: r.type,
+      title: r.title,
+      scheme: r.scheme,
+      focusArea: r.focusArea,
+      year: r.year,
+      status: r.progress, // tahap kemajuan kegiatan (isian dosen)
+      verification: r.status, // status verifikasi LP3M
+      fundingAmount: r.fundingAmount,
+      fundingSource: r.fundingSource,
+      leader: r.leader,
+      members: r.members ?? [],
+      targetOutput: r.targetOutput ?? '',
+      documentUrl: r.documentUrl ?? '',
+      submittedAt: r.submittedAt ?? '',
+      verifiedAt: r.status === 'Terverifikasi' ? r.updatedAt : null,
+      reviewerNote: r.reviewerNote ?? '',
+    };
+  }
 
-    if (query?.type && query.type !== 'Semua') {
-      list = list.filter((item) => item.type.toLowerCase() === query.type.toLowerCase());
-    }
+  private requireLecturer(lecturerId: string | undefined) {
+    if (!lecturerId) throw new BadRequestException('Dosen tidak teridentifikasi. Silakan login ulang.');
+    return lecturerId;
+  }
 
-    if (query?.year && Number(query.year) > 0) {
-      list = list.filter((item) => item.year === Number(query.year));
-    }
-
-    if (query?.status && query.status !== 'Semua') {
-      list = list.filter((item) => item.status.toLowerCase() === query.status.toLowerCase());
-    }
-
+  async getP3mReports(lecturerId: string | undefined, query?: { type?: string; year?: number; status?: string; search?: string }) {
+    const me = this.requireLecturer(lecturerId);
+    const all = await this.prisma.lp3mResearch.findMany({ where: { lecturerId: me }, orderBy: { createdAt: 'desc' } });
+    const mine = all.map((r) => this.toP3mReport(r));
+    let list = [...mine];
+    if (query?.type && query.type !== 'Semua') list = list.filter((i) => i.type.toLowerCase() === query.type!.toLowerCase());
+    if (query?.year && Number(query.year) > 0) list = list.filter((i) => i.year === Number(query.year));
+    if (query?.status && query.status !== 'Semua') list = list.filter((i) => i.status.toLowerCase() === query.status!.toLowerCase());
     if (query?.search) {
       const q = query.search.toLowerCase();
-      list = list.filter(
-        (item) =>
-          item.title.toLowerCase().includes(q) ||
-          item.scheme.toLowerCase().includes(q) ||
-          item.focusArea.toLowerCase().includes(q) ||
-          item.leader.toLowerCase().includes(q)
-      );
+      list = list.filter((i) => i.title.toLowerCase().includes(q) || i.scheme.toLowerCase().includes(q) || i.focusArea.toLowerCase().includes(q));
     }
-
-    const totalPenelitian = LecturersService.p3mStore.filter((i) => i.type === 'Penelitian').length;
-    const totalPengabdian = LecturersService.p3mStore.filter((i) => i.type === 'Pengabdian').length;
-    const totalDana = LecturersService.p3mStore.reduce((acc, curr) => acc + (curr.fundingAmount || 0), 0);
-    const aktifBerjalan = LecturersService.p3mStore.filter((i) => i.status === 'Sedang Berjalan' || i.status === 'Laporan Akhir').length;
-
     return {
       summary: {
-        totalKegiatan: LecturersService.p3mStore.length,
-        totalPenelitian,
-        totalPengabdian,
-        totalDana,
-        aktifBerjalan,
+        totalKegiatan: mine.length,
+        totalPenelitian: mine.filter((i) => i.type === 'Penelitian').length,
+        totalPengabdian: mine.filter((i) => i.type === 'Pengabdian').length,
+        totalDana: mine.reduce((acc, cur) => acc + (cur.fundingAmount || 0), 0),
+        aktifBerjalan: mine.filter((i) => i.status === 'Sedang Berjalan' || i.status === 'Laporan Akhir').length,
       },
       reports: list,
     };
   }
 
-  async createP3mReport(dto: any) {
-    const newReport = {
-      id: `p3m-${Date.now()}`,
-      type: dto.type || 'Penelitian',
-      title: dto.title,
-      scheme: dto.scheme || 'Penelitian Fundamental Internal ITN',
-      focusArea: dto.focusArea || 'Teknologi Informasi & Sains Terapan',
-      year: dto.year ? Number(dto.year) : new Date().getFullYear(),
-      status: dto.status || 'Laporan Masuk',
-      fundingAmount: dto.fundingAmount ? Number(dto.fundingAmount) : 15000000,
-      fundingSource: dto.fundingSource || 'DIPA Internal ITN',
-      leader: dto.leader || 'Dr. Bayu Wicaksono, M.Kom.',
-      members: Array.isArray(dto.members) ? dto.members : (dto.members ? dto.members.split(',').map((s: string) => s.trim()) : []),
-      targetOutput: dto.targetOutput || 'Publikasi Jurnal Terakreditasi Nasional & Laporan Akhir',
-      documentUrl: dto.documentUrl || 'https://siakad.itn.ac.id/dokumen/p3m/berkas-laporan.pdf',
-      submittedAt: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-      verifiedAt: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-      reviewerNote: 'Laporan kegiatan telah dicatat dan terverifikasi dalam arsip akreditasi Tri Dharma P3M.',
-    };
-
-    LecturersService.p3mStore.unshift(newReport);
-    return {
-      success: true,
-      message: `Laporan ${newReport.type} "${newReport.title}" berhasil disimpan ke arsip P3M.`,
-      data: newReport,
-    };
+  private p3mMembers(v: any): string[] {
+    if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean);
+    return String(v ?? '').split(',').map((x) => x.trim()).filter(Boolean);
   }
 
-  async updateP3mReport(id: string, dto: any) {
-    const index = LecturersService.p3mStore.findIndex((i) => i.id === id);
-    if (index === -1) {
-      throw new NotFoundException(`Laporan P3M dengan ID "${id}" tidak ditemukan.`);
-    }
-
-    const current = LecturersService.p3mStore[index];
-    const updated = {
-      ...current,
-      ...dto,
-      year: dto.year ? Number(dto.year) : current.year,
-      fundingAmount: dto.fundingAmount !== undefined ? Number(dto.fundingAmount) : current.fundingAmount,
-      members: Array.isArray(dto.members) ? dto.members : (dto.members ? dto.members.split(',').map((s: string) => s.trim()) : current.members),
-    };
-
-    LecturersService.p3mStore[index] = updated;
-    return {
-      success: true,
-      message: `Laporan P3M "${updated.title}" berhasil diperbarui.`,
-      data: updated,
-    };
+  async createP3mReport(lecturerId: string | undefined, dto: any) {
+    const me = this.requireLecturer(lecturerId);
+    const title = String(dto?.title ?? '').trim();
+    if (title.length < 5) throw new BadRequestException('Judul kegiatan wajib diisi (minimal 5 karakter).');
+    const lecturer = await this.prisma.lecturer.findUnique({
+      where: { id: me },
+      include: { user: { select: { fullName: true } }, studyProgram: { include: { faculty: true } } },
+    });
+    if (!lecturer) throw new NotFoundException('Data dosen tidak ditemukan.');
+    const members = this.p3mMembers(dto.members);
+    const created = await this.prisma.lp3mResearch.create({
+      data: {
+        type: dto.type === 'Pengabdian' ? 'Pengabdian' : 'Penelitian',
+        title,
+        scheme: String(dto.scheme ?? '').trim() || '-',
+        focusArea: String(dto.focusArea ?? '').trim() || '-',
+        // Identitas ketua diambil dari akun dosen yang login, bukan dari isian formulir
+        leader: [lecturer.titlePrefix, lecturer.user.fullName].filter(Boolean).join(' ') + (lecturer.titleSuffix ? `, ${lecturer.titleSuffix}` : ''),
+        nidn: lecturer.nidn ?? lecturer.nuptk ?? null,
+        faculty: lecturer.studyProgram?.faculty?.name ?? '-',
+        studyProgram: lecturer.studyProgram?.name ?? null,
+        membersCount: 1 + members.length,
+        members,
+        year: dto.year ? Number(dto.year) : new Date().getFullYear(),
+        fundingAmount: dto.fundingAmount ? Number(dto.fundingAmount) : 0,
+        fundingSource: String(dto.fundingSource ?? '').trim() || '-',
+        progress: LecturersService.P3M_PROGRESS.includes(dto.status) ? dto.status : 'Laporan Masuk',
+        targetOutput: String(dto.targetOutput ?? '').trim() || null,
+        documentUrl: String(dto.documentUrl ?? '').trim() || null,
+        status: 'Menunggu Verifikasi',
+        submittedAt: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+        lecturerId: me,
+      },
+    });
+    void this.notifications.notifyRoles(['ADMIN_LP3M', 'LP3M'], {
+      type: 'P3M',
+      title: 'Laporan kegiatan P3M baru',
+      body: `${created.leader}: ${created.title}`,
+      link: '/admin/p3m',
+    });
+    return { success: true, message: `Laporan ${created.type} "${created.title}" berhasil diajukan dan menunggu verifikasi LP3M.`, data: this.toP3mReport(created) };
   }
 
-  async deleteP3mReport(id: string) {
-    const index = LecturersService.p3mStore.findIndex((i) => i.id === id);
-    if (index === -1) {
-      throw new NotFoundException(`Laporan P3M dengan ID "${id}" tidak ditemukan.`);
+  private async ownP3mOrThrow(lecturerId: string | undefined, id: string) {
+    const me = this.requireLecturer(lecturerId);
+    const row = await this.prisma.lp3mResearch.findUnique({ where: { id } });
+    if (!row || row.lecturerId !== me) throw new NotFoundException(`Laporan P3M dengan ID "${id}" tidak ditemukan.`);
+    if (row.status === 'Terverifikasi') {
+      throw new BadRequestException('Laporan ini sudah diverifikasi LP3M dan tidak dapat diubah atau dihapus. Hubungi LP3M bila ada koreksi.');
     }
+    return row;
+  }
 
-    const deleted = LecturersService.p3mStore.splice(index, 1)[0];
-    return {
-      success: true,
-      message: `Laporan P3M "${deleted.title}" berhasil dihapus.`,
-      data: deleted,
-    };
+  async updateP3mReport(lecturerId: string | undefined, id: string, dto: any) {
+    await this.ownP3mOrThrow(lecturerId, id);
+    const members = dto.members !== undefined ? this.p3mMembers(dto.members) : undefined;
+    const updated = await this.prisma.lp3mResearch.update({
+      where: { id },
+      data: {
+        type: dto.type !== undefined ? (dto.type === 'Pengabdian' ? 'Pengabdian' : 'Penelitian') : undefined,
+        title: dto.title !== undefined ? String(dto.title).trim() : undefined,
+        scheme: dto.scheme !== undefined ? String(dto.scheme).trim() : undefined,
+        focusArea: dto.focusArea !== undefined ? String(dto.focusArea).trim() : undefined,
+        year: dto.year ? Number(dto.year) : undefined,
+        fundingAmount: dto.fundingAmount !== undefined ? Number(dto.fundingAmount) || 0 : undefined,
+        fundingSource: dto.fundingSource !== undefined ? String(dto.fundingSource).trim() : undefined,
+        targetOutput: dto.targetOutput !== undefined ? String(dto.targetOutput).trim() || null : undefined,
+        documentUrl: dto.documentUrl !== undefined ? String(dto.documentUrl).trim() || null : undefined,
+        progress: LecturersService.P3M_PROGRESS.includes(dto.status) ? dto.status : undefined,
+        members,
+        membersCount: members ? 1 + members.length : undefined,
+        // Diubah dosen setelah ditandai perlu perbaikan -> diajukan ulang untuk diverifikasi
+        status: 'Menunggu Verifikasi',
+      },
+    });
+    return { success: true, message: `Laporan P3M "${updated.title}" berhasil diperbarui.`, data: this.toP3mReport(updated) };
+  }
+
+  async deleteP3mReport(lecturerId: string | undefined, id: string) {
+    const row = await this.ownP3mOrThrow(lecturerId, id);
+    await this.prisma.lp3mResearch.delete({ where: { id } });
+    return { success: true, message: `Laporan P3M "${row.title}" berhasil dihapus.`, data: this.toP3mReport(row) };
   }
 }
-

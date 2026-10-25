@@ -2,6 +2,8 @@
 
 import { KopSurat } from '@/components/common/KopSurat';
 import { LetterBody } from '@/components/common/LetterBody';
+import { QrImage } from '@/components/common/QrImage';
+import { verifyUrl } from '@/lib/verifyUrl';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getAuthSession, AuthUser } from '@/lib/auth';
@@ -345,6 +347,7 @@ export default function LayananSuratPage() {
         },
         coSigner: coSigner ? { roleLabel: coSigner.roleLabel, name: '' } : null,
         requestNo: letter.requestNo,
+        verifyUrl: verifyUrl('surat', letter.requestNo),
         filename: `${letter.typeCode}-${(letter.letterNo || letter.requestNo).replace(/[\/]+/g, '-')}.pdf`,
       });
     } catch (err) {
@@ -916,8 +919,8 @@ export default function LayananSuratPage() {
 
               <div className="pt-6 font-sans flex items-end justify-between text-xs">
                 <div className="flex items-center gap-3">
-                  <div className="w-16 h-16 bg-slate-50 border border-slate-300 rounded-lg p-1.5 flex items-center justify-center">
-                    <QrCode className="w-full h-full text-slate-900" />
+                  <div className="w-16 h-16 bg-white border border-slate-300 rounded-lg p-1 flex items-center justify-center">
+                    <QrImage text={verifyUrl('surat', previewLetter.requestNo)} size={56} />
                   </div>
                   <div className="text-[10px] text-slate-500 leading-tight">
                     <p className="font-bold text-slate-800">Validasi Dokumen BAAK</p>

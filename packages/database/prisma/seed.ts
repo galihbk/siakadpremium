@@ -3,7 +3,7 @@ import { PrismaClient, Role, DegreeLevel, SemesterType, StudentStatus } from '@p
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Memulai seeding data SIAKAD Premium...');
+  console.log('🌱 Memulai seeding data SIAKAD...');
 
   // 1. Seed Fakultas
   const ft = await prisma.faculty.upsert({

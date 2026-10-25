@@ -26,6 +26,7 @@
     "lucide-react": "^1.16.0",
     "next": "^15.2.1",
     "pdf-lib": "^1.17.1",
+    "qrcode": "1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.54.2",
@@ -36,6 +37,7 @@
   "devDependencies": {
     "@siakad/typescript-config": "workspace:*",
     "@types/node": "^22.10.7",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
     "autoprefixer": "^10.4.20",

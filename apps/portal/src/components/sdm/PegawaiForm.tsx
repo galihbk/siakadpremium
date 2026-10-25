@@ -14,7 +14,7 @@ export interface PegawaiItem {
   fullName: string;
   titlePrefix?: string;
   titleSuffix?: string;
-  gender: 'Laki-laki' | 'Perempuan';
+  gender: 'Laki-laki' | 'Perempuan' | '';
   category: 'Dosen Tetap' | 'Dosen Luar Biasa' | 'Tenaga Kependidikan' | string;
   employmentStatus: 'PNS / ASN' | 'Tetap Yayasan' | 'Kontrak (PKWT)' | 'Honorer' | 'Outsourcing (Alih Daya)';
   streetAddress?: string;
@@ -38,7 +38,7 @@ export interface PegawaiItem {
   functionalPosition?: string;
   email: string;
   phone: string;
-  education: 'D3' | 'S1' | 'S2' | 'S3' | 'Profesi';
+  education: 'D3' | 'S1' | 'S2' | 'S3' | 'Profesi' | '';
   joinDate: string;
   status: 'Aktif' | 'Cuti' | 'Pensiun' | 'Tugas Belajar';
   avatarUrl?: string;

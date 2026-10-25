@@ -111,7 +111,7 @@ export default async function ProfilPage() {
     {
       year: '2026',
       title: 'Era Kampus Digital Berstandar Global',
-      desc: 'Implementasi menyeluruh SIAKAD Premium enterprise, kurikulum Outcome-Based Education (OBE), dan jejaring 45 mitra universitas dunia.',
+      desc: 'Implementasi menyeluruh SIAKAD enterprise, kurikulum Outcome-Based Education (OBE), dan jejaring 45 mitra universitas dunia.',
     },
   ];
 

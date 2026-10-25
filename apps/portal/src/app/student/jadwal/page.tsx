@@ -142,7 +142,7 @@ export default function JadwalKuliahPage() {
   }, [scheduledOnly, selectedHari, searchQuery]);
 
   const handleExportICS = () => {
-    let icsContent = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//SIAKAD Premium//Jadwal Kuliah//ID\nCALSCALE:GREGORIAN\nMETHOD:PUBLISH\nX-WR-CALNAME:Jadwal Kuliah\n`;
+    let icsContent = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//SIAKAD//Jadwal Kuliah//ID\nCALSCALE:GREGORIAN\nMETHOD:PUBLISH\nX-WR-CALNAME:Jadwal Kuliah\n`;
     const dayOffsets: Record<string, string> = { Senin: 'MO', Selasa: 'TU', Rabu: 'WE', Kamis: 'TH', Jumat: 'FR', Sabtu: 'SA' };
 
     scheduledOnly.forEach((item) => {

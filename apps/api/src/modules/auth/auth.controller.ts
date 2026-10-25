@@ -78,6 +78,12 @@ export class AuthController {
     return this.authService.getProfile(userId);
   }
 
+  @Get('password-status')
+  @ApiOperation({ summary: 'Apakah akun ini wajib mengganti kata sandi awal' })
+  async passwordStatus(@Req() req: any) {
+    return this.authService.passwordStatus(this.requireUserId(req));
+  }
+
   @Put('me')
   @ApiOperation({ summary: 'Perbarui profil pengguna yang sedang login' })
   @ApiResponse({ status: 200, description: 'Profil pengguna berhasil diperbarui' })

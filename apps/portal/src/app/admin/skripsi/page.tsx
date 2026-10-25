@@ -419,8 +419,8 @@ function ProjectManager({
   const run = async (fn: () => Promise<unknown>, okText: string) => {
     setBusy(true);
     try {
-      await fn();
-      onDone(okText);
+      const res: any = await fn();
+      onDone(res?.warnings?.length ? `${okText} Perhatian: ${res.warnings.join(' ')}` : okText);
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Terjadi kesalahan.');
     } finally {

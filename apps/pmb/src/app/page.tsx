@@ -775,7 +775,7 @@ export default async function PmbPage() {
             </div>
           </div>
           <p className="text-slate-500 text-[11px]">
-            &copy; 2026 {campus.name}. Hak Cipta Dilindungi Undang-Undang.
+            &copy; {new Date().getFullYear()} NEXTVERSA. Hak Cipta Dilindungi Undang-Undang.
           </p>
         </div>
       </footer>

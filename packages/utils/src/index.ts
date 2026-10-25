@@ -6,8 +6,8 @@ import { GradeLetter, PaginatedResult } from '@siakad/types';
 // Ubah nilainya HANYA di sini agar tetap konsisten di semua permukaan.
 // ============================================================================
 export const COPYRIGHT_NOTICE = Object.freeze({
-  product: 'SIAKAD Premium',
-  owner: 'Nextversa',
+  product: 'SIAKAD',
+  owner: 'NEXTVERSA',
   year: new Date().getFullYear(),
   url: 'https://nextversa.id',
 });

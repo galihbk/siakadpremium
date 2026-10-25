@@ -61,7 +61,7 @@ export default function BeritaPage() {
     },
     {
       id: 4,
-      title: 'Sosialisasi Alur KRS Online & Pedoman MBKM Semester Gasal 2026/2027 melalui Portal SIAKAD Premium',
+      title: 'Sosialisasi Alur KRS Online & Pedoman MBKM Semester Gasal 2026/2027 melalui Portal SIAKAD',
       excerpt: 'BAAK mengimbau seluruh mahasiswa aktif untuk menyelesaikan konsultasi kartu rencana studi bersama Dosen Pembimbing Akademik paling lambat 15 September.',
       category: 'Akademik',
       date: '25 Agustus 2026',

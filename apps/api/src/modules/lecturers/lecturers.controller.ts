@@ -154,12 +154,13 @@ export class LecturersController {
   @Get('p3m')
   @ApiOperation({ summary: 'Mendapatkan daftar laporan penelitian & pengabdian (P3M)' })
   async getP3mReports(
+    @Req() req: any,
     @Query('type') type?: string,
     @Query('year') year?: string,
     @Query('status') status?: string,
     @Query('search') search?: string,
   ) {
-    return this.lecturersService.getP3mReports({
+    return this.lecturersService.getP3mReports(await this.extractLecturerId(req), {
       type,
       year: year ? parseInt(year, 10) : undefined,
       status,
@@ -169,20 +170,20 @@ export class LecturersController {
 
   @Post('p3m')
   @ApiOperation({ summary: 'Mendaftarkan usulan / laporan kegiatan P3M baru' })
-  async createP3mReport(@Body() body: any) {
-    return this.lecturersService.createP3mReport(body);
+  async createP3mReport(@Req() req: any, @Body() body: any) {
+    return this.lecturersService.createP3mReport(await this.extractLecturerId(req), body);
   }
 
   @Put('p3m/:id')
   @ApiOperation({ summary: 'Memperbarui laporan kegiatan P3M' })
-  async updateP3mReport(@Param('id') id: string, @Body() body: any) {
-    return this.lecturersService.updateP3mReport(id, body);
+  async updateP3mReport(@Req() req: any, @Param('id') id: string, @Body() body: any) {
+    return this.lecturersService.updateP3mReport(await this.extractLecturerId(req), id, body);
   }
 
   @Delete('p3m/:id')
   @ApiOperation({ summary: 'Menghapus laporan kegiatan P3M' })
-  async deleteP3mReport(@Param('id') id: string) {
-    return this.lecturersService.deleteP3mReport(id);
+  async deleteP3mReport(@Req() req: any, @Param('id') id: string) {
+    return this.lecturersService.deleteP3mReport(await this.extractLecturerId(req), id);
   }
 
   // ================= STATUS KEPEGAWAIAN (HANYA SDM) =================

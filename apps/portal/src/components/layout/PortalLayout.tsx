@@ -81,6 +81,8 @@ import {
   ReceiptText,
   Sunrise,
   RefreshCw,
+  Network,
+  Target,
 } from 'lucide-react';
 
 interface PortalLayoutProps {
@@ -101,6 +103,8 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
   // Lencana Tugas Akhir/Skripsi (BAAK): proposal baru & pendaftar seminar/ujian yang menunggu tindakan
   const [thesisPending, setThesisPending] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Menu Capaian OBE hanya tampil bila kampus ini memakai OBE (API OBE dikonfigurasi di server).
+  const [obeEnabled, setObeEnabled] = useState(false);
   const [institutionProfile, setInstitutionProfile] = useState<InstitutionProfile>(FALLBACK_INSTITUTION_PROFILE);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [effectiveRole, setEffectiveRole] = useState<
@@ -117,6 +121,15 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       })
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (effectiveRole !== 'student') return;
+    const { token } = getAuthSession();
+    fetch(`${getApiBaseUrl()}/students/me/obe/enabled`, { cache: 'no-store', headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => setObeEnabled(Boolean((j?.data ?? j)?.enabled)))
+      .catch(() => undefined);
+  }, [effectiveRole]);
 
   useEffect(() => {
     if (effectiveRole === 'pmb') loadChatUnread();
@@ -179,6 +192,98 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       window.removeEventListener('siakad:letters-updated', loadLetterPending);
     };
   }, [effectiveRole, pathname, loadLetterPending]);
+
+  // ---- Notifikasi (lonceng): diambil saat halaman dibuka/berpindah, tab aktif lagi, atau setelah aksi (tanpa polling berkala)
+  type NotifItem = { id: string; type: string; title: string; body: string | null; link: string | null; readAt: string | null; createdAt: string };
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifs, setNotifs] = useState<{ unread: number; items: NotifItem[] }>({ unread: 0, items: [] });
+  const notifRef = React.useRef<HTMLDivElement>(null);
+  const authHeader = useCallback((): Record<string, string> => {
+    const { token } = getAuthSession();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }, []);
+  const loadNotifs = useCallback(() => {
+    fetch(`${getApiBaseUrl()}/notifications?limit=20`, { cache: 'no-store', headers: authHeader() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const d = j?.data ?? j;
+        if (d && Array.isArray(d.items)) setNotifs({ unread: d.unread ?? 0, items: d.items });
+      })
+      .catch(() => undefined);
+  }, [authHeader]);
+  useEffect(() => {
+    loadNotifs();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') loadNotifs();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('siakad:notif-refresh', loadNotifs);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('siakad:notif-refresh', loadNotifs);
+    };
+  }, [pathname, loadNotifs]);
+  useEffect(() => {
+    if (!notifOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [notifOpen]);
+  const markNotifs = async (ids?: string[]) => {
+    await fetch(`${getApiBaseUrl()}/notifications/read`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
+      body: JSON.stringify({ ids }),
+    }).catch(() => undefined);
+    loadNotifs();
+  };
+  const timeAgo = (iso: string) => {
+    const diff = Math.max(0, Date.now() - new Date(iso).getTime());
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return 'baru saja';
+    if (m < 60) return `${m} menit lalu`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h} jam lalu`;
+    return `${Math.floor(h / 24)} hari lalu`;
+  };
+
+  // ---- Wajib ganti kata sandi awal (mis. tanggal lahir mahasiswa baru)
+  const [mustChangePw, setMustChangePw] = useState(false);
+  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwError, setPwError] = useState('');
+  useEffect(() => {
+    fetch(`${getApiBaseUrl()}/auth/password-status`, { cache: 'no-store', headers: authHeader() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const d = j?.data ?? j;
+        if (d?.mustChangePassword) setMustChangePw(true);
+      })
+      .catch(() => undefined);
+  }, [authHeader]);
+  const submitPassword = async () => {
+    setPwError('');
+    if (pwForm.next.length < 8) return setPwError('Password baru minimal 8 karakter.');
+    if (pwForm.next !== pwForm.confirm) return setPwError('Konfirmasi password tidak sama.');
+    setPwBusy(true);
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/auth/me`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
+        body: JSON.stringify({ currentPassword: pwForm.current, newPassword: pwForm.next }),
+      });
+      const j = await res.json().catch(() => null);
+      if (!res.ok) throw new Error((Array.isArray(j?.message) ? j.message.join(', ') : j?.message) || 'Gagal mengganti password.');
+      setMustChangePw(false);
+      setPwForm({ current: '', next: '', confirm: '' });
+    } catch (err) {
+      setPwError(err instanceof Error ? err.message : 'Gagal mengganti password.');
+    } finally {
+      setPwBusy(false);
+    }
+  };
 
   const [isVerifying, setIsVerifying] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -391,6 +496,14 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         { name: 'Transkrip Sementara', href: '/student/transkrip', icon: ScrollText },
       ],
     },
+    ...(obeEnabled
+      ? [
+          {
+            title: 'CAPAIAN PEMBELAJARAN',
+            items: [{ name: 'Capaian OBE (CPL)', href: '/student/capaian-obe', icon: Target }],
+          },
+        ]
+      : []),
     {
       title: 'TUGAS AKHIR & KELULUSAN',
       items: [
@@ -549,6 +662,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         { name: 'Format NIM', href: '/admin/superadmin/format-nim', icon: Hash },
         { name: 'Pengaturan Bank', href: '/admin/superadmin/pengaturan-bank', icon: Landmark },
         { name: 'Pengaturan DIKTI', href: '/admin/superadmin/pengaturan-dikti', icon: ShieldCheck },
+        { name: 'Integrasi OBE', href: '/admin/superadmin/integrasi-obe', icon: Network },
         { name: 'Aturan Tanda Tangan', href: '/admin/superadmin/tanda-tangan', icon: PenTool },
         { name: 'Pengaturan Sistem', href: '/admin/superadmin/pengaturan', icon: Settings },
       ],
@@ -948,7 +1062,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
               />
               <div>
                 <span className="text-sm font-extrabold text-white tracking-wide block">
-                  SIAKAD PREMIUM
+                  SIAKAD NEXTVERSA
                 </span>
                 <span className="text-[10px] text-[#D4A017] font-semibold tracking-wider uppercase block">
                   {effectiveRole === 'lp3m' ? 'Lembaga Penelitian & Pengabdian' : effectiveRole === 'superadmin' ? 'Super Administrator' : roleLabel}
@@ -1142,10 +1256,100 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
             )}
 
             {/* Notification */}
-            <button className="p-2 text-slate-500 hover:text-[#1E3A8A] hover:bg-slate-100 rounded-xl relative transition-colors" title="Notifikasi">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#D4A017] rounded-full"></span>
-            </button>
+            <div className="relative" ref={notifRef}>
+              <button
+                onClick={() => setNotifOpen((v) => !v)}
+                className="p-2 text-slate-500 hover:text-[#1E3A8A] hover:bg-slate-100 rounded-xl relative transition-colors cursor-pointer"
+                title="Notifikasi"
+                aria-label="Notifikasi"
+              >
+                <Bell className="w-5 h-5" />
+                {notifs.unread > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-[#D4A017] text-slate-950 text-[10px] font-extrabold flex items-center justify-center">
+                    {notifs.unread > 99 ? '99+' : notifs.unread}
+                  </span>
+                )}
+              </button>
+              {notifOpen && (
+                <div className="absolute right-0 mt-2 w-80 max-w-[90vw] bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+                    <span className="text-xs font-extrabold text-slate-800">Notifikasi</span>
+                    {notifs.unread > 0 && (
+                      <button onClick={() => markNotifs()} className="text-[11px] font-bold text-[#1E3A8A] hover:underline cursor-pointer">
+                        Tandai semua dibaca
+                      </button>
+                    )}
+                  </div>
+                  <div className="max-h-96 overflow-y-auto divide-y divide-slate-100">
+                    {notifs.items.length === 0 && <p className="px-4 py-8 text-center text-xs text-slate-400">Belum ada notifikasi.</p>}
+                    {notifs.items.map((n) => (
+                      <button
+                        key={n.id}
+                        onClick={() => {
+                          if (!n.readAt) void markNotifs([n.id]);
+                          setNotifOpen(false);
+                          if (n.link) router.push(n.link);
+                        }}
+                        className={`w-full text-left px-4 py-3 hover:bg-slate-50 cursor-pointer ${n.readAt ? '' : 'bg-blue-50/50'}`}
+                      >
+                        <div className="flex items-start gap-2">
+                          {!n.readAt && <span className="w-2 h-2 rounded-full bg-[#D4A017] mt-1.5 shrink-0" />}
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-900">{n.title}</p>
+                            {n.body && <p className="text-[11px] text-slate-600 mt-0.5 line-clamp-3">{n.body}</p>}
+                            <p className="text-[10px] text-slate-400 mt-1">{timeAgo(n.createdAt)}</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Wajib ganti kata sandi awal: jendela ini tidak bisa ditutup sampai password diganti */}
+            {mustChangePw && (
+              <div className="fixed inset-0 z-[100] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+                  <div>
+                    <h2 className="text-base font-extrabold text-slate-900">Ganti Password Anda</h2>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Anda masih memakai password awal yang diberikan sistem. Demi keamanan akun, ganti dengan password baru sebelum melanjutkan.
+                    </p>
+                  </div>
+                  {pwError && <p className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{pwError}</p>}
+                  {(
+                    [
+                      ['current', 'Password saat ini (password awal)'],
+                      ['next', 'Password baru (minimal 8 karakter)'],
+                      ['confirm', 'Ulangi password baru'],
+                    ] as const
+                  ).map(([k, label]) => (
+                    <div key={k}>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">{label}</label>
+                      <input
+                        type="password"
+                        value={pwForm[k]}
+                        onChange={(e) => setPwForm({ ...pwForm, [k]: e.target.value })}
+                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                      />
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between pt-1">
+                    <button onClick={handleLogout} className="text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer">
+                      Keluar
+                    </button>
+                    <button
+                      disabled={pwBusy || !pwForm.current || !pwForm.next || !pwForm.confirm}
+                      onClick={submitPassword}
+                      className="px-5 py-2 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-900 rounded-xl disabled:opacity-60 cursor-pointer"
+                    >
+                      {pwBusy ? 'Menyimpan...' : 'Simpan Password'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="h-6 w-px bg-slate-200 hidden sm:block" />
 

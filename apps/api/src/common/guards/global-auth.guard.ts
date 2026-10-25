@@ -14,6 +14,8 @@ interface PublicRule {
  */
 const PUBLIC_RULES: PublicRule[] = [
   { methods: ['GET'], path: /^\/(health)?$/ },
+  // Validasi dokumen lewat QR (data minimum, tanpa login)
+  { methods: ['GET'], path: /^\/verify$/ },
   { methods: ['GET'], path: /^\/app-config$/ },
   { methods: ['POST'], path: /^\/auth\/login$/ },
 

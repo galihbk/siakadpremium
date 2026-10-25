@@ -1,3 +1,5 @@
+import { ThesisService } from '../thesis/thesis.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { AssessmentSchemesService } from './assessment-schemes.service';
@@ -37,6 +39,8 @@ export class AcademicService {
   constructor(
     private prisma: PrismaService,
     private assessmentSchemes: AssessmentSchemesService,
+    private thesis: ThesisService,
+    private notifications: NotificationsService,
   ) {}
 
   async getAdminDashboardSummary(): Promise<AdminDashboardSummary> {
@@ -2044,6 +2048,14 @@ export class AcademicService {
       throw new NotFoundException('Mahasiswa ini belum memiliki pengajuan KRS pada tahun akademik aktif.');
     }
 
+    void this.notifications.notifyStudent(student.id, {
+      type: 'KRS',
+      title: status === 'APPROVED' ? 'KRS disetujui BAAK' : 'KRS ditolak, perlu direvisi',
+      body: status === 'APPROVED' ? 'KRS semester berjalan telah disetujui.' : 'Silakan perbaiki KRS Anda lalu ajukan ulang.',
+      link: '/student/krs',
+    });
+    // Nilai tugas akhir yang tertunda (mata kuliah belum di KRS) otomatis ditulis begitu KRS disetujui
+    if (status === 'APPROVED') void this.thesis.syncPendingGradesForStudent(student.id);
     return {
       success: true,
       message:

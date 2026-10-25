@@ -63,12 +63,29 @@ async function loadImage(url: string): Promise<{ data: string; format: 'PNG' | '
       fr.onerror = reject;
       fr.readAsDataURL(blob);
     });
-    const size: { w: number; h: number } = await new Promise((resolve) => {
+    const loaded: { w: number; h: number; img: HTMLImageElement | null } = await new Promise((resolve) => {
       const img = new Image();
-      img.onload = () => resolve({ w: img.naturalWidth || 1, h: img.naturalHeight || 1 });
-      img.onerror = () => resolve({ w: 1, h: 1 });
+      img.onload = () => resolve({ w: img.naturalWidth || 1, h: img.naturalHeight || 1, img });
+      img.onerror = () => resolve({ w: 1, h: 1, img: null });
       img.src = data;
     });
+    const size = { w: loaded.w, h: loaded.h };
+    // jsPDF memasukkan WEBP lewat JPEG, yang tidak mengenal transparansi: bagian bening logo menjadi HITAM.
+    // WEBP diubah dulu menjadi PNG (transparansinya terjaga) lewat kanvas.
+    if (format === 'WEBP' && loaded.img) {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = size.w;
+        canvas.height = size.h;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(loaded.img, 0, 0);
+          return { data: canvas.toDataURL('image/png'), format: 'PNG', ...size };
+        }
+      } catch {
+        // jatuh ke gambar asli
+      }
+    }
     return { data, format, ...size };
   } catch {
     return null;
@@ -551,6 +568,8 @@ export async function downloadLetterPdf(args: {
   signer: { roleLabel: string; name: string };
   coSigner?: { roleLabel: string; name: string | null } | null;
   requestNo: string;
+  /** Alamat validasi publik yang disandikan dalam kode QR. */
+  verifyUrl?: string;
   filename: string;
 }): Promise<void> {
   const { jsPDF } = await import('jspdf');
@@ -627,7 +646,23 @@ export async function downloadLetterPdf(args: {
     if (args.coSigner.name) doc.text(args.coSigner.name, leftX, y + 30, { align: 'center' });
   }
 
-  // Keterangan validasi
+  // Keterangan validasi + QR sungguhan (dipindai untuk memeriksa keaslian dokumen)
+  if (args.verifyUrl) {
+    try {
+      const QRCode = (await import('qrcode')).default;
+      const dataUrl = await QRCode.toDataURL(args.verifyUrl, { width: 300, margin: 1, errorCorrectionLevel: 'M' });
+      doc.addImage(dataUrl, 'PNG', M, H - 40, 22, 22);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(51, 65, 85);
+      doc.text('Pindai untuk validasi dokumen', M + 25, H - 33);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Nomor tiket: ${args.requestNo}`, M + 25, H - 29);
+    } catch {
+      // tanpa QR bila pustaka gagal dimuat; teks validasi tetap ada
+    }
+  }
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
@@ -715,6 +750,217 @@ export async function downloadGuidanceCardPdf(args: {
     const w = Math.min(70, doc.getTextWidth(sv.name) + 4);
     doc.line(cx - w / 2, y + 25, cx + w / 2, y + 25);
   }
+  drawPageNumbers(doc);
+  doc.save(args.filename);
+}
+
+// ======================================================================================
+// Laporan Capaian Pembelajaran Lulusan (OBE)
+// ======================================================================================
+/** Jaring laba-laba CPL digambar dengan garis dan poligon PDF (vektor, teksnya tetap dapat diseleksi). */
+function drawRadar(doc: any, cx: number, cy: number, radius: number, axes: Array<{ label: string; value: number | null }>, target: number) {
+  const n = axes.length;
+  const pt = (i: number, pct: number): [number, number] => {
+    const a = ((-90 + (360 / n) * i) * Math.PI) / 180;
+    const r = (Math.max(0, Math.min(100, pct)) / 100) * radius;
+    return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  };
+  const polygon = (values: number[], style: 'S' | 'FD') => {
+    const points = values.map((v, i) => pt(i, v));
+    const deltas = points.slice(1).map(([x, y], i) => [x - points[i][0], y - points[i][1]]);
+    doc.lines(deltas, points[0][0], points[0][1], [1, 1], style, true);
+  };
+
+  doc.setLineWidth(0.15);
+  doc.setDrawColor(203, 213, 225);
+  for (const ring of [25, 50, 75, 100]) polygon(axes.map(() => ring), 'S');
+  for (let i = 0; i < n; i++) {
+    const [x, y] = pt(i, 100);
+    doc.line(cx, cy, x, y);
+  }
+  doc.setFontSize(6);
+  doc.setTextColor(148, 163, 184);
+  for (const ring of [25, 50, 75, 100]) doc.text(String(ring), cx + 0.8, cy - (ring / 100) * radius - 0.6);
+
+  // target: garis putus-putus
+  doc.setDrawColor(217, 119, 6);
+  doc.setLineWidth(0.4);
+  doc.setLineDashPattern([1.6, 1.2], 0);
+  polygon(axes.map(() => target), 'S');
+  doc.setLineDashPattern([], 0);
+
+  // capaian: area biru transparan
+  doc.setDrawColor(30, 58, 138);
+  doc.setFillColor(147, 168, 222);
+  doc.setLineWidth(0.6);
+  try {
+    doc.setGState(new doc.GState({ opacity: 0.45 }));
+    polygon(axes.map((a) => a.value ?? 0), 'FD');
+    doc.setGState(new doc.GState({ opacity: 1 }));
+  } catch {
+    polygon(axes.map((a) => a.value ?? 0), 'S');
+  }
+  doc.setFillColor(30, 58, 138);
+  axes.forEach((a, i) => {
+    if (a.value === null) return;
+    const [x, y] = pt(i, a.value);
+    doc.circle(x, y, 0.8, 'F');
+  });
+
+  // label: kode CPL dan angkanya
+  axes.forEach((a, i) => {
+    const [x, y] = pt(i, 122);
+    const align = Math.abs(x - cx) < 2 ? 'center' : x > cx ? 'left' : 'right';
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(51, 65, 85);
+    doc.text(a.label, x, y, { align });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    const color: Color = a.value === null ? [148, 163, 184] : a.value >= target ? [4, 120, 87] : [190, 18, 60];
+    doc.setTextColor(color[0], color[1], color[2]);
+    doc.text(a.value === null ? 'belum ada nilai' : a.value.toFixed(1), x, y + 3.4, { align });
+  });
+}
+
+const CATEGORY_LABEL: Record<string, string> = {
+  SIKAP: 'Sikap',
+  PENGETAHUAN: 'Pengetahuan',
+  KETERAMPILAN_UMUM: 'Keterampilan Umum',
+  KETERAMPILAN_KHUSUS: 'Keterampilan Khusus',
+};
+
+export async function downloadObePdf(args: {
+  inst: PdfInstitution;
+  student: PdfStudent;
+  data: import('@/lib/obe').ObeData;
+  curriculumId: string;
+  filename: string;
+}): Promise<void> {
+  const { jsPDF } = await import('jspdf');
+  const autoTable = (await import('jspdf-autotable')).default;
+  const { inst, student, data } = args;
+  const curriculum = data.curricula.find((k) => k.id === args.curriculumId) ?? data.curricula[0];
+  if (!curriculum) throw new Error('Belum ada capaian yang dapat dicetak.');
+  const target = curriculum.target.value;
+  const courses = data.courses
+    .filter((c) => c.curriculumId === curriculum.id)
+    .sort((a, b) => (a.period ?? '').localeCompare(b.period ?? '') || a.code.localeCompare(b.code));
+  const sks = courses.reduce((a, c) => a + c.credits, 0);
+  const measured = curriculum.cpl.filter((c) => c.achievement !== null);
+  const achieved = measured.filter((c) => c.status === 'ACHIEVED').length;
+
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  let y = await drawKop(doc, inst);
+  y = drawTitle(doc, y, 'LAPORAN CAPAIAN PEMBELAJARAN LULUSAN (CPL)', curriculum.name);
+  y = drawIdentity(doc, y, [
+    ['Nama Mahasiswa', student.name, 'Program Studi', student.prodi],
+    ['NIM', student.nim, 'Fakultas', student.faculty],
+    ['Target Capaian', String(target), 'Mata Kuliah / SKS', `${courses.length} / ${sks}`],
+  ]);
+
+  // ringkasan satu kalimat
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`${achieved} dari ${measured.length} CPL yang sudah memiliki nilai telah tercapai (target ${target}).`, M, y);
+  y += 4;
+
+  // jaring laba-laba
+  if (measured.length >= 3) {
+    const radius = 38;
+    if (y + radius * 2 + 22 > H - 20) {
+      doc.addPage();
+      y = 20;
+    }
+    const cy = y + radius + 12;
+    drawRadar(doc, W / 2, cy, radius, curriculum.cpl.map((c) => ({ label: c.code, value: c.achievement })), target);
+    y = cy + radius + 14;
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text('Area biru: capaian mahasiswa.  Garis putus-putus: target capaian.', W / 2, y, { align: 'center' });
+    y += 6;
+  } else {
+    y += 3;
+  }
+
+  // tabel CPL
+  autoTable(doc, {
+    ...tableBase(),
+    startY: y,
+    head: [['No', 'Kode', 'Capaian Pembelajaran Lulusan', 'Kategori', 'Capaian', 'Status']],
+    body: curriculum.cpl.map((c, i) => [
+      String(i + 1),
+      c.code,
+      c.description,
+      CATEGORY_LABEL[c.category] ?? c.category,
+      c.achievement === null ? '-' : c.achievement.toFixed(2),
+      c.achievement === null ? 'Belum ada nilai' : c.status === 'ACHIEVED' ? 'Tercapai' : 'Belum tercapai',
+    ]),
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 9 },
+      1: { cellWidth: 17, fontStyle: 'bold' },
+      2: { cellWidth: 'auto' },
+      3: { cellWidth: 28 },
+      4: { halign: 'center', cellWidth: 17, fontStyle: 'bold' },
+      5: { halign: 'center', cellWidth: 26 },
+    },
+    didParseCell: (hook: any) => {
+      if (hook.section !== 'body' || hook.column.index !== 5) return;
+      const text = String(hook.cell.raw);
+      hook.cell.styles.textColor = text === 'Tercapai' ? [4, 120, 87] : text === 'Belum tercapai' ? [190, 18, 60] : [148, 163, 184];
+    },
+  });
+  y = ((doc as any).lastAutoTable?.finalY ?? y) + 7;
+
+  // rincian per mata kuliah
+  if (y > H - 50) {
+    doc.addPage();
+    y = 20;
+  }
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(15, 23, 42);
+  doc.text('Rincian per Mata Kuliah', M, y);
+  y += 3;
+  autoTable(doc, {
+    ...tableBase(),
+    startY: y,
+    head: [['No', 'Periode', 'Kode', 'Mata Kuliah', 'SKS', 'Capaian CPL yang didukung']],
+    body: courses.map((c, i) => [
+      String(i + 1),
+      c.period ?? '-',
+      c.code,
+      c.name,
+      String(c.credits),
+      c.cpl.filter((x) => x.achievement !== null).map((x) => `${x.code}: ${(x.achievement as number).toFixed(1)}`).join('   ') || '-',
+    ]),
+    foot: [[{ content: 'Total SKS', colSpan: 4, styles: { halign: 'right' } }, String(sks), '']],
+    showFoot: 'lastPage',
+    styles: { ...tableBase().styles, fontSize: 7.5, cellPadding: 1.2 },
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 8 },
+      1: { cellWidth: 25 },
+      2: { cellWidth: 20, font: 'courier' },
+      3: { cellWidth: 'auto' },
+      4: { halign: 'center', cellWidth: 10 },
+      5: { cellWidth: 52 },
+    },
+  });
+  y = ((doc as any).lastAutoTable?.finalY ?? y) + 5;
+
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  const note = doc.splitTextToSize(
+    `Capaian CPL adalah rata-rata nilai CPL dari mata kuliah yang mendukungnya, dihitung dari nilai komponen penilaian. Data diambil dari sistem OBE pada ${new Date(data.generatedAt).toLocaleString('id-ID')}. Dokumen ini bukan pengganti transkrip atau SKPI resmi.`,
+    W - 2 * M,
+  ) as string[];
+  doc.text(note, M, y);
+  y += note.length * 3.4 + 6;
+
+  await drawSignatures(doc, y, 'CAPAIAN_OBE', student.id);
   drawPageNumbers(doc);
   doc.save(args.filename);
 }

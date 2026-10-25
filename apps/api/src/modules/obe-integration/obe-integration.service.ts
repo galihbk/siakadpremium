@@ -51,10 +51,21 @@ export class ObeIntegrationService {
 
   async institutions() {
     const setting = await this.prisma.landingPageSetting.findFirst({
-      select: { id: true, campusName: true, campusShortName: true },
+      select: { id: true, campusName: true, campusShortName: true, contactAddress: true, website: true, logoUrl: true },
     });
+    const base = (process.env.SIAKAD_PUBLIC_URL ?? '').trim().replace(/\/+$/, '');
+    const logo = setting?.logoUrl ? (/^https?:\/\//i.test(setting.logoUrl) ? setting.logoUrl : `${base}${setting.logoUrl}`) : null;
     const items = setting
-      ? [{ id: setting.id, code: setting.campusShortName, name: setting.campusName }]
+      ? [
+          {
+            id: setting.id,
+            code: setting.campusShortName,
+            name: setting.campusName,
+            address: setting.contactAddress?.trim() || null,
+            website: setting.website?.trim() || null,
+            logo_url: logo,
+          },
+        ]
       : [];
     return { items, meta: { page: 1, per_page: items.length || 1, total: items.length, last_page: 1 } };
   }

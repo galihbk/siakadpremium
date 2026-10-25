@@ -406,7 +406,7 @@ export default function PmbVerifikasiEmailPage() {
       {/* Footer */}
       <footer className="py-6 border-t border-slate-200 bg-white text-center text-xs text-slate-500">
         <div className="max-w-5xl mx-auto px-4">
-          &copy; 2027/2028 PMB Institut Teknologi Nusantara. Seluruh Hak Cipta Dilindungi.
+          &copy; {new Date().getFullYear()} NEXTVERSA. Seluruh Hak Cipta Dilindungi.
         </div>
       </footer>
     </div>

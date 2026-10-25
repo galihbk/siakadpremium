@@ -8,7 +8,7 @@ export default function SuperAdminDokumentasiPage() {
     <DocsViewer
       docs={SUPERADMIN_DOCS}
       role="superadmin"
-      title="Dokumentasi SIAKAD Premium"
+      title="Dokumentasi SIAKAD"
       subtitle="Panduan lengkap untuk Super Admin: arsitektur, peran, proses bisnis, situs publik, dan operasional server."
       version={DOCS_VERSION}
       userName="Super Administrator"

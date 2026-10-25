@@ -118,7 +118,7 @@ export class PmbService {
       });
       if (!app?.email) return;
       const setting: any = await this.prisma.landingPageSetting.findUnique({ where: { id: 'default-setting' } }).catch(() => null);
-      const brand = String(setting?.campusName || process.env.MAIL_FROM_NAME || 'SIAKAD Premium');
+      const brand = String(setting?.campusName || process.env.MAIL_FROM_NAME || 'SIAKAD');
       const pmbUrl = (process.env.PUBLIC_PMB_URL || process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '');
       const portalUrl = (process.env.PUBLIC_PORTAL_URL || '').replace(/\/+$/, '');
       const prodi = app.studyProgram?.name || '-';
@@ -646,8 +646,18 @@ export class PmbService {
         whatsapp: account.whatsapp,
         isEmailVerified: account.isEmailVerified,
       },
-      application: account.applications[0] ? this.freshenApplication(account.applications[0] as any) : null,
+      application: account.applications[0] ? await this.withPasswordNotice(this.freshenApplication(account.applications[0] as any)) : null,
     };
+  }
+
+  /** Kata sandi awal (tanggal lahir) hanya boleh ditampilkan selama mahasiswa belum menggantinya. */
+  private async withPasswordNotice<T extends Record<string, any>>(app: T): Promise<T & { initialPasswordActive: boolean }> {
+    let active = false;
+    if (app?.studentId && app?.email) {
+      const u = await this.prisma.user.findFirst({ where: { email: { equals: String(app.email), mode: 'insensitive' } }, select: { mustChangePassword: true } });
+      active = Boolean(u?.mustChangePassword);
+    }
+    return { ...app, initialPasswordActive: active };
   }
 
   // ===========================================================================
@@ -1786,6 +1796,7 @@ export class PmbService {
           fullName: app.fullName,
           role: 'STUDENT' as any,
           passwordHash: await bcrypt.hash(initialPassword, 10),
+          mustChangePassword: true,
           isActive: true,
         },
       });
@@ -1796,7 +1807,7 @@ export class PmbService {
       if (!hasStudent) {
         user = await this.prisma.user.update({
           where: { id: user.id },
-          data: { passwordHash: await bcrypt.hash(initialPassword, 10), isActive: true },
+          data: { passwordHash: await bcrypt.hash(initialPassword, 10), mustChangePassword: true, isActive: true },
         });
       }
     }

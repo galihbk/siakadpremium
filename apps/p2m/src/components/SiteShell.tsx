@@ -56,7 +56,7 @@ export function SiteShell({ campus, portalUrl, error, heading, children }: Props
           </nav>
         </div>
         <div className="border-t border-white/10 py-4 text-center text-[11px] text-slate-500">
-          © {new Date().getFullYear()} {campus.campusName} — Pusat Penjaminan Mutu
+          © {new Date().getFullYear()} NEXTVERSA — Pusat Penjaminan Mutu
         </div>
       </footer>
     </div>

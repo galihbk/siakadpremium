@@ -161,7 +161,7 @@ export function Footer() {
         {/* Bottom Copyright */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
           <p>
-            &copy; {new Date().getFullYear()} {profile.campusName}. Hak Cipta Dilindungi Undang-Undang.
+            &copy; {new Date().getFullYear()} NEXTVERSA. Hak Cipta Dilindungi Undang-Undang.
           </p>
           <div className="flex items-center space-x-6">
             <Link href="#" className="hover:text-slate-400 transition-colors">Kebijakan Privasi</Link>

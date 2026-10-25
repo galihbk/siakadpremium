@@ -138,7 +138,7 @@ export default function LoginPage() {
         <div className="text-center">
           <CampusLogo url={profile.logoUrl} initials={profile.logoInitials} className="mx-auto w-14 h-14 rounded-full bg-[#1E3A8A] border-2 border-[#D4A017] flex items-center justify-center text-white font-extrabold text-xl shadow-md" />
           <h2 className="mt-4 text-2xl font-extrabold text-slate-900 tracking-tight">
-            Portal SIAKAD Premium
+            Portal SIAKAD
           </h2>
           <p className="mt-1 text-xs text-slate-500">
             Sistem Informasi Akademik Terpadu {profile.campusName}

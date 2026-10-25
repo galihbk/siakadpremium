@@ -93,8 +93,8 @@ Satu KRS menghasilkan **satu baris per komponen yang terisi**, ditambah **satu b
 | `student_id`       | string   | Mahasiswa. |
 | `class_id`         | string   | Kelas (lihat `course-offerings`). |
 | `period_id`        | string   | Periode akademik nilai ini. |
-| `component`        | string?  | Nama komponen apa adanya (mis. `Tugas`, `UTS`, `Praktikum`). `null` = nilai akhir. OBE mencocokkan nama ini dengan komponen yang dipetakan dosen. |
-| `component_code`   | string?  | Kode komponen yang stabil (mis. `TUGAS`, `UTS`). Tidak berubah walau nama diganti. `null` untuk nilai akhir. |
+| `component`        | string?  | Nama komponen apa adanya (mis. `Tugas`, `UTS`, `Praktikum`). `null` = nilai akhir. OBE menampilkan nama ini. |
+| `component_code`   | string?  | Kode komponen yang stabil (mis. `TUGAS`, `UTS`). Tidak berubah walau nama diganti. `null` untuk nilai akhir. **Kunci pencocokan di OBE**: assessment di RPS yang dipetakan ke kode ini tetap cocok walau nama komponen diganti. |
 | `component_weight` | number?  | Bobot komponen **di kelas itu** dalam persen, dari Kontrak Kuliah dosen. `null` bila belum ditetapkan, atau untuk nilai akhir. |
 | `score`            | number   | Nilai. Skalanya mengikuti `max_score`. |
 | `max_score`        | number   | Nilai maksimum. `100` untuk komponen dan nilai akhir 0-100; `4` bila nilai akhir hanya dapat dipastikan sebagai indeks 0-4. |
@@ -171,3 +171,49 @@ Perubahan bersifat **menambah**: kolom lama (`id`, `student_id`, `class_id`, `co
 | 5xx  | Kesalahan server; ulangi beberapa saat lagi |
 
 Dokumentasi interaktif (Swagger) tersedia di grup **Integrasi OBE**.
+
+## Capaian OBE di portal mahasiswa (arah sebaliknya: SIAKAD memanggil OBE)
+
+Bila kampus memakai OBE, portal mahasiswa SIAKAD menampilkan **jaring laba-laba CPL** dan rincian capaian mahasiswa yang sedang login. Datanya dihitung OBE; SIAKAD hanya menampilkannya.
+
+- **Menu "Capaian OBE (CPL)"** dan kartu di dashboard hanya tampil bila `OBE_API_URL` dan `OBE_PORTAL_API_KEY` diisi di server SIAKAD. Tanpa itu, portal berjalan seperti biasa dan tidak menampilkan apa pun tentang OBE.
+- **Alurnya:** browser → SIAKAD `GET /api/v1/students/me/obe` (token mahasiswa) → server SIAKAD memanggil OBE `GET {OBE_API_URL}/external/students/{NIM}/obe` dengan `Authorization: Bearer <OBE_PORTAL_API_KEY>`. NIM diambil dari data SIAKAD mahasiswa yang login, bukan dari isian pengguna, dan kunci API tidak pernah sampai ke browser. Jawaban disimpan sementara 60 detik.
+- **Bila OBE tidak dapat dijangkau** atau belum mengenal mahasiswa itu, portal menampilkan keterangan "tidak tersedia", tidak error.
+
+Variabel di server SIAKAD:
+
+| Variabel | Isi |
+| --- | --- |
+| `OBE_API_URL` | Alamat API OBE, mis. `http://localhost:4000` atau `https://obe-api.kampus.ac.id` |
+| `OBE_PORTAL_API_KEY` | Kunci yang sama dengan `OBE_PORTAL_API_KEY` di server OBE (boleh beberapa, dipisah koma, untuk mengganti kunci tanpa henti layanan) |
+
+### API OBE: `GET /external/students/{studentNumber}/obe`
+
+Dijaga API key (bukan login pengguna). Tanpa kunci terpasang di OBE: `503`; kunci tidak ada atau salah: `401`; NIM tidak dikenal OBE: `404`.
+
+Contoh jawaban (dipendekkan):
+
+```json
+{
+  "student": { "studentNumber": "2402014", "name": "…", "studyProgram": "Pendidikan Ekonomi" },
+  "primaryCurriculumId": "k-1",
+  "curricula": [
+    {
+      "id": "k-1", "name": "S1 Pendidikan Ekonomi 2022", "target": { "value": 75, "source": "STUDY_PROGRAM" }, "measuredCount": 4,
+      "cpl": [
+        { "code": "CPL-01", "description": "…", "category": "PENGETAHUAN", "achievement": 76.69, "status": "ACHIEVED",
+          "courses": [ { "code": "MKBK22226", "name": "Manajemen Pemasaran", "period": "2026/2027 Ganjil", "achievement": 81.78 } ] }
+      ]
+    }
+  ],
+  "courses": [
+    { "curriculumId": "k-1", "code": "MKBK22226", "name": "…", "credits": 2, "period": "2026/2027 Ganjil",
+      "assessments": [ { "name": "Tugas", "score": 85 } ],
+      "subCpmk": [ { "code": "Sub-1", "description": "…", "achievement": 82.0, "status": "ACHIEVED" } ],
+      "cpmk": [ … ], "cpl": [ … ] }
+  ],
+  "generatedAt": "2026-10-25T01:42:30.000Z"
+}
+```
+
+Aturan: capaian CPL adalah rata-rata nilai CPL dari mata kuliah yang mendukungnya (tiap mata kuliah dihitung sekali, dari periode terbarunya yang bernilai), dengan rumus yang sama seperti yang dilihat dosen dan program studi. CPL yang belum punya nilai berstatus `achievement: null`, bukan 0. Hanya mata kuliah yang sudah memiliki RPS OBE dan nilai yang ikut.

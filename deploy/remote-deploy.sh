@@ -64,6 +64,8 @@ $COMPOSE pull
 # ---- 4. sinkron skema database (tanpa --accept-data-loss) ----------------------
 log "Siapkan database & sinkron skema"
 $COMPOSE up -d --wait postgres redis
+# View baca-saja untuk OBE (skema obe_api) dijatuhkan dulu supaya tidak menahan perubahan kolom; API memasangnya lagi saat menyala.
+$COMPOSE exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP SCHEMA IF EXISTS obe_api CASCADE"' || true
 if ! $COMPOSE run --rm --no-deps api npx prisma db push --skip-generate; then
   fail "Sinkron skema database ditolak (perubahan skema berpotensi menghapus data). Versi lama tetap berjalan. Periksa log di atas, lalu pulihkan dari $OUT bila perlu."
 fi

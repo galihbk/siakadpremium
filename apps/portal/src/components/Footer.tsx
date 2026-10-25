@@ -77,7 +77,7 @@ export function Footer() {
               Layanan & Kampus
             </h4>
             <ul className="space-y-2 text-xs sm:text-sm">
-              <li><Link href="#cta" className="hover:text-white transition-colors">SIAKAD Premium Mahasiswa</Link></li>
+              <li><Link href="#cta" className="hover:text-white transition-colors">SIAKAD Mahasiswa</Link></li>
               <li><Link href="#cta" className="hover:text-white transition-colors">Portal Dosen & Staf</Link></li>
               <li><Link href="#cta" className="hover:text-white transition-colors">Pusat Karir & Alumni</Link></li>
               <li><Link href="#keunggulan" className="hover:text-white transition-colors">Beasiswa Pendidikan</Link></li>
@@ -152,7 +152,7 @@ export function Footer() {
         {/* Bottom Copyright */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
           <p>
-            &copy; {new Date().getFullYear()} {profile.campusName}. Hak Cipta Dilindungi Undang-Undang.
+            &copy; {new Date().getFullYear()} NEXTVERSA. Hak Cipta Dilindungi Undang-Undang.
           </p>
           <div className="flex items-center space-x-6">
             <Link href="#" className="hover:text-slate-400 transition-colors">Kebijakan Privasi</Link>

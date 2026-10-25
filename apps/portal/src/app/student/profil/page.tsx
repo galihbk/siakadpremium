@@ -6,6 +6,8 @@ import { getAuthSession } from '@/lib/auth';
 import { getApiBaseUrl } from '@/lib/api';
 import { BirthPlaceSelect } from '@/components/ui/BirthPlaceSelect';
 import { useInstitution } from '@/lib/useInstitution';
+import { QrImage } from '@/components/common/QrImage';
+import { verifyUrl } from '@/lib/verifyUrl';
 import { compressUploadedFile, fileToBase64 } from '@/lib/fileCompression';
 import {
   User,
@@ -1765,7 +1767,7 @@ export default function StudentProfilePage() {
                     </div>
 
                     <div className="hidden sm:flex flex-col items-center justify-center bg-white p-2 rounded-xl text-slate-950 shrink-0 self-center">
-                      <QrCode className="w-14 h-14 text-slate-900" />
+                      <QrImage text={verifyUrl('ktm', nim)} size={64} />
                       <span className="text-[8px] font-mono font-bold mt-1 tracking-widest">{nim}</span>
                     </div>
                   </div>

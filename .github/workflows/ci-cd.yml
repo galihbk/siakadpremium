@@ -391,7 +391,11 @@ jobs:
             fi
             sleep 2
           done
+          # View baca-saja untuk OBE (skema obe_api) dijatuhkan dulu supaya tidak menahan perubahan kolom; API memasangnya lagi saat menyala.
+          docker compose -f docker-compose.prod.yml exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP SCHEMA IF EXISTS obe_api CASCADE"' || true
           docker compose -f docker-compose.prod.yml exec -T api npx prisma db push --accept-data-loss --skip-generate
+          # API memasang ulang skema obe_api saat menyala.
+          docker compose -f docker-compose.prod.yml restart api
 
   # ----------------------------------------------------------------------------
   # Job 5: Health Check Verification

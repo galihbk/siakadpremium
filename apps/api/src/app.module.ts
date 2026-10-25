@@ -34,6 +34,7 @@ import { DocumentSignaturesModule } from './modules/document-signatures/document
 import { ThesisModule } from './modules/thesis/thesis.module';
 import { GraduationModule } from './modules/graduation/graduation.module';
 import { ExamsModule } from './modules/exams/exams.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ProdiModule } from './modules/prodi/prodi.module';
 import { BackupsModule } from './modules/backups/backups.module';
 import { ObeIntegrationModule } from './modules/obe-integration/obe-integration.module';
@@ -92,6 +93,7 @@ import { AppService } from './app.service';
     ThesisModule,
     GraduationModule,
     ExamsModule,
+    NotificationsModule,
     ProdiModule,
     BackupsModule,
     ObeIntegrationModule,

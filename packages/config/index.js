@@ -1,5 +1,5 @@
 module.exports = {
-  APP_NAME: 'SIAKAD Premium',
+  APP_NAME: 'SIAKAD',
   INSTITUTION_NAME: 'Institut Teknologi Nusantara',
   INSTITUTION_SHORT: 'ITN',
   DEFAULT_PORT: {

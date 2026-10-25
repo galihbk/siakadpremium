@@ -408,6 +408,12 @@ export class AuthService {
     throw new NotFoundException('Sesi tidak valid atau akun tidak ditemukan. Silakan login ulang.');
   }
 
+  /** Apakah akun ini masih wajib mengganti kata sandi awalnya. */
+  async passwordStatus(userId: string) {
+    const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { mustChangePassword: true } }).catch(() => null);
+    return { mustChangePassword: Boolean(u?.mustChangePassword) };
+  }
+
   async updateProfile(
     userId: string,
     payload: Partial<{
@@ -433,13 +439,19 @@ export class AuthService {
         throw new BadRequestException('Password baru minimal 6 karakter.');
       }
       const existingUser = await this.prisma.user.findUnique({ where: { id: userId } });
-      if (existingUser?.passwordHash && p.currentPassword) {
+      // Kata sandi saat ini WAJIB diverifikasi: tanpa itu, siapa pun yang memegang sesi terbuka bisa mengambil alih akun.
+      if (existingUser?.passwordHash) {
+        if (!p.currentPassword) throw new BadRequestException('Masukkan password saat ini untuk mengganti password.');
         const isMatch = await bcrypt.compare(p.currentPassword, existingUser.passwordHash).catch(() => false);
         if (!isMatch) {
           throw new BadRequestException('Password saat ini tidak sesuai.');
         }
+        if (await bcrypt.compare(p.newPassword, existingUser.passwordHash).catch(() => false)) {
+          throw new BadRequestException('Password baru harus berbeda dari password saat ini.');
+        }
       }
       data.passwordHash = await bcrypt.hash(p.newPassword, 10);
+      data.mustChangePassword = false;
     }
 
     let updatedUser = null;

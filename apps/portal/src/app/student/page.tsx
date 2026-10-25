@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getAuthSession, AuthUser } from '@/lib/auth';
 import { getApiBaseUrl } from '@/lib/api';
+import { ObeRadar } from '@/components/student/ObeRadar';
+import { useObe } from '@/lib/obe';
 import {
   AlertCircle,
   Award,
@@ -371,6 +373,9 @@ export default function StudentDashboardPage() {
           </div>
         )}
 
+        {/* Capaian OBE: hanya bila kampus memakai OBE dan data mahasiswa ini sudah ada di sana */}
+        <ObeSummaryCard />
+
         {/* KRS Table Section */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-subtle overflow-hidden">
           <div className="p-5 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -470,5 +475,37 @@ export default function StudentDashboardPage() {
 
       </div>
     </PortalLayout>
+  );
+}
+
+/** Ringkasan jaring laba-laba CPL di dashboard; tidak tampil sama sekali bila kampus tidak memakai OBE. */
+function ObeSummaryCard() {
+  const obe = useObe();
+  if (obe.status !== 'ready') return null;
+  const current = obe.data.curricula.find((k) => k.id === obe.data.primaryCurriculumId) ?? obe.data.curricula[0];
+  if (!current || current.measuredCount < 3) {
+    return current ? (
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-subtle p-5 flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-base font-bold text-slate-900">Capaian Pembelajaran Lulusan (OBE)</h3>
+          <p className="text-xs text-slate-500">{current.measuredCount} CPL sudah memiliki nilai.</p>
+        </div>
+        <Link href="/student/capaian-obe" className="text-sm font-semibold text-[#1E3A8A] hover:underline">Lihat rincian</Link>
+      </div>
+    ) : null;
+  }
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-subtle p-5 sm:p-6">
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <div>
+          <h3 className="text-base font-bold text-slate-900">Capaian Pembelajaran Lulusan (OBE)</h3>
+          <p className="text-xs text-slate-500">{current.name} &bull; target {current.target.value}</p>
+        </div>
+        <Link href="/student/capaian-obe" className="text-sm font-semibold text-[#1E3A8A] hover:underline shrink-0">Lihat rincian</Link>
+      </div>
+      <div className="max-w-sm mx-auto">
+        <ObeRadar axes={current.cpl.map((c) => ({ label: c.code, value: c.achievement }))} target={current.target.value} size={300} />
+      </div>
+    </div>
   );
 }

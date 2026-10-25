@@ -7,7 +7,7 @@ import { useInstitution } from '@/lib/useInstitution';
 export function DocumentTitle() {
   const inst = useInstitution();
   useEffect(() => {
-    if (inst.campusName) document.title = `SIAKAD Premium Portal - ${inst.campusName}`;
+    if (inst.campusName) document.title = inst.campusName;
     if (inst.logoUrl) {
       let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
       if (!link) {

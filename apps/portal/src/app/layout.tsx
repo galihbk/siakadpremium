@@ -28,7 +28,7 @@ export default function RootLayout({
   return (
     <html lang="id">
       <head>
-        <title>SIAKAD Premium Portal</title>
+        <title>Portal Akademik</title>
         <meta
           name="description"
           content="Portal Layanan Akademik Terpadu Mahasiswa, Dosen, dan Administrator BAAK."

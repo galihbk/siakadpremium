@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
-import { LettersController } from './letters.controller';
+import { LettersController, VerifyController } from './letters.controller';
 import { LettersService } from './letters.service';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [AuthModule],
-  controllers: [LettersController],
+  controllers: [LettersController, VerifyController],
   providers: [LettersService],
   exports: [LettersService],
 })

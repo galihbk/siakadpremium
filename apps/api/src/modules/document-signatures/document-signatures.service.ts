@@ -19,6 +19,7 @@ const DEFAULT_RULES: { code: string; label: string; signer1: SignerRole; signer2
   { code: 'KRS', label: 'Kartu Rencana Studi (KRS)', signer1: 'DOSEN_PA' },
   { code: 'KHS', label: 'Kartu Hasil Studi (KHS)', signer1: 'DOSEN_PA', signer2: 'KAPRODI' },
   { code: 'TRANSKRIP', label: 'Transkrip Nilai Sementara', signer1: 'WAKIL_REKTOR_AKADEMIK', signer2: 'KAPRODI' },
+  { code: 'CAPAIAN_OBE', label: 'Laporan Capaian Pembelajaran Lulusan (OBE)', signer1: 'WAKIL_REKTOR_AKADEMIK', signer2: 'KAPRODI' },
   { code: 'SKAK', label: 'Surat Keterangan Aktif Kuliah', signer1: 'WAKIL_REKTOR_AKADEMIK' },
   { code: 'SKP', label: 'Surat Pengantar Kerja Praktik / Magang', signer1: 'WAKIL_REKTOR_AKADEMIK' },
   { code: 'SIP', label: 'Surat Izin Penelitian / Pengambilan Data', signer1: 'WAKIL_REKTOR_AKADEMIK' },

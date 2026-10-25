@@ -72,9 +72,9 @@ async function bootstrap() {
 
   // 6. Swagger OpenAPI Documentation
   const config = new DocumentBuilder()
-    .setTitle('SIAKAD Premium Enterprise API')
+    .setTitle('SIAKAD Enterprise API')
     .setDescription(
-      'Dokumentasi resmi REST API Sistem Informasi Akademik (SIAKAD Premium) Institut Teknologi Nusantara. Dilengkapi endpoint modul Auth, Mahasiswa, Dosen, Akademik, Fakultas, dan PMB.',
+      'Dokumentasi resmi REST API Sistem Informasi Akademik (SIAKAD) Institut Teknologi Nusantara. Dilengkapi endpoint modul Auth, Mahasiswa, Dosen, Akademik, Fakultas, dan PMB.',
     )
     .setVersion('1.0.0')
     .addBearerAuth(
@@ -100,7 +100,7 @@ async function bootstrap() {
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document, {
-    customSiteTitle: 'SIAKAD Premium API Documentation',
+    customSiteTitle: 'SIAKAD API Documentation',
     customCss: '.swagger-ui .topbar { background-color: #1E3A8A; }',
   });
 
@@ -108,7 +108,7 @@ async function bootstrap() {
   await app.listen(port);
 
   logger.log(`================================================================`);
-  logger.log(`🚀 SIAKAD Premium API berjalan pada: http://localhost:${port}/api/v1`);
+  logger.log(`🚀 SIAKAD API berjalan pada: http://localhost:${port}/api/v1`);
   logger.log(`📖 Dokumentasi Swagger OpenAPI:     http://localhost:${port}/api/docs`);
   logger.log(`================================================================`);
 }

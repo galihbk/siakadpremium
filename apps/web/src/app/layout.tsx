@@ -5,7 +5,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Institut Teknologi Nusantara (ITN) - Unggul, Berbudaya & Berdaya Saing Global',
   description: 'Situs Resmi Institut Teknologi Nusantara (ITN). Menyediakan informasi akademik, penerimaan mahasiswa baru (PMB 2027), fakultas terkemuka, riset inovasi, dan sistem informasi akademik SIAKAD.',
-  keywords: ['ITN', 'Institut Teknologi Nusantara', 'SIAKAD Premium', 'Universitas Terbaik Indonesia', 'PMB 2027', 'Kuliah Teknik', 'Kampus Unggul'],
+  keywords: ['ITN', 'Institut Teknologi Nusantara', 'SIAKAD', 'Universitas Terbaik Indonesia', 'PMB 2027', 'Kuliah Teknik', 'Kampus Unggul'],
 };
 
 export default function RootLayout({

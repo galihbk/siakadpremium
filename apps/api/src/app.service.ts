@@ -4,7 +4,7 @@ import { Injectable } from '@nestjs/common';
 export class AppService {
   getHello(): { message: string; timestamp: string } {
     return {
-      message: 'SIAKAD Premium API running with NestJS!',
+      message: 'SIAKAD API running with NestJS!',
       timestamp: new Date().toISOString(),
     };
   }

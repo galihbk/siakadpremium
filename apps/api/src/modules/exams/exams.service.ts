@@ -213,6 +213,26 @@ export class ExamsService {
 
     // Mahasiswa yang mengikuti dua kelas dengan ujian bersamaan.
     const warnings: string[] = [];
+
+    // Bentrok dengan jadwal kuliah mingguan (peringatan, karena selama pekan ujian kuliah biasanya diliburkan):
+    // ruang yang sama dipakai kelas reguler, atau pengawas sedang mengajar pada hari & jam itu.
+    const DAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const dayName = DAYS[args.examDate.getUTCDay()];
+    const regular = await this.prisma.courseClass.findMany({
+      where: {
+        academicYearId: args.academicYearId,
+        isFlexibleSchedule: false,
+        day: dayName,
+        OR: [...(args.roomId ? [{ roomId: args.roomId }] : []), ...(args.proctorIds.length ? [{ lecturerId: { in: args.proctorIds } }] : [])],
+      },
+      select: { roomId: true, lecturerId: true, startTime: true, endTime: true, className: true, course: { select: { code: true, name: true } }, lecturer: { select: { user: { select: { fullName: true } } } } },
+    });
+    for (const c of regular) {
+      if (!this.overlap(args.startTime, args.endTime, c.startTime, c.endTime)) continue;
+      const tag = `${c.course?.code ?? ''} ${c.course?.name ?? ''} (${c.className}, ${dayName} ${c.startTime}-${c.endTime})`;
+      if (args.roomId && c.roomId === args.roomId) warnings.push(`Ruang ini terjadwal untuk kuliah reguler ${tag}.`);
+      if (c.lecturerId && args.proctorIds.includes(c.lecturerId)) warnings.push(`${c.lecturer?.user.fullName ?? 'Pengawas'} mengajar ${tag} pada jam ini.`);
+    }
     if (clashing.length > 0) {
       const otherClassIds = Array.from(new Set(clashing.map((c) => c.courseClassId)));
       const shared = await this.prisma.courseEnrollment.groupBy({

@@ -76,6 +76,8 @@ model User {
   id             String   @id @default(uuid())
   email          String   @unique
   passwordHash   String
+  // true = masih memakai kata sandi awal (mis. tanggal lahir) dan wajib menggantinya saat login berikutnya
+  mustChangePassword Boolean @default(false)
   fullName       String
   role           Role     @default(STUDENT)
   avatarUrl      String?
@@ -91,6 +93,7 @@ model User {
   lecturer                     Lecturer?
   studyProgram                 StudyProgram?          @relation(fields: [studyProgramId], references: [id], onDelete: SetNull)
   shift                        Shift?                 @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  notifications                Notification[]
   updatedLandingPageSettings   LandingPageSetting[]
   landingPageArticles          LandingPageArticle[]
   editedLandingPageArticles    LandingPageArticle[]   @relation("ArticleEditor")
@@ -1417,9 +1420,14 @@ model Lp3mResearch {
   reviewerNote  String?  @db.Text
   documentUrl   String?
   submittedAt   String?
+  // Laporan yang diajukan dosen sendiri: pemilik, anggota, dan tahap kemajuan kegiatan (status di atas = verifikasi LP3M)
+  lecturerId    String?
+  members       String[] @default([])
+  progress      String   @default("Laporan Masuk") // Laporan Masuk | Sedang Berjalan | Laporan Kemajuan | Laporan Akhir | Selesai
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  @@index([lecturerId])
   @@map("lp3m_researches")
 }
 
@@ -2168,4 +2176,30 @@ model EnrollmentComponentScore {
   @@unique([enrollmentId, componentId])
   @@index([componentId])
   @@map("enrollment_component_scores")
+}
+
+/// Penghitung nomor urut surat per tahun (kenaikan atomik di database, aman untuk penerbitan bersamaan).
+model LetterCounter {
+  key       String   @id // mis. "2026"
+  value     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@map("letter_counters")
+}
+
+/// Notifikasi dalam aplikasi untuk satu pengguna (tampil di lonceng portal).
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  type      String // mis. THESIS, LETTER, KRS
+  title     String
+  body      String?   @db.Text
+  link      String? // alamat halaman terkait (relatif)
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+  @@map("notifications")
 }

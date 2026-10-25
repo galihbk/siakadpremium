@@ -184,6 +184,31 @@ export const MAHASISWA_DOCS: DocSection[] = [
     ],
   },
   {
+    id: 'capaian-obe',
+    group: 'Ujian & Hasil Studi',
+    title: 'Capaian OBE (CPL)',
+    summary: 'Sejauh mana kemampuan lulusan program studi sudah Anda capai.',
+    blocks: [
+      { t: 'p', text: 'Bila kampus Anda memakai OBE (Outcome-Based Education), menu Capaian OBE (CPL) muncul di portal. Menu ini menampilkan Capaian Pembelajaran Lulusan (CPL) yang ditetapkan program studi dan seberapa jauh Anda sudah mencapainya, dihitung dari nilai komponen (tugas, kuis, UTS, UAS, dan lainnya) mata kuliah Anda.' },
+      {
+        t: 'ul',
+        items: [
+          'Jaring laba-laba menggambarkan capaian setiap CPL. Area biru adalah capaian Anda, garis putus-putus adalah target. CPL yang berada di luar garis target sudah tercapai.',
+          'Tabel di sebelahnya menunjukkan angka tiap CPL, statusnya (Tercapai atau Belum tercapai), dan mata kuliah asal nilainya.',
+          'Rincian per mata kuliah dapat dibuka untuk melihat nilai komponen, lalu capaian Sub-CPMK, CPMK, dan CPL dari mata kuliah itu.',
+          'Kartu ringkasan jaring laba-laba juga tampil di Dashboard.',
+        ],
+      },
+      { t: 'p', text: 'Klik Cetak / Unduh PDF untuk mengunduh Laporan Capaian Pembelajaran Lulusan dengan kop surat kampus. Dokumen ini bukan pengganti transkrip atau SKPI resmi.' },
+      {
+        t: 'note',
+        kind: 'info',
+        title: 'Bila capaian belum tampil',
+        text: 'CPL yang belum memiliki nilai ditampilkan sebagai belum ada nilai, bukan 0. Capaian muncul setelah dosen mengisi nilai komponen pada mata kuliah yang memakai RPS OBE. Bila muncul keterangan data belum tersedia di OBE, data akademik Anda belum sampai ke OBE; hubungi Admin Prodi.',
+      },
+    ],
+  },
+  {
     id: 'skripsi',
     group: 'Tugas Akhir & Kelulusan',
     title: 'Tugas Akhir / Skripsi',

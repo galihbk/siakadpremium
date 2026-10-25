@@ -136,7 +136,7 @@ export class MailService {
 
   private async deliverNoticeEmail(job: EmailQueueJob & { notice?: NoticeEmail }): Promise<boolean> {
     const n = job.notice!;
-    const brand = n.brand || process.env.MAIL_FROM_NAME || 'SIAKAD Premium';
+    const brand = n.brand || process.env.MAIL_FROM_NAME || 'SIAKAD';
     const fromAddress = process.env.MAIL_FROM_ADDRESS || process.env.MAIL_USERNAME || '';
     const esc = (v: string) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
     const rows = (n.details ?? [])
@@ -179,13 +179,13 @@ ${n.cta ? `<p style="text-align:center;margin:28px 0"><a href="${esc(n.cta.url)}
   }
 
   private async deliverPortalResetEmail(job: EmailQueueJob & { campusName?: string }): Promise<boolean> {
-    const brand = job.campusName || process.env.MAIL_FROM_NAME || 'SIAKAD Premium';
+    const brand = job.campusName || process.env.MAIL_FROM_NAME || 'SIAKAD';
     const fromAddress = process.env.MAIL_FROM_ADDRESS || process.env.MAIL_USERNAME || '';
     const esc = (v: string) => v.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
     const html = `<!DOCTYPE html><html lang="id"><body style="font-family:Arial,Helvetica,sans-serif;background:#f1f5f9;margin:0;padding:24px;color:#1e293b">
 <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:14px;padding:32px;border:1px solid #e2e8f0">
 <h2 style="margin:0 0 4px;color:#1E3A8A">${esc(brand)}</h2>
-<p style="margin:0 0 20px;color:#64748b;font-size:13px">Portal SIAKAD Premium</p>
+<p style="margin:0 0 20px;color:#64748b;font-size:13px">Portal SIAKAD</p>
 <p>Halo <strong>${esc(job.fullName)}</strong>,</p>
 <p>Kami menerima permintaan untuk mengatur ulang kata sandi akun portal Anda. Klik tombol di bawah untuk membuat kata sandi baru. Tautan berlaku <strong>1 jam</strong> dan hanya bisa dipakai sekali.</p>
 <p style="text-align:center;margin:28px 0"><a href="${job.resetUrl}" style="background:#1E3A8A;color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:bold;display:inline-block">Atur Ulang Kata Sandi</a></p>

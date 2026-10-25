@@ -52,16 +52,18 @@ export interface P3mReportItem {
   submittedAt: string;
   verifiedAt: string | null;
   reviewerNote?: string;
+  /** Status verifikasi oleh LP3M: Menunggu Verifikasi | Terverifikasi | Perlu Perbaikan */
+  verification?: string;
 }
 
 export default function LecturerP3mPage() {
   const [reports, setReports] = useState<P3mReportItem[]>([]);
   const [summary, setSummary] = useState({
-    totalKegiatan: 5,
-    totalPenelitian: 3,
-    totalPengabdian: 2,
-    totalDana: 133000000,
-    aktifBerjalan: 2,
+    totalKegiatan: 0,
+    totalPenelitian: 0,
+    totalPengabdian: 0,
+    totalDana: 0,
+    aktifBerjalan: 0,
   });
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'Semua' | 'Penelitian' | 'Pengabdian'>('Semua');
@@ -87,7 +89,7 @@ export default function LecturerP3mPage() {
     status: 'Laporan Masuk' as P3mReportItem['status'],
     fundingAmount: '' as unknown as number,
     fundingSource: 'DIPA Internal',
-    leader: 'Dr. Bayu Wicaksono, M.Kom.',
+    leader: '',
     membersText: '',
     targetOutput: '',
     documentUrl: '',
@@ -285,7 +287,7 @@ export default function LecturerP3mPage() {
       status: 'Laporan Masuk',
       fundingAmount: '' as unknown as number,
       fundingSource: 'DIPA Internal',
-      leader: currentUser?.fullName || 'Dr. Bayu Wicaksono, M.Kom.',
+      leader: currentUser?.fullName || '',
       membersText: '',
       targetOutput: '',
       documentUrl: '',
@@ -296,7 +298,7 @@ export default function LecturerP3mPage() {
   return (
     <PortalLayout
       role="lecturer"
-      userName={currentUser?.fullName || 'Dr. Bayu Wicaksono, M.Kom.'}
+      userName={currentUser?.fullName || 'Dosen'}
       userIdText="NIDN: 0412088501 • Dosen Tetap Informatika"
     >
       <div className="space-y-6">
@@ -673,6 +675,15 @@ export default function LecturerP3mPage() {
                           )}
                           <span>{item.status}</span>
                         </span>
+                        {item.verification && (
+                          <p
+                            className={`mt-1 text-[10px] font-semibold ${
+                              item.verification === 'Terverifikasi' ? 'text-emerald-700' : item.verification === 'Perlu Perbaikan' ? 'text-rose-600' : 'text-slate-500'
+                            }`}
+                          >
+                            {item.verification === 'Terverifikasi' ? 'Terverifikasi LP3M' : item.verification === 'Perlu Perbaikan' ? 'Perlu perbaikan (lihat catatan)' : 'Menunggu verifikasi LP3M'}
+                          </p>
+                        )}
                       </td>
 
                       {/* Action Buttons */}

@@ -3,7 +3,7 @@ import type { DocSection } from './types';
 export const DOCS_VERSION = 'Oktober 2026';
 
 /**
- * Dokumentasi SIAKAD Premium untuk Super Admin.
+ * Dokumentasi SIAKAD untuk Super Admin.
  * Ditulis sebagai data agar mudah dirawat bersama kode; ubah di sini lalu deploy.
  */
 export const SUPERADMIN_DOCS: DocSection[] = [
@@ -14,11 +14,11 @@ export const SUPERADMIN_DOCS: DocSection[] = [
     id: 'pengantar',
     group: 'Mulai',
     title: 'Pengantar',
-    summary: 'Apa itu SIAKAD Premium, siapa penggunanya, dan bagaimana dokumentasi ini disusun.',
+    summary: 'Apa itu SIAKAD, siapa penggunanya, dan bagaimana dokumentasi ini disusun.',
     blocks: [
       {
         t: 'p',
-        text: 'SIAKAD Premium adalah sistem informasi akademik terpadu untuk perguruan tinggi: dari penerimaan mahasiswa baru (PMB), perkuliahan, penilaian, tugas akhir, yudisium, keuangan, kepegawaian, penelitian, hingga penjaminan mutu, lengkap dengan integrasi ke PDDIKTI (Neo Feeder).',
+        text: 'SIAKAD adalah sistem informasi akademik terpadu untuk perguruan tinggi: dari penerimaan mahasiswa baru (PMB), perkuliahan, penilaian, tugas akhir, yudisium, keuangan, kepegawaian, penelitian, hingga penjaminan mutu, lengkap dengan integrasi ke PDDIKTI (Neo Feeder).',
       },
       {
         t: 'p',
@@ -927,6 +927,43 @@ export const SUPERADMIN_DOCS: DocSection[] = [
         title: 'Cakupan penerapan',
         text: 'Aturan dipakai pada pratinjau surat mahasiswa (penandatangan 1 dan 2) dan pada blok tanda tangan KHS yang ikut tercetak. KRS belum memiliki tampilan cetak sehingga aturannya belum dipakai. Mengelola aturan (tambah/ubah/hapus) hanya untuk Super Admin.',
       },
+    ],
+  },
+  {
+    id: 'integrasi-obe',
+    group: 'Operasional',
+    title: 'Integrasi OBE',
+    summary: 'Menghubungkan SIAKAD dengan OBE dan menampilkan capaian CPL di portal mahasiswa.',
+    blocks: [
+      { t: 'p', text: 'OBE (Outcome-Based Education) dijual terpisah dan dapat berdiri sendiri. Bila kampus memakai SIAKAD NEXTVERSA dan OBE, OBE membaca data akademik langsung dari database SIAKAD melalui view baca-saja, tanpa tarik data manual, dan SIAKAD tidak berubah alurnya. Halaman Integrasi OBE di menu Pengaturan Sistem menunjukkan statusnya.' },
+      {
+        t: 'table',
+        head: ['Status', 'Arti'],
+        rows: [
+          ['Belum terintegrasi', 'Kampus belum memakai OBE. SIAKAD berjalan seperti biasa.'],
+          ['Siap diintegrasikan', 'Data untuk OBE sudah disediakan; menunggu OBE dipasang dan terhubung.'],
+          ['Terintegrasi', 'Akun database OBE aktif dan OBE terlihat membaca atau menyala.'],
+        ],
+      },
+      { t: 'h3', text: 'Yang disiapkan SIAKAD' },
+      {
+        t: 'ul',
+        items: [
+          'Skema obe_api di database SIAKAD berisi view baca-saja (mahasiswa, dosen, mata kuliah, kurikulum, periode, kelas, KRS, komponen nilai, nilai, dan akun). Dipasang otomatis setiap API menyala.',
+          'Akun database obe_reader yang hanya boleh membaca view itu, tanpa hak login sampai OBE dipasang. Mengaktifkannya: ALTER ROLE obe_reader LOGIN PASSWORD (kata sandi kuat).',
+          'Database kosong bernama obe di server yang sama untuk OBE (nama dapat diubah lewat OBE_DATABASE_NAME).',
+          'Bila logo kampus ingin tampil di OBE, isi SIAKAD_PUBLIC_URL (alamat publik SIAKAD) agar alamat logo menjadi lengkap.',
+        ],
+      },
+      { t: 'h3', text: 'Capaian OBE di portal mahasiswa' },
+      { t: 'p', text: 'Isi OBE_API_URL (alamat API OBE) dan OBE_PORTAL_API_KEY (kunci yang sama dengan di server OBE) pada server SIAKAD, lalu mulai ulang. Menu Capaian OBE (CPL), kartu di dashboard, dan tombol cetak PDF muncul di portal mahasiswa. Tanpa kedua variabel itu portal tidak menampilkan apa pun tentang OBE. SIAKAD memanggil OBE dari servernya; kunci tidak sampai ke browser, dan setiap mahasiswa hanya dapat melihat miliknya sendiri.' },
+      {
+        t: 'note',
+        kind: 'info',
+        title: 'Login dan tanda tangan',
+        text: 'Pengguna SIAKAD dapat masuk ke OBE dengan email, NIDN, atau NUPTK dan kata sandi SIAKAD. Penandatangan laporan capaian diatur di Aturan Tanda Tangan (jenis dokumen Laporan Capaian OBE).',
+      },
+      { t: 'p', text: 'Dokumentasi teknis lengkap (kolom view, endpoint, dan contoh jawaban) ada di docs/integrasi-obe.md pada repositori SIAKAD.' },
     ],
   },
   {
