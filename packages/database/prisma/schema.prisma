@@ -335,6 +335,7 @@ model StudyProgram {
 }
 
 model Lecturer {
+  fieldGroups FieldGroup[]
   id                String  @id @default(uuid())
   userId            String  @unique
   studyProgramId    String
@@ -426,6 +427,11 @@ model Lecturer {
 }
 
 model Student {
+  reliefRequests PaymentReliefRequest[]
+  fieldCharges FieldCharge[]
+  fieldEvents FieldEvent[]
+  fieldRegistrations FieldRegistration[]
+  fieldGroupMemberships FieldGroupMember[]
   id                   String        @id @default(uuid())
   // Perguruan tinggi asal -- diisi bila jenis mahasiswa bukan mahasiswa baru (pindahan/RPL); dikirim ke Feeder
   originInstitution  String?
@@ -523,6 +529,9 @@ model Student {
 }
 
 model AcademicYear {
+  fieldPeriods FieldPeriod[]
+  fieldRegistrations FieldRegistration[]
+  fieldGroups FieldGroup[]
   id                  String       @id @default(uuid())
   code                String       @unique // e.g. "20261" for 2026/2027 Gasal
   name                String // e.g. "2026/2027"
@@ -561,6 +570,9 @@ model AcademicYear {
 }
 
 model Course {
+  fieldCharges FieldCharge[]
+  fieldEvents FieldEvent[]
+  fieldRegistrations FieldRegistration[]
   id                        String    @id @default(uuid())
   // id_matkul dari Neo Feeder -- kunci paling stabil untuk mencocokkan ulang data saat
   // re-sync, sama seperti feederId di Lecturer/Student.
@@ -1533,6 +1545,8 @@ enum PaymentStatus {
 }
 
 model PaymentInvoice {
+  reliefRequests PaymentReliefRequest[]
+  fieldCharge FieldCharge?
   id             String        @id @default(uuid())
   invoiceNo      String        @unique
   nim            String
@@ -1809,6 +1823,39 @@ model ThesisGuidance {
 }
 
 /// Pengaturan bimbingan tugas akhir per kampus (satu baris): minimal bimbingan sebelum ACC dan daftar bab.
+// Master jenis tugas akhir & kegiatan lapangan (Skripsi/TA, KKN, PLP, Kerja Praktik, Magang, dst.).
+// Mata kuliah memilih jenis lewat Course.finalProjectLabel (= nama jenis); aturan jenis diatur sekali di sini.
+model CourseCategory {
+  feeComponent FeeComponent? @relation(fields: [feeComponentId], references: [id], onDelete: SetNull)
+  fieldCharges FieldCharge[]
+  fieldPartners FieldPartner[]
+  fieldPeriods FieldPeriod[]
+  fieldRegistrations FieldRegistration[]
+  fieldGroups FieldGroup[]
+  id                   String   @id @default(uuid())
+  name                 String   @unique
+  kind                 String   @default("LAPANGAN") // TUGAS_AKHIR | LAPANGAN
+  isSystem             Boolean  @default(false) // dipakai sistem Tugas Akhir: nama tidak boleh diubah/dihapus
+  needsSupervision     Boolean  @default(true) // false: hanya penanda nilai (mis. Seminar Proposal), tidak masuk daftar bimbingan
+  requiresRegistration Boolean  @default(false) // true: mahasiswa wajib mendaftar sebelum pembimbing ditetapkan
+  hasPartners          Boolean  @default(false) // true: kampus menyediakan daftar mitra (hanya bermakna bila wajib mendaftar)
+  allowOwnPartner      Boolean  @default(true) // bila punya mitra: mahasiswa boleh mengisi mitra lain di luar daftar
+  feeComponentId       String? // komponen biaya (master Keuangan) yang dipungut untuk kegiatan ini; kosong = tanpa biaya khusus
+  feeAmount            Float    @default(0) // salinan tarif komponen (disinkronkan saat komponen diubah di Keuangan); > 0 = mahasiswa harus lunas dulu
+  feeLabel             String? // salinan nama komponen (nama pada tagihan)
+  isGroup              Boolean  @default(false)
+  minMembers           Int      @default(1)
+  maxMembers           Int      @default(1)
+  minLogbook           Int      @default(0)
+  sortOrder            Int      @default(0)
+  isActive             Boolean  @default(true)
+  description          String?  @db.Text
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("course_categories")
+}
+
 model ThesisSetting {
   id                  String   @id @default("default")
   minGuidanceProposal Int      @default(1)
@@ -1927,6 +1974,7 @@ model FinanceBudgetItem {
 // ==============================================================================
 
 model FeeComponent {
+  fieldCategories CourseCategory[]
   id            String   @id @default(uuid())
   code          String   @unique // e.g. "SPP", "SKS", "PRAKTIKUM", "UJIAN", "REGISTRASI", "WISUDA"
   name          String // e.g. "SPP / Uang Kuliah Tunggal", "Biaya SKS Perkuliahan"
@@ -2202,4 +2250,175 @@ model Notification {
 
   @@index([userId, readAt, createdAt])
   @@map("notifications")
+}
+
+// ---- Kegiatan Lapangan (PLP, KKN, Kerja Praktik, Magang): periode, pendaftaran individu, kelompok bentukan akademik ----
+model FieldPeriod {
+  id             String   @id @default(uuid())
+  categoryId     String
+  academicYearId String
+  openAt         DateTime
+  closeAt        DateTime
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  category     CourseCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear   @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, academicYearId])
+  @@map("field_periods")
+}
+
+model FieldRegistration {
+  id                  String    @id @default(uuid())
+  studentId           String
+  courseId            String
+  categoryId          String
+  academicYearId      String
+  status              String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  partnerId           String? // terisi bila mahasiswa memilih dari daftar mitra; kosong bila diisi sendiri
+  placeName           String
+  placeAddress        String?   @db.Text
+  fieldSupervisorName String?
+  plan                String?   @db.Text
+  adminNote           String?   @db.Text
+  submittedAt         DateTime  @default(now())
+  reviewedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  student      Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course       Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  category     CourseCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear   @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  partner      FieldPartner?  @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+
+  @@unique([studentId, courseId, academicYearId])
+  @@index([categoryId, academicYearId, status])
+  @@map("field_registrations")
+}
+
+model FieldGroup {
+  id             String   @id @default(uuid())
+  categoryId     String
+  academicYearId String
+  name           String
+  supervisorId   String? // satu pembimbing untuk satu kelompok
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  category     CourseCategory     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear       @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  supervisor   Lecturer?          @relation(fields: [supervisorId], references: [id], onDelete: SetNull)
+  members      FieldGroupMember[]
+
+  @@unique([categoryId, academicYearId, name])
+  @@map("field_groups")
+}
+
+model FieldGroupMember {
+  id             String   @id @default(uuid())
+  groupId        String
+  studentId      String
+  categoryId     String // disalin dari kelompok agar satu mahasiswa hanya di satu kelompok per jenis per tahun
+  academicYearId String
+  createdAt      DateTime @default(now())
+
+  group   FieldGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  student Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, categoryId, academicYearId])
+  @@map("field_group_members")
+}
+
+// Mitra tempat kegiatan lapangan (dikelola BAAK per jenis); dipakai jenis yang "punya mitra"
+model FieldPartner {
+  id           String   @id @default(uuid())
+  categoryId   String
+  name         String
+  address      String?  @db.Text
+  contactName  String?
+  contactPhone String?
+  notes        String?  @db.Text
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  category      CourseCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  registrations FieldRegistration[]
+
+  @@unique([categoryId, name])
+  @@map("field_partners")
+}
+
+// Riwayat kegiatan lapangan per mahasiswa & mata kuliah (mendaftar, ditolak, disetujui, pembimbing, kelompok, dst.)
+model FieldEvent {
+  id             String   @id @default(uuid())
+  studentId      String
+  courseId       String
+  academicYearId String
+  categoryId     String
+  type           String // REGISTRATION_SUBMITTED | REGISTRATION_RESUBMITTED | REGISTRATION_APPROVED | REGISTRATION_REJECTED | SUPERVISOR_ASSIGNED | SUPERVISOR_RELEASED | GROUP_JOINED | GROUP_LEFT
+  title          String
+  detail         String?  @db.Text
+  createdAt      DateTime @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course  Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, courseId, academicYearId, createdAt])
+  @@map("field_events")
+}
+
+// Tagihan biaya khusus kegiatan lapangan per mahasiswa & mata kuliah; pembayarannya lewat modul Keuangan (PaymentInvoice)
+model FieldCharge {
+  id             String   @id @default(uuid())
+  studentId      String
+  courseId       String
+  categoryId     String
+  academicYearId String
+  invoiceId      String   @unique
+  label          String
+  amount         Float
+  createdAt      DateTime @default(now())
+
+  student  Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course   Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  category CourseCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  invoice  PaymentInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, courseId, academicYearId])
+  @@index([categoryId, academicYearId])
+  @@map("field_charges")
+}
+
+// Pengajuan keringanan pembayaran oleh mahasiswa atas satu tagihan; diputuskan Keuangan
+model PaymentReliefRequest {
+  id                     String    @id @default(uuid())
+  invoiceId              String
+  studentId              String
+  type                   String // POTONGAN | PEMBEBASAN | PENUNDAAN
+  reason                 String    @db.Text
+  requestedAmount        Float? // nominal potongan yang diminta (POTONGAN)
+  requestedDueDate       DateTime? // jatuh tempo baru yang diminta (PENUNDAAN)
+  attachmentUrl          String?   @db.Text
+  invoiceAmountAtRequest Float
+  invoiceDueDateAtRequest String?
+  status                 String    @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
+  approvedAmount         Float?
+  approvedDueDate        DateTime?
+  financeNote            String?   @db.Text
+  decidedAt              DateTime?
+  decidedByName          String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  invoice PaymentInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  student Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([invoiceId])
+  @@map("payment_relief_requests")
 }

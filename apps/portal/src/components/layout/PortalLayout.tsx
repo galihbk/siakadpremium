@@ -15,7 +15,7 @@ import {
 } from '@/lib/auth';
 import { getApiBaseUrl } from '@/lib/api';
 import { useUnreadUpdates } from '@/lib/updates/useUnreadUpdates';
-import { DOCS_ENABLED, isDocsPath } from '@/lib/features';
+import { DOCS_ENABLED, MOBILE_SUBSCRIPTION_ENABLED, isDocsPath, isMobileSubscriptionPath } from '@/lib/features';
 import { getInstitutionProfile, FALLBACK_INSTITUTION_PROFILE, type InstitutionProfile } from '@/lib/institution';
 import {
   GraduationCap,
@@ -83,6 +83,7 @@ import {
   RefreshCw,
   Network,
   Target,
+  Smartphone,
 } from 'lucide-react';
 
 interface PortalLayoutProps {
@@ -102,6 +103,10 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
   const [letterPending, setLetterPending] = useState(0);
   // Lencana Tugas Akhir/Skripsi (BAAK): proposal baru & pendaftar seminar/ujian yang menunggu tindakan
   const [thesisPending, setThesisPending] = useState(0);
+  // Lencana Kegiatan Lapangan (BAAK): pendaftaran PLP/KKN/KP/Magang yang menunggu persetujuan
+  const [fieldPending, setFieldPending] = useState(0);
+  // Lencana Keringanan Pembayaran (Keuangan): pengajuan mahasiswa yang menunggu keputusan
+  const [reliefPending, setReliefPending] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   // Menu Capaian OBE hanya tampil bila kampus ini memakai OBE (API OBE dikonfigurasi di server).
   const [obeEnabled, setObeEnabled] = useState(false);
@@ -163,6 +168,13 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         if (typeof d?.pending === 'number') setThesisPending(d.pending);
       })
       .catch(() => undefined);
+    fetch(`${getApiBaseUrl()}/field-activities/admin/pending-count`, { cache: 'no-store', headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const d = j?.data ?? j;
+        if (typeof d?.pending === 'number') setFieldPending(d.pending);
+      })
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -178,6 +190,31 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       window.removeEventListener('siakad:thesis-updated', loadThesisPending);
     };
   }, [effectiveRole, pathname, loadThesisPending]);
+
+  const loadReliefPending = useCallback(() => {
+    const { token } = getAuthSession();
+    fetch(`${getApiBaseUrl()}/finance/relief-requests/pending-count`, { cache: 'no-store', headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const d = j?.data ?? j;
+        if (typeof d?.pending === 'number') setReliefPending(d.pending);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (effectiveRole !== 'finance') return;
+    loadReliefPending();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') loadReliefPending();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('siakad:relief-updated', loadReliefPending);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('siakad:relief-updated', loadReliefPending);
+    };
+  }, [effectiveRole, pathname, loadReliefPending]);
 
   useEffect(() => {
     if (effectiveRole !== 'admin') return;
@@ -508,6 +545,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       title: 'TUGAS AKHIR & KELULUSAN',
       items: [
         { name: 'Tugas Akhir / Skripsi', href: '/student/skripsi', icon: GraduationCap },
+        { name: 'Kegiatan Lapangan', href: '/student/kegiatan-lapangan', icon: Briefcase },
         { name: 'Yudisium & Kelulusan', href: '/student/yudisium', icon: Award },
       ],
     },
@@ -600,8 +638,8 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       items: [
         { name: 'KRS', href: '/admin/krs', icon: FileText },
         { name: 'Tugas Akhir / Skripsi', href: '/admin/skripsi', icon: GraduationCap },
+        { name: 'Kegiatan Lapangan', href: '/admin/kegiatan-lapangan', icon: Briefcase },
         { name: 'Yudisium & Kelulusan', href: '/admin/yudisium', icon: Award },
-        { name: 'Bimbingan Tugas Akhir', href: '/admin/bimbingan-ta', icon: GraduationCap },
         { name: 'Presensi', href: '/admin/presensi', icon: UserCheck },
         { name: 'Nilai', href: '/admin/nilai', icon: Award },
         { name: 'Skala Nilai', href: '/admin/skala-nilai', icon: Award },
@@ -626,6 +664,10 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
     {
       title: 'BANTUAN',
       items: [{ name: 'Panduan Penggunaan', href: '/admin/dokumentasi', icon: BookOpen }],
+    },
+    {
+      title: 'PENGATURAN',
+      items: [{ name: 'Pengaturan', href: '/admin/pengaturan', icon: Settings }],
     },
   ];
 
@@ -663,6 +705,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         { name: 'Pengaturan Bank', href: '/admin/superadmin/pengaturan-bank', icon: Landmark },
         { name: 'Pengaturan DIKTI', href: '/admin/superadmin/pengaturan-dikti', icon: ShieldCheck },
         { name: 'Integrasi OBE', href: '/admin/superadmin/integrasi-obe', icon: Network },
+        { name: 'Langganan Mobile App', href: '/admin/superadmin/langganan-mobile', icon: Smartphone },
         { name: 'Aturan Tanda Tangan', href: '/admin/superadmin/tanda-tangan', icon: PenTool },
         { name: 'Pengaturan Sistem', href: '/admin/superadmin/pengaturan', icon: Settings },
       ],
@@ -690,6 +733,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
         { name: 'Penerimaan SPP & UKT', href: '/finance/penerimaan', icon: CreditCard },
         { name: 'Daftar Tagihan Mahasiswa', href: '/finance/tagihan', icon: FileText },
         { name: 'Verifikasi Pembayaran', href: '/finance/verifikasi', icon: ShieldCheck },
+        { name: 'Keringanan Pembayaran', href: '/finance/keringanan', icon: Wallet },
         { name: 'Riwayat Pembayaran', href: '/finance/riwayat', icon: Clock },
         { name: 'Aturan Biaya Perkuliahan', href: '/finance/aturan-pembiayaan', icon: BookOpen },
       ],
@@ -933,12 +977,19 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                       ? pmbNavGroups
                       : adminNavGroups;
 
-  // Menu dokumentasi disembunyikan selama DOCS_ENABLED=false (mode demo); grup yang jadi kosong ikut dibuang.
-  const navGroups = DOCS_ENABLED
-    ? allNavGroups
-    : allNavGroups
-        .map((g) => ({ ...g, items: g.items.filter((i) => !isDocsPath(i.href)) }))
-        .filter((g) => g.items.length > 0);
+  // Menu dokumentasi disembunyikan selama DOCS_ENABLED=false (mode demo), dan menu Langganan Mobile App selama
+  // MOBILE_SUBSCRIPTION_ENABLED=false (menu sementara); grup yang jadi kosong ikut dibuang.
+  const navGroups =
+    DOCS_ENABLED && MOBILE_SUBSCRIPTION_ENABLED
+      ? allNavGroups
+      : allNavGroups
+          .map((g) => ({
+            ...g,
+            items: g.items.filter(
+              (i) => (DOCS_ENABLED || !isDocsPath(i.href)) && (MOBILE_SUBSCRIPTION_ENABLED || !isMobileSubscriptionPath(i.href)),
+            ),
+          }))
+          .filter((g) => g.items.length > 0);
 
   const roleLabel =
     effectiveRole === 'student'
@@ -1146,6 +1197,16 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
                       {item.href === '/admin/skripsi' && thesisPending > 0 && (
                         <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-[#D4A017] text-slate-950 text-[10px] font-extrabold flex items-center justify-center">
                           {thesisPending}
+                        </span>
+                      )}
+                      {item.href === '/admin/kegiatan-lapangan' && fieldPending > 0 && (
+                        <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-[#D4A017] text-slate-950 text-[10px] font-extrabold flex items-center justify-center">
+                          {fieldPending}
+                        </span>
+                      )}
+                      {item.href === '/finance/keringanan' && reliefPending > 0 && (
+                        <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-[#D4A017] text-slate-950 text-[10px] font-extrabold flex items-center justify-center">
+                          {reliefPending}
                         </span>
                       )}
                       {item.href === '/admin/surat' && letterPending > 0 && (

@@ -64,10 +64,13 @@ export class FeeRulesService {
     if (data.description !== undefined) updateData.description = data.description;
     if (data.isActive !== undefined) updateData.isActive = Boolean(data.isActive);
 
-    return this.prisma.feeComponent.update({
+    const updated = await this.prisma.feeComponent.update({
       where: { id },
       data: updateData,
     });
+    // Jenis kegiatan lapangan yang memungut komponen ini ikut tarif & nama terbaru (tagihan yang sudah terbit tidak berubah)
+    await this.prisma.courseCategory.updateMany({ where: { feeComponentId: id }, data: { feeAmount: updated.defaultAmount, feeLabel: updated.name } });
+    return updated;
   }
 
   async deleteComponent(id: string) {
@@ -85,6 +88,8 @@ export class FeeRulesService {
       });
     }
 
+    // Komponen dihapus: jenis kegiatan yang memakainya kembali tanpa biaya
+    await this.prisma.courseCategory.updateMany({ where: { feeComponentId: id }, data: { feeComponentId: null, feeAmount: 0, feeLabel: null } });
     return this.prisma.feeComponent.delete({ where: { id } });
   }
 
@@ -650,7 +655,8 @@ export class FeeRulesService {
     // - sudah LUNAS -> jangan diubah, kembalikan apa adanya.
     // - masih TERTUNDA -> update nominalnya mengikuti pilihan SKS terbaru (lanjut ke bawah).
     const existingInvoice = await this.prisma.paymentInvoice.findFirst({
-      where: { nim: student.nim, semester: Number(params.semester), academicYear },
+      // Tagihan biaya khusus kegiatan lapangan (FieldCharge) bukan tagihan UKT: jangan ikut dicocokkan/ditimpa
+      where: { nim: student.nim, semester: Number(params.semester), academicYear, fieldCharge: { is: null } },
       include: { items: true },
     });
     if (existingInvoice && existingInvoice.status !== 'TERTUNDA') {
@@ -697,6 +703,17 @@ export class FeeRulesService {
       academicYear,
       notes: `Diterbitkan berdasarkan ${calculation.ruleName}`,
     };
+
+    // Keringanan yang sudah disetujui (potongan/penundaan) tetap berlaku saat tagihan dihitung ulang mengikuti pilihan SKS terbaru
+    if (existingInvoice) {
+      const reliefs = await this.prisma.paymentReliefRequest.findMany({ where: { invoiceId: existingInvoice.id, status: 'APPROVED' } });
+      const potongan = reliefs.filter((r) => r.type !== 'PENUNDAAN').reduce((n, r) => n + (r.approvedAmount ?? 0), 0);
+      if (potongan > 0) {
+        invoiceData.amount = Math.max(0, invoiceData.amount - potongan);
+        invoiceData.totalDiscount = (invoiceData.totalDiscount ?? 0) + potongan;
+      }
+      if (reliefs.some((r) => r.type === 'PENUNDAAN') && existingInvoice.dueDate) invoiceData.dueDate = existingInvoice.dueDate;
+    }
 
     return this.prisma.$transaction(async (tx) => {
       let invoiceId: string;

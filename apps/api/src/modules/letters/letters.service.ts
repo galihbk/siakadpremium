@@ -86,7 +86,7 @@ export class LettersService {
     if (!activeYear) return { eligible: false, reason: 'Tidak ada tahun akademik aktif untuk verifikasi UKT.' };
 
     const paidInvoice = await this.prisma.paymentInvoice.findFirst({
-      where: { nim, academicYear: activeYear.name, status: 'LUNAS' },
+      where: { nim, academicYear: activeYear.name, status: 'LUNAS', fieldCharge: { is: null } }, // biaya khusus kegiatan lapangan bukan UKT
     });
     if (!paidInvoice) {
       return { eligible: false, reason: `Belum ditemukan tagihan UKT LUNAS untuk tahun akademik ${activeYear.name}.` };

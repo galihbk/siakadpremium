@@ -378,7 +378,7 @@ export const SUPERADMIN_DOCS: DocSection[] = [
           ['Data Induk', 'Data Mahasiswa dan Data Dosen: CRUD, filter, ekspor Excel/PDF. Status kepegawaian dosen hanya dilihat.'],
           ['Kurikulum', 'Kurikulum & Mata Kuliah (termasuk kategori Tugas Akhir/Lapangan) dan Master Kurikulum.'],
           ['Penjadwalan', 'Tahun Akademik (semester aktif, jendela KRS dan nilai), Gedung, Ruang, Jadwal Kelas, Jadwal Ujian UTS/UAS.'],
-          ['Perkuliahan', 'KRS, Tugas Akhir/Skripsi, Yudisium & Kelulusan, Bimbingan Tugas Akhir, Presensi, Nilai, Skala Nilai, Komponen Penilaian (daftar komponen; bobot diisi dosen di Kontrak Kuliah).'],
+          ['Perkuliahan', 'KRS, Tugas Akhir/Skripsi, Kegiatan Lapangan, Yudisium & Kelulusan, Presensi, Nilai, Skala Nilai, Komponen Penilaian (daftar komponen; bobot diisi dosen di Kontrak Kuliah).'],
           ['Layanan Mahasiswa', 'Layanan Surat: terbitkan surat setelah disetujui dosen PA, nomor surat otomatis.'],
           ['Publikasi', 'Berita & Pengumuman dengan editor teks kaya dan unggah gambar.'],
           ['Pelaporan & Integrasi', 'Pelaporan PDDIKTI dan Sinkronisasi Feeder.'],

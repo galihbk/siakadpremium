@@ -23,6 +23,18 @@ import {
 import { getAuthSession } from '@/lib/auth';
 import { getApiBaseUrl } from '@/lib/api';
 import { CompressedFileUpload } from '@/components/common/CompressedFileUpload';
+import { FileUploadField } from '@/components/ui/FileUploadField';
+import {
+  RELIEF_STATUS_LABEL,
+  RELIEF_TYPE_LABEL,
+  ReliefRequest,
+  ReliefType,
+  formatDay as formatDayRelief,
+  formatRp as formatRpRelief,
+  reliefFetch,
+  reliefStatusTone,
+} from '@/lib/relief';
+import { HandCoins } from 'lucide-react';
 
 interface Tagihan {
   id: string;
@@ -65,6 +77,65 @@ export default function StudentKeuanganPage() {
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [paying, setPaying] = useState(false);
+
+  // ---- keringanan pembayaran
+  const [reliefs, setReliefs] = useState<ReliefRequest[]>([]);
+  const [reliefFor, setReliefFor] = useState<Tagihan | null>(null);
+  const [reliefForm, setReliefForm] = useState({ type: 'POTONGAN' as ReliefType, amount: '', dueDate: '', reason: '', attachmentUrl: '' });
+  const [reliefBusy, setReliefBusy] = useState(false);
+  const [reliefError, setReliefError] = useState<string | null>(null);
+
+  const loadReliefs = async () => {
+    try {
+      const r = await reliefFetch<{ items: ReliefRequest[] }>('/me');
+      setReliefs(r.items);
+    } catch {
+      /* daftar pengajuan tidak wajib; halaman tagihan tetap berfungsi */
+    }
+  };
+  const pendingReliefOf = (invoiceId: string) => reliefs.find((r) => r.status === 'PENDING' && r.invoice?.id === invoiceId);
+
+  const openRelief = (t: Tagihan) => {
+    setReliefFor(t);
+    setReliefError(null);
+    setReliefForm({ type: 'POTONGAN', amount: '', dueDate: '', reason: '', attachmentUrl: '' });
+  };
+
+  const submitRelief = async () => {
+    if (!reliefFor) return;
+    setReliefBusy(true);
+    setReliefError(null);
+    try {
+      const r = await reliefFetch<{ message: string }>('', {
+        method: 'POST',
+        body: {
+          invoiceId: reliefFor.id,
+          type: reliefForm.type,
+          reason: reliefForm.reason,
+          requestedAmount: reliefForm.type === 'POTONGAN' ? Number(reliefForm.amount) || null : null,
+          requestedDueDate: reliefForm.type === 'PENUNDAAN' ? reliefForm.dueDate || null : null,
+          attachmentUrl: reliefForm.attachmentUrl || null,
+        },
+      });
+      showToast(r.message);
+      setReliefFor(null);
+      await loadReliefs();
+    } catch (err) {
+      setReliefError(err instanceof Error ? err.message : 'Gagal mengajukan keringanan.');
+    } finally {
+      setReliefBusy(false);
+    }
+  };
+
+  const cancelRelief = async (id: string) => {
+    try {
+      const r = await reliefFetch<{ message: string }>(`/${id}/cancel`, { method: 'POST' });
+      showToast(r.message);
+      await loadReliefs();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Gagal membatalkan pengajuan.');
+    }
+  };
 
   const fetchInvoices = async () => {
     setLoading(true);
@@ -113,6 +184,7 @@ export default function StudentKeuanganPage() {
       setUserId(user.email);
     }
     fetchInvoices();
+    loadReliefs();
   }, []);
 
   const showToast = (msg: string) => {
@@ -301,12 +373,23 @@ export default function StudentKeuanganPage() {
                       </td>
                       <td className="px-4 py-3">
                         {t.status !== 'LUNAS' ? (
-                          <button
-                            onClick={() => handlePay(t)}
-                            className="px-3 py-1.5 bg-[#1E3A8A] text-white rounded-lg font-semibold hover:bg-[#1e40af] transition-colors"
-                          >
-                            Bayar Sekarang
-                          </button>
+                          <div className="flex flex-col items-start gap-1.5">
+                            {pendingReliefOf(t.id) ? (
+                              <span className="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-700 text-[11px] font-bold">Keringanan diproses</span>
+                            ) : (
+                              <button
+                                onClick={() => handlePay(t)}
+                                className="px-3 py-1.5 bg-[#1E3A8A] text-white rounded-lg font-semibold hover:bg-[#1e40af] transition-colors"
+                              >
+                                Bayar Sekarang
+                              </button>
+                            )}
+                            {t.status === 'BELUM_BAYAR' && !pendingReliefOf(t.id) && (
+                              <button onClick={() => openRelief(t)} className="inline-flex items-center gap-1 text-[11px] font-bold text-[#1E3A8A] hover:underline cursor-pointer">
+                                <HandCoins className="w-3 h-3" /> Ajukan Keringanan
+                              </button>
+                            )}
+                          </div>
                         ) : (
                           <button
                             onClick={() => showToast(`Kwitansi pembayaran untuk ${t.invoiceNo} telah diunduh.`)}
@@ -323,6 +406,130 @@ export default function StudentKeuanganPage() {
             </table>
           </div>
         </div>
+
+        {/* Pengajuan Keringanan */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-bold text-slate-800 text-sm sm:text-base flex items-center gap-2">
+                <HandCoins className="w-4 h-4 text-[#1E3A8A]" /> Pengajuan Keringanan Pembayaran
+              </h2>
+              <p className="text-[11px] text-slate-500 mt-0.5">Ajukan potongan, pembebasan, atau penundaan jatuh tempo untuk tagihan yang belum dibayar. Keputusan ada di Biro Keuangan.</p>
+            </div>
+            <span className="text-xs text-slate-400 whitespace-nowrap">{reliefs.length} pengajuan</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-slate-50">
+                <tr>
+                  {['Tanggal', 'Tagihan', 'Jenis', 'Permintaan', 'Status', 'Keputusan Keuangan', 'Aksi'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-slate-500 font-semibold">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {reliefs.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                      Belum ada pengajuan keringanan. Gunakan tautan &quot;Ajukan Keringanan&quot; pada tagihan yang belum dibayar.
+                    </td>
+                  </tr>
+                ) : (
+                  reliefs.map((r) => (
+                    <tr key={r.id} className="align-top hover:bg-slate-50/50">
+                      <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{formatDayRelief(r.createdAt)}</td>
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-slate-800">{r.invoice?.paymentType}</p>
+                        <p className="font-mono text-[10px] text-slate-400">{r.invoice?.invoiceNo}</p>
+                      </td>
+                      <td className="px-4 py-3 text-slate-700">{RELIEF_TYPE_LABEL[r.type]}</td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {r.type === 'POTONGAN' && r.requestedAmount ? formatRpRelief(r.requestedAmount) : null}
+                        {r.type === 'PENUNDAAN' ? `Sampai ${formatDayRelief(r.requestedDueDate)}` : null}
+                        {r.type === 'PEMBEBASAN' ? 'Seluruh tagihan' : null}
+                        <p className="text-[11px] text-slate-400 max-w-[220px] truncate" title={r.reason}>{r.reason}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${reliefStatusTone(r.status)}`}>{RELIEF_STATUS_LABEL[r.status]}</span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {r.status === 'APPROVED' && r.approvedAmount ? <p className="font-semibold text-emerald-700">Potongan {formatRpRelief(r.approvedAmount)}</p> : null}
+                        {r.status === 'APPROVED' && r.approvedDueDate ? <p className="font-semibold text-emerald-700">Jatuh tempo {formatDayRelief(r.approvedDueDate)}</p> : null}
+                        {r.financeNote ? <p className="text-[11px]">{r.financeNote}</p> : r.status === 'PENDING' ? <span className="text-slate-400">Menunggu keputusan</span> : null}
+                      </td>
+                      <td className="px-4 py-3">
+                        {r.status === 'PENDING' && (
+                          <button onClick={() => cancelRelief(r.id)} className="text-[11px] font-bold text-rose-600 hover:underline cursor-pointer">Batalkan</button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Modal Ajukan Keringanan */}
+        {reliefFor && createPortal(
+          <div className="fixed inset-0 z-[9999] bg-slate-900/60 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-black text-slate-900 text-base">Ajukan Keringanan</h3>
+                  <p className="text-[11px] text-slate-500">{reliefFor.jenis} &bull; {reliefFor.invoiceNo} &bull; {formatRupiah(reliefFor.jumlah)}</p>
+                </div>
+                <button onClick={() => setReliefFor(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-5 h-5" /></button>
+              </div>
+              {reliefError && <p className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{reliefError}</p>}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Jenis keringanan</label>
+                <select
+                  value={reliefForm.type}
+                  onChange={(e) => setReliefForm({ ...reliefForm, type: e.target.value as ReliefType })}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white"
+                >
+                  {(Object.keys(RELIEF_TYPE_LABEL) as ReliefType[]).map((k) => (
+                    <option key={k} value={k}>{RELIEF_TYPE_LABEL[k]}</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  {reliefForm.type === 'POTONGAN' && 'Minta sebagian nominal tagihan dikurangi.'}
+                  {reliefForm.type === 'PEMBEBASAN' && 'Minta seluruh tagihan dibebaskan.'}
+                  {reliefForm.type === 'PENUNDAAN' && 'Minta jatuh tempo diundur ke tanggal tertentu.'}
+                </p>
+              </div>
+              {reliefForm.type === 'POTONGAN' && (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Nominal potongan yang diminta (Rp)</label>
+                  <input type="number" min={1} max={reliefFor.jumlah - 1} value={reliefForm.amount} onChange={(e) => setReliefForm({ ...reliefForm, amount: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg" placeholder="Contoh: 500000" />
+                </div>
+              )}
+              {reliefForm.type === 'PENUNDAAN' && (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Jatuh tempo baru yang diminta</label>
+                  <input type="date" value={reliefForm.dueDate} onChange={(e) => setReliefForm({ ...reliefForm, dueDate: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg" />
+                </div>
+              )}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Alasan pengajuan *</label>
+                <textarea rows={3} value={reliefForm.reason} onChange={(e) => setReliefForm({ ...reliefForm, reason: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg" placeholder="Jelaskan kondisi Anda (minimal 10 karakter)" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Berkas pendukung (opsional)</label>
+                <FileUploadField value={reliefForm.attachmentUrl} onChange={(url) => setReliefForm({ ...reliefForm, attachmentUrl: url })} folder="relief" hint="Surat keterangan, PDF maksimal 10 MB" />
+              </div>
+              <p className="text-[11px] text-slate-500">Selama pengajuan diproses, tagihan ini tidak dapat dibayar. Anda dapat membatalkan pengajuan kapan saja sebelum diputuskan.</p>
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button onClick={() => setReliefFor(null)} className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer">Batal</button>
+                <button onClick={submitRelief} disabled={reliefBusy || reliefForm.reason.trim().length < 10} className="px-5 py-2 text-xs font-bold text-white bg-[#1E3A8A] hover:bg-blue-900 disabled:opacity-50 rounded-xl cursor-pointer">
+                  {reliefBusy ? 'Mengirim...' : 'Kirim Pengajuan'}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
 
         {/* Modal Bayar */}
         {showPayModal && selectedTagihan && createPortal(

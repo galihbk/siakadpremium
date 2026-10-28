@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Search, Download, Plus, RefreshCw, Loader2, Check, Pencil, Trash2, SlidersHorizontal, X, BookOpen, ChevronDown } from 'lucide-react';
 import { getApiBaseUrl } from '@/lib/api';
+import { useCourseCategories } from '@/lib/useCourseCategories';
 import { useSortedPagination } from '@/lib/useSortedPagination';
 import { SortableTh } from '@/components/common/SortableTh';
 import { TablePagination } from '@/components/common/TablePagination';
@@ -38,7 +39,6 @@ interface CurriculumOption {
   studyProgram: string;
 }
 
-const FINAL_PROJECT_LABELS = ['Skripsi/TA', 'Seminar Proposal', 'KKN', 'PLP', 'Kerja Praktik', 'Magang', 'Lainnya'];
 
 const emptyForm = {
   code: '',
@@ -56,6 +56,7 @@ const emptyForm = {
 
 export function KurikulumTable({ initialCourses }: { initialCourses: CourseData[] }) {
   const apiBase = getApiBaseUrl();
+  const categoryNames = useCourseCategories();
   const [courses, setCourses] = useState<CourseData[]>(initialCourses);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -752,17 +753,15 @@ export function KurikulumTable({ initialCourses }: { initialCourses: CourseData[
               className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white"
             >
               <option value="">Bukan Tugas Akhir/Lapangan</option>
-              {FINAL_PROJECT_LABELS.map((label) => (
+              {(categoryNames.includes(formData.finalProjectLabel) || !formData.finalProjectLabel ? categoryNames : [...categoryNames, formData.finalProjectLabel]).map((label) => (
                 <option key={label} value={label}>
                   {label}
                 </option>
               ))}
             </select>
             <p className="text-[11px] text-slate-500 mt-1.5">
-              Semua kelas dari mata kuliah ini otomatis tanpa jadwal/ruang tetap, dan mahasiswa yang mengambilnya otomatis masuk daftar
-              Bimbingan Tugas Akhir untuk ditetapkan pembimbingnya. Kategori <b>Skripsi/TA</b> dan <b>Seminar Proposal</b> juga dipakai sistem
-              Tugas Akhir: nilai ujian skripsi dan nilai seminar proposal otomatis ditulis ke mata kuliah dengan kategori itu. Kategori
-              <b>Seminar Proposal</b> tidak mengubah jadwal kelas dan tidak masuk daftar bimbingan. Kosongkan bila seminar proposal tidak punya nilai sendiri.
+              Pilihan diambil dari daftar jenis di menu <a href="/admin/pengaturan" className="font-bold text-[#1E3A8A] hover:underline">Pengaturan</a>. Aturan jenis yang dipilih
+              (wajib mendaftar, berkelompok, logbook, masuk daftar bimbingan) otomatis berlaku untuk mata kuliah ini. Kosongkan bila bukan tugas akhir atau kegiatan lapangan.
             </p>
           </div>
 

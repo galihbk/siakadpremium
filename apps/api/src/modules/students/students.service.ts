@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, ConflictException, 
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { FeeRulesService } from '../finance/fee-rules.service';
+import { FieldActivityService } from '../field-activity/field-activity.service';
 import { Role } from '@siakad/database';
 import { StudentDashboardSummary, EnrollmentStatus } from '@siakad/types';
 import { computeIsKrsOpen } from '../academic/academic.service';
@@ -70,6 +71,7 @@ export class StudentsService {
   constructor(
     private prisma: PrismaService,
     private feeRulesService: FeeRulesService,
+    private fieldActivity: FieldActivityService,
   ) {}
 
   async getDashboardSummary(userId?: string): Promise<StudentDashboardSummary> {
@@ -353,6 +355,16 @@ export class StudentsService {
       throw new BadRequestException('Periode pengisian KRS sedang ditutup oleh BAAK. Silakan hubungi BAAK jika Anda perlu melakukan perubahan.');
     }
 
+    // KRS yang sudah diajukan ke Dosen PA (SUBMITTED) atau disetujui (APPROVED) tidak boleh diubah lagi lewat jalur apa pun.
+    // Halaman mahasiswa sudah menguncinya; ini menjaga di sisi server agar status tidak kembali ke draf padahal UKT sudah lunas.
+    // BAAK dapat membukanya kembali dengan menolak KRS mahasiswa (status ditolak -> mahasiswa merevisi).
+    const lockedCount = await this.prisma.courseEnrollment.count({
+      where: { studentId: student.id, academicYearId: activeYear.id, courseClassId: { not: null }, status: { in: ['SUBMITTED', 'APPROVED'] } },
+    });
+    if (lockedCount > 0) {
+      throw new BadRequestException('KRS Anda sudah diajukan ke Dosen PA dan tidak dapat diubah lagi. Hubungi BAAK bila Anda perlu melakukan perubahan.');
+    }
+
     const classes = await this.prisma.courseClass.findMany({
       where: { id: { in: classIds } },
       include: { course: true, _count: { select: { enrollments: { where: { status: { not: 'REJECTED' } } } } } },
@@ -477,6 +489,14 @@ export class StudentsService {
       } catch (e) {
         console.warn('Gagal menerbitkan tagihan UKT otomatis saat KRS:', e);
       }
+    }
+
+    // Biaya khusus kegiatan lapangan (jenis yang punya komponen biaya): tagihan terpisah dari UKT, terbit saat mata kuliahnya masuk KRS
+    // dan dibatalkan bila (belum dibayar) mata kuliahnya dikeluarkan dari KRS.
+    try {
+      await this.fieldActivity.syncKrsCharges(student.id, activeYear.id);
+    } catch (e) {
+      console.warn('Gagal menyinkronkan tagihan biaya khusus kegiatan lapangan saat KRS:', e);
     }
 
     const courseList = await this.getKrs(userId);

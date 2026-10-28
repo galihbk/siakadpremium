@@ -3,6 +3,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { AssessmentSchemesService } from './assessment-schemes.service';
+import { CourseCategoriesService } from './course-categories.service';
 import { AdminDashboardSummary } from '@siakad/types';
 
 function semesterTypeLabel(type: string): string {
@@ -41,6 +42,7 @@ export class AcademicService {
     private assessmentSchemes: AssessmentSchemesService,
     private thesis: ThesisService,
     private notifications: NotificationsService,
+    private courseCategories: CourseCategoriesService,
   ) {}
 
   async getAdminDashboardSummary(): Promise<AdminDashboardSummary> {
@@ -525,6 +527,12 @@ export class AcademicService {
     return c;
   }
 
+  /** Apakah jenis ini masuk daftar bimbingan / tanpa jadwal tetap (aturan dari master jenis; jenis tak terdaftar = ya). */
+  private async needsSupervision(label: string): Promise<boolean> {
+    const cat = await this.courseCategories.findByName(label);
+    return cat ? cat.needsSupervision : true;
+  }
+
   async createCourse(data: any) {
     const sksTeori = Number(data.sksTeori) || 0;
     const sksPraktik = Number(data.sksPraktik) || 0;
@@ -548,7 +556,7 @@ export class AcademicService {
         // Label kategori (Skripsi/TA, KKN, dst.) adalah sumber kebenaran -- kalau diisi,
         // mata kuliahnya otomatis masuk kategori tugas akhir/lapangan.
         // "Seminar Proposal" hanya penanda nilai tahap tugas akhir: tidak otomatis tanpa jadwal / masuk daftar bimbingan
-        requiresThesisSupervision: finalProjectLabel ? finalProjectLabel !== 'Seminar Proposal' : Boolean(data.requiresThesisSupervision),
+        requiresThesisSupervision: finalProjectLabel ? await this.needsSupervision(finalProjectLabel) : Boolean(data.requiresThesisSupervision),
         finalProjectLabel,
         coordinator: data.coordinator?.trim() || null,
         status: data.status || 'Aktif',
@@ -580,7 +588,7 @@ export class AcademicService {
         type: data.type !== undefined ? data.type : undefined,
         requiresThesisSupervision:
           finalProjectLabel !== undefined
-            ? Boolean(finalProjectLabel) && finalProjectLabel !== 'Seminar Proposal'
+            ? Boolean(finalProjectLabel) && (await this.needsSupervision(finalProjectLabel))
             : data.requiresThesisSupervision !== undefined
               ? Boolean(data.requiresThesisSupervision)
               : undefined,
@@ -2069,7 +2077,7 @@ export class AcademicService {
   // Mahasiswa yang KRS-nya berisi kelas "tanpa jadwal tetap" (Skripsi/TA, KKN, KP, dst.)
   // perlu ditetapkan pembimbingnya satu per satu oleh Admin Akademik — berbeda dari Dosen
   // Pengampu di CourseClass (satu dosen untuk satu kelas) dan Dosen PA (pembimbing umum).
-  async getThesisSupervisionCandidates(query?: { academicYearId?: string; courseId?: string; search?: string }) {
+  async getThesisSupervisionCandidates(query?: { academicYearId?: string; courseId?: string; search?: string; category?: string; studyProgramId?: string; entryYear?: number; status?: 'belum' | 'sudah' }) {
     const activeYear = query?.academicYearId
       ? await this.prisma.academicYear.findUnique({ where: { id: query.academicYearId } })
       : await this.prisma.academicYear.findFirst({ where: { isActive: true } });
@@ -2080,6 +2088,10 @@ export class AcademicService {
         academicYearId: activeYear.id,
         status: { not: 'REJECTED' },
         courseId: query?.courseId || undefined,
+        ...(query?.category ? { course: { finalProjectLabel: query.category } } : {}),
+        ...(query?.studyProgramId || query?.entryYear
+          ? { student: { ...(query.studyProgramId ? { studyProgramId: query.studyProgramId } : {}), ...(query.entryYear ? { entryYear: query.entryYear } : {}) } }
+          : {}),
         OR: [{ courseClass: { isFlexibleSchedule: true } }, { course: { requiresThesisSupervision: true } }],
       },
       include: {
@@ -2088,6 +2100,29 @@ export class AcademicService {
       },
       orderBy: { createdAt: 'asc' },
     });
+
+    // Jenis yang wajib mendaftar (perorangan): hanya pendaftaran yang sudah disetujui yang boleh diplot pembimbing
+    const catRule = query?.category ? await this.courseCategories.findByName(query.category) : null;
+    if (catRule && catRule.requiresRegistration && !catRule.isGroup && enrollments.length) {
+      const approved = await this.prisma.fieldRegistration.findMany({
+        where: { academicYearId: activeYear.id, categoryId: catRule.id, status: 'APPROVED' },
+        select: { studentId: true, courseId: true },
+      });
+      const ok = new Set(approved.map((r) => `${r.studentId}:${r.courseId}`));
+      for (let i = enrollments.length - 1; i >= 0; i--) {
+        if (!ok.has(`${enrollments[i].studentId}:${enrollments[i].courseId}`)) enrollments.splice(i, 1);
+      }
+    }
+
+    // Biaya khusus: tampilkan status pembayaran agar BAAK tahu siapa yang sudah boleh diplot
+    const chargeMap = new Map<string, string>();
+    if (catRule && catRule.feeAmount > 0 && enrollments.length) {
+      const charges = await this.prisma.fieldCharge.findMany({
+        where: { academicYearId: activeYear.id, categoryId: catRule.id },
+        include: { invoice: { select: { status: true } } },
+      });
+      for (const c of charges) chargeMap.set(`${c.studentId}:${c.courseId}`, c.invoice.status === 'LUNAS' ? 'PAID' : c.invoice.status === 'MENUNGGU_VERIFIKASI' ? 'VERIFYING' : 'UNPAID');
+    }
 
     const studentCourseIds = enrollments.map((e) => ({ studentId: e.studentId, courseId: e.courseId }));
     const supervisions = studentCourseIds.length
@@ -2101,13 +2136,22 @@ export class AcademicService {
       : [];
     const supervisionMap = new Map(supervisions.map((s) => [`${s.studentId}:${s.courseId}`, s]));
 
+    // Jenis berkelompok hanya punya satu pembimbing per kelompok (tidak ada pembimbing 2)
+    const categories = await this.courseCategories.list(true);
+    const groupByName = new Map(categories.map((c) => [c.name, c.isGroup]));
+
     let items = enrollments.map((e) => {
       const sup = supervisionMap.get(`${e.studentId}:${e.courseId}`);
       return {
         studentId: e.studentId,
         nim: e.student.nim,
+        entryYear: e.student.entryYear,
         studentName: e.student.user.fullName,
         studyProgram: e.student.studyProgram?.name || '-',
+        category: e.course.finalProjectLabel || null,
+        feeApplicable: Boolean(catRule && catRule.feeAmount > 0),
+        chargeStatus: catRule && catRule.feeAmount > 0 ? chargeMap.get(`${e.studentId}:${e.courseId}`) ?? 'NONE' : null,
+        isGroup: !!groupByName.get(e.course.finalProjectLabel || ''),
         courseId: e.courseId,
         courseCode: e.course.code,
         courseName: e.course.name,
@@ -2125,6 +2169,9 @@ export class AcademicService {
       const q = query.search.trim().toLowerCase();
       items = items.filter((i) => i.studentName.toLowerCase().includes(q) || i.nim.includes(q));
     }
+
+    if (query?.status === 'belum') items = items.filter((i) => !i.supervisor1Id);
+    if (query?.status === 'sudah') items = items.filter((i) => i.supervisor1Id);
 
     const courses = [...new Map(enrollments.map((e) => [e.course.id, { id: e.course.id, code: e.course.code, name: e.course.name }])).values()];
 
@@ -2155,10 +2202,34 @@ export class AcademicService {
       throw new BadRequestException('Mahasiswa ini belum mengambil mata kuliah tersebut pada tahun akademik ini.');
     }
 
+    const course = await this.prisma.course.findUnique({ where: { id: dto.courseId }, select: { finalProjectLabel: true } });
+    const category = await this.courseCategories.findByName(course?.finalProjectLabel);
+    if (dto.supervisor1Id || dto.supervisor2Id) {
+      if (category?.kind === 'LAPANGAN' && category.isGroup) {
+        throw new BadRequestException(`Pembimbing ${category.name} ditetapkan per kelompok di menu Kegiatan Lapangan.`);
+      }
+      if (category?.kind === 'LAPANGAN' && category.feeAmount > 0) {
+        const charge = await this.prisma.fieldCharge.findUnique({
+          where: { studentId_courseId_academicYearId: { studentId: student.id, courseId: dto.courseId, academicYearId } },
+          include: { invoice: { select: { status: true } } },
+        });
+        if (charge?.invoice.status !== 'LUNAS') {
+          throw new BadRequestException(`${category.feeLabel?.trim() || `Biaya ${category.name}`} belum lunas; pembimbing dapat ditetapkan setelah mahasiswa membayar.`);
+        }
+      }
+      if (category?.kind === 'LAPANGAN' && category.requiresRegistration) {
+        const reg = await this.prisma.fieldRegistration.findUnique({
+          where: { studentId_courseId_academicYearId: { studentId: student.id, courseId: dto.courseId, academicYearId } },
+        });
+        if (reg?.status !== 'APPROVED') {
+          throw new BadRequestException(`${category.name} wajib mendaftar; pembimbing baru dapat ditetapkan setelah pendaftaran mahasiswa disetujui.`);
+        }
+      }
+    }
     const data = {
       title: dto.title?.trim() || null,
       supervisor1Id: dto.supervisor1Id || null,
-      supervisor2Id: dto.supervisor2Id || null,
+      supervisor2Id: category?.isGroup ? null : dto.supervisor2Id || null,
       notes: dto.notes?.trim() || null,
       assignedAt: new Date(),
     };
@@ -2169,6 +2240,26 @@ export class AcademicService {
       update: data,
       include: { supervisor1: { include: { user: true } }, supervisor2: { include: { user: true } } },
     });
+
+    if (category?.kind === 'LAPANGAN') {
+      try {
+        const ids = [saved.supervisor1Id, saved.supervisor2Id].filter((x): x is string => Boolean(x));
+        const names = [saved.supervisor1?.user?.fullName, saved.supervisor2?.user?.fullName].filter(Boolean).join(' & ');
+        await this.prisma.fieldEvent.create({
+          data: {
+            studentId: student.id,
+            courseId: dto.courseId,
+            academicYearId,
+            categoryId: category.id,
+            type: ids.length ? 'SUPERVISOR_ASSIGNED' : 'SUPERVISOR_RELEASED',
+            title: ids.length ? 'Dosen pembimbing ditetapkan' : 'Dosen pembimbing dilepas',
+            detail: names || null,
+          },
+        });
+      } catch {
+        // riwayat tidak boleh menggagalkan penetapan pembimbing
+      }
+    }
 
     return {
       success: true,

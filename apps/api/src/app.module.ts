@@ -29,9 +29,12 @@ import { UsersModule } from './modules/users/users.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { IntegrationSettingsModule } from './modules/integration-settings/integration-settings.module';
 import { MonitoringModule } from './modules/monitoring/monitoring.module';
+import { MobileSubscriptionModule } from './modules/mobile-subscription/mobile-subscription.module';
+import { SiakadContractModule } from './modules/siakad-contract/siakad-contract.module';
 import { LettersModule } from './modules/letters/letters.module';
 import { DocumentSignaturesModule } from './modules/document-signatures/document-signatures.module';
 import { ThesisModule } from './modules/thesis/thesis.module';
+import { FieldActivityModule } from './modules/field-activity/field-activity.module';
 import { GraduationModule } from './modules/graduation/graduation.module';
 import { ExamsModule } from './modules/exams/exams.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -91,12 +94,15 @@ import { AppService } from './app.service';
     LettersModule,
     DocumentSignaturesModule,
     ThesisModule,
+    FieldActivityModule,
     GraduationModule,
     ExamsModule,
     NotificationsModule,
     ProdiModule,
     BackupsModule,
     ObeIntegrationModule,
+    MobileSubscriptionModule,
+    SiakadContractModule,
   ],
   controllers: [AppController],
   providers: [

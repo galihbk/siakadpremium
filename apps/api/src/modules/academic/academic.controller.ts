@@ -2,6 +2,7 @@ import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req, ForbiddenE
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AcademicService } from './academic.service';
 import { AssessmentSchemesService, SchemeInput } from './assessment-schemes.service';
+import { CourseCategoriesService, CategoryInput } from './course-categories.service';
 
 @ApiTags('Academic (Layanan Akademik, Kurikulum, Jadwal & Admin)')
 @Controller('academic')
@@ -9,7 +10,39 @@ export class AcademicController {
   constructor(
     private academicService: AcademicService,
     private assessmentSchemes: AssessmentSchemesService,
+    private courseCategories: CourseCategoriesService,
   ) {}
+
+  // ================= JENIS TUGAS AKHIR & KEGIATAN LAPANGAN (MASTER) =================
+  @Get('course-categories/fee-components')
+  @ApiOperation({ summary: 'Komponen biaya sekali bayar aktif (master Keuangan) yang dapat dipilih sebagai biaya khusus jenis' })
+  async listFeeComponents() {
+    return this.courseCategories.listFeeComponents();
+  }
+
+  @Get('course-categories')
+  @ApiOperation({ summary: 'Daftar master jenis tugas akhir & kegiatan lapangan (Skripsi/TA, KKN, PLP, dst.)' })
+  async listCourseCategories(@Query('activeOnly') activeOnly?: string) {
+    return this.courseCategories.list(activeOnly !== 'true');
+  }
+
+  @Post('course-categories')
+  @ApiOperation({ summary: 'Menambah jenis kegiatan' })
+  async createCourseCategory(@Body() body: CategoryInput) {
+    return this.courseCategories.create(body || {});
+  }
+
+  @Put('course-categories/:id')
+  @ApiOperation({ summary: 'Memperbarui aturan jenis kegiatan' })
+  async updateCourseCategory(@Param('id') id: string, @Body() body: CategoryInput) {
+    return this.courseCategories.update(id, body || {});
+  }
+
+  @Delete('course-categories/:id')
+  @ApiOperation({ summary: 'Menghapus jenis kegiatan (hanya bila tidak dipakai mata kuliah)' })
+  async deleteCourseCategory(@Param('id') id: string) {
+    return this.courseCategories.remove(id);
+  }
 
   @Get('admin-dashboard')
   @ApiOperation({ summary: 'Mendapatkan ringkasan dashboard administrator BAAK / Pimpinan Kampus' })
@@ -309,8 +342,20 @@ export class AcademicController {
     @Query('academicYearId') academicYearId?: string,
     @Query('courseId') courseId?: string,
     @Query('search') search?: string,
+    @Query('category') category?: string,
+    @Query('studyProgramId') studyProgramId?: string,
+    @Query('entryYear') entryYear?: string,
+    @Query('status') status?: string,
   ) {
-    return this.academicService.getThesisSupervisionCandidates({ academicYearId, courseId, search });
+    return this.academicService.getThesisSupervisionCandidates({
+      academicYearId,
+      courseId,
+      search,
+      category,
+      studyProgramId: studyProgramId || undefined,
+      entryYear: Number(entryYear) || undefined,
+      status: status === 'belum' || status === 'sudah' ? status : undefined,
+    });
   }
 
   @Post('thesis-supervisions')

@@ -18,6 +18,9 @@ const PUBLIC_RULES: PublicRule[] = [
   { methods: ['GET'], path: /^\/verify$/ },
   { methods: ['GET'], path: /^\/app-config$/ },
   { methods: ['POST'], path: /^\/auth\/login$/ },
+  // Kontrak API SIAKAD untuk aplikasi mobile NextVersa: login publik; profil dijaga token kontrak (diperiksa servisnya sendiri).
+  { methods: ['POST'], path: /^\/siakad-contract\/v1\/auth\/(login|refresh)$/ },
+  { methods: ['GET'], path: /^\/siakad-contract\/v1\/student\/profile(\/detail)?$/ },
 
   // Situs publik (web, p2m, p3m)
   { methods: ['GET'], path: /^\/landing-page$/ },
@@ -88,6 +91,9 @@ const ROLE_RULES: RoleRule[] = [
   { path: /^\/finance\/payment-mode$/, roles: ['STUDENT', 'ADMIN_KEUANGAN'] },
   { path: /^\/finance\/invoices\/student\/[^/]+$/, roles: ['STUDENT', 'ADMIN_KEUANGAN'] },
   { methods: ['POST'], path: /^\/finance\/transactions\/[^/]+\/submit-payment$/, roles: ['STUDENT', 'ADMIN_KEUANGAN'] },
+  { path: /^\/finance\/relief-requests\/me$/, roles: ['STUDENT'] },
+  { methods: ['POST'], path: /^\/finance\/relief-requests$/, roles: ['STUDENT'] },
+  { methods: ['POST'], path: /^\/finance\/relief-requests\/[^/]+\/cancel$/, roles: ['STUDENT'] },
   { path: /^\/finance(\/|$)/, roles: ['ADMIN_KEUANGAN'] },
 
   // ---- PMB, LP3M, P2M
@@ -107,7 +113,7 @@ const ROLE_RULES: RoleRule[] = [
   { path: /^\/academic\/assessment-schemes(\/|$)/, roles: BAAK },
   { path: /^\/academic\/grades(\/|$)/, roles: [...BAAK, 'LECTURER'] },
   { methods: WRITE, path: /^\/academic\/(courses|curriculums)(\/|$)/, roles: [...BAAK, 'ADMIN_PRODI'] },
-  { methods: WRITE, path: /^\/academic\/(years|schedules|grade-scale|thesis-supervisions)(\/|$)/, roles: BAAK },
+  { methods: WRITE, path: /^\/academic\/(years|schedules|grade-scale|thesis-supervisions|course-categories)(\/|$)/, roles: BAAK },
   { methods: WRITE, path: /^\/buildings(\/|$)/, roles: BAAK },
 
   // ---- Mahasiswa (data milik sendiri) & data induk mahasiswa
@@ -152,6 +158,11 @@ export class GlobalAuthGuard implements CanActivate {
 
     const isPublic = PUBLIC_RULES.some((r) => (r.methods === '*' || r.methods.includes(method)) && r.path.test(path));
     if (isPublic) return true;
+
+    // Token kontrak mobile hanya berlaku di endpoint kontrak (yang publik di atas); tidak boleh menjangkau portal.
+    if (typeof payload?.kind === 'string' && payload.kind.startsWith('siakad-contract')) {
+      throw new ForbiddenException('Token ini hanya berlaku untuk aplikasi mobile.');
+    }
 
     if (!payload) {
       throw new UnauthorizedException('Anda harus login untuk mengakses sumber daya ini.');

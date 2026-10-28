@@ -20,6 +20,7 @@ import {
   thesisFetch,
 } from '@/lib/thesis';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { SupervisionPanel } from '@/components/thesis/SupervisionPanel';
 import { ThesisSettings, DEFAULT_THESIS_SETTINGS } from '@/lib/thesis';
 import { examsFetch } from '@/lib/exams';
 import { GraduationCap, CheckCircle2, AlertTriangle, RefreshCw, X, Search, Settings2 } from 'lucide-react';
@@ -40,6 +41,7 @@ const lecturerLabel = (l: LecturerOption) =>
   `${[l.titlePrefix, l.fullName].filter(Boolean).join(' ')}${l.titleSuffix ? `, ${l.titleSuffix}` : ''}`;
 
 export default function AdminSkripsiPage() {
+  const [view, setView] = useState<'pengajuan' | 'belum-diplot'>('pengajuan');
   const [stageFilter, setStageFilter] = useState<'' | ThesisStage>('');
   const table = useServerTable<ThesisProject, { counts?: Record<string, number> }>({
     endpoint: 'thesis/admin',
@@ -186,6 +188,28 @@ export default function AdminSkripsiPage() {
           </div>
         </div>
 
+        <div className="flex flex-wrap gap-1.5 border-b border-slate-200">
+          {([['pengajuan', 'Pengajuan Mahasiswa'], ['belum-diplot', 'Plotting Pembimbing (Mengambil MK Skripsi/TA)']] as const).map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setView(k)}
+              className={`px-4 py-2.5 text-xs font-bold border-b-2 -mb-px cursor-pointer ${view === k ? 'border-[#1E3A8A] text-[#1E3A8A]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {view === 'belum-diplot' && (
+          <>
+            <p className="text-xs text-slate-600">
+              Mahasiswa yang sudah mengambil mata kuliah Skripsi/TA lewat KRS. Tetapkan pembimbingnya di sini, sebelum atau tanpa menunggu pengajuan proposal.
+            </p>
+            <SupervisionPanel category="Skripsi/TA" />
+          </>
+        )}
+
+        {view === 'pengajuan' && (<>
         {/* Filter tahap */}
         <div className="flex flex-wrap gap-2">
           <button
@@ -309,6 +333,7 @@ export default function AdminSkripsiPage() {
             onPageSizeChange={table.setPageSize}
           />
         </div>
+        </>)}
       </div>
 
       <Modal

@@ -580,7 +580,9 @@ export class FinanceService {
    * KRS yang masih DRAFT (menunggu pembayaran UKT) baru resmi diajukan ke Dosen PA
    * begitu tagihan semester itu LUNAS.
    */
-  private async promoteKrsAfterPayment(nim: string, academicYear: string) {
+  private async promoteKrsAfterPayment(nim: string, academicYear: string, invoiceId?: string) {
+    // Hanya pelunasan UKT/SPP yang meloloskan KRS; biaya khusus kegiatan lapangan tidak.
+    if (invoiceId && (await this.prisma.fieldCharge.count({ where: { invoiceId } })) > 0) return;
     const [student, year] = await Promise.all([
       this.prisma.student.findUnique({ where: { nim } }),
       this.prisma.academicYear.findFirst({ where: { name: academicYear } }),
@@ -593,13 +595,68 @@ export class FinanceService {
     });
   }
 
+  /**
+   * Bila tagihan yang lunas adalah biaya khusus kegiatan lapangan: catat di riwayat mahasiswa dan beri tahu mahasiswa serta BAAK
+   * (mahasiswa kini siap diplot pembimbing / dikelompokkan). Kegagalan di sini tidak boleh menggagalkan pelunasan.
+   */
+  private async afterInvoicePaid(invoiceId: string) {
+    try {
+      const charge = await this.prisma.fieldCharge.findUnique({
+        where: { invoiceId },
+        include: { student: { select: { userId: true, nim: true, user: { select: { fullName: true } } } }, category: { select: { name: true } } },
+      });
+      if (!charge) return;
+      const amount = `Rp ${Math.round(charge.amount).toLocaleString('id-ID')}`;
+      await this.prisma.fieldEvent.create({
+        data: {
+          studentId: charge.studentId,
+          courseId: charge.courseId,
+          academicYearId: charge.academicYearId,
+          categoryId: charge.categoryId,
+          type: 'CHARGE_PAID',
+          title: 'Pembayaran biaya lunas',
+          detail: `${charge.label}: ${amount}`,
+        },
+      });
+      await this.prisma.notification.create({
+        data: { userId: charge.student.userId, type: 'FIELD', title: `${charge.label} lunas`, body: 'Pembayaran Anda terverifikasi. Anda dapat diproses ke tahap berikutnya.', link: '/student/kegiatan-lapangan' },
+      });
+      const staff = await this.prisma.user.findMany({ where: { role: { in: ['ADMIN_BAAK', 'STAFF'] as any }, isActive: true }, select: { id: true } });
+      if (staff.length) {
+        await this.prisma.notification.createMany({
+          data: staff.map((u) => ({
+            userId: u.id,
+            type: 'FIELD',
+            title: `${charge.category.name}: biaya lunas`,
+            body: `${charge.student.user.fullName} (${charge.student.nim}) telah melunasi ${charge.label}.`,
+            link: `/admin/kegiatan-lapangan?jenis=${encodeURIComponent(charge.category.name)}`,
+          })),
+        });
+      }
+    } catch {
+      // abaikan: pelunasan sudah tercatat
+    }
+  }
+
+  /** Tagihan dibebaskan penuh lewat keringanan: nyatakan lunas dan jalankan akibat pelunasan yang sama seperti pembayaran biasa. */
+  async settleInvoiceFree(id: string) {
+    const trx = await this.prisma.paymentInvoice.findUnique({ where: { id } });
+    if (!trx || trx.status === 'LUNAS') return;
+    const receiptNo = `KWT/BEBAS/${Date.now().toString().slice(-6)}`;
+    const paidAt = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) + ', Keringanan';
+    await this.prisma.paymentInvoice.update({ where: { id }, data: { status: 'LUNAS', receiptNo, paidAt, paymentMethod: 'Keringanan / Pembebasan Biaya' } });
+    await this.promoteKrsAfterPayment(trx.nim, trx.academicYear, id);
+    await this.afterInvoicePaid(id);
+  }
+
   async verifyTransaction(id: string) {
     const trx = await this.prisma.paymentInvoice.findUnique({ where: { id } });
     if (!trx) throw new NotFoundException(`Transaksi dengan ID "${id}" tidak ditemukan.`);
     const receiptNo = `KWT/${new Date().getFullYear()}/${Date.now().toString().slice(-4)}`;
     const paidAt = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) + ', Kasir Diverifikasi';
     const updated = await this.prisma.paymentInvoice.update({ where: { id }, data: { status: 'LUNAS', receiptNo, paidAt } });
-    await this.promoteKrsAfterPayment(trx.nim, trx.academicYear);
+    await this.promoteKrsAfterPayment(trx.nim, trx.academicYear, id);
+    await this.afterInvoicePaid(id);
     await this.prisma.systemAuditLog.create({ data: { action: 'FINANCE_VERIFY', detail: `Verifikasi ${trx.invoiceNo} (${trx.studentName}) Rp ${trx.amount}`, userEmail: 'keuangan' } }).catch(() => null);
     return { success: true, message: `Pembayaran ${trx.studentName} berhasil diverifikasi LUNAS.`, data: { ...updated, status: 'LUNAS' } };
   }
@@ -672,6 +729,10 @@ export class FinanceService {
       return { success: true, message: 'Tagihan ini sudah lunas.', data: { ...trx, status: 'LUNAS' } };
     }
 
+    if ((await this.prisma.paymentReliefRequest.count({ where: { invoiceId: id, status: 'PENDING' } })) > 0) {
+      throw new BadRequestException('Tagihan ini sedang dalam pengajuan keringanan. Tunggu keputusan Keuangan atau batalkan pengajuan terlebih dahulu.');
+    }
+
     const { mode } = await this.getPaymentMode();
     if (mode === 'MANUAL' && dto.channel !== FinanceService.MANUAL_TRANSFER_CHANNEL) {
       throw new BadRequestException('Pembayaran saat ini dikonfirmasi manual. Lakukan transfer lalu unggah bukti transfer.');
@@ -717,7 +778,8 @@ export class FinanceService {
       where: { id },
       data: { status: 'LUNAS', receiptNo, paidAt, paymentMethod: dto.channel },
     });
-    await this.promoteKrsAfterPayment(trx.nim, trx.academicYear);
+    await this.promoteKrsAfterPayment(trx.nim, trx.academicYear, id);
+    await this.afterInvoicePaid(id);
     await this.prisma.systemAuditLog
       .create({ data: { action: 'FINANCE_PAYMENT_AUTO', detail: `${trx.studentName} membayar ${trx.invoiceNo} via ${dto.channel}`, userEmail: trx.nim } })
       .catch(() => null);

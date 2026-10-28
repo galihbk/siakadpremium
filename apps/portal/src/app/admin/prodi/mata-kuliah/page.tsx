@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getApiBaseUrl } from '@/lib/api';
+import { useCourseCategories } from '@/lib/useCourseCategories';
 import { getAuthSession } from '@/lib/auth';
 import { useSortedPagination } from '@/lib/useSortedPagination';
 import { SortableTh } from '@/components/common/SortableTh';
@@ -49,7 +50,6 @@ interface CurriculumOption {
   studyProgram: string;
 }
 
-const FINAL_PROJECT_LABELS = ['Skripsi/TA', 'Seminar Proposal', 'KKN', 'PLP', 'Kerja Praktik', 'Magang', 'Lainnya'];
 
 const emptyForm = {
   code: '',
@@ -66,6 +66,7 @@ const emptyForm = {
 
 export default function AdminProdiMataKuliahPage() {
   const apiBase = getApiBaseUrl();
+  const categoryNames = useCourseCategories();
   const [studyProgramId, setStudyProgramId] = useState<string | null>(null);
   const [prodiName, setProdiName] = useState('');
   const [initError, setInitError] = useState<string | null>(null);
@@ -611,7 +612,7 @@ export default function AdminProdiMataKuliahPage() {
                 className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A] bg-white"
               >
                 <option value="">Bukan Tugas Akhir/Lapangan</option>
-                {FINAL_PROJECT_LABELS.map((label) => (
+                {(categoryNames.includes(formData.finalProjectLabel) || !formData.finalProjectLabel ? categoryNames : [...categoryNames, formData.finalProjectLabel]).map((label) => (
                   <option key={label} value={label}>
                     {label}
                   </option>

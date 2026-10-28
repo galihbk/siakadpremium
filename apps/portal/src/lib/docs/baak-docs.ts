@@ -21,7 +21,7 @@ export const BAAK_DOCS: DocSection[] = [
           ['Data Induk', 'Data Mahasiswa, Data Dosen.'],
           ['Kurikulum', 'Kurikulum & Mata Kuliah, Master Kurikulum.'],
           ['Penjadwalan', 'Tahun Akademik, Gedung, Ruang, Jadwal Kelas, Jadwal Ujian (UTS/UAS).'],
-          ['Perkuliahan', 'KRS, Tugas Akhir/Skripsi, Yudisium & Kelulusan, Bimbingan Tugas Akhir, Presensi, Nilai, Skala Nilai, Komponen Penilaian.'],
+          ['Perkuliahan', 'KRS, Tugas Akhir/Skripsi, Kegiatan Lapangan, Yudisium & Kelulusan, Presensi, Nilai, Skala Nilai, Komponen Penilaian.'],
           ['Layanan Mahasiswa', 'Layanan Surat.'],
           ['Publikasi', 'Berita & Pengumuman.'],
           ['Pelaporan & Integrasi', 'Pelaporan PDDIKTI, Sinkronisasi Feeder.'],
@@ -95,7 +95,7 @@ export const BAAK_DOCS: DocSection[] = [
         items: [
           'Master Kurikulum: buat kurikulum per prodi (tahun mulai, total SKS wajib/pilihan).',
           'Kurikulum & Mata Kuliah: tambah mata kuliah (kode, nama, SKS teori/praktik, semester, jenis).',
-          'Tandai kategori Tugas Akhir/Lapangan (Skripsi, KKN, PLP, dst.) untuk mata kuliah yang tidak memiliki jadwal tetap; mahasiswa yang mengambilnya otomatis masuk daftar Bimbingan Tugas Akhir.',
+          'Tandai kategori Tugas Akhir/Lapangan (Skripsi, KKN, PLP, dst.) untuk mata kuliah yang tidak memiliki jadwal tetap; mahasiswa yang mengambilnya otomatis masuk daftar plotting pembimbing (tab Plotting Pembimbing di Tugas Akhir / Skripsi, atau tab jenisnya di Kegiatan Lapangan).',
         ],
       },
     ],
@@ -217,7 +217,7 @@ export const BAAK_DOCS: DocSection[] = [
       {
         t: 'note',
         kind: 'info',
-        text: 'Daftar dapat difilter menurut tahap dan dicari. Menu Bimbingan Tugas Akhir terpisah dipakai untuk mahasiswa yang mengambil mata kuliah kategori TA/Lapangan lewat KRS dan menunggu penetapan pembimbing.',
+        text: 'Daftar dapat difilter menurut tahap dan dicari. Tab Plotting Pembimbing dipakai untuk mahasiswa yang mengambil mata kuliah Skripsi/TA lewat KRS dan menunggu penetapan pembimbing. PLP, KKN, Kerja Praktik, dan Magang ditangani di menu Kegiatan Lapangan (satu tab per jenis).',
       },
     ],
   },

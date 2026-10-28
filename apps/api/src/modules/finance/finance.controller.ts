@@ -2,6 +2,7 @@ import { Controller, Get, Post, Put, Delete, Param, Query, Body, Req } from '@ne
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { FinanceService } from './finance.service';
 import { FeeRulesService } from './fee-rules.service';
+import { PaymentReliefService, ReliefCreateDto, ReliefDecisionDto } from './payment-relief.service';
 
 @ApiTags('Finance (Biro Keuangan)')
 @Controller('finance')
@@ -9,12 +10,50 @@ export class FinanceController {
   constructor(
     private financeService: FinanceService,
     private feeRulesService: FeeRulesService,
+    private reliefService: PaymentReliefService,
   ) {}
 
   @Get('dashboard')
   @ApiOperation({ summary: 'Mendapatkan ringkasan dashboard keuangan, rekening kas bank, dan alokasi anggaran' })
   async getDashboard() {
     return await this.financeService.getSummary();
+  }
+
+  // ================= KERINGANAN PEMBAYARAN =================
+  @Get('relief-requests/me')
+  @ApiOperation({ summary: 'Pengajuan keringanan pembayaran milik mahasiswa yang login' })
+  async myReliefRequests(@Req() req: any) {
+    return this.reliefService.listMine(req.user.sub);
+  }
+
+  @Post('relief-requests')
+  @ApiOperation({ summary: 'Mahasiswa mengajukan keringanan (potongan, pembebasan, atau penundaan) atas satu tagihan' })
+  async createReliefRequest(@Body() body: ReliefCreateDto, @Req() req: any) {
+    return this.reliefService.create(req.user.sub, body);
+  }
+
+  @Post('relief-requests/:id/cancel')
+  @ApiOperation({ summary: 'Mahasiswa membatalkan pengajuan keringanan yang masih menunggu' })
+  async cancelReliefRequest(@Param('id') id: string, @Req() req: any) {
+    return this.reliefService.cancel(req.user.sub, id);
+  }
+
+  @Get('relief-requests/pending-count')
+  @ApiOperation({ summary: 'Jumlah pengajuan keringanan yang menunggu keputusan (lencana sidebar Keuangan)' })
+  async reliefPendingCount() {
+    return this.reliefService.pendingCount();
+  }
+
+  @Get('relief-requests')
+  @ApiOperation({ summary: 'Daftar pengajuan keringanan pembayaran (filter status & pencarian)' })
+  async listReliefRequests(@Query('status') status?: string, @Query('search') search?: string) {
+    return this.reliefService.list({ status: status || undefined, search });
+  }
+
+  @Post('relief-requests/:id/decision')
+  @ApiOperation({ summary: 'Keuangan menyetujui (nominal/tanggal boleh berbeda dari permintaan) atau menolak pengajuan keringanan' })
+  async decideReliefRequest(@Param('id') id: string, @Body() body: ReliefDecisionDto, @Req() req: any) {
+    return this.reliefService.decide(id, body, req.user?.sub);
   }
 
   @Get('transactions')

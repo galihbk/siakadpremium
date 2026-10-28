@@ -536,7 +536,8 @@ export class ExamsService {
     if (!student) throw new ForbiddenException('Akun ini bukan akun mahasiswa.');
     const year = await this.resolveYear(academicYearId);
 
-    const unpaid = await this.prisma.paymentInvoice.count({ where: { nim: student.nim, status: { not: 'LUNAS' } } });
+    // Syarat kartu ujian: tagihan kuliah lunas. Biaya khusus kegiatan lapangan tidak ikut menahan kartu ujian.
+    const unpaid = await this.prisma.paymentInvoice.count({ where: { nim: student.nim, status: { not: 'LUNAS' }, fieldCharge: { is: null } } });
 
     const enrollments = await this.prisma.courseEnrollment.findMany({
       where: { studentId: student.id, academicYearId: year.id, status: 'APPROVED', courseClassId: { not: null } },
