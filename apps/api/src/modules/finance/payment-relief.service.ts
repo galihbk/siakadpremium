@@ -17,6 +17,8 @@ export interface ReliefDecisionDto {
   decision?: string;
   approvedAmount?: number | string | null;
   approvedDueDate?: string | null;
+  /** Izinkan KRS diajukan ke Dosen PA tanpa menunggu pelunasan (tagihan UKT/SPP). Bawaan: ya untuk penundaan, tidak untuk potongan. */
+  allowKrs?: boolean;
   note?: string;
 }
 
@@ -76,7 +78,16 @@ export class PaymentReliefService {
       decidedByName: r.decidedByName,
       createdAt: r.createdAt,
       invoice: r.invoice
-        ? { id: r.invoice.id, invoiceNo: r.invoice.invoiceNo, paymentType: r.invoice.paymentType, amount: r.invoice.amount, dueDate: r.invoice.dueDate, status: r.invoice.status }
+        ? {
+            id: r.invoice.id,
+            invoiceNo: r.invoice.invoiceNo,
+            paymentType: r.invoice.paymentType,
+            amount: r.invoice.amount,
+            dueDate: r.invoice.dueDate,
+            status: r.invoice.status,
+            // tagihan biaya khusus kegiatan lapangan tidak terkait KRS
+            isFieldCharge: Boolean(r.invoice.fieldCharge),
+          }
         : undefined,
     };
   }
@@ -155,7 +166,7 @@ export class PaymentReliefService {
   async list(q: { status?: string; search?: string }) {
     const rows = await this.prisma.paymentReliefRequest.findMany({
       where: q.status ? { status: q.status } : {},
-      include: { invoice: true, student: { include: { user: { select: { fullName: true } }, studyProgram: { select: { name: true } } } } },
+      include: { invoice: { include: { fieldCharge: { select: { id: true } } } }, student: { include: { user: { select: { fullName: true } }, studyProgram: { select: { name: true } } } } },
       orderBy: { createdAt: 'desc' },
     });
     const grouped = await this.prisma.paymentReliefRequest.groupBy({ by: ['status'], _count: { _all: true } });
@@ -173,7 +184,7 @@ export class PaymentReliefService {
   }
 
   async decide(id: string, dto: ReliefDecisionDto, actorUserId?: string) {
-    const r = await this.prisma.paymentReliefRequest.findUnique({ where: { id }, include: { invoice: true } });
+    const r = await this.prisma.paymentReliefRequest.findUnique({ where: { id }, include: { invoice: { include: { fieldCharge: { select: { id: true } } } } } });
     if (!r) throw new NotFoundException('Pengajuan tidak ditemukan.');
     if (r.status !== 'PENDING') throw new BadRequestException('Pengajuan ini sudah diputuskan.');
     const decision = (dto.decision ?? '').toUpperCase();
@@ -226,6 +237,16 @@ export class PaymentReliefService {
       ]);
       if (remaining === 0) await this.finance.settleInvoiceFree(inv.id);
       summary = remaining === 0 ? `${inv.invoiceNo} dibebaskan dan dinyatakan lunas.` : `Tagihan ${inv.invoiceNo} dipotong ${this.rupiah(wanted)}; sisa ${this.rupiah(remaining)}.`;
+    }
+
+    // KRS: pembebasan penuh sudah memajukannya lewat pelunasan. Untuk penundaan/potongan, Keuangan dapat mengizinkan KRS lanjut
+    // ke Dosen PA tanpa menunggu pelunasan (bawaan: ya untuk penundaan, tidak untuk potongan). Tidak berlaku untuk biaya kegiatan lapangan.
+    const fullyWaived = r.type === 'PEMBEBASAN' || (approvedAmount !== null && approvedAmount >= inv.amount);
+    const allowKrs = dto.allowKrs ?? r.type === 'PENUNDAAN';
+    if (!fullyWaived && allowKrs && !inv.fieldCharge && (await this.finance.releaseKrsForInvoice(inv.id))) {
+      summary += ' KRS mahasiswa diajukan ke Dosen PA tanpa menunggu pelunasan.';
+    } else if (fullyWaived && !inv.fieldCharge) {
+      summary += ' KRS mahasiswa dapat diajukan ke Dosen PA.';
     }
 
     await this.prisma.paymentReliefRequest.update({

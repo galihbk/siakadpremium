@@ -638,6 +638,25 @@ export class FinanceService {
     }
   }
 
+  /**
+   * Keringanan disetujui dan Keuangan mengizinkan KRS lanjut sebelum tagihan UKT lunas: KRS draf mahasiswa diajukan ke Dosen PA.
+   * Hanya berlaku untuk tagihan UKT/SPP (bukan biaya khusus kegiatan lapangan). Mengembalikan true bila ada KRS yang dimajukan.
+   */
+  async releaseKrsForInvoice(invoiceId: string): Promise<boolean> {
+    const trx = await this.prisma.paymentInvoice.findUnique({ where: { id: invoiceId }, include: { fieldCharge: { select: { id: true } } } });
+    if (!trx || trx.fieldCharge) return false;
+    const [student, year] = await Promise.all([
+      this.prisma.student.findUnique({ where: { nim: trx.nim } }),
+      this.prisma.academicYear.findFirst({ where: { name: trx.academicYear } }),
+    ]);
+    if (!student || !year) return false;
+    const r = await this.prisma.courseEnrollment.updateMany({
+      where: { studentId: student.id, academicYearId: year.id, status: 'DRAFT' },
+      data: { status: 'SUBMITTED' },
+    });
+    return r.count > 0;
+  }
+
   /** Tagihan dibebaskan penuh lewat keringanan: nyatakan lunas dan jalankan akibat pelunasan yang sama seperti pembayaran biasa. */
   async settleInvoiceFree(id: string) {
     const trx = await this.prisma.paymentInvoice.findUnique({ where: { id } });

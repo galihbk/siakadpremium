@@ -22,7 +22,7 @@ export interface ReliefRequest {
   decidedAt: string | null;
   decidedByName: string | null;
   createdAt: string;
-  invoice?: { id: string; invoiceNo: string; paymentType: string; amount: number; dueDate: string | null; status: string };
+  invoice?: { id: string; invoiceNo: string; paymentType: string; amount: number; dueDate: string | null; status: string; isFieldCharge?: boolean };
 }
 
 export interface ReliefQueueItem extends ReliefRequest {

@@ -27,7 +27,7 @@ export default function FinanceKeringananPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
   const [active, setActive] = useState<ReliefQueueItem | null>(null);
-  const [form, setForm] = useState({ approvedAmount: '', approvedDueDate: '', note: '' });
+  const [form, setForm] = useState({ approvedAmount: '', approvedDueDate: '', note: '', allowKrs: true });
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -63,6 +63,7 @@ export default function FinanceKeringananPage() {
       approvedAmount: r.type === 'POTONGAN' ? String(r.requestedAmount ?? '') : '',
       approvedDueDate: r.type === 'PENUNDAAN' ? toDateInput(r.requestedDueDate) : '',
       note: r.status === 'PENDING' ? '' : r.financeNote ?? '',
+      allowKrs: r.type === 'PENUNDAAN', // bawaan: penundaan mengizinkan KRS lanjut, potongan menunggu pelunasan sisa
     });
   };
 
@@ -78,6 +79,7 @@ export default function FinanceKeringananPage() {
           note: form.note,
           approvedAmount: active.type === 'POTONGAN' && form.approvedAmount ? Number(form.approvedAmount) : undefined,
           approvedDueDate: active.type === 'PENUNDAAN' && form.approvedDueDate ? form.approvedDueDate : undefined,
+          allowKrs: decision === 'APPROVED' && active.type !== 'PEMBEBASAN' && !invoiceNow?.isFieldCharge ? form.allowKrs : undefined,
         },
       });
       notify(true, r.message);
@@ -264,6 +266,20 @@ export default function FinanceKeringananPage() {
                       <label className="block font-bold text-slate-700 mb-1">Jatuh tempo baru yang disetujui</label>
                       <input type="date" value={form.approvedDueDate} onChange={(e) => setForm({ ...form, approvedDueDate: e.target.value })} className={inputCls} />
                     </div>
+                  )}
+                  {active.type !== 'PEMBEBASAN' && !invoiceNow?.isFieldCharge && (
+                    <label className="flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 cursor-pointer">
+                      <input type="checkbox" checked={form.allowKrs} onChange={(e) => setForm({ ...form, allowKrs: e.target.checked })} className="mt-0.5" />
+                      <span>
+                        <span className="block font-bold text-slate-700">Izinkan KRS diajukan ke Dosen PA sebelum tagihan lunas</span>
+                        <span className="block text-[11px] text-slate-500 mt-0.5">
+                          Bila dicentang, KRS draf mahasiswa langsung diajukan tanpa menunggu pembayaran. Bila tidak, KRS baru diajukan setelah tagihan (sisa) dibayar.
+                        </span>
+                      </span>
+                    </label>
+                  )}
+                  {active.type === 'PEMBEBASAN' && !invoiceNow?.isFieldCharge && (
+                    <p className="text-[11px] text-slate-500">Setelah dibebaskan dan lunas, KRS mahasiswa otomatis diajukan ke Dosen PA.</p>
                   )}
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">Catatan untuk mahasiswa</label>
