@@ -26,8 +26,8 @@ import {
 
 const P2M_STATUS_LABEL: Record<string, string> = {
   BELUM_DIAJUKAN: 'Belum Diajukan',
-  DIAJUKAN: 'Menunggu Validasi P2M',
-  DISAHKAN: 'Disahkan P2M',
+  DIAJUKAN: 'Menunggu Pengesahan Prodi',
+  DISAHKAN: 'Disahkan Prodi',
   PERLU_REVISI: 'Perlu Revisi',
 };
 
@@ -246,7 +246,7 @@ export default function LecturerRpsFormPage() {
           setP2mNote(null);
         }
         showToast(
-          publish ? 'RPS berhasil disimpan & diajukan untuk divalidasi P2M.' : 'RPS berhasil disimpan sebagai draf.',
+          publish ? 'RPS berhasil disimpan & diajukan untuk disahkan Program Studi.' : 'RPS berhasil disimpan sebagai draf.',
         );
       } else {
         showToast(json?.message || 'Gagal menyimpan RPS.', 'error');
@@ -286,7 +286,7 @@ export default function LecturerRpsFormPage() {
           <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs font-bold text-rose-700">Catatan Revisi dari P2M:</p>
+              <p className="text-xs font-bold text-rose-700">Catatan Revisi dari Program Studi:</p>
               <p className="text-xs text-rose-600 mt-0.5">{p2mNote}</p>
               <p className="text-[11px] text-rose-500 mt-1">
                 Perbaiki RPS sesuai catatan di atas, lalu klik &quot;Simpan &amp; Publikasikan&quot; untuk mengajukan ulang validasi.

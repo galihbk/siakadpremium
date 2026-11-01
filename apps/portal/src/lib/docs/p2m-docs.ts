@@ -18,7 +18,7 @@ export const P2M_DOCS: DocSection[] = [
         head: ['Kelompok menu', 'Isi'],
         rows: [
           ['Menu Utama P2M', 'Dashboard P2M (pusat kendali penjaminan mutu).'],
-          ['Penjaminan Mutu', 'Standar Mutu, Audit Mutu Internal, Validasi RPS, Tindak Lanjut Audit.'],
+          ['Penjaminan Mutu', 'Standar Mutu, Audit Mutu Internal, Pengumpulan RPS, Tindak Lanjut Audit.'],
           ['Regulasi & Dokumen', 'Dokumen Mutu.'],
           ['Informasi', 'Berita & Pengumuman.'],
         ],
@@ -31,13 +31,13 @@ export const P2M_DOCS: DocSection[] = [
     title: 'Prioritas Pekerjaan Anda',
     summary: 'Apa yang harus dikerjakan lebih dulu, kapan, dan di menu mana.',
     blocks: [
-      { t: 'p', text: 'P2M menjalankan siklus PPEPP. Urutannya: tetapkan standar lebih dulu, lalu awasi pelaksanaan (validasi RPS), evaluasi lewat audit, dan kendalikan lewat tindak lanjut.' },
+      { t: 'p', text: 'P2M menjalankan siklus PPEPP. Urutannya: tetapkan standar lebih dulu, lalu pantau pengumpulan RPS, evaluasi pelaksanaan lewat audit, dan kendalikan lewat tindak lanjut.' },
       {
         t: 'table',
         head: ['Prioritas', 'Pekerjaan', 'Kapan', 'Menu'],
         rows: [
           ['P1 - Kerjakan lebih dulu', 'Tetapkan standar mutu dan pastikan statusnya Aktif', 'Awal tahun akademik', 'Standar Mutu'],
-          ['P1 - Kerjakan lebih dulu', 'Validasi RPS yang diajukan dosen atau beri catatan revisi', 'Awal semester, lalu tiap ada pengajuan', 'Validasi RPS'],
+          ['P2 - Penting', 'Cek dosen yang belum mengumpulkan RPS pada tahun akademik berjalan dan ingatkan prodi terkait', 'Awal semester, lalu berkala', 'Pengumpulan RPS'],
           ['P2 - Penting', 'Jadwalkan Audit Mutu Internal tiap prodi', 'Sesuai siklus audit', 'Audit Mutu Internal'],
           ['P2 - Penting', 'Isi hasil audit (Sesuai, Temuan Minor, Temuan Mayor) dan batas waktu tindak lanjut', 'Setelah audit selesai', 'Audit Mutu Internal'],
           ['P3 - Rutin', 'Pantau dan perbarui status tindak lanjut sampai Selesai', 'Mingguan hingga temuan tuntas', 'Tindak Lanjut Audit'],
@@ -115,17 +115,18 @@ export const P2M_DOCS: DocSection[] = [
   {
     id: 'rps',
     group: 'Penjaminan Mutu',
-    title: 'Validasi RPS',
-    summary: 'Mengesahkan RPS yang diajukan dosen.',
+    title: 'Pengumpulan RPS',
+    summary: 'Memantau dosen yang sudah dan belum mengumpulkan RPS (hanya lihat).',
     blocks: [
       {
         t: 'ol',
         items: [
-          'Buka Validasi RPS untuk melihat RPS yang diajukan dosen.',
-          'Buka detail RPS (CPL/CPMK, bahan kajian, metode, pustaka, matriks 16 pertemuan) dan periksa kelengkapannya.',
-          'Klik Validasi RPS bila sesuai, atau berikan Catatan Revisi untuk Dosen agar RPS diperbaiki dan diajukan ulang.',
+          'Buka Pengumpulan RPS, lalu pilih Tahun Akademik.',
+          'Lihat ringkasan: total kelas, yang sudah mengumpulkan, yang belum, yang menunggu prodi, dan yang perlu revisi.',
+          'Gunakan filter Program Studi dan Status (mis. Belum mengumpulkan) untuk menemukan dosen yang perlu diingatkan.',
         ],
       },
+      { t: 'p', text: 'Halaman ini hanya untuk memantau. RPS disahkan atau dikembalikan untuk revisi oleh Program Studi, bukan P2M. Kelas tanpa dosen dan kelas berjadwal fleksibel (skripsi, kegiatan lapangan) tidak dihitung.' },
     ],
   },
   {

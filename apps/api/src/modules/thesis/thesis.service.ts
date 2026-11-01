@@ -801,6 +801,12 @@ export class ThesisService {
     return { letter, point: points[letter] ?? 0 };
   }
 
+  /** Huruf mutu, bobot, dan status nilai (DRAFT/FINAL, dari pengaturan Tugas Akhir) untuk nilai angka yang ditulis modul lain. */
+  async gradeForScore(score: number): Promise<{ letter: string; point: number; status: 'DRAFT' | 'FINAL' }> {
+    const [grade, settings] = await Promise.all([this.resolveGrade(score), this.getSettings()]);
+    return { ...grade, status: settings.gradeStatus === 'DRAFT' ? 'DRAFT' : 'FINAL' };
+  }
+
   /**
    * Menulis nilai hasil seminar/ujian ke KRS mahasiswa pada mata kuliah hasil pemetaan prodinya.
    * Tidak ada pemetaan = tahap itu hanya syarat (tidak ada nilai). Mahasiswa belum KRS mata kuliahnya = nilai ditahan

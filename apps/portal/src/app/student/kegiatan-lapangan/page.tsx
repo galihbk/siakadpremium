@@ -11,6 +11,8 @@ import {
   PERIOD_STATE_LABEL,
   ChargeStatus,
   CHARGE_STATUS_LABEL,
+  FieldGrade,
+  LogbookCounts,
   chargeStatusTone,
   formatRupiah,
   fieldFetch,
@@ -19,6 +21,7 @@ import {
   registrationStatusTone,
 } from '@/lib/fieldActivity';
 import { FieldHistoryEvent, FieldHistoryTable } from '@/components/field/FieldHistoryTable';
+import { FieldLogbookPanel } from '@/components/field/FieldLogbookPanel';
 import { AlertTriangle, Briefcase, CheckCircle2, Clock, RefreshCw, Send, UserCheck, Users, X } from 'lucide-react';
 
 interface MineItem {
@@ -43,6 +46,7 @@ interface MineItem {
   history: FieldHistoryEvent[];
   charges: { courseId: string; label: string; amount: number; invoiceNo: string; status: Exclude<ChargeStatus, 'NONE'> }[];
   supervisions: { courseId: string; supervisor1Name: string | null; supervisor2Name: string | null }[];
+  work: { courseId: string; logbook: LogbookCounts; grade: FieldGrade | null }[];
 }
 
 interface Mine {
@@ -375,6 +379,14 @@ export default function StudentKegiatanLapanganPage() {
                         Menunggu penetapan dosen pembimbing oleh akademik. Tidak perlu mendaftar.
                       </p>
                     ))}
+
+                  <FieldLogbookPanel
+                    courses={item.courses}
+                    supervisedCourseIds={item.supervisions.filter((s) => s.supervisor1Name).map((s) => s.courseId)}
+                    work={item.work}
+                    notify={notify}
+                    onChanged={load}
+                  />
 
                   <div className="mt-5 pt-5 border-t border-slate-100 space-y-2">
                     <p className="text-xs font-bold text-slate-700">Riwayat</p>

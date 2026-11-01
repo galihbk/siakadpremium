@@ -2,7 +2,7 @@ import { loadArticles, fmtArticleDate } from '@/lib/articles';
 import Link from 'next/link';
 import { Calendar, ArrowRight, Newspaper } from 'lucide-react';
 
-export async function BeritaSection() {
+export async function BeritaSection({ campusShort = 'kampus' }: { campusShort?: string }) {
   const { items, failed } = await loadArticles();
   const beritaList = items.slice(0, 3).map((a) => ({
     slug: a.slug,
@@ -22,13 +22,13 @@ export async function BeritaSection() {
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-14 gap-4">
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100/80 text-[#1E3A8A] text-xs font-bold uppercase tracking-wider mb-3">
-              Kabar Nusantara
+              Kabar Kampus
             </div>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
               Berita & Informasi Terkini
             </h2>
             <p className="text-base text-slate-600 mt-2 max-w-2xl">
-              Ikuti perkembangan terbaru, pencapaian akademik, riset terobosan, dan aktivitas civitas akademika ITN.
+              Ikuti perkembangan terbaru, pencapaian akademik, riset terobosan, dan aktivitas civitas akademika {campusShort}.
             </p>
           </div>
 

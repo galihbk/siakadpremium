@@ -37,9 +37,6 @@ jobs:
       - name: Lowercase Repository Owner for GHCR
         run: echo "IMAGE_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -69,8 +66,8 @@ jobs:
           push: true
           tags: ${{ steps.meta-api.outputs.tags }}
           labels: ${{ steps.meta-api.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
 
   # ----------------------------------------------------------------------------
   # Job 2: Build & Push Website Next.js Docker Image (GitHub Cloud Runner)
@@ -83,9 +80,6 @@ jobs:
 
       - name: Lowercase Repository Owner for GHCR
         run: echo "IMAGE_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -119,8 +113,8 @@ jobs:
             INTERNAL_API_URL=http://api:3001/api/v1
           tags: ${{ steps.meta-web.outputs.tags }}
           labels: ${{ steps.meta-web.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
 
   # ----------------------------------------------------------------------------
   # Job 3b: Build & Push PMB Next.js Docker Image (GitHub Cloud Runner)
@@ -133,9 +127,6 @@ jobs:
 
       - name: Lowercase Repository Owner for GHCR
         run: echo "IMAGE_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -169,8 +160,8 @@ jobs:
             INTERNAL_API_URL=http://api:3001/api/v1
           tags: ${{ steps.meta-pmb.outputs.tags }}
           labels: ${{ steps.meta-pmb.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=pmb
+          cache-to: type=gha,scope=pmb,mode=max
 
   # ----------------------------------------------------------------------------
   # Job 3c: Build & Push P2M Next.js Docker Image (GitHub Cloud Runner)
@@ -183,9 +174,6 @@ jobs:
 
       - name: Lowercase Repository Owner for GHCR
         run: echo "IMAGE_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -219,8 +207,8 @@ jobs:
             INTERNAL_API_URL=http://api:3001/api/v1
           tags: ${{ steps.meta-p2m.outputs.tags }}
           labels: ${{ steps.meta-p2m.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=p2m
+          cache-to: type=gha,scope=p2m,mode=max
 
   # ----------------------------------------------------------------------------
   # Job 3d: Build & Push P3M Next.js Docker Image (GitHub Cloud Runner)
@@ -233,9 +221,6 @@ jobs:
 
       - name: Lowercase Repository Owner for GHCR
         run: echo "IMAGE_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -269,8 +254,8 @@ jobs:
             INTERNAL_API_URL=http://api:3001/api/v1
           tags: ${{ steps.meta-p3m.outputs.tags }}
           labels: ${{ steps.meta-p3m.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=p3m
+          cache-to: type=gha,scope=p3m,mode=max
 
   # ----------------------------------------------------------------------------
   # Job 3: Build & Push Portal Next.js Docker Image (GitHub Cloud Runner)
@@ -283,9 +268,6 @@ jobs:
 
       - name: Lowercase Repository Owner for GHCR
         run: echo "IMAGE_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -320,8 +302,8 @@ jobs:
             NEXT_PUBLIC_WEB_URL=https://galihjp.com
           tags: ${{ steps.meta-portal.outputs.tags }}
           labels: ${{ steps.meta-portal.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=portal
+          cache-to: type=gha,scope=portal,mode=max
 
   # ----------------------------------------------------------------------------
   # Job 4: Self-Hosted Runner Deploy (Runs directly on Home Server)

@@ -39,6 +39,8 @@ async function getLandingPageData() {
 
 export default async function HomePage() {
   const data = await getLandingPageData();
+  const campusName: string = data?.campusName || 'Kampus';
+  const campusShort: string = data?.campusShortName || campusName;
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -66,6 +68,7 @@ export default async function HomePage() {
           subtitle={data?.heroSubtitle}
           ctaText={data?.heroCtaText}
           ctaLink={data?.heroCtaLink}
+          campusName={campusName}
         />
 
         {/* 3. Sambutan Rektor */}
@@ -74,10 +77,12 @@ export default async function HomePage() {
           rectorTitle={data?.rectorTitle || undefined}
           rectorSpeech={data?.rectorSpeech || undefined}
           rectorImageUrl={data?.rectorImageUrl || undefined}
+          campusName={campusName}
+          campusShort={campusShort}
         />
 
         {/* 4. Keunggulan Kampus */}
-        <KeunggulanSection />
+        <KeunggulanSection campusShort={campusShort} />
 
         {/* 5. Fakultas */}
         <FakultasSection />
@@ -86,7 +91,7 @@ export default async function HomePage() {
         <ProgramStudiSection />
 
         {/* 7. Berita Terbaru */}
-        <BeritaSection />
+        <BeritaSection campusShort={campusShort} />
 
         {/* 8. Agenda Kampus */}
         <AgendaSection />
@@ -95,10 +100,10 @@ export default async function HomePage() {
         <StatistikSection />
 
         {/* 10. Testimoni Alumni */}
-        <TestimoniSection />
+        <TestimoniSection campusName={campusName} campusShort={campusShort} />
 
         {/* 11. CTA PMB */}
-        <CtaSection />
+        <CtaSection campusName={campusName} />
       </main>
 
       {/* 12. Footer */}

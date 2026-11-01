@@ -47,6 +47,8 @@ RUN pnpm --filter @siakad/utils build
 RUN pnpm --filter @siakad/auth build
 RUN pnpm --filter @siakad/database build
 RUN pnpm --filter @siakad/portal build
+# Tanpa source map di image: jangan sertakan peta ke kode asli
+RUN find apps/portal/.next -name "*.map" -delete
 
 # ------------------------------------------------------------------------------
 # Stage 2: Lean production image
@@ -60,6 +62,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=builder /app/apps/portal/public           ./apps/portal/public
 COPY --from=builder /app/apps/portal/.next/standalone ./
 COPY --from=builder /app/apps/portal/.next/static     ./apps/portal/.next/static
+
+# Jalankan tanpa hak root; cache Next.js perlu bisa ditulis
+RUN mkdir -p apps/portal/.next/cache && chown -R node:node apps/portal/.next/cache
+USER node
 
 EXPOSE 3002
 CMD ["node", "apps/portal/server.js"]

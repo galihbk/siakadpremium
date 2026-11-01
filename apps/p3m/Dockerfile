@@ -43,6 +43,8 @@ RUN pnpm --filter @siakad/utils build
 RUN pnpm --filter @siakad/auth build
 RUN pnpm --filter @siakad/database build
 RUN pnpm --filter @siakad/p3m build
+# Tanpa source map di image: jangan sertakan peta ke kode asli
+RUN find apps/p3m/.next -name "*.map" -delete
 
 # ------------------------------------------------------------------------------
 # Stage 2: Lean production image
@@ -56,6 +58,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=builder /app/apps/p3m/public           ./apps/p3m/public
 COPY --from=builder /app/apps/p3m/.next/standalone ./
 COPY --from=builder /app/apps/p3m/.next/static     ./apps/p3m/.next/static
+
+# Jalankan tanpa hak root; cache Next.js perlu bisa ditulis
+RUN mkdir -p apps/p3m/.next/cache && chown -R node:node apps/p3m/.next/cache
+USER node
 
 EXPOSE 3006
 CMD ["node", "apps/p3m/server.js"]

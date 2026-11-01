@@ -73,21 +73,21 @@ enum AdmissionStatus {
 }
 
 model User {
-  id             String   @id @default(uuid())
-  email          String   @unique
-  passwordHash   String
+  id                 String   @id @default(uuid())
+  email              String   @unique
+  passwordHash       String
   // true = masih memakai kata sandi awal (mis. tanggal lahir) dan wajib menggantinya saat login berikutnya
-  mustChangePassword Boolean @default(false)
-  fullName       String
-  role           Role     @default(STUDENT)
-  avatarUrl      String?
-  isActive       Boolean  @default(true)
+  mustChangePassword Boolean  @default(false)
+  fullName           String
+  role               Role     @default(STUDENT)
+  avatarUrl          String?
+  isActive           Boolean  @default(true)
   // Dipakai khusus role ADMIN_PRODI -- menandai program studi yang dikelola akun ini.
-  studyProgramId String?
+  studyProgramId     String?
   // Shift kerja (jam absen) yang berlaku untuk dosen/karyawan ini.
-  shiftId        String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  shiftId            String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   student                      Student?
   lecturer                     Lecturer?
@@ -335,27 +335,27 @@ model StudyProgram {
 }
 
 model Lecturer {
-  fieldGroups FieldGroup[]
-  id                String  @id @default(uuid())
-  userId            String  @unique
+  fieldGroups       FieldGroup[]
+  id                String       @id @default(uuid())
+  userId            String       @unique
   studyProgramId    String
   // Dosen bisa punya NIDN, NUPTK, atau dua-duanya (terkonfirmasi dari tampilan Neo
   // Feeder sungguhan) -- makanya nidn TIDAK boleh wajib/unik tunggal lagi. Minimal
   // salah satu dari nidn/nuptk harus terisi, divalidasi di level aplikasi, bukan skema.
-  nidn              String? @unique
-  nuptk             String? @unique
-  nip               String? @unique
+  nidn              String?      @unique
+  nuptk             String?      @unique
+  nip               String?      @unique
   nidk              String?
   // id_dosen dari Neo Feeder -- kunci paling stabil untuk mencocokkan ulang data saat
   // re-sync, karena NIDN/NUPTK dosen baru kadang belum terbit saat pertama ditarik.
-  feederId          String? @unique
-  nik               String? @unique
+  feederId          String?      @unique
+  nik               String?      @unique
   npwp              String?
   titlePrefix       String?
   titleSuffix       String?
   phone             String?
   officePhone       String?
-  isAcademicAdvisor Boolean @default(true)
+  isAcademicAdvisor Boolean      @default(true)
 
   // Identitas Diri
   gender           Gender?
@@ -427,21 +427,22 @@ model Lecturer {
 }
 
 model Student {
-  reliefRequests PaymentReliefRequest[]
-  fieldCharges FieldCharge[]
-  fieldEvents FieldEvent[]
-  fieldRegistrations FieldRegistration[]
-  fieldGroupMemberships FieldGroupMember[]
-  id                   String        @id @default(uuid())
+  reliefRequests          PaymentReliefRequest[]
+  fieldCharges            FieldCharge[]
+  fieldEvents             FieldEvent[]
+  fieldLogbooks           FieldLogbook[]
+  fieldRegistrations      FieldRegistration[]
+  fieldGroupMemberships   FieldGroupMember[]
+  id                      String                 @id @default(uuid())
   // Perguruan tinggi asal -- diisi bila jenis mahasiswa bukan mahasiswa baru (pindahan/RPL); dikirim ke Feeder
-  originInstitution  String?
-  originInstitutionCode String? // kode perguruan tinggi 6 digit (PDDIKTI/Feeder), bila dipilih dari pencarian
-  originInstitutionId  String? // id_perguruan_tinggi Feeder, bila dipilih dari pencarian Feeder
-  originStudyProgram String?
+  originInstitution       String?
+  originInstitutionCode   String? // kode perguruan tinggi 6 digit (PDDIKTI/Feeder), bila dipilih dari pencarian
+  originInstitutionId     String? // id_perguruan_tinggi Feeder, bila dipilih dari pencarian Feeder
+  originStudyProgram      String?
   originStudyProgramLevel String? // jenjang prodi asal (S1, S2, D3, ...), bila dipilih dari pencarian
-  originStudyProgramId String? // id_prodi Feeder, bila dipilih dari pencarian Feeder
-  originNim          String?
-  originCredits      Int? // SKS yang diakui (diisi setelah evaluasi), bawaan 0 saat dikirim ke Feeder
+  originStudyProgramId    String? // id_prodi Feeder, bila dipilih dari pencarian Feeder
+  originNim               String?
+  originCredits           Int? // SKS yang diakui (diisi setelah evaluasi), bawaan 0 saat dikirim ke Feeder
 
   userId               String        @unique
   studyProgramId       String
@@ -529,19 +530,19 @@ model Student {
 }
 
 model AcademicYear {
-  fieldPeriods FieldPeriod[]
-  fieldRegistrations FieldRegistration[]
-  fieldGroups FieldGroup[]
-  id                  String       @id @default(uuid())
-  code                String       @unique // e.g. "20261" for 2026/2027 Gasal
+  fieldPeriods        FieldPeriod[]
+  fieldRegistrations  FieldRegistration[]
+  fieldGroups         FieldGroup[]
+  id                  String              @id @default(uuid())
+  code                String              @unique // e.g. "20261" for 2026/2027 Gasal
   name                String // e.g. "2026/2027"
-  semesterType        SemesterType @default(ODD)
-  isActive            Boolean      @default(false)
+  semesterType        SemesterType        @default(ODD)
+  isActive            Boolean             @default(false)
   startDate           DateTime
   endDate             DateTime
   krsStartDate        DateTime?
   krsEndDate          DateTime?
-  isKrsOpen           Boolean      @default(true)
+  isKrsOpen           Boolean             @default(true)
   pmbStartDate        DateTime?
   pmbEndDate          DateTime?
   skRektor            String?
@@ -552,11 +553,11 @@ model AcademicYear {
   // fallback untuk tahun akademik lama yang belum mengisi tanggal ini.
   gradeInputStartDate DateTime?
   gradeInputEndDate   DateTime?
-  isGradeLocked       Boolean      @default(true)
-  status              String       @default("Aktif") // Aktif, Arsip, Mendatang
-  notes               String?      @db.Text
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  isGradeLocked       Boolean             @default(true)
+  status              String              @default("Aktif") // Aktif, Arsip, Mendatang
+  notes               String?             @db.Text
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 
   enrollments        CourseEnrollment[]
   courseClasses      CourseClass[]
@@ -570,42 +571,43 @@ model AcademicYear {
 }
 
 model Course {
-  fieldCharges FieldCharge[]
-  fieldEvents FieldEvent[]
-  fieldRegistrations FieldRegistration[]
-  id                        String    @id @default(uuid())
+  fieldCharges              FieldCharge[]
+  fieldEvents               FieldEvent[]
+  fieldLogbooks             FieldLogbook[]
+  fieldRegistrations        FieldRegistration[]
+  id                        String              @id @default(uuid())
   // id_matkul dari Neo Feeder -- kunci paling stabil untuk mencocokkan ulang data saat
   // re-sync, sama seperti feederId di Lecturer/Student.
-  feederId                  String?   @unique
+  feederId                  String?             @unique
   // Pesan error terakhir kalau Push mata kuliah ini ke Feeder gagal -- dikosongkan lagi begitu
   // Push berikutnya untuk mata kuliah ini berhasil.
-  feederSyncError           String?   @db.Text
+  feederSyncError           String?             @db.Text
   feederSyncErrorAt         DateTime?
   studyProgramId            String?
   studyProgramName          String?
   facultyCode               String?
   curriculumId              String?
-  code                      String    @unique // e.g. "TIF-201"
+  code                      String              @unique // e.g. "TIF-201"
   name                      String
-  sksTeori                  Int       @default(2)
-  sksPraktik                Int       @default(0)
-  totalSks                  Int       @default(2)
-  sks                       Int       @default(3)
-  semester                  Int       @default(1)
-  type                      String    @default("Wajib Prodi")
+  sksTeori                  Int                 @default(2)
+  sksPraktik                Int                 @default(0)
+  totalSks                  Int                 @default(2)
+  sks                       Int                 @default(3)
+  semester                  Int                 @default(1)
+  type                      String              @default("Wajib Prodi")
   // true untuk kategori mata kuliah lapangan/tugas akhir (Skripsi/TA, KKN, PLP, Kerja Praktik, dst.):
   // SEMUA kelas dari mata kuliah ini otomatis dianggap tanpa jadwal & ruang tetap, dan mahasiswa
   // yang mengambilnya otomatis masuk daftar Bimbingan Tugas Akhir untuk ditetapkan pembimbingnya —
   // BAAK tidak perlu mencentang "Tanpa jadwal tetap" satu-satu tiap kali membuat kelasnya.
-  requiresThesisSupervision Boolean   @default(false)
+  requiresThesisSupervision Boolean             @default(false)
   // Label kategori spesifik saat requiresThesisSupervision true, mis. "Skripsi/TA", "KKN", "PLP",
   // "Kerja Praktik", "Magang" -- murni untuk tampilan/pelaporan, logika jadwal tetap pakai field di atas.
   finalProjectLabel         String?
   coordinator               String?
-  status                    String    @default("Aktif")
-  description               String?   @db.Text
-  createdAt                 DateTime  @default(now())
-  updatedAt                 DateTime  @updatedAt
+  status                    String              @default("Aktif")
+  description               String?             @db.Text
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
 
   studyProgram       StudyProgram?       @relation(fields: [studyProgramId], references: [id], onDelete: Cascade)
   curriculum         Curriculum?         @relation(fields: [curriculumId], references: [id], onDelete: SetNull)
@@ -663,8 +665,8 @@ model CourseClass {
 
   admissionClass AdmissionClass? @relation(fields: [admissionClassId], references: [id], onDelete: SetNull)
 
-  @@index([admissionClassId])
   @@unique([courseId, academicYearId, className])
+  @@index([admissionClassId])
   @@map("course_classes")
 }
 
@@ -794,10 +796,10 @@ model CourseEnrollment {
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
 
-  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  course       Course       @relation(fields: [courseId], references: [id], onDelete: Restrict)
-  courseClass  CourseClass? @relation(fields: [courseClassId], references: [id], onDelete: SetNull)
-  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  student         Student                    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course          Course                     @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  courseClass     CourseClass?               @relation(fields: [courseClassId], references: [id], onDelete: SetNull)
+  academicYear    AcademicYear               @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
   componentScores EnrollmentComponentScore[]
 
   @@unique([studentId, courseId, academicYearId])
@@ -890,20 +892,20 @@ enum AdmissionTrackKind {
 }
 
 model AdmissionTrack {
-  id          String   @id @default(uuid())
-  code        String   @unique // e.g. "REGULER", "TRANSFER", "PRESTASI", "KIPK"
+  id          String             @id @default(uuid())
+  code        String             @unique // e.g. "REGULER", "TRANSFER", "PRESTASI", "KIPK"
   name        String // e.g. "Jalur Reguler", "Jalur Prestasi", "Jalur KIP-Kuliah"
-  description String?  @db.Text
+  description String?            @db.Text
   kind        AdmissionTrackKind @default(BARU) // label bagi sistem; nama dan kode bebas diatur kampus
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isActive    Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
 
-  applications AdmissionApplication[]
-  students     Student[]
-  feeRules     FeeRule[]
+  applications  AdmissionApplication[]
+  students      Student[]
+  feeRules      FeeRule[]
   // Program studi yang menerima jenis mahasiswa ini; kosong = semua program studi
-  studyPrograms StudyProgram[] @relation("AdmissionTrackPrograms")
+  studyPrograms StudyProgram[]         @relation("AdmissionTrackPrograms")
 
   @@map("admission_tracks")
 }
@@ -918,36 +920,36 @@ enum AdmissionClassShift {
 }
 
 model AdmissionClass {
-  id          String   @id @default(uuid())
-  code        String   @unique // e.g. "REGULER", "KARYAWAN"
+  id          String              @id @default(uuid())
+  code        String              @unique // e.g. "REGULER", "KARYAWAN"
   name        String // e.g. "Kelas Reguler (Pagi)", "Kelas Karyawan (Sore/Malam)"
-  description String?  @db.Text
+  description String?             @db.Text
   shift       AdmissionClassShift @default(PAGI) // kategori waktu kuliah; nama dan kode bebas diatur kampus
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
 
-  applications AdmissionApplication[]
-  students     Student[]
-  feeRules     FeeRule[]
+  applications  AdmissionApplication[]
+  students      Student[]
+  feeRules      FeeRule[]
   courseClasses CourseClass[]
   // Program studi yang membuka kelas kuliah ini; kosong = semua program studi
-  studyPrograms StudyProgram[] @relation("AdmissionClassPrograms")
+  studyPrograms StudyProgram[]         @relation("AdmissionClassPrograms")
 
   @@map("admission_classes")
 }
 
 model AdmissionApplication {
-  id                 String  @id @default(uuid())
+  id                      String  @id @default(uuid())
   // Perguruan tinggi asal -- diisi bila jenis mahasiswa bukan mahasiswa baru (pindahan/RPL); dikirim ke Feeder
-  originInstitution  String?
-  originInstitutionCode String? // kode perguruan tinggi 6 digit (PDDIKTI/Feeder), bila dipilih dari pencarian
-  originInstitutionId  String? // id_perguruan_tinggi Feeder, bila dipilih dari pencarian Feeder
-  originStudyProgram String?
+  originInstitution       String?
+  originInstitutionCode   String? // kode perguruan tinggi 6 digit (PDDIKTI/Feeder), bila dipilih dari pencarian
+  originInstitutionId     String? // id_perguruan_tinggi Feeder, bila dipilih dari pencarian Feeder
+  originStudyProgram      String?
   originStudyProgramLevel String? // jenjang prodi asal (S1, S2, D3, ...), bila dipilih dari pencarian
-  originStudyProgramId String? // id_prodi Feeder, bila dipilih dari pencarian Feeder
-  originNim          String?
-  originCredits      Int? // SKS yang diakui (diisi setelah evaluasi), bawaan 0 saat dikirim ke Feeder
+  originStudyProgramId    String? // id_prodi Feeder, bila dipilih dari pencarian Feeder
+  originNim               String?
+  originCredits           Int? // SKS yang diakui (diisi setelah evaluasi), bawaan 0 saat dikirim ke Feeder
 
   accountId          String
   waveId             String?
@@ -1546,28 +1548,28 @@ enum PaymentStatus {
 
 model PaymentInvoice {
   reliefRequests PaymentReliefRequest[]
-  fieldCharge FieldCharge?
-  id             String        @id @default(uuid())
-  invoiceNo      String        @unique
+  fieldCharge    FieldCharge?
+  id             String                 @id @default(uuid())
+  invoiceNo      String                 @unique
   nim            String
   studentName    String
   studyProgram   String
-  semester       Int           @default(1)
-  paymentType    String        @default("UKT / SPP")
+  semester       Int                    @default(1)
+  paymentType    String                 @default("UKT / SPP")
   amount         Float
-  paymentMethod  String        @default("BNI Virtual Account")
+  paymentMethod  String                 @default("BNI Virtual Account")
   paidAt         String?
-  status         PaymentStatus @default(TERTUNDA)
+  status         PaymentStatus          @default(TERTUNDA)
   receiptNo      String?
-  notes          String?       @db.Text
-  academicYear   String        @default("2026/2027")
+  notes          String?                @db.Text
+  academicYear   String                 @default("2026/2027")
   dueDate        String?
   ruleCode       String?
   ruleName       String?
   originalAmount Float?
-  totalDiscount  Float         @default(0)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  totalDiscount  Float                  @default(0)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
 
   items PaymentInvoiceItem[]
 
@@ -1826,32 +1828,32 @@ model ThesisGuidance {
 // Master jenis tugas akhir & kegiatan lapangan (Skripsi/TA, KKN, PLP, Kerja Praktik, Magang, dst.).
 // Mata kuliah memilih jenis lewat Course.finalProjectLabel (= nama jenis); aturan jenis diatur sekali di sini.
 model CourseCategory {
-  feeComponent FeeComponent? @relation(fields: [feeComponentId], references: [id], onDelete: SetNull)
-  fieldCharges FieldCharge[]
-  fieldPartners FieldPartner[]
-  fieldPeriods FieldPeriod[]
-  fieldRegistrations FieldRegistration[]
-  fieldGroups FieldGroup[]
-  id                   String   @id @default(uuid())
-  name                 String   @unique
-  kind                 String   @default("LAPANGAN") // TUGAS_AKHIR | LAPANGAN
-  isSystem             Boolean  @default(false) // dipakai sistem Tugas Akhir: nama tidak boleh diubah/dihapus
-  needsSupervision     Boolean  @default(true) // false: hanya penanda nilai (mis. Seminar Proposal), tidak masuk daftar bimbingan
-  requiresRegistration Boolean  @default(false) // true: mahasiswa wajib mendaftar sebelum pembimbing ditetapkan
-  hasPartners          Boolean  @default(false) // true: kampus menyediakan daftar mitra (hanya bermakna bila wajib mendaftar)
-  allowOwnPartner      Boolean  @default(true) // bila punya mitra: mahasiswa boleh mengisi mitra lain di luar daftar
+  feeComponent         FeeComponent?       @relation(fields: [feeComponentId], references: [id], onDelete: SetNull)
+  fieldCharges         FieldCharge[]
+  fieldPartners        FieldPartner[]
+  fieldPeriods         FieldPeriod[]
+  fieldRegistrations   FieldRegistration[]
+  fieldGroups          FieldGroup[]
+  id                   String              @id @default(uuid())
+  name                 String              @unique
+  kind                 String              @default("LAPANGAN") // TUGAS_AKHIR | LAPANGAN
+  isSystem             Boolean             @default(false) // dipakai sistem Tugas Akhir: nama tidak boleh diubah/dihapus
+  needsSupervision     Boolean             @default(true) // false: hanya penanda nilai (mis. Seminar Proposal), tidak masuk daftar bimbingan
+  requiresRegistration Boolean             @default(false) // true: mahasiswa wajib mendaftar sebelum pembimbing ditetapkan
+  hasPartners          Boolean             @default(false) // true: kampus menyediakan daftar mitra (hanya bermakna bila wajib mendaftar)
+  allowOwnPartner      Boolean             @default(true) // bila punya mitra: mahasiswa boleh mengisi mitra lain di luar daftar
   feeComponentId       String? // komponen biaya (master Keuangan) yang dipungut untuk kegiatan ini; kosong = tanpa biaya khusus
-  feeAmount            Float    @default(0) // salinan tarif komponen (disinkronkan saat komponen diubah di Keuangan); > 0 = mahasiswa harus lunas dulu
+  feeAmount            Float               @default(0) // salinan tarif komponen (disinkronkan saat komponen diubah di Keuangan); > 0 = mahasiswa harus lunas dulu
   feeLabel             String? // salinan nama komponen (nama pada tagihan)
-  isGroup              Boolean  @default(false)
-  minMembers           Int      @default(1)
-  maxMembers           Int      @default(1)
-  minLogbook           Int      @default(0)
-  sortOrder            Int      @default(0)
-  isActive             Boolean  @default(true)
-  description          String?  @db.Text
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  isGroup              Boolean             @default(false)
+  minMembers           Int                 @default(1)
+  maxMembers           Int                 @default(1)
+  minLogbook           Int                 @default(0)
+  sortOrder            Int                 @default(0)
+  isActive             Boolean             @default(true)
+  description          String?             @db.Text
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
 
   @@map("course_categories")
 }
@@ -1883,22 +1885,22 @@ model ThesisApproval {
 }
 
 model ThesisDefense {
-  id           String              @id @default(uuid())
-  projectId    String
-  type         ThesisDefenseType
-  status       ThesisDefenseStatus @default(REGISTERED)
-  fileUrl      String?             @db.Text
-  registeredAt DateTime            @default(now())
-  scheduledAt  DateTime?
-  location     String?
-  result       String? // LULUS | REVISI | TIDAK_LULUS
-  score        Float?
-  gradeLetter  String?
+  id            String              @id @default(uuid())
+  projectId     String
+  type          ThesisDefenseType
+  status        ThesisDefenseStatus @default(REGISTERED)
+  fileUrl       String?             @db.Text
+  registeredAt  DateTime            @default(now())
+  scheduledAt   DateTime?
+  location      String?
+  result        String? // LULUS | REVISI | TIDAK_LULUS
+  score         Float?
+  gradeLetter   String?
   gradeSyncedAt DateTime? // kapan nilai ini ditulis ke KRS (mata kuliah hasil pemetaan)
   gradeSyncNote String? // catatan penulisan nilai (berhasil / alasan tertunda)
-  notes        String?             @db.Text
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  notes         String?             @db.Text
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 
   project   ThesisProject           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   examiners ThesisDefenseExaminer[]
@@ -1975,15 +1977,15 @@ model FinanceBudgetItem {
 
 model FeeComponent {
   fieldCategories CourseCategory[]
-  id            String   @id @default(uuid())
-  code          String   @unique // e.g. "SPP", "SKS", "PRAKTIKUM", "UJIAN", "REGISTRASI", "WISUDA"
-  name          String // e.g. "SPP / Uang Kuliah Tunggal", "Biaya SKS Perkuliahan"
-  defaultAmount Float // Tarif dasar standar (Rp)
-  category      String   @default("SEMESTER") // "SEMESTER", "PER_SKS", "SEKALI_BAYAR"
-  description   String?  @db.Text
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id              String           @id @default(uuid())
+  code            String           @unique // e.g. "SPP", "SKS", "PRAKTIKUM", "UJIAN", "REGISTRASI", "WISUDA"
+  name            String // e.g. "SPP / Uang Kuliah Tunggal", "Biaya SKS Perkuliahan"
+  defaultAmount   Float // Tarif dasar standar (Rp)
+  category        String           @default("SEMESTER") // "SEMESTER", "PER_SKS", "SEKALI_BAYAR"
+  description     String?          @db.Text
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   ruleItems    FeeRuleItem[]
   invoiceItems PaymentInvoiceItem[]
@@ -2156,7 +2158,6 @@ model PmbChatMessage {
   @@map("pmb_chat_messages")
 }
 
-
 /// Token pengaturan ulang kata sandi akun portal (mahasiswa, dosen, staf). Yang disimpan hanya HASH token;
 /// tautan di email membawa token aslinya. Sekali pakai dan kedaluwarsa.
 model PasswordResetToken {
@@ -2173,7 +2174,6 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
 }
 
-
 /// Skema komponen penilaian kampus (diatur Akademik). Berlaku mulai tahun akademik + semester `effectiveFromYearId`
 /// sampai ada skema yang lebih baru; semua dosen memakai skema yang sama untuk semester itu.
 model AssessmentScheme {
@@ -2184,7 +2184,7 @@ model AssessmentScheme {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  effectiveFrom AcademicYear         @relation(fields: [effectiveFromYearId], references: [id], onDelete: Restrict)
+  effectiveFrom AcademicYear          @relation(fields: [effectiveFromYearId], references: [id], onDelete: Restrict)
   components    AssessmentComponent[]
 
   @@unique([effectiveFromYearId])
@@ -2203,7 +2203,7 @@ model AssessmentComponent {
   source    String @default("MANUAL")
   sortOrder Int    @default(0)
 
-  scheme AssessmentScheme            @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  scheme AssessmentScheme           @relation(fields: [schemeId], references: [id], onDelete: Cascade)
   scores EnrollmentComponentScore[]
 
   @@unique([schemeId, code])
@@ -2218,8 +2218,8 @@ model EnrollmentComponentScore {
   score        Float
   updatedAt    DateTime @updatedAt
 
-  enrollment CourseEnrollment     @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
-  component  AssessmentComponent  @relation(fields: [componentId], references: [id], onDelete: Restrict)
+  enrollment CourseEnrollment    @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  component  AssessmentComponent @relation(fields: [componentId], references: [id], onDelete: Restrict)
 
   @@unique([enrollmentId, componentId])
   @@index([componentId])
@@ -2372,6 +2372,30 @@ model FieldEvent {
   @@map("field_events")
 }
 
+// Logbook harian kegiatan lapangan per mahasiswa & mata kuliah; ditinjau pembimbing (SUBMITTED -> APPROVED | REVISION)
+model FieldLogbook {
+  id             String    @id @default(uuid())
+  studentId      String
+  courseId       String
+  academicYearId String
+  categoryId     String
+  date           DateTime  @db.Date
+  activity       String
+  description    String?   @db.Text
+  status         String    @default("SUBMITTED") // SUBMITTED | APPROVED | REVISION
+  reviewerId     String? // Lecturer.id pembimbing yang menilai
+  reviewNote     String?   @db.Text
+  reviewedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course  Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, courseId, academicYearId, date])
+  @@map("field_logbooks")
+}
+
 // Tagihan biaya khusus kegiatan lapangan per mahasiswa & mata kuliah; pembayarannya lewat modul Keuangan (PaymentInvoice)
 model FieldCharge {
   id             String   @id @default(uuid())
@@ -2396,24 +2420,24 @@ model FieldCharge {
 
 // Pengajuan keringanan pembayaran oleh mahasiswa atas satu tagihan; diputuskan Keuangan
 model PaymentReliefRequest {
-  id                     String    @id @default(uuid())
-  invoiceId              String
-  studentId              String
-  type                   String // POTONGAN | PEMBEBASAN | PENUNDAAN
-  reason                 String    @db.Text
-  requestedAmount        Float? // nominal potongan yang diminta (POTONGAN)
-  requestedDueDate       DateTime? // jatuh tempo baru yang diminta (PENUNDAAN)
-  attachmentUrl          String?   @db.Text
-  invoiceAmountAtRequest Float
+  id                      String    @id @default(uuid())
+  invoiceId               String
+  studentId               String
+  type                    String // POTONGAN | PEMBEBASAN | PENUNDAAN
+  reason                  String    @db.Text
+  requestedAmount         Float? // nominal potongan yang diminta (POTONGAN)
+  requestedDueDate        DateTime? // jatuh tempo baru yang diminta (PENUNDAAN)
+  attachmentUrl           String?   @db.Text
+  invoiceAmountAtRequest  Float
   invoiceDueDateAtRequest String?
-  status                 String    @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
-  approvedAmount         Float?
-  approvedDueDate        DateTime?
-  financeNote            String?   @db.Text
-  decidedAt              DateTime?
-  decidedByName          String?
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  status                  String    @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
+  approvedAmount          Float?
+  approvedDueDate         DateTime?
+  financeNote             String?   @db.Text
+  decidedAt               DateTime?
+  decidedByName           String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   invoice PaymentInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   student Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)

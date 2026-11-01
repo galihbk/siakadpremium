@@ -45,6 +45,7 @@ export const PRODI_DOCS: DocSection[] = [
         rows: [
           ['P1 - Kerjakan lebih dulu', 'Pastikan akun Anda terhubung ke program studi dan dashboard terisi', 'Pertama kali masuk', 'Dashboard Prodi'],
           ['P1 - Kerjakan lebih dulu', 'Periksa katalog mata kuliah dan kurikulum prodi sudah lengkap untuk semester berjalan', 'Sebelum BAAK membuat kelas', 'Mata Kuliah'],
+          ['P1 - Kerjakan lebih dulu', 'Sahkan RPS yang diajukan dosen prodi Anda, atau beri catatan revisi', 'Awal semester, lalu tiap ada pengajuan', 'Pengesahan RPS'],
           ['P2 - Penting', 'Periksa kelas: dosen pengampu terisi, jadwal tidak bentrok, kuota memadai', 'Sebelum KRS dibuka', 'Jadwal & Kelas'],
           ['P2 - Penting', 'Pastikan Ketua Program Studi tercantum di dashboard; bila belum, minta BAAK menetapkannya', 'Awal semester', 'Dashboard Prodi'],
           ['P3 - Rutin', 'Pantau keterisian kelas, beban mengajar dosen, dan status mahasiswa', 'Sepanjang semester', 'Data Mahasiswa, Data Dosen, Jadwal & Kelas'],
@@ -125,6 +126,7 @@ export const PRODI_DOCS: DocSection[] = [
         items: [
           'Mata Kuliah: kelola katalog mata kuliah prodi Anda (kurikulum, SKS, semester, kategori Tugas Akhir/Lapangan). Data otomatis terkunci ke prodi Anda.',
           'Jadwal & Kelas: kelas per semester untuk mata kuliah prodi, lengkap dengan dosen pengampu, jadwal, ruang, dan keterisian peserta terhadap kuota.',
+          'Pengesahan RPS: RPS yang diajukan dosen prodi Anda. Buka detailnya (CPL/CPMK, bahan kajian, metode, pustaka, matriks 16 pertemuan), lalu Sahkan atau kirim Catatan Revisi agar dosen memperbaiki dan mengajukan ulang. Pengesahan hanya melalui Program Studi; P2M tidak ikut dalam alur ini.',
         ],
       },
     ],

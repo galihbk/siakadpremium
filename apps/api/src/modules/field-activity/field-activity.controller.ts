@@ -4,7 +4,7 @@ import { UserRole } from '@siakad/types';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { ChargeDto, FieldActivityService, GroupDto, PartnerDto, PeriodDto, RegistrationDto, ReviewDto } from './field-activity.service';
+import { ChargeDto, FieldActivityService, GradeDto, GroupDto, LogbookDto, LogbookReviewDto, PartnerDto, PeriodDto, RegistrationDto, ReviewDto } from './field-activity.service';
 
 /**
  * Kegiatan Lapangan (PLP, KKN, Kerja Praktik, Magang): mahasiswa (/field-activities/me)
@@ -29,6 +29,63 @@ export class FieldActivityController {
   @ApiOperation({ summary: 'Mendaftar kegiatan lapangan (hanya pada periode pendaftaran & bila MK sudah diambil)' })
   submitRegistration(@Req() req: any, @Body() dto: RegistrationDto) {
     return this.service.submitRegistration(req.user.sub, dto);
+  }
+
+  @Get('me/logbooks')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Logbook kegiatan lapangan mahasiswa untuk satu mata kuliah' })
+  myLogbooks(@Req() req: any, @Query('courseId') courseId?: string) {
+    return this.service.myLogbooks(req.user.sub, courseId);
+  }
+
+  @Post('me/logbooks')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Mengisi logbook kegiatan lapangan' })
+  addLogbook(@Req() req: any, @Body() dto: LogbookDto) {
+    return this.service.saveLogbook(req.user.sub, dto);
+  }
+
+  @Put('me/logbooks/:id')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Memperbaiki logbook (selama belum disetujui) dan mengirim ulang' })
+  updateLogbook(@Req() req: any, @Param('id') id: string, @Body() dto: LogbookDto) {
+    return this.service.saveLogbook(req.user.sub, dto, id);
+  }
+
+  @Delete('me/logbooks/:id')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Menghapus logbook yang belum disetujui' })
+  deleteLogbook(@Req() req: any, @Param('id') id: string) {
+    return this.service.deleteLogbook(req.user.sub, id);
+  }
+
+  // ================= DOSEN =================
+  @Get('lecturer')
+  @Roles(UserRole.LECTURER)
+  @ApiOperation({ summary: 'Bimbingan kegiatan lapangan dosen yang login: kelompok dan mahasiswa per jenis' })
+  lecturerOverview(@Req() req: any, @Query('academicYearId') academicYearId?: string) {
+    return this.service.lecturerOverview(req.user.sub, academicYearId);
+  }
+
+  @Get('lecturer/logbooks')
+  @Roles(UserRole.LECTURER)
+  @ApiOperation({ summary: 'Logbook satu mahasiswa bimbingan dosen yang login' })
+  lecturerLogbooks(@Req() req: any, @Query('studentId') studentId?: string, @Query('courseId') courseId?: string, @Query('academicYearId') academicYearId?: string) {
+    return this.service.lecturerLogbooks(req.user.sub, studentId, courseId, academicYearId);
+  }
+
+  @Post('lecturer/logbooks/:id/review')
+  @Roles(UserRole.LECTURER)
+  @ApiOperation({ summary: 'Menyetujui logbook atau meminta revisi' })
+  reviewLogbook(@Req() req: any, @Param('id') id: string, @Body() dto: LogbookReviewDto) {
+    return this.service.reviewLogbook(req.user.sub, id, dto);
+  }
+
+  @Post('lecturer/grade')
+  @Roles(UserRole.LECTURER)
+  @ApiOperation({ summary: 'Pembimbing 1 memberi nilai akhir kegiatan lapangan' })
+  gradeStudent(@Req() req: any, @Body() dto: GradeDto) {
+    return this.service.gradeStudent(req.user.sub, dto);
   }
 
   // ================= BAAK =================

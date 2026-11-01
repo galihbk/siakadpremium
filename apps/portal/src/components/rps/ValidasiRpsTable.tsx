@@ -52,7 +52,7 @@ const STATUS_STYLE: Record<string, string> = {
 
 const STATUS_LABEL: Record<string, string> = {
   BELUM_DIAJUKAN: 'Belum Diajukan',
-  DIAJUKAN: 'Menunggu Validasi',
+  DIAJUKAN: 'Menunggu Pengesahan',
   DISAHKAN: 'Disahkan',
   PERLU_REVISI: 'Perlu Revisi',
 };
@@ -76,7 +76,8 @@ function RichTextDisplay({ html, emptyText = '-' }: { html: string | null; empty
   );
 }
 
-export function ValidasiRpsTable({ initialRps }: { initialRps: RpsRow[] }) {
+/** Pengesahan RPS dilakukan Program Studi; `basePath` adalah jalur API-nya (mis. /prodi/rps). */
+export function ValidasiRpsTable({ initialRps, basePath = '/prodi/rps' }: { initialRps: RpsRow[]; basePath?: string }) {
   const apiBase = getApiBaseUrl();
   const [rpsList, setRpsList] = useState<RpsRow[]>(initialRps);
   const [loading, setLoading] = useState(false);
@@ -102,7 +103,7 @@ export function ValidasiRpsTable({ initialRps }: { initialRps: RpsRow[] }) {
     try {
       const params = new URLSearchParams();
       if (statusFilter !== 'Semua') params.set('status', statusFilter);
-      const res = await fetch(`${apiBase}/p2m/rps?${params.toString()}`);
+      const res = await fetch(`${apiBase}${basePath}?${params.toString()}`, { headers: authHeaders() });
       if (res.ok) {
         const json = await res.json();
         if (Array.isArray(json.data)) setRpsList(json.data);
@@ -120,7 +121,7 @@ export function ValidasiRpsTable({ initialRps }: { initialRps: RpsRow[] }) {
     setShowRevisionInput(false);
     setRevisionNote('');
     try {
-      const res = await fetch(`${apiBase}/p2m/rps/${row.id}`);
+      const res = await fetch(`${apiBase}${basePath}/${row.id}`, { headers: authHeaders() });
       const json = await res.json().catch(() => null);
       if (res.ok) {
         setDetail(json.data || json);
@@ -144,7 +145,7 @@ export function ValidasiRpsTable({ initialRps }: { initialRps: RpsRow[] }) {
     }
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${apiBase}/p2m/rps/${detail.id}/validate`, {
+      const res = await fetch(`${apiBase}${basePath}/${detail.id}/validate`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ status, note: revisionNote }),
@@ -182,14 +183,14 @@ export function ValidasiRpsTable({ initialRps }: { initialRps: RpsRow[] }) {
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-[#1E3A8A] to-[#172554] rounded-2xl p-6 sm:p-8 text-white shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <span className="inline-block text-xs font-semibold px-2.5 py-0.5 rounded-md bg-white/10 text-[#D4A017] mb-2">P2M</span>
-          <h1 className="text-xl sm:text-2xl font-black">Validasi RPS</h1>
+          <span className="inline-block text-xs font-semibold px-2.5 py-0.5 rounded-md bg-white/10 text-[#D4A017] mb-2">Program Studi</span>
+          <h1 className="text-xl sm:text-2xl font-black">Pengesahan RPS</h1>
           <p className="text-xs sm:text-sm text-blue-200 mt-1">
             Tinjau dan sahkan Rencana Pembelajaran Semester yang diajukan dosen
           </p>
         </div>
         <div className="bg-white/10 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-white/15 text-right">
-          <p className="text-xs text-blue-200">Menunggu Validasi</p>
+          <p className="text-xs text-blue-200">Menunggu Pengesahan</p>
           <p className="text-xl font-black text-white">{rpsList.filter((r) => r.p2mStatus === 'DIAJUKAN').length} RPS</p>
         </div>
       </div>
@@ -298,7 +299,7 @@ export function ValidasiRpsTable({ initialRps }: { initialRps: RpsRow[] }) {
       <Modal
         isOpen={isFilterModalOpen}
         onClose={() => setIsFilterModalOpen(false)}
-        title="Filter Validasi RPS"
+        title="Filter Pengesahan RPS"
         subtitle="Persempit daftar berdasarkan status validasi"
       >
         <div className="space-y-4 text-xs">
@@ -310,7 +311,7 @@ export function ValidasiRpsTable({ initialRps }: { initialRps: RpsRow[] }) {
               className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
             >
               <option value="Semua">Semua (kecuali belum diajukan)</option>
-              <option value="DIAJUKAN">Menunggu Validasi</option>
+              <option value="DIAJUKAN">Menunggu Pengesahan</option>
               <option value="DISAHKAN">Disahkan</option>
               <option value="PERLU_REVISI">Perlu Revisi</option>
             </select>

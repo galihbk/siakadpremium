@@ -4,35 +4,35 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight, Quote, Building } from 'lucide-react';
 
-export function TestimoniSection() {
+export function TestimoniSection({ campusName = 'Kampus', campusShort = campusName }: { campusName?: string; campusShort?: string }) {
   const alumniList = [
     {
       nama: 'Anindya Pratiwi, S.Kom.',
       lulusan: 'Alumni Teknik Informatika, Angkatan 2020',
       posisi: 'Senior Software Engineer di Tech Unicorn Jakarta',
       foto: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=600&q=80',
-      kutipan: 'Kurikulum berbasis proyek riil di ITN memberikan pondasi engineering yang luar biasa kuat. Sejak semester 6, saya sudah dibimbing dosen untuk magang di industri sehingga transisi ke dunia kerja profesional berjalan sangat mulus tanpa kendala adaptasi.',
+      kutipan: `Kurikulum berbasis proyek riil di ${campusShort} memberikan pondasi engineering yang luar biasa kuat. Sejak semester 6, saya sudah dibimbing dosen untuk magang di industri sehingga transisi ke dunia kerja profesional berjalan sangat mulus tanpa kendala adaptasi.`,
     },
     {
       nama: 'Dimas Wicaksono, S.T., M.Eng.',
       lulusan: 'Alumni Teknik Elektro, Angkatan 2018',
       posisi: 'Lead Automation Specialist di BUMN Energi Nasional',
       foto: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=600&q=80',
-      kutipan: 'Fasilitas laboratorium mekatronika dan sistem kendali di ITN setara dengan peralatan yang digunakan di industri migas. Dosen pengajar bukan hanya mengajarkan rumus teoritis, melainkan menanamkan pola pikir pemecahan masalah dan integritas profesional.',
+      kutipan: `Fasilitas laboratorium mekatronika dan sistem kendali di ${campusShort} setara dengan peralatan yang digunakan di industri migas. Dosen pengajar bukan hanya mengajarkan rumus teoritis, melainkan menanamkan pola pikir pemecahan masalah dan integritas profesional.`,
     },
     {
       nama: 'Sarah Nabila, S.E.',
       lulusan: 'Alumni Manajemen Bisnis Digital, Angkatan 2021',
       posisi: 'Risk & Strategy Analyst di Perbankan Nasional',
       foto: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=600&q=80',
-      kutipan: 'Keluasan jaringan kerja sama karir ITN adalah salah satu kekuatan terbesar. Melalui Career Center kampus, saya mendapatkan tawaran Management Trainee bahkan 2 bulan sebelum pelaksanaan sidang skripsi kelulusan.',
+      kutipan: `Keluasan jaringan kerja sama karir ${campusShort} adalah salah satu kekuatan terbesar. Melalui Career Center kampus, saya mendapatkan tawaran Management Trainee bahkan 2 bulan sebelum pelaksanaan sidang skripsi kelulusan.`,
     },
     {
       nama: 'Rizky Ramadhan, S.H.',
       lulusan: 'Alumni Ilmu Hukum, Angkatan 2019',
       posisi: 'Corporate Legal Counsel di Firma Hukum Internasional',
       foto: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=600&q=80',
-      kutipan: 'Pendidikan hukum di ITN sangat progresif dengan penekanan pada Cyber Law dan Hukum Kekayaan Intelektual. Mahasiswa dilatih berdebat dan menyusun kontrak bisnis riil dalam simulasi peradilan semu berstandar nasional.',
+      kutipan: `Pendidikan hukum di ${campusShort} sangat progresif dengan penekanan pada Cyber Law dan Hukum Kekayaan Intelektual. Mahasiswa dilatih berdebat dan menyusun kontrak bisnis riil dalam simulasi peradilan semu berstandar nasional.`,
     },
   ];
 
@@ -58,10 +58,10 @@ export function TestimoniSection() {
             Kisah Sukses Alumni
           </div>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mb-4">
-            Jejak Karya Alumni Nusantara
+            Jejak Karya Alumni
           </h2>
           <p className="text-base text-slate-600 leading-relaxed">
-            Ribuan alumni Institut Teknologi Nusantara telah berkontribusi memimpin inovasi di kancah industri nasional maupun internasional.
+            Para alumni {campusName} berkontribusi memimpin inovasi di kancah industri nasional maupun internasional.
           </p>
         </div>
 

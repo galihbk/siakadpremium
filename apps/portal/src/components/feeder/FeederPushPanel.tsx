@@ -6,8 +6,8 @@ import { getApiBaseUrl } from '@/lib/api';
 import { getAuthSession } from '@/lib/auth';
 
 interface Pending {
-  krs: { ready: number; blockedClassNotInFeeder: number; blockedStudentNotInFeeder: number };
-  nilai: { ready: number; blockedKrsNotInFeeder: number };
+  krs: { ready: number; blockedClassNotInFeeder: number; blockedStudentNotInFeeder: number; viaActivity: number };
+  nilai: { ready: number; blockedKrsNotInFeeder: number; viaActivity: number };
 }
 
 interface PushResult {
@@ -92,7 +92,7 @@ export function FeederPushPanel({ kind, onDone }: { kind: 'krs' | 'nilai'; onDon
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
           <p className="text-[11px] font-semibold text-emerald-700">Siap dikirim</p>
           <p className="text-xl font-black text-emerald-800">{pending ? (ready ?? 0).toLocaleString('id-ID') : '-'}</p>
@@ -114,6 +114,11 @@ export function FeederPushPanel({ kind, onDone }: { kind: 'krs' | 'nilai'; onDon
             <p className="text-xl font-black text-amber-800">{pending ? pending.nilai.blockedKrsNotInFeeder.toLocaleString('id-ID') : '-'}</p>
           </div>
         )}
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p className="text-[11px] font-semibold text-slate-600">Lewat Aktivitas Mahasiswa</p>
+          <p className="text-xl font-black text-slate-700">{pending ? (kind === 'krs' ? pending.krs.viaActivity : pending.nilai.viaActivity).toLocaleString('id-ID') : '-'}</p>
+          <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">Skripsi dan kegiatan lapangan tidak berupa kelas, jadi tidak dikirim dari sini.</p>
+        </div>
       </div>
 
       {!isSuperAdmin && (

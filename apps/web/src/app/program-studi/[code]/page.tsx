@@ -1,3 +1,4 @@
+import { getInstitutionProfile } from '@/lib/institution';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ArrowRight, BookOpen, ChevronDown, FileCheck2, GraduationCap, UserRound, Users } from 'lucide-react';
@@ -12,7 +13,8 @@ export const dynamic = 'force-dynamic';
 export async function generateMetadata({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   const data = await loadProdi(code);
-  return { title: data ? `${data.prodi.name} (${data.prodi.degreeLevel}) | Institut Teknologi Nusantara` : 'Program studi tidak ditemukan' };
+  const campus = await getInstitutionProfile();
+  return { title: data ? `${data.prodi.name} (${data.prodi.degreeLevel}) | ${campus.campusName || 'Kampus'}` : 'Program studi tidak ditemukan' };
 }
 
 /** Kelompokkan mata kuliah per kurikulum, lalu per semester. Kurikulum terbaru (nama terurut menurun) tampil pertama. */

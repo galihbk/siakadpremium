@@ -34,6 +34,8 @@ RUN pnpm --filter @siakad/utils build
 RUN pnpm --filter @siakad/auth build
 RUN pnpm --filter @siakad/database build
 RUN pnpm --filter @siakad/api build
+# Ubah hasil build jadi bytecode V8 supaya isi image tidak terbaca dengan `cat`/`docker cp`
+RUN node apps/api/scripts/compile-bytecode.js apps/api/dist
 
 # Switch to non-hoisted mode for deploy to avoid symlink conflict
 RUN echo "shamefully-hoist=false\nauto-install-peers=true\nforce-legacy-deploy=true" > .npmrc

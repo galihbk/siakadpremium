@@ -3,6 +3,7 @@ import { PrismaService } from '../../shared/prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CourseCategoriesService } from '../academic/course-categories.service';
 import { FinanceService } from '../finance/finance.service';
+import { ThesisService } from '../thesis/thesis.service';
 
 export interface PartnerDto {
   categoryId?: string;
@@ -47,6 +48,25 @@ export interface GroupDto {
   notes?: string;
 }
 
+export interface LogbookDto {
+  courseId?: string;
+  date?: string;
+  activity?: string;
+  description?: string;
+}
+
+export interface LogbookReviewDto {
+  decision?: string;
+  note?: string;
+}
+
+export interface GradeDto {
+  studentId?: string;
+  courseId?: string;
+  academicYearId?: string;
+  score?: number;
+}
+
 export interface ChargeDto {
   categoryId?: string;
   academicYearId?: string;
@@ -69,6 +89,7 @@ export class FieldActivityService {
     private notifications: NotificationsService,
     private categories: CourseCategoriesService,
     private finance: FinanceService,
+    private thesis: ThesisService,
   ) {}
 
   private readonly BAAK_ROLES = ['ADMIN_BAAK', 'STAFF'];
@@ -316,6 +337,7 @@ export class FieldActivityService {
           status: c.invoice.status === 'LUNAS' ? 'PAID' : c.invoice.status === 'MENUNGGU_VERIFIKASI' ? 'VERIFYING' : 'UNPAID',
         })),
         history: events.map((e) => ({ id: e.id, type: e.type, title: e.title, detail: e.detail, courseCode: e.course.code, createdAt: e.createdAt })),
+        work: await this.mineWork(student.id, year.id, cat, courseIds),
         supervisions: supervisions.map((s) => ({
           courseId: s.courseId,
           supervisor1Name: s.supervisor1?.user?.fullName ?? null,
@@ -1035,5 +1057,258 @@ export class FieldActivityService {
         link: '/lecturer',
       });
     }
+  }
+
+  // ================================================================ DOSEN
+  /** Bimbingan kegiatan lapangan milik dosen yang login: kelompok dan mahasiswa individu per jenis (terpisah dari bimbingan skripsi). */
+  async lecturerOverview(userId: string, academicYearId?: string) {
+    const lecturer = await this.prisma.lecturer.findUnique({ where: { userId }, select: { id: true } });
+    if (!lecturer) throw new ForbiddenException('Akun ini bukan akun dosen.');
+    const year = await this.resolveYear(academicYearId);
+    const cats = await this.prisma.courseCategory.findMany({ where: { kind: 'LAPANGAN', isActive: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] });
+    const [groups, supervisions, years] = await Promise.all([
+      this.prisma.fieldGroup.findMany({
+        where: { supervisorId: lecturer.id, academicYearId: year.id },
+        include: { members: { include: { student: { include: { user: true, studyProgram: true } } }, orderBy: { createdAt: 'asc' } } },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.thesisSupervision.findMany({
+        where: { academicYearId: year.id, OR: [{ supervisor1Id: lecturer.id }, { supervisor2Id: lecturer.id }], course: { finalProjectLabel: { in: cats.map((c) => c.name) } } },
+        include: { course: true, student: { include: { user: true, studyProgram: true } } },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.academicYear.findMany({ orderBy: { name: 'desc' }, take: 12, select: { id: true, name: true, isActive: true } }),
+    ]);
+    const regs = await this.prisma.fieldRegistration.findMany({
+      where: { academicYearId: year.id, status: 'APPROVED', studentId: { in: [...new Set([...groups.flatMap((g) => g.members.map((m) => m.studentId)), ...supervisions.map((x) => x.studentId)])] } },
+      include: { partner: { select: { name: true } } },
+    });
+    const regOf = (studentId: string, categoryId: string) => regs.find((r) => r.studentId === studentId && r.categoryId === categoryId);
+    const studentIds = [...new Set([...groups.flatMap((g) => g.members.map((m) => m.studentId)), ...supervisions.map((x) => x.studentId)])];
+    const [enrollments, logs] = await Promise.all([
+      this.prisma.courseEnrollment.findMany({
+        where: { academicYearId: year.id, status: { not: 'REJECTED' }, studentId: { in: studentIds }, course: { finalProjectLabel: { in: cats.map((c) => c.name) } } },
+        select: { studentId: true, courseId: true, totalScore: true, gradeLetter: true, gradeStatus: true, course: { select: { finalProjectLabel: true } } },
+      }),
+      this.prisma.fieldLogbook.groupBy({ by: ['studentId', 'courseId', 'status'], where: { academicYearId: year.id, studentId: { in: studentIds } }, _count: { _all: true } }),
+    ]);
+    // logbook & nilai per mahasiswa pada mata kuliah kegiatan lapangannya
+    const workOf = (studentId: string, cat: { id: string; name: string; minLogbook: number }, preferCourseId?: string) => {
+      const mine = enrollments.filter((x) => x.studentId === studentId && x.course.finalProjectLabel === cat.name);
+      const e = mine.find((x) => x.courseId === preferCourseId) ?? mine[0];
+      const courseId = preferCourseId ?? e?.courseId ?? null;
+      const n = (status: string) => logs.filter((l) => l.studentId === studentId && l.courseId === courseId && l.status === status).reduce((t, l) => t + l._count._all, 0);
+      return {
+        courseId,
+        logbook: { submitted: n('SUBMITTED'), approved: n('APPROVED'), revision: n('REVISION'), min: cat.minLogbook },
+        grade: e && e.totalScore !== null ? { score: e.totalScore, letter: e.gradeLetter, status: e.gradeStatus } : null,
+      };
+    };
+    const placeOf = (studentId: string, categoryId: string) => {
+      const r = regOf(studentId, categoryId);
+      return r ? { placeName: r.partner?.name ?? r.placeName, placeAddress: r.placeAddress, fieldSupervisorName: r.fieldSupervisorName } : { placeName: null, placeAddress: null, fieldSupervisorName: null };
+    };
+    const groupedKeys = new Set(groups.flatMap((g) => g.members.map((m) => `${m.studentId}|${g.categoryId}`)));
+    const categories = cats
+      .map((cat) => ({
+        id: cat.id,
+        name: cat.name,
+        isGroup: cat.isGroup,
+        minLogbook: cat.minLogbook,
+        groups: groups
+          .filter((g) => g.categoryId === cat.id)
+          .map((g) => ({
+            id: g.id,
+            name: g.name,
+            notes: g.notes,
+            members: g.members.map((m) => ({ studentId: m.studentId, nim: m.student.nim, name: m.student.user.fullName, studyProgram: m.student.studyProgram?.name || '-', ...placeOf(m.studentId, cat.id), ...workOf(m.studentId, cat) })),
+          })),
+        students: supervisions
+          .filter((x) => x.course.finalProjectLabel === cat.name && !groupedKeys.has(`${x.studentId}|${cat.id}`))
+          .map((x) => ({
+            studentId: x.studentId,
+            nim: x.student.nim,
+            name: x.student.user.fullName,
+            studyProgram: x.student.studyProgram?.name || '-',
+            courseName: x.course.name,
+            title: x.title,
+            role: x.supervisor1Id === lecturer.id ? 'Pembimbing 1' : 'Pembimbing 2',
+            ...placeOf(x.studentId, cat.id),
+            ...workOf(x.studentId, cat, x.courseId),
+            canGrade: x.supervisor1Id === lecturer.id,
+          })),
+      }));
+    const total = categories.reduce((n, c) => n + c.students.length + c.groups.reduce((m, g) => m + g.members.length, 0), 0);
+    return { academicYearId: year.id, academicYearName: year.name, years, total, categories };
+  }
+
+  // ================================================================ LOGBOOK & NILAI
+  private async lapanganCourse(courseId?: string) {
+    const course = courseId ? await this.prisma.course.findUnique({ where: { id: courseId }, select: { id: true, code: true, name: true, finalProjectLabel: true } }) : null;
+    const cat = course?.finalProjectLabel ? await this.prisma.courseCategory.findFirst({ where: { name: course.finalProjectLabel, kind: 'LAPANGAN' } }) : null;
+    if (!course || !cat) throw new NotFoundException('Mata kuliah kegiatan lapangan tidak ditemukan.');
+    return { course, cat };
+  }
+
+  private logbookCounts(rows: { status: string }[], min: number) {
+    const n = (st: string) => rows.filter((r) => r.status === st).length;
+    return { total: rows.length, submitted: n('SUBMITTED'), approved: n('APPROVED'), revision: n('REVISION'), min };
+  }
+
+  /** Ringkasan logbook dan nilai mahasiswa per mata kuliah jenis ini (untuk kartu kegiatan di halaman mahasiswa). */
+  private async mineWork(studentId: string, academicYearId: string, cat: { minLogbook: number }, courseIds: string[]) {
+    const [logs, enrollments] = await Promise.all([
+      this.prisma.fieldLogbook.findMany({ where: { studentId, academicYearId, courseId: { in: courseIds } }, select: { courseId: true, status: true } }),
+      this.prisma.courseEnrollment.findMany({ where: { studentId, academicYearId, courseId: { in: courseIds } }, select: { courseId: true, totalScore: true, gradeLetter: true, gradeStatus: true } }),
+    ]);
+    return courseIds.map((courseId) => {
+      const e = enrollments.find((x) => x.courseId === courseId);
+      return {
+        courseId,
+        logbook: this.logbookCounts(logs.filter((l) => l.courseId === courseId), cat.minLogbook),
+        grade: e && e.totalScore !== null ? { score: e.totalScore, letter: e.gradeLetter, status: e.gradeStatus } : null,
+      };
+    });
+  }
+
+  private parseLogDate(value?: string) {
+    if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new BadRequestException('Tanggal kegiatan tidak valid.');
+    const d = new Date(`${value}T00:00:00.000Z`);
+    if (Number.isNaN(d.getTime())) throw new BadRequestException('Tanggal kegiatan tidak valid.');
+    const today = new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
+    if (value > today) throw new BadRequestException('Tanggal kegiatan tidak boleh di masa depan.');
+    return d;
+  }
+
+  /** Pembimbing 1/2 mahasiswa pada mata kuliah ini (kelompok tersimpan sebagai pembimbing tiap anggota). */
+  private supervisionOf(studentId: string, courseId: string, academicYearId: string) {
+    return this.prisma.thesisSupervision.findUnique({ where: { studentId_courseId_academicYearId: { studentId, courseId, academicYearId } } });
+  }
+
+  private async lecturerByUser(userId: string) {
+    const lecturer = await this.prisma.lecturer.findUnique({ where: { userId }, select: { id: true, user: { select: { fullName: true } } } });
+    if (!lecturer) throw new ForbiddenException('Akun ini bukan akun dosen.');
+    return lecturer;
+  }
+
+  private async assertMySupervisee(lecturerId: string, studentId: string, courseId: string, academicYearId: string) {
+    const sup = await this.supervisionOf(studentId, courseId, academicYearId);
+    if (!sup || (sup.supervisor1Id !== lecturerId && sup.supervisor2Id !== lecturerId)) {
+      throw new ForbiddenException('Mahasiswa ini bukan bimbingan Anda pada kegiatan tersebut.');
+    }
+    return sup;
+  }
+
+  private shapeLogbook(e: { id: string; date: Date; activity: string; description: string | null; status: string; reviewNote: string | null; reviewedAt: Date | null; createdAt: Date }) {
+    return { id: e.id, date: e.date.toISOString().slice(0, 10), activity: e.activity, description: e.description, status: e.status, reviewNote: e.reviewNote, reviewedAt: e.reviewedAt, createdAt: e.createdAt };
+  }
+
+  /** Daftar logbook milik mahasiswa yang login untuk satu mata kuliah (tahun akademik aktif). */
+  async myLogbooks(userId: string, courseId?: string) {
+    const student = await this.studentByUser(userId);
+    const year = await this.resolveYear();
+    const { course, cat } = await this.lapanganCourse(courseId);
+    const entries = await this.prisma.fieldLogbook.findMany({ where: { studentId: student.id, courseId: course.id, academicYearId: year.id }, orderBy: [{ date: 'desc' }, { createdAt: 'desc' }] });
+    return { course, min: cat.minLogbook, counts: this.logbookCounts(entries, cat.minLogbook), entries: entries.map((e) => this.shapeLogbook(e)) };
+  }
+
+  async saveLogbook(userId: string, dto: LogbookDto, id?: string) {
+    const student = await this.studentByUser(userId);
+    const year = await this.resolveYear();
+    const existing = id ? await this.prisma.fieldLogbook.findUnique({ where: { id } }) : null;
+    if (id && (!existing || existing.studentId !== student.id)) throw new NotFoundException('Logbook tidak ditemukan.');
+    if (existing?.status === 'APPROVED') throw new BadRequestException('Logbook yang sudah disetujui pembimbing tidak bisa diubah.');
+    const { course, cat } = await this.lapanganCourse(existing?.courseId ?? dto.courseId);
+    const enrolled = await this.prisma.courseEnrollment.findFirst({ where: { studentId: student.id, courseId: course.id, academicYearId: year.id, status: { not: 'REJECTED' } }, select: { id: true } });
+    if (!enrolled) throw new BadRequestException('Anda belum mengambil mata kuliah ini pada tahun akademik aktif.');
+    const sup = await this.supervisionOf(student.id, course.id, year.id);
+    if (!sup?.supervisor1Id) throw new BadRequestException('Logbook baru bisa diisi setelah pembimbing ditetapkan.');
+    const activity = (dto.activity || '').trim();
+    if (activity.length < 3) throw new BadRequestException('Isi kegiatan minimal 3 karakter.');
+    const data = { date: this.parseLogDate(dto.date), activity, description: (dto.description || '').trim() || null, status: 'SUBMITTED', reviewerId: null, reviewedAt: null };
+    const saved = existing
+      ? await this.prisma.fieldLogbook.update({ where: { id: existing.id }, data })
+      : await this.prisma.fieldLogbook.create({ data: { ...data, studentId: student.id, courseId: course.id, academicYearId: year.id, categoryId: cat.id } });
+    void this.notifications.notifyLecturers([sup.supervisor1Id, sup.supervisor2Id], {
+      type: 'FIELD',
+      title: `Logbook ${cat.name} menunggu tanggapan`,
+      body: `${student.user.fullName} (${student.nim}) ${existing ? 'memperbarui' : 'mengisi'} logbook ${cat.name}.`,
+      link: '/lecturer/kegiatan-lapangan',
+    });
+    return { success: true, message: existing ? 'Logbook diperbarui dan dikirim ulang ke pembimbing.' : 'Logbook tersimpan dan dikirim ke pembimbing.', data: this.shapeLogbook(saved) };
+  }
+
+  async deleteLogbook(userId: string, id: string) {
+    const student = await this.studentByUser(userId);
+    const row = await this.prisma.fieldLogbook.findUnique({ where: { id } });
+    if (!row || row.studentId !== student.id) throw new NotFoundException('Logbook tidak ditemukan.');
+    if (row.status === 'APPROVED') throw new BadRequestException('Logbook yang sudah disetujui pembimbing tidak bisa dihapus.');
+    await this.prisma.fieldLogbook.delete({ where: { id } });
+    return { success: true, message: 'Logbook dihapus.' };
+  }
+
+  /** Logbook satu mahasiswa bimbingan dosen yang login. */
+  async lecturerLogbooks(userId: string, studentId?: string, courseId?: string, academicYearId?: string) {
+    const lecturer = await this.lecturerByUser(userId);
+    const year = await this.resolveYear(academicYearId);
+    const { course, cat } = await this.lapanganCourse(courseId);
+    if (!studentId) throw new BadRequestException('Mahasiswa wajib dipilih.');
+    await this.assertMySupervisee(lecturer.id, studentId, course.id, year.id);
+    const entries = await this.prisma.fieldLogbook.findMany({ where: { studentId, courseId: course.id, academicYearId: year.id }, orderBy: [{ date: 'desc' }, { createdAt: 'desc' }] });
+    return { course, min: cat.minLogbook, counts: this.logbookCounts(entries, cat.minLogbook), entries: entries.map((e) => this.shapeLogbook(e)) };
+  }
+
+  async reviewLogbook(userId: string, id: string, dto: LogbookReviewDto) {
+    const lecturer = await this.lecturerByUser(userId);
+    const row = await this.prisma.fieldLogbook.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException('Logbook tidak ditemukan.');
+    await this.assertMySupervisee(lecturer.id, row.studentId, row.courseId, row.academicYearId);
+    const decision = dto.decision === 'APPROVED' ? 'APPROVED' : dto.decision === 'REVISION' ? 'REVISION' : null;
+    if (!decision) throw new BadRequestException('Keputusan harus APPROVED atau REVISION.');
+    const note = (dto.note || '').trim();
+    if (decision === 'REVISION' && !note) throw new BadRequestException('Tuliskan catatan agar mahasiswa tahu bagian yang perlu diperbaiki.');
+    const saved = await this.prisma.fieldLogbook.update({ where: { id }, data: { status: decision, reviewNote: note || null, reviewerId: lecturer.id, reviewedAt: new Date() } });
+    const cat = await this.prisma.courseCategory.findUnique({ where: { id: row.categoryId }, select: { name: true } });
+    void this.notifications.notifyStudent(row.studentId, {
+      type: 'FIELD',
+      title: decision === 'APPROVED' ? `Logbook ${cat?.name ?? ''} disetujui` : `Logbook ${cat?.name ?? ''} perlu direvisi`,
+      body: decision === 'APPROVED' ? `Logbook tanggal ${row.date.toISOString().slice(0, 10)} disetujui ${lecturer.user.fullName}.` : `${lecturer.user.fullName}: ${note}`,
+      link: '/student/kegiatan-lapangan',
+    });
+    return { success: true, message: decision === 'APPROVED' ? 'Logbook disetujui.' : 'Logbook dikembalikan untuk direvisi.', data: this.shapeLogbook(saved) };
+  }
+
+  /**
+   * Pembimbing utama (Pembimbing 1; untuk kelompok = pembimbing kelompok) memberi nilai akhir 0-100.
+   * Syarat: logbook yang disetujui sudah mencapai minimum jenis ini. Nilai ditulis ke KRS mahasiswa (huruf & bobot dari Skala Nilai).
+   * Nilai final dari sumber lain (mis. BAAK) tidak ditimpa; nilai yang diberikan lewat sini boleh diperbaiki.
+   */
+  async gradeStudent(userId: string, dto: GradeDto) {
+    const lecturer = await this.lecturerByUser(userId);
+    const year = await this.resolveYear(dto.academicYearId);
+    const { course, cat } = await this.lapanganCourse(dto.courseId);
+    if (!dto.studentId) throw new BadRequestException('Mahasiswa wajib dipilih.');
+    const sup = await this.assertMySupervisee(lecturer.id, dto.studentId, course.id, year.id);
+    if (sup.supervisor1Id !== lecturer.id) throw new ForbiddenException('Nilai akhir diberikan oleh Pembimbing 1.');
+    const score = Number(dto.score);
+    if (dto.score === undefined || dto.score === null || !Number.isFinite(score) || score < 0 || score > 100) throw new BadRequestException('Nilai harus berupa angka 0-100.');
+    const approved = await this.prisma.fieldLogbook.count({ where: { studentId: dto.studentId, courseId: course.id, academicYearId: year.id, status: 'APPROVED' } });
+    if (approved < cat.minLogbook) throw new BadRequestException(`Logbook yang disetujui baru ${approved} dari minimal ${cat.minLogbook}. Nilai bisa diberikan setelah logbook terpenuhi.`);
+    const enrollment = await this.prisma.courseEnrollment.findFirst({ where: { studentId: dto.studentId, courseId: course.id, academicYearId: year.id, status: { not: 'REJECTED' } } });
+    if (!enrollment) throw new BadRequestException('Mahasiswa belum mengambil mata kuliah ini pada tahun akademik tersebut.');
+    if (enrollment.gradeStatus === 'FINAL' && enrollment.totalScore !== null) {
+      const own = await this.prisma.fieldEvent.count({ where: { studentId: dto.studentId, courseId: course.id, academicYearId: year.id, type: 'GRADED' } });
+      if (!own) throw new BadRequestException('Mata kuliah ini sudah bernilai final dari sumber lain. Hubungi BAAK untuk mengubahnya.');
+    }
+    const grade = await this.thesis.gradeForScore(score);
+    await this.prisma.courseEnrollment.update({ where: { id: enrollment.id }, data: { totalScore: score, gradeLetter: grade.letter, gradePoint: grade.point, gradeStatus: grade.status } });
+    await this.logEvent(dto.studentId, cat, year.id, 'GRADED', `Nilai akhir ${score} (${grade.letter})`, `Diberikan oleh ${lecturer.user.fullName}`, course.id);
+    void this.notifications.notifyStudent(dto.studentId, {
+      type: 'FIELD',
+      title: `Nilai ${cat.name} masuk`,
+      body: `Nilai akhir ${course.name}: ${score} (${grade.letter}).`,
+      link: '/student/khs',
+    });
+    return { success: true, message: `Nilai ${score} (${grade.letter}) tersimpan.`, data: { score, letter: grade.letter, status: grade.status } };
   }
 }

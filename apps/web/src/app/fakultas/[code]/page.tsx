@@ -1,3 +1,4 @@
+import { getInstitutionProfile } from '@/lib/institution';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Building2, CalendarDays, GraduationCap, Users, UserRound } from 'lucide-react';
@@ -17,7 +18,8 @@ async function find(code: string) {
 export async function generateMetadata({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   const f = await find(code);
-  return { title: f ? `${f.name} | Institut Teknologi Nusantara` : 'Fakultas tidak ditemukan' };
+  const campus = await getInstitutionProfile();
+  return { title: f ? `${f.name} | ${campus.campusName || 'Kampus'}` : 'Fakultas tidak ditemukan' };
 }
 
 export default async function FakultasDetailPage({ params }: { params: Promise<{ code: string }> }) {

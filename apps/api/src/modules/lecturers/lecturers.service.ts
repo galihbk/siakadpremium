@@ -875,7 +875,7 @@ export class LecturersService {
       preparedDate: payload.preparedDate ? new Date(payload.preparedDate) : null,
       isPublished: Boolean(payload.isPublished),
       // Tiap kali dosen "Simpan & Publikasikan", RPS otomatis diajukan ulang untuk
-      // divalidasi P2M -- catatan revisi lama dibersihkan karena kontennya sudah berubah.
+      // disahkan Program Studi -- catatan revisi lama dibersihkan karena kontennya sudah berubah.
       // Menyimpan draf (isPublished=false) tidak mengganggu status validasi yang sedang berjalan.
       ...(payload.isPublished ? { p2mStatus: 'DIAJUKAN', p2mNote: null } : {}),
     };

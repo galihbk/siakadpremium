@@ -587,6 +587,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       items: [
         { name: 'Mahasiswa Bimbingan PA', href: '/lecturer/bimbingan', icon: Users },
         { name: 'Bimbingan Skripsi', href: '/lecturer/skripsi', icon: GraduationCap },
+        { name: 'Bimbingan Kegiatan Lapangan', href: '/lecturer/kegiatan-lapangan', icon: Briefcase },
         { name: 'Persetujuan Surat', href: '/lecturer/surat', icon: Mail },
       ],
     },
@@ -811,7 +812,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       items: [
         { name: 'Standar Mutu', href: '/admin/p2m/standar-mutu', icon: Award },
         { name: 'Audit Mutu Internal', href: '/admin/p2m/audit-mutu', icon: ClipboardCheck },
-        { name: 'Validasi RPS', href: '/admin/p2m/validasi-rps', icon: FileCheck2 },
+        { name: 'Pengumpulan RPS', href: '/admin/p2m/pengumpulan-rps', icon: FileCheck2 },
         { name: 'Tindak Lanjut Audit', href: '/admin/p2m/tindak-lanjut', icon: AlertTriangle },
       ],
     },
@@ -854,6 +855,7 @@ export function PortalLayout({ children, role, userName, userIdText, activeMenuH
       items: [
         { name: 'Mata Kuliah', href: '/admin/prodi/mata-kuliah', icon: BookOpen },
         { name: 'Jadwal & Kelas', href: '/admin/prodi/jadwal', icon: CalendarDays },
+        { name: 'Pengesahan RPS', href: '/admin/prodi/validasi-rps', icon: FileCheck2 },
       ],
     },
     {

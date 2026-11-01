@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ArrowRight, FileText, MessageCircle, HelpCircle } from 'lucide-react';
 
-export function CtaSection() {
+export function CtaSection({ campusName = 'Kampus Kami' }: { campusName?: string }) {
   return (
     <section id="cta" className="py-20 bg-[#1E3A8A] text-white relative overflow-hidden">
       {/* Decorative subtle border line in gold */}
@@ -15,7 +15,7 @@ export function CtaSection() {
         </div>
 
         <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white mb-6 leading-tight">
-          Bergabung Bersama Institut Teknologi Nusantara
+          Bergabung Bersama {campusName}
         </h2>
 
         <p className="text-base sm:text-lg text-blue-100 max-w-3xl mx-auto leading-relaxed mb-10">

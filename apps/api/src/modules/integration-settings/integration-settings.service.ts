@@ -4752,12 +4752,14 @@ export class IntegrationSettingsService {
 
   /** Ringkasan Push KRS/Nilai: berapa yang siap dikirim dan berapa yang tertahan (beserta penyebabnya). */
   async getPendingKrsNilaiPush() {
-    const [krsReady, krsNoClass, krsNoStudent, nilaiReady, nilaiWaitingKrs] = await Promise.all([
+    // Skripsi/TA dan kegiatan lapangan (KRS tanpa kelas, bermata kuliah berkategori) di Feeder berupa Aktivitas Mahasiswa,
+    // bukan peserta kelas: tidak pernah lewat Push KRS/Nilai ini, jadi tidak dihitung sebagai "tertahan".
+    const [krsReady, krsNoClass, krsNoStudent, nilaiReady, nilaiWaitingKrs, krsActivity, nilaiActivity] = await Promise.all([
       this.prisma.courseEnrollment.count({
         where: { status: 'APPROVED', feederSyncedAt: null, courseClass: { feederId: { not: null } }, student: { feederRegistrationId: { not: null } } },
       }),
       this.prisma.courseEnrollment.count({
-        where: { status: 'APPROVED', feederSyncedAt: null, OR: [{ courseClassId: null }, { courseClass: { feederId: null } }] },
+        where: { status: 'APPROVED', feederSyncedAt: null, OR: [{ courseClassId: null, course: { finalProjectLabel: null } }, { courseClass: { feederId: null } }] },
       }),
       this.prisma.courseEnrollment.count({
         where: { status: 'APPROVED', feederSyncedAt: null, courseClass: { feederId: { not: null } }, student: { feederRegistrationId: null } },
@@ -4766,12 +4768,18 @@ export class IntegrationSettingsService {
         where: { gradeStatus: 'FINAL', gradeLetter: { not: null }, feederSyncedAt: { not: null }, feederGradeSyncedAt: null },
       }),
       this.prisma.courseEnrollment.count({
-        where: { gradeStatus: 'FINAL', gradeLetter: { not: null }, feederSyncedAt: null },
+        where: { gradeStatus: 'FINAL', gradeLetter: { not: null }, feederSyncedAt: null, NOT: { courseClassId: null, course: { finalProjectLabel: { not: null } } } },
+      }),
+      this.prisma.courseEnrollment.count({
+        where: { status: 'APPROVED', feederSyncedAt: null, courseClassId: null, course: { finalProjectLabel: { not: null } } },
+      }),
+      this.prisma.courseEnrollment.count({
+        where: { gradeStatus: 'FINAL', gradeLetter: { not: null }, feederGradeSyncedAt: null, courseClassId: null, course: { finalProjectLabel: { not: null } } },
       }),
     ]);
     return {
-      krs: { ready: krsReady, blockedClassNotInFeeder: krsNoClass, blockedStudentNotInFeeder: krsNoStudent },
-      nilai: { ready: nilaiReady, blockedKrsNotInFeeder: nilaiWaitingKrs },
+      krs: { ready: krsReady, blockedClassNotInFeeder: krsNoClass, blockedStudentNotInFeeder: krsNoStudent, viaActivity: krsActivity },
+      nilai: { ready: nilaiReady, blockedKrsNotInFeeder: nilaiWaitingKrs, viaActivity: nilaiActivity },
     };
   }
 

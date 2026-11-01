@@ -8,14 +8,16 @@ interface HeroSectionProps {
   subtitle?: string;
   ctaText?: string;
   ctaLink?: string;
+  campusName?: string;
 }
 
 export function HeroSection({
   badge = 'Penerimaan Mahasiswa Baru 2027 | Gelombang 1 Dibuka',
   title = 'Membangun Generasi Unggul untuk Masa Depan Indonesia',
-  subtitle = 'Institut Teknologi Nusantara berkomitmen menyelenggarakan pendidikan tinggi berkelas dunia dengan kurikulum adaptif industri, riset terapan berkelanjutan, dan pembentukan integritas karakter pemimpin bangsa.',
+  subtitle = 'Berkomitmen menyelenggarakan pendidikan tinggi bermutu dengan kurikulum adaptif, riset terapan berkelanjutan, dan pembentukan integritas karakter lulusan.',
   ctaText = 'Daftar PMB Sekarang',
   ctaLink = '/pmb',
+  campusName = 'Kampus',
 }: HeroSectionProps) {
   return (
     <section className="relative bg-gradient-to-b from-slate-50 via-white to-slate-50/50 pt-12 pb-20 overflow-hidden border-b border-slate-200/80">
@@ -77,7 +79,7 @@ export function HeroSection({
               <div className="relative h-72 sm:h-80 w-full overflow-hidden">
                 <Image
                   src="https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=1200&q=80"
-                  alt="Gedung Rektorat dan Kampus Terpadu Institut Teknologi Nusantara"
+                  alt={`Kampus ${campusName}`}
                   fill
                   priority
                   sizes="(max-width: 768px) 100vw, 50vw"
@@ -86,7 +88,7 @@ export function HeroSection({
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent"></div>
                 <div className="absolute bottom-4 left-4 right-4 text-white">
                   <p className="text-xs uppercase tracking-widest text-[#D4A017] font-semibold">Kampus Utama</p>
-                  <p className="text-sm sm:text-base font-bold">Gedung Pusat Akademik & Riset Terpadu ITN</p>
+                  <p className="text-sm sm:text-base font-bold">{campusName}</p>
                 </div>
               </div>
 

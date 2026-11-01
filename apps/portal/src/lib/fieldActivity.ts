@@ -102,3 +102,38 @@ export async function fieldFetch<T = any>(path: string, init?: { method?: string
   }
   return data as T;
 }
+
+export type LogbookStatus = 'SUBMITTED' | 'APPROVED' | 'REVISION';
+
+export interface LogbookEntry {
+  id: string;
+  date: string;
+  activity: string;
+  description: string | null;
+  status: LogbookStatus;
+  reviewNote: string | null;
+  reviewedAt: string | null;
+}
+
+export interface LogbookCounts {
+  total?: number;
+  submitted: number;
+  approved: number;
+  revision: number;
+  min: number;
+}
+
+export interface FieldGrade {
+  score: number;
+  letter: string | null;
+  status: string;
+}
+
+export const LOGBOOK_STATUS_LABEL: Record<LogbookStatus, string> = {
+  SUBMITTED: 'Menunggu tanggapan',
+  APPROVED: 'Disetujui',
+  REVISION: 'Perlu revisi',
+};
+
+export const logbookStatusTone = (s: LogbookStatus) =>
+  s === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' : s === 'REVISION' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700';

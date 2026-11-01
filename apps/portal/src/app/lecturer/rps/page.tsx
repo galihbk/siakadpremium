@@ -36,8 +36,8 @@ const semesterLabel = (t: string) => (t === 'ODD' ? 'Gasal' : t === 'EVEN' ? 'Ge
 
 const P2M_STATUS_LABEL: Record<string, string> = {
   BELUM_DIAJUKAN: 'Belum Diajukan',
-  DIAJUKAN: 'Menunggu Validasi',
-  DISAHKAN: 'Disahkan P2M',
+  DIAJUKAN: 'Menunggu Pengesahan',
+  DISAHKAN: 'Disahkan Prodi',
   PERLU_REVISI: 'Perlu Revisi',
 };
 
@@ -128,7 +128,7 @@ export default function LecturerRpsListPage() {
             <div>
               <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">Rencana Pembelajaran Semester</h1>
               <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                Susun RPS untuk tiap kelas yang Anda ajar, lalu ajukan untuk divalidasi P2M.
+                Susun RPS untuk tiap kelas yang Anda ajar, lalu ajukan untuk disahkan Program Studi.
               </p>
             </div>
           </div>

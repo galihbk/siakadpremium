@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@siakad/types';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -91,5 +91,31 @@ export class ProdiController {
   ) {
     const prodiId = await this.prodiService.resolveProdiId(req.user, studyProgramId);
     return this.prodiService.listGraduation(prodiId, { status, search, page, pageSize });
+  }
+
+  @Get('rps')
+  @ApiOperation({ summary: 'RPS yang diajukan dosen program studi (menunggu / sudah disahkan prodi)' })
+  async rps(@Req() req: any, @Query('studyProgramId') studyProgramId?: string, @Query('status') status?: string, @Query('search') search?: string) {
+    const prodiId = await this.prodiService.resolveProdiId(req.user, studyProgramId);
+    return this.prodiService.listRps(prodiId, { status, search });
+  }
+
+  @Get('rps/:id')
+  @ApiOperation({ summary: 'Detail lengkap satu RPS untuk ditinjau prodi' })
+  async rpsDetail(@Req() req: any, @Param('id') id: string, @Query('studyProgramId') studyProgramId?: string) {
+    const prodiId = await this.prodiService.resolveProdiId(req.user, studyProgramId);
+    return this.prodiService.rpsDetail(prodiId, id);
+  }
+
+  @Post('rps/:id/validate')
+  @ApiOperation({ summary: 'Mengesahkan atau meminta revisi RPS (hanya RPS program studi sendiri)' })
+  async validateRps(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() body: { status: string; note?: string },
+    @Query('studyProgramId') studyProgramId?: string
+  ) {
+    const prodiId = await this.prodiService.resolveProdiId(req.user, studyProgramId);
+    return this.prodiService.validateRps(prodiId, id, body, req.user?.fullName || 'Program Studi');
   }
 }

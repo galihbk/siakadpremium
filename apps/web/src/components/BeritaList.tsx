@@ -43,7 +43,7 @@ function NewsImage({ src, alt, className }: { src: string | null; alt: string; c
   return <img src={src} alt={alt} className={`absolute inset-0 w-full h-full ${className ?? ''}`} />;
 }
 
-export function BeritaList({ articles, failed = false }: { articles: NewsItem[]; failed?: boolean }) {
+export function BeritaList({ articles, failed = false, campusName = 'kampus kami' }: { articles: NewsItem[]; failed?: boolean; campusName?: string }) {
   const [selectedCategory, setSelectedCategory] = useState('Semua');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -77,7 +77,7 @@ export function BeritaList({ articles, failed = false }: { articles: NewsItem[];
                   Kabar & Berita Kampus
                 </h1>
                 <p className="mt-3 text-sm sm:text-base text-blue-100/90 leading-relaxed">
-                  Informasi terkini mengenai prestasi mahasiswa, riset inovatif, agenda akademik, dan kemitraan strategis Institut Teknologi Nusantara.
+                  Informasi terkini mengenai prestasi mahasiswa, riset inovatif, agenda akademik, dan kemitraan strategis {campusName}.
                 </p>
               </div>
 

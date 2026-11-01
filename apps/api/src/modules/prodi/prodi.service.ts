@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@siakad/database';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 
@@ -397,6 +397,108 @@ export class ProdiService {
         skNumber: a.skNumber,
         appliedAt: a.appliedAt,
       })),
+    };
+  }
+
+  // ---------------------------------------------------------------- pengesahan RPS
+  // RPS yang dosen "Simpan & Publikasikan" berstatus DIAJUKAN dan disahkan Program Studi (tanpa P2M).
+  // Kolom p2mStatus dipertahankan sebagai nama kolom lama; artinya kini status pengesahan prodi.
+  private rpsRow(c: any) {
+    return {
+      id: c.id,
+      courseClassId: c.courseClassId,
+      courseCode: c.courseClass.course.code,
+      courseName: c.courseClass.course.name,
+      studyProgram: c.courseClass.course.studyProgramName || '-',
+      className: c.courseClass.className,
+      lecturerName: c.courseClass.lecturer?.user?.fullName || '-',
+      rpsCode: c.rpsCode,
+      p2mStatus: c.p2mStatus || 'BELUM_DIAJUKAN',
+      p2mNote: c.p2mNote,
+      p2mValidatedAt: c.p2mValidatedAt,
+      p2mValidatedBy: c.p2mValidatedBy,
+      updatedAt: c.updatedAt,
+    };
+  }
+
+  private async ownRps(prodiId: string, contractId: string) {
+    const contract = await this.prisma.courseContract.findFirst({
+      where: { id: contractId, courseClass: { course: { studyProgramId: prodiId } } },
+      include: {
+        weeks: { orderBy: { weekNumber: 'asc' } },
+        courseClass: { include: { course: true, lecturer: { include: { user: true } } } },
+      },
+    });
+    if (!contract) throw new NotFoundException('RPS tidak ditemukan di program studi Anda.');
+    return contract;
+  }
+
+  async listRps(prodiId: string, q: { status?: string; search?: string }) {
+    const where: Prisma.CourseContractWhereInput = { courseClass: { course: { studyProgramId: prodiId } } };
+    where.p2mStatus = q.status && q.status !== 'Semua' ? q.status : { not: 'BELUM_DIAJUKAN' };
+    const search = (q.search ?? '').trim();
+    if (search) {
+      where.OR = [
+        { courseClass: { course: { name: { contains: search, mode: 'insensitive' } } } },
+        { courseClass: { course: { code: { contains: search, mode: 'insensitive' } } } },
+        { courseClass: { lecturer: { user: { fullName: { contains: search, mode: 'insensitive' } } } } },
+      ];
+    }
+    const list = await this.prisma.courseContract.findMany({
+      where,
+      include: { courseClass: { include: { course: true, lecturer: { include: { user: true } } } } },
+      orderBy: { updatedAt: 'desc' },
+    });
+    return list.map((c) => this.rpsRow(c));
+  }
+
+  async rpsDetail(prodiId: string, contractId: string) {
+    const c = await this.ownRps(prodiId, contractId);
+    return {
+      ...this.rpsRow(c),
+      weeks: c.weeks,
+      description: c.description,
+      graduateLearningOutcomes: c.graduateLearningOutcomes,
+      learningOutcomes: c.learningOutcomes,
+      subCpmk: c.subCpmk,
+      studyMaterials: c.studyMaterials,
+      teachingMethods: c.teachingMethods,
+      studentExperience: c.studentExperience,
+      assessmentCriteria: c.assessmentCriteria,
+      references: c.references,
+      supportingReferences: c.supportingReferences,
+      learningMedia: c.learningMedia,
+      coordinatorName: c.coordinatorName,
+      headOfProdiName: c.headOfProdiName,
+      preparedDate: c.preparedDate,
+    };
+  }
+
+  async validateRps(prodiId: string, contractId: string, data: { status: string; note?: string }, validatorName: string): Promise<{ success: boolean; message: string }> {
+    if (data.status !== 'DISAHKAN' && data.status !== 'PERLU_REVISI') {
+      throw new BadRequestException('Status harus DISAHKAN atau PERLU_REVISI.');
+    }
+    const existing = await this.ownRps(prodiId, contractId);
+    if (existing.p2mStatus !== 'DIAJUKAN') {
+      throw new BadRequestException('RPS ini belum diajukan dosen untuk disahkan.');
+    }
+    const note = data.note?.trim() || null;
+    if (data.status === 'PERLU_REVISI' && !note) throw new BadRequestException('Catatan revisi wajib diisi.');
+
+    await this.prisma.courseContract.update({
+      where: { id: contractId },
+      data: {
+        p2mStatus: data.status,
+        p2mNote: data.status === 'PERLU_REVISI' ? note : null,
+        p2mValidatedAt: new Date(),
+        p2mValidatedBy: validatorName,
+        // RPS yang diminta revisi ditarik dari publikasi ke mahasiswa sampai diajukan ulang.
+        isPublished: data.status === 'DISAHKAN' ? existing.isPublished : false,
+      },
+    });
+    return {
+      success: true,
+      message: data.status === 'DISAHKAN' ? 'RPS berhasil disahkan.' : 'RPS dikembalikan ke dosen untuk direvisi.',
     };
   }
 }

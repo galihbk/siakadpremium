@@ -158,7 +158,7 @@ export default function KontakPage() {
                   Kirim Pertanyaan / Pesan
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                  Isi formulir berikut untuk berinteraksi langsung dengan tim humas dan layanan akademik ITN.
+                  Isi formulir berikut untuk berinteraksi langsung dengan tim humas dan layanan akademik {profile.campusShortName || profile.campusName}.
                 </p>
               </div>
 
@@ -171,7 +171,7 @@ export default function KontakPage() {
                     Pesan Anda Berhasil Terkirim!
                   </h3>
                   <p className="text-xs text-emerald-800 leading-relaxed max-w-md mx-auto">
-                    Terima kasih telah menghubungi Institut Teknologi Nusantara. Tim helpdesk kami akan membalas pesan melalui email dalam kurun waktu 1x24 jam kerja.
+                    Terima kasih telah menghubungi {profile.campusName || 'kami'}. Tim helpdesk kami akan membalas pesan melalui email dalam kurun waktu 1x24 jam kerja.
                   </p>
                   <button
                     onClick={() => setFormSubmitted(false)}

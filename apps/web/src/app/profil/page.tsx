@@ -18,10 +18,14 @@ import {
   Users,
 } from 'lucide-react';
 
-export const metadata = {
-  title: 'Profil Institusi - Institut Teknologi Nusantara (ITN)',
-  description: 'Sejarah, Visi, Misi, Pimpinan, dan Nilai-Nilai Dasar Institut Teknologi Nusantara (ITN). Menjadi Perguruan Tinggi Berstandar Dunia yang Berbudaya dan Berdaya Saing Global.',
-};
+export async function generateMetadata() {
+  const campus = await getInstitutionProfile();
+  const name = campus.campusName || 'Kampus';
+  return {
+    title: `Profil Institusi - ${name}`,
+    description: `Sejarah, visi, misi, pimpinan, dan nilai-nilai dasar ${name}.`,
+  };
+}
 
 // Pisahkan "Nama, Gelar (Bidang Tugas)" -> { name, bidang }
 function splitNameAndBidang(value: string): { name: string; bidang: string } {
@@ -88,7 +92,7 @@ export default async function ProfilPage() {
     {
       year: '2004',
       title: 'Transformasi Menjadi Institut',
-      desc: 'Meningkatkan status kelembagaan menjadi Institut Teknologi Nusantara dengan peresmian 4 Fakultas utama dan kampus terpadu.',
+      desc: 'Meningkatkan status kelembagaan menjadi institut dengan peresmian 4 Fakultas utama dan kampus terpadu.',
     },
     {
       year: '2016',
@@ -118,7 +122,7 @@ export default async function ProfilPage() {
                 <span>Tentang Kami</span>
               </span>
               <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight leading-tight">
-                Profil Institut Teknologi Nusantara
+                Profil {profile.campusName || 'Institusi'}
               </h1>
               <p className="mt-4 text-sm sm:text-base text-blue-100/90 leading-relaxed">
                 Membangun generasi cerdas berkarakter, berdaya saing global, dan berakar pada nilai-nilai kebudayaan luhur bangsa sejak {profile.establishmentYear}.
@@ -238,7 +242,7 @@ export default async function ProfilPage() {
                 Nilai-Nilai Dasar Institut
               </h2>
               <p className="text-sm text-slate-500 mt-2">
-                Empat fondasi moral yang menjiwai setiap langkah civitas akademika ITN dalam berkarya.
+                Empat fondasi moral yang menjiwai setiap langkah civitas akademika {profile.campusShortName || profile.campusName} dalam berkarya.
               </p>
             </div>
 
@@ -266,7 +270,7 @@ export default async function ProfilPage() {
               Kepemimpinan Kampus
             </span>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">
-              Pimpinan Rektorat ITN
+              Pimpinan {profile.campusShortName || profile.campusName}
             </h2>
             <p className="text-sm text-slate-500 mt-2">
               Dipimpin oleh akademisi dan praktisi berkaliber internasional yang berdedikasi memajukan pendidikan tinggi Indonesia.
@@ -315,7 +319,7 @@ export default async function ProfilPage() {
                 Napak Tilas Perjalanan
               </span>
               <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">
-                Lintas Sejarah ITN
+                Lintas Sejarah {profile.campusShortName || profile.campusName}
               </h2>
             </div>
 

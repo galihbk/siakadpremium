@@ -33,6 +33,7 @@ export default function LoginPage() {
   // Alamat website utama: dari konfigurasi server, atau diturunkan dari domain yang sedang dibuka (satu image untuk banyak kampus).
   const flags = usePublicFlags();
   const webUrl = useServiceUrl('web', process.env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000');
+  const pmbUrl = useServiceUrl('pmb', '');
 
   // Fallback-first: form login tetap tampil cepat walau fetch profil belum selesai
   useEffect(() => {
@@ -361,12 +362,12 @@ export default function LoginPage() {
         {/* PMB Register Shortcut */}
         <div className="mt-4 pt-4 border-t border-slate-200 text-center text-xs text-slate-600">
           <span>Calon Mahasiswa Baru? </span>
-          <Link
-            href="/pmb/daftar"
+          <a
+            href={pmbUrl ? `${pmbUrl}/daftar` : '/pmb/daftar'}
             className="font-bold text-[#1E3A8A] hover:underline"
           >
             Register Akun PMB Online Disini &rarr;
-          </Link>
+          </a>
         </div>
 
       </div>

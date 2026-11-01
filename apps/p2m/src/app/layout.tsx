@@ -1,12 +1,18 @@
 import type { Metadata } from 'next';
 import { CopyrightBanner } from '@/components/CopyrightBanner';
+import { loadCampus } from '@/lib/data';
 import './globals.css';
 
-export const metadata: Metadata = {
-  title: 'P2M - Penjaminan Mutu | Institut Teknologi Nusantara',
-  description:
-    'Situs resmi Penjaminan Mutu (P2M): standar mutu SPMI, siklus audit mutu internal, dan dokumen mutu yang dapat diunduh publik.',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const campus = await loadCampus();
+  const name = campus.campusName || 'Kampus';
+  return {
+    title: `P2M - Penjaminan Mutu | ${name}`,
+    description:
+      'Situs resmi Penjaminan Mutu (P2M): standar mutu SPMI, siklus audit mutu internal, dan dokumen mutu yang dapat diunduh publik.',
+    ...(campus.logoUrl ? { icons: { icon: campus.logoUrl } } : {}),
+  };
+}
 
 export default function RootLayout({
   children,

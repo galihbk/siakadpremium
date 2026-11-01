@@ -1,3 +1,4 @@
+import { getInstitutionProfile } from '@/lib/institution';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Calendar, Clock, Newspaper, Building2 } from 'lucide-react';
@@ -10,7 +11,8 @@ export const dynamic = 'force-dynamic';
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const a = await loadArticleBySlug(slug);
-  return { title: a ? `${a.title} | Institut Teknologi Nusantara` : 'Berita tidak ditemukan' };
+  const campus = await getInstitutionProfile();
+  return { title: a ? `${a.title} | ${campus.campusName || 'Kampus'}` : 'Berita tidak ditemukan' };
 }
 
 export default async function BeritaDetailPage({ params }: { params: Promise<{ slug: string }> }) {

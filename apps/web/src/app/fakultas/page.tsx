@@ -1,3 +1,4 @@
+import { getInstitutionProfile } from '@/lib/institution';
 import Link from 'next/link';
 import { ArrowRight, Building2, GraduationCap, Users, BookOpen, Award, UserRound } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
@@ -5,9 +6,13 @@ import { Footer } from '@/components/Footer';
 import { loadFaculties } from '@/lib/faculties';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Fakultas & Program Studi | Institut Teknologi Nusantara' };
+export async function generateMetadata() {
+  const campus = await getInstitutionProfile();
+  return { title: `Fakultas & Program Studi | ${campus.campusName || 'Kampus'}` };
+}
 
 export default async function FakultasPage() {
+  const campus = await getInstitutionProfile();
   const { items, failed } = await loadFaculties();
   const totalProdi = items.reduce((n, f) => n + f.prodi.length, 0);
   const totalMhs = items.reduce((n, f) => n + f.prodi.reduce((m, p) => m + p.studentsCount, 0), 0);
@@ -24,7 +29,7 @@ export default async function FakultasPage() {
             </span>
             <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight">Fakultas & Program Studi</h1>
             <p className="mt-3 max-w-2xl text-sm sm:text-base text-blue-100/90 leading-relaxed">
-              Jelajahi fakultas dan program studi di Institut Teknologi Nusantara beserta pimpinan, akreditasi, dan jenjang pendidikannya.
+              Jelajahi fakultas dan program studi di {campus.campusName || 'kampus kami'} beserta pimpinan, akreditasi, dan jenjang pendidikannya.
             </p>
             {items.length > 0 && (
               <div className="mt-8 flex flex-wrap gap-3 text-sm">

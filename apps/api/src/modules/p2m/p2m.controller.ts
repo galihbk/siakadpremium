@@ -81,29 +81,16 @@ export class P2mController {
     return this.p2mService.deleteAudit(id);
   }
 
-  // ================= VALIDASI RPS =================
-  @Get('rps')
-  @ApiOperation({ summary: 'Mendapatkan daftar RPS yang perlu/sudah divalidasi P2M' })
-  async getRpsForValidation(
+  // ================= PEMANTAUAN PENGUMPULAN RPS =================
+  @Get('rps-submissions')
+  @ApiOperation({ summary: 'Daftar dosen/kelas yang sudah dan belum mengumpulkan RPS pada satu tahun akademik (hanya baca)' })
+  async getRpsSubmissions(
+    @Query('academicYearId') academicYearId?: string,
     @Query('status') status?: string,
     @Query('studyProgram') studyProgram?: string,
     @Query('search') search?: string,
   ) {
-    return this.p2mService.getRpsForValidation({ status, studyProgram, search });
-  }
-
-  @Get('rps/:id')
-  @ApiOperation({ summary: 'Mendapatkan detail lengkap satu RPS untuk ditinjau P2M' })
-  async getRpsDetail(@Param('id') id: string) {
-    return this.p2mService.getRpsDetail(id);
-  }
-
-  @Post('rps/:id/validate')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Mengesahkan atau meminta revisi RPS -- validator diambil dari akun yang login' })
-  async validateRps(@Param('id') id: string, @Body() body: { status: 'DISAHKAN' | 'PERLU_REVISI'; note?: string }, @Req() req: any) {
-    const validatorName = req.user?.fullName || 'P2M';
-    return this.p2mService.validateRps(id, { status: body.status, note: body.note, validatorName });
+    return this.p2mService.getRpsSubmissions({ academicYearId, status, studyProgram, search });
   }
 
   // ================= DOKUMEN MUTU =================

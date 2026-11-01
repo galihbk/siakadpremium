@@ -6,14 +6,19 @@ interface SambutanRektorProps {
   rectorTitle?: string;
   rectorSpeech?: string;
   rectorImageUrl?: string;
+  campusName?: string;
+  campusShort?: string;
 }
 
 export function SambutanRektor({
-  rectorName = 'Prof. Dr. Ir. Hendra Gunawan, M.Eng.',
-  rectorTitle = 'Rektor Institut Teknologi Nusantara',
+  rectorName = '',
+  rectorTitle,
   rectorSpeech,
   rectorImageUrl = '/images/rector.png',
+  campusName = 'Kampus',
+  campusShort = campusName,
 }: SambutanRektorProps) {
+  const title = rectorTitle || `Pimpinan ${campusName}`;
   return (
     <section id="sambutan" className="py-20 bg-white border-b border-slate-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -26,7 +31,7 @@ export function SambutanRektor({
                 <div className="relative w-full h-full rounded-full overflow-hidden">
                   <Image
                     src={rectorImageUrl}
-                    alt={`${rectorName} - ${rectorTitle}`}
+                    alt={[rectorName, title].filter(Boolean).join(' - ')}
                     fill
                     sizes="(max-width: 768px) 176px, 208px"
                     className="object-cover object-top"
@@ -34,7 +39,7 @@ export function SambutanRektor({
                 </div>
                 {/* Badge Aksen Emas */}
                 <div className="absolute -bottom-2 bg-[#D4A017] text-white text-xs font-bold px-3 py-0.5 rounded-full shadow-sm">
-                  Rektor ITN
+                  Pimpinan {campusShort}
                 </div>
               </div>
 
@@ -42,7 +47,7 @@ export function SambutanRektor({
                 {rectorName}
               </h3>
               <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                {rectorTitle}
+                {title}
               </p>
             </div>
 
@@ -54,7 +59,7 @@ export function SambutanRektor({
               </div>
               
               <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mb-5">
-                Selamat Datang di Institut Teknologi Nusantara
+                Selamat Datang di {campusName}
               </h2>
 
               <div className="space-y-4 text-slate-600 text-sm sm:text-base leading-relaxed">
@@ -68,7 +73,7 @@ export function SambutanRektor({
                       <em>Assalamu’alaikum Warahmatullahi Wabarakatuh, Salam Sejahtera untuk kita semua.</em>
                     </p>
                     <p>
-                      Puji syukur kita panjatkan ke hadirat Tuhan Yang Maha Esa. Sebagai perguruan tinggi yang berakar pada nilai-nilai kebangsaan dan berwawasan global, Institut Teknologi Nusantara hadir bukan semata mencetak sarjana, melainkan mencetak pelopor perubahan yang memiliki keunggulan intelektual dan keluhuran budi pekerti.
+                      Puji syukur kita panjatkan ke hadirat Tuhan Yang Maha Esa. Sebagai perguruan tinggi yang berakar pada nilai-nilai kebangsaan dan berwawasan global, {campusName} hadir bukan semata mencetak sarjana, melainkan mencetak pelopor perubahan yang memiliki keunggulan intelektual dan keluhuran budi pekerti.
                     </p>
                     <p>
                       Di era percepatan transformasi digital dan ketidakpastian global, kami memadukan kurikulum berbasis luaran (<em>Outcome-Based Education</em>), riset aplikatif, serta kemitraan strategis bersama industri terkemuka demi menjamin setiap lulusan siap berkontribusi secara nyata bagi kemandirian bangsa Indonesia.
@@ -85,11 +90,7 @@ export function SambutanRektor({
                   <div className="py-2 text-[#1E3A8A] font-serif italic text-2xl tracking-wide select-none">
                     {rectorName}
                   </div>
-                  <p className="text-xs text-slate-500 font-medium">{rectorTitle}</p>
-                </div>
-
-                <div className="bg-white px-4 py-2 rounded-xl border border-slate-200 text-xs text-slate-500 max-w-xs shadow-xs">
-                  <span className="font-semibold text-[#1E3A8A]">Motto Rektorat:</span> &quot;Inovasi untuk Negeri, Integritas untuk Generasi Abadi.&quot;
+                  <p className="text-xs text-slate-500 font-medium">{title}</p>
                 </div>
               </div>
 

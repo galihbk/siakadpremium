@@ -229,114 +229,65 @@ export class P2mService {
     return { success: true };
   }
 
-  // ================= VALIDASI RPS =================
-  private mapRpsRow(c: any) {
-    return {
-      id: c.id,
-      courseClassId: c.courseClassId,
-      courseCode: c.courseClass.course.code,
-      courseName: c.courseClass.course.name,
-      studyProgram: c.courseClass.course.studyProgramName || 'Seluruh Program Studi',
-      className: c.courseClass.className,
-      lecturerName: c.courseClass.lecturer?.user?.fullName || '-',
-      rpsCode: c.rpsCode,
-      p2mStatus: c.p2mStatus || 'BELUM_DIAJUKAN',
-      p2mNote: c.p2mNote,
-      p2mValidatedAt: c.p2mValidatedAt,
-      p2mValidatedBy: c.p2mValidatedBy,
-      updatedAt: c.updatedAt,
-    };
-  }
-
-  async getRpsForValidation(filters?: { status?: string; studyProgram?: string; search?: string }) {
-    const where: any = {};
-    if (filters?.status && filters.status !== 'Semua') {
-      where.p2mStatus = filters.status;
-    } else {
-      // Default: hanya RPS yang pernah diajukan (bukan yang masih draf dosen belum pernah submit)
-      where.p2mStatus = { not: 'BELUM_DIAJUKAN' };
-    }
-    if (filters?.studyProgram && filters.studyProgram !== 'Semua') {
-      where.courseClass = { course: { studyProgramName: filters.studyProgram } };
-    }
-    if (filters?.search) {
-      const q = filters.search;
-      where.OR = [
-        { courseClass: { course: { name: { contains: q, mode: 'insensitive' } } } },
-        { courseClass: { course: { code: { contains: q, mode: 'insensitive' } } } },
-        { courseClass: { lecturer: { user: { fullName: { contains: q, mode: 'insensitive' } } } } },
-      ];
-    }
-
-    const list = await this.prisma.courseContract.findMany({
-      where,
-      include: {
-        courseClass: { include: { course: true, lecturer: { include: { user: true } } } },
-      },
-      orderBy: { updatedAt: 'desc' },
+  // ================= PEMANTAUAN PENGUMPULAN RPS =================
+  // Hanya-baca: P2M melihat dosen/kelas mana yang sudah mengumpulkan RPS pada satu tahun akademik.
+  // Pengesahan RPS dilakukan Program Studi, bukan P2M. Kelas tanpa dosen dan kelas berjadwal fleksibel
+  // (skripsi, kegiatan lapangan, dst.) tidak diwajibkan punya RPS sehingga tidak dihitung.
+  async getRpsSubmissions(filters?: { academicYearId?: string; status?: string; studyProgram?: string; search?: string }) {
+    const years = await this.prisma.academicYear.findMany({
+      orderBy: [{ startDate: 'desc' }],
+      select: { id: true, name: true, isActive: true },
     });
-    return list.map((c) => this.mapRpsRow(c));
-  }
+    const year = filters?.academicYearId
+      ? years.find((y) => y.id === filters.academicYearId)
+      : years.find((y) => y.isActive) ?? years[0];
+    if (!year) return { year: null, years, studyPrograms: [] as string[], summary: this.emptyRpsSummary(), items: [] as any[] };
 
-  async getRpsDetail(contractId: string) {
-    const contract = await this.prisma.courseContract.findUnique({
-      where: { id: contractId },
-      include: {
-        weeks: { orderBy: { weekNumber: 'asc' } },
-        courseClass: { include: { course: true, lecturer: { include: { user: true } } } },
-      },
-    });
-    if (!contract) throw new NotFoundException('RPS tidak ditemukan.');
-    return {
-      ...this.mapRpsRow(contract),
-      weeks: contract.weeks,
-      description: contract.description,
-      graduateLearningOutcomes: contract.graduateLearningOutcomes,
-      learningOutcomes: contract.learningOutcomes,
-      subCpmk: contract.subCpmk,
-      studyMaterials: contract.studyMaterials,
-      teachingMethods: contract.teachingMethods,
-      studentExperience: contract.studentExperience,
-      assessmentCriteria: contract.assessmentCriteria,
-      references: contract.references,
-      supportingReferences: contract.supportingReferences,
-      learningMedia: contract.learningMedia,
-      coordinatorName: contract.coordinatorName,
-      headOfProdiName: contract.headOfProdiName,
-      preparedDate: contract.preparedDate,
-    };
-  }
-
-  async validateRps(
-    contractId: string,
-    data: { status: 'DISAHKAN' | 'PERLU_REVISI'; note?: string; validatorName: string },
-  ): Promise<{ success: boolean; message: string; data: any }> {
-    const existing = await this.prisma.courseContract.findUnique({ where: { id: contractId } });
-    if (!existing) throw new NotFoundException('RPS tidak ditemukan.');
-    if (existing.p2mStatus !== 'DIAJUKAN') {
-      throw new BadRequestException('RPS ini belum diajukan dosen untuk divalidasi.');
-    }
-
-    const updated = await this.prisma.courseContract.update({
-      where: { id: contractId },
-      data: {
-        p2mStatus: data.status,
-        p2mNote: data.status === 'PERLU_REVISI' ? data.note?.trim() || null : null,
-        p2mValidatedAt: new Date(),
-        p2mValidatedBy: data.validatorName,
-        // RPS yang diminta revisi otomatis ditarik dari publikasi ke mahasiswa sampai diajukan ulang.
-        isPublished: data.status === 'DISAHKAN' ? existing.isPublished : false,
-      },
+    const classes = await this.prisma.courseClass.findMany({
+      where: { academicYearId: year.id, lecturerId: { not: null }, isFlexibleSchedule: false },
+      include: { course: true, lecturer: { include: { user: true } }, contract: true },
+      orderBy: [{ course: { code: 'asc' } }, { className: 'asc' }],
     });
 
-    return {
-      success: true,
-      message:
-        data.status === 'DISAHKAN'
-          ? 'RPS berhasil disahkan.'
-          : 'RPS dikembalikan ke dosen untuk direvisi.',
-      data: updated,
-    };
+    const all = classes.map((c) => ({
+      classId: c.id,
+      courseCode: c.course.code,
+      courseName: c.course.name,
+      studyProgram: c.course.studyProgramName || 'Seluruh Program Studi',
+      className: c.className,
+      lecturerName: c.lecturer?.user?.fullName || '-',
+      status: c.contract?.p2mStatus || 'BELUM_DIAJUKAN',
+      submittedAt: c.contract && (c.contract.p2mStatus || 'BELUM_DIAJUKAN') !== 'BELUM_DIAJUKAN' ? c.contract.updatedAt : null,
+      validatedBy: c.contract?.p2mValidatedBy ?? null,
+    }));
+
+    const summary = this.emptyRpsSummary();
+    summary.total = all.length;
+    for (const r of all) {
+      if (r.status === 'BELUM_DIAJUKAN') summary.belum++;
+      else {
+        summary.sudah++;
+        if (r.status === 'DIAJUKAN') summary.menunggu++;
+        else if (r.status === 'DISAHKAN') summary.disahkan++;
+        else if (r.status === 'PERLU_REVISI') summary.revisi++;
+      }
+    }
+    const studyPrograms = Array.from(new Set(all.map((r) => r.studyProgram))).sort();
+
+    const q = (filters?.search ?? '').trim().toLowerCase();
+    const items = all.filter((r) => {
+      if (filters?.studyProgram && filters.studyProgram !== 'Semua' && r.studyProgram !== filters.studyProgram) return false;
+      const st = filters?.status;
+      if (st === 'SUDAH' && r.status === 'BELUM_DIAJUKAN') return false;
+      if (st && st !== 'Semua' && st !== 'SUDAH' && r.status !== st) return false;
+      if (q && !(r.courseName.toLowerCase().includes(q) || r.courseCode.toLowerCase().includes(q) || r.lecturerName.toLowerCase().includes(q))) return false;
+      return true;
+    });
+    return { year, years, studyPrograms, summary, items };
+  }
+
+  private emptyRpsSummary() {
+    return { total: 0, sudah: 0, belum: 0, menunggu: 0, disahkan: 0, revisi: 0 };
   }
 
   // ================= DOKUMEN MUTU =================
