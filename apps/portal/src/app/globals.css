@@ -29,6 +29,19 @@ body {
   background: rgba(148, 163, 184, 0.45);
 }
 
+/* Progress bar sinkronisasi Feeder -- mode indeterminate (progres tidak diketahui server) */
+@keyframes sync-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+.sync-progress-indeterminate {
+  animation: sync-indeterminate 1.1s ease-in-out infinite;
+}
+
 /* Tiptap rich text editor placeholder */
 .tiptap p.is-editor-empty:first-child::before,
 .ProseMirror p.is-editor-empty:first-child::before {

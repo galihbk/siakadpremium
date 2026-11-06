@@ -37,24 +37,17 @@ function splitNameAndBidang(value: string): { name: string; bidang: string } {
 export default async function ProfilPage() {
   const profile = await getInstitutionProfile();
 
-  const leadershipImages = [
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
-    'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=600&q=80',
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80',
-    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=600&q=80',
-  ];
-
   const leadership = [
     {
       name: profile.rectorName,
       role: profile.rectorTitle,
       bidang: 'Pimpinan Tertinggi Institusi',
-      image: profile.rectorImageUrl || leadershipImages[0],
+      image: profile.rectorImageUrl || null,
     },
-    { role: 'Wakil Rektor I', ...splitNameAndBidang(profile.viceRector1), image: leadershipImages[1] },
-    { role: 'Wakil Rektor II', ...splitNameAndBidang(profile.viceRector2), image: leadershipImages[2] },
-    { role: 'Wakil Rektor III', ...splitNameAndBidang(profile.viceRector3), image: leadershipImages[3] },
-  ];
+    { role: 'Wakil Rektor I', ...splitNameAndBidang(profile.viceRector1), image: null },
+    { role: 'Wakil Rektor II', ...splitNameAndBidang(profile.viceRector2), image: null },
+    { role: 'Wakil Rektor III', ...splitNameAndBidang(profile.viceRector3), image: null },
+  ].filter((l) => l.name && l.name.trim());
 
   const values = [
     {
@@ -84,27 +77,17 @@ export default async function ProfilPage() {
   ];
 
   const milestones = [
-    {
+    profile.establishmentYear > 0 && {
       year: String(profile.establishmentYear),
-      title: 'Pendirian Akademi Teknologi',
-      desc: 'Dirintis oleh tokoh cendekiawan nasional dengan 3 program studi keteknikan awal guna mencetak insinyur unggul tanah air.',
+      title: 'Pendirian',
+      desc: profile.establishmentSk ? `Berdiri berdasarkan ${profile.establishmentSk}.` : `${profile.campusName} berdiri.`,
     },
-    {
-      year: '2004',
-      title: 'Transformasi Menjadi Institut',
-      desc: 'Meningkatkan status kelembagaan menjadi institut dengan peresmian 4 Fakultas utama dan kampus terpadu.',
+    profile.accreditation && {
+      year: profile.accreditationValidUntil ? `s.d. ${profile.accreditationValidUntil}` : 'Terkini',
+      title: `Akreditasi Institusi ${profile.accreditation}`,
+      desc: profile.accreditationSk || 'Status akreditasi institusi saat ini.',
     },
-    {
-      year: '2016',
-      title: 'Akreditasi Institusi "A" & Pusat Riset',
-      desc: 'Meraih predikat Akreditasi Unggul dari BAN-PT serta mendirikan Pusat Kolaborasi Riset Energi Terbarukan & AI.',
-    },
-    {
-      year: '2026',
-      title: 'Era Kampus Digital Berstandar Global',
-      desc: 'Implementasi menyeluruh SIAKAD enterprise, kurikulum Outcome-Based Education (OBE), dan jejaring 45 mitra universitas dunia.',
-    },
-  ];
+  ].filter(Boolean) as { year: string; title: string; desc: string }[];
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50">
@@ -273,7 +256,7 @@ export default async function ProfilPage() {
               Pimpinan {profile.campusShortName || profile.campusName}
             </h2>
             <p className="text-sm text-slate-500 mt-2">
-              Dipimpin oleh akademisi dan praktisi berkaliber internasional yang berdedikasi memajukan pendidikan tinggi Indonesia.
+              Pimpinan yang berdedikasi memajukan {profile.campusName}.
             </p>
           </div>
 
@@ -281,12 +264,19 @@ export default async function ProfilPage() {
             {leadership.map((leader, idx) => (
               <div key={idx} className="bg-white rounded-2xl border border-slate-200 shadow-subtle overflow-hidden flex flex-col">
                 <div className="relative h-64 w-full bg-slate-200">
-                  <Image
-                    src={leader.image}
-                    alt={leader.name}
-                    fill
-                    className="object-cover object-top"
-                  />
+                  {leader.image ? (
+                    <Image src={leader.image} alt={leader.name} fill className="object-cover object-top" />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-5xl font-black text-slate-400 select-none">
+                      {leader.name
+                        .replace(/^(prof\.?|dr\.?|ir\.?|drs\.?|dra\.?|h\.?|hj\.?)\s+/gi, '')
+                        .split(/\s+/)
+                        .slice(0, 2)
+                        .map((w) => w[0])
+                        .join('')
+                        .toUpperCase()}
+                    </div>
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent"></div>
                   <div className="absolute bottom-3 left-4 right-4">
                     <span className="inline-block text-[10px] font-bold text-[#D4A017] bg-slate-950/70 px-2 py-0.5 rounded">
@@ -312,6 +302,7 @@ export default async function ProfilPage() {
         </section>
 
         {/* Sejarah & Milestones */}
+        {milestones.length > 0 && (
         <section className="bg-slate-100/70 py-16 sm:py-20 border-t border-slate-200">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
@@ -345,6 +336,7 @@ export default async function ProfilPage() {
             </div>
           </div>
         </section>
+        )}
 
       </main>
 

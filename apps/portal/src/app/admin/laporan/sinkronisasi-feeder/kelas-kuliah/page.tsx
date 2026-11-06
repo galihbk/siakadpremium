@@ -7,6 +7,7 @@ import { Modal } from '@/components/ui/Modal';
 import { getAuthSession } from '@/lib/auth';
 import { useServerTable } from '@/lib/useServerTable';
 import { TablePagination } from '@/components/ui/TablePagination';
+import { SyncProgressBar } from '@/components/ui/SyncProgressBar';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -412,6 +413,15 @@ export default function SinkronisasiKelasKuliahPage() {
             </button>
           )}
 
+          {activeTab === 'pull' && (
+            <SyncProgressBar
+              active={isPullingKelas}
+              mode="indeterminate"
+              canLeavePage
+              note="Permintaan ini dikirim sekali ke server dan diproses di sana, jadi halaman ini boleh ditinggal pindah tab atau ditutup -- proses tetap berjalan sampai selesai. Hanya saja kalau halaman ditutup, Anda tidak akan melihat notifikasi hasilnya di sini."
+            />
+          )}
+
           {activeTab === 'push' && (
             <div className="space-y-3">
               {!isSuperAdmin && (
@@ -438,6 +448,13 @@ export default function SinkronisasiKelasKuliahPage() {
                       : 'Push Kelas Belum Terdaftar ke Feeder'}
                 </span>
               </button>
+
+              <SyncProgressBar
+                active={isPushingKelas}
+                mode="indeterminate"
+                canLeavePage
+                note="Kelas terpilih dikirim dalam satu permintaan ke Web Service Neo Feeder dan diproses di server, jadi halaman ini boleh ditinggal -- pengiriman tetap berjalan sampai selesai meski Anda pindah tab atau menutup halaman."
+              />
 
               <div className="pt-3 border-t border-slate-100 space-y-3">
                 <div className="flex items-center justify-between">
@@ -566,6 +583,13 @@ export default function SinkronisasiKelasKuliahPage() {
                 </tbody>
               </table>
             </div>
+
+            <SyncProgressBar
+              active={isSyncingKelas}
+              mode="indeterminate"
+              canLeavePage
+              note="Seluruh data hasil tarikan dikirim dalam satu permintaan dan diproses di server, jadi jendela ini boleh ditutup -- penyimpanan ke database lokal tetap berjalan sampai selesai."
+            />
 
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <button

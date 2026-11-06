@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { Modal } from '@/components/ui/Modal';
 import { getAuthSession } from '@/lib/auth';
+import { SyncProgressBar } from '@/components/ui/SyncProgressBar';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -425,6 +426,13 @@ export default function SinkronisasiDosenPage() {
             {isPullingDosen ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowDownToLine className="w-4 h-4" />}
             <span>{isPullingDosen ? 'Menarik...' : 'Pull dari Feeder'}</span>
           </button>
+
+          <SyncProgressBar
+            active={isPullingDosen}
+            mode="indeterminate"
+            canLeavePage
+            note="Permintaan ini dikirim sekali ke server dan diproses di sana, jadi halaman ini boleh ditinggal pindah tab atau ditutup -- proses tetap berjalan sampai selesai. Hanya saja kalau halaman ditutup, Anda tidak akan melihat notifikasi hasilnya di sini."
+          />
         </div>
 
         {/* Modal: Hasil Tarikan Dosen */}
@@ -480,6 +488,12 @@ export default function SinkronisasiDosenPage() {
                 </tbody>
               </table>
             </div>
+            <SyncProgressBar
+              active={isSyncingDosen}
+              mode="indeterminate"
+              canLeavePage
+              note="Seluruh data hasil tarikan dikirim dalam satu permintaan dan diproses di server, jadi jendela ini boleh ditutup -- penyimpanan ke database lokal tetap berjalan sampai selesai."
+            />
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 onClick={() => setIsDosenResultModalOpen(false)}

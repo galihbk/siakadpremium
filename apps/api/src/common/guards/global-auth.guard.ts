@@ -24,6 +24,7 @@ const PUBLIC_RULES: PublicRule[] = [
 
   // Situs publik (web, p2m, p3m)
   { methods: ['GET'], path: /^\/landing-page$/ },
+  { methods: ['GET'], path: /^\/landing-page\/stats$/ },
   { methods: ['GET'], path: /^\/landing-page\/articles$/ },
   { methods: ['GET'], path: /^\/landing-page\/articles\/slug\/[^/]+$/ },
   { methods: ['GET'], path: /^\/faculties(\/[^/]+)?$/ },

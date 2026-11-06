@@ -1,5 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import type { PublicStats } from '@/lib/stats';
+import { fmtCount } from '@/lib/stats';
 import { ArrowRight, Users, Award, BookOpen, CheckCircle, ShieldCheck } from 'lucide-react';
 
 interface HeroSectionProps {
@@ -9,6 +11,7 @@ interface HeroSectionProps {
   ctaText?: string;
   ctaLink?: string;
   campusName?: string;
+  stats?: PublicStats | null;
 }
 
 export function HeroSection({
@@ -18,6 +21,7 @@ export function HeroSection({
   ctaText = 'Daftar PMB Sekarang',
   ctaLink = '/pmb',
   campusName = 'Kampus',
+  stats = null,
 }: HeroSectionProps) {
   return (
     <section className="relative bg-gradient-to-b from-slate-50 via-white to-slate-50/50 pt-12 pb-20 overflow-hidden border-b border-slate-200/80">
@@ -92,21 +96,21 @@ export function HeroSection({
                 </div>
               </div>
 
-              {/* 3 Kartu Statistik di Bawah Foto */}
-              <div className="grid grid-cols-3 divide-x divide-slate-100 bg-white p-4 sm:p-5">
-                <div className="text-center px-1 sm:px-2">
-                  <p className="text-xl sm:text-2xl font-extrabold text-[#1E3A8A]">8.500+</p>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5">Mahasiswa Aktif</p>
+              {/* Kartu Statistik di Bawah Foto -- dari data akademik; disembunyikan bila belum termuat */}
+              {stats && (
+                <div className="grid grid-cols-3 divide-x divide-slate-100 bg-white p-4 sm:p-5">
+                  {[
+                    { n: stats.students, label: 'Mahasiswa Aktif' },
+                    { n: stats.lecturers, label: 'Dosen' },
+                    { n: stats.studyPrograms, label: 'Program Studi' },
+                  ].map((x) => (
+                    <div key={x.label} className="text-center px-1 sm:px-2">
+                      <p className="text-xl sm:text-2xl font-extrabold text-[#1E3A8A]">{fmtCount(x.n)}</p>
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">{x.label}</p>
+                    </div>
+                  ))}
                 </div>
-                <div className="text-center px-1 sm:px-2">
-                  <p className="text-xl sm:text-2xl font-extrabold text-[#1E3A8A]">320+</p>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5">Dosen Bergelar S2/S3</p>
-                </div>
-                <div className="text-center px-1 sm:px-2">
-                  <p className="text-xl sm:text-2xl font-extrabold text-[#1E3A8A]">22</p>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5">Program Studi</p>
-                </div>
-              </div>
+              )}
             </div>
           </div>
 

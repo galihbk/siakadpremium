@@ -6,6 +6,7 @@ import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getAuthSession } from '@/lib/auth';
 import { useServerTable } from '@/lib/useServerTable';
 import { TablePagination } from '@/components/ui/TablePagination';
+import { SyncProgressBar } from '@/components/ui/SyncProgressBar';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -109,11 +110,13 @@ export default function SinkronisasiAkmPage() {
   const sortIndicator = (key: string) => (table.sortKey === key ? (table.sortDir === 'asc' ? ' ▲' : ' ▼') : ' ⇅');
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isSelectingAll, setIsSelectingAll] = useState(false);
   const [diffById, setDiffById] = useState<Record<string, AkmDiffResult>>({});
   const [onlyWithDiff, setOnlyWithDiff] = useState(false);
   const [isComparing, setIsComparing] = useState(false);
   const [compareProgress, setCompareProgress] = useState<{ done: number; total: number } | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<{ done: number; total: number } | null>(null);
   const cancelCompareRef = useRef(false);
 
   // Ganti semester -> hasil perbandingan & pilihan semester sebelumnya tidak berlaku lagi.
@@ -129,7 +132,9 @@ export default function SinkronisasiAkmPage() {
         : table.items,
     [table.items, onlyWithDiff, diffById]
   );
-  const allSelected = visibleRows.length > 0 && visibleRows.every((r) => selectedIds.has(r.id));
+  // "Semua terpilih" dicek terhadap total SELURUH mahasiswa di semester ini (sesuai
+  // pencarian), bukan cuma baris di halaman ini.
+  const allSelected = table.total > 0 && selectedIds.size === table.total;
 
   const toggleSelected = (id: string) => {
     setSelectedIds((prev) => {
@@ -140,13 +145,29 @@ export default function SinkronisasiAkmPage() {
     });
   };
 
-  const toggleAll = () => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (allSelected) visibleRows.forEach((r) => next.delete(r.id));
-      else visibleRows.forEach((r) => next.add(r.id));
-      return next;
-    });
+  // Checkbox "pilih semua" memilih SELURUH mahasiswa di semester ini (sesuai pencarian),
+  // bukan cuma baris yang tampil, lewat endpoint /akm/ids yang sama dengan "Bandingkan Semua".
+  const toggleAll = async () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+      return;
+    }
+    setIsSelectingAll(true);
+    try {
+      const params = new URLSearchParams({ semester });
+      if (table.searchInput.trim()) params.set('search', table.searchInput.trim());
+      const res = await fetch(`${apiBase}/integration-settings/pddikti/akm/ids?${params.toString()}`, {
+        headers: authHeaders(),
+      });
+      const json = await res.json().catch(() => null);
+      const result = json?.data ?? json;
+      if (!res.ok || !Array.isArray(result?.ids)) throw new Error(result?.message || `HTTP ${res.status}`);
+      setSelectedIds(new Set(result.ids as string[]));
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Gagal memuat seluruh daftar mahasiswa.');
+    } finally {
+      setIsSelectingAll(false);
+    }
   };
 
   // Bandingkan AKM lokal vs Feeder (hanya membaca) -- per batch 100. Yang dibandingkan =
@@ -207,54 +228,68 @@ export default function SinkronisasiAkmPage() {
   };
 
   // Kirim AKM terpilih ke Feeder (MENULIS ke PDDIKTI): Update kalau sudah ada, Insert kalau belum.
+  // Backend membatasi maksimal MAX_SYNC_PER_RUN per panggilan, jadi kalau yang dicentang
+  // lebih dari itu (mis. hasil "pilih semua"), dikirim bertahap dari sini.
   const handleSync = async () => {
     if (selectedIds.size === 0 || !semester) return;
     setIsSyncing(true);
+    setSyncProgress(null);
     const startedAt = Date.now();
     const ids = Array.from(selectedIds);
+    let totalProcessed = 0;
+    let totalInserted = 0;
+    let totalUpdated = 0;
+    let totalFailed = 0;
+    let anyRequestFailed = false;
     try {
-      const res = await fetch(`${apiBase}/integration-settings/pddikti/akm/sync`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ semester, studentIds: ids }),
-      });
-      const json = await res.json().catch(() => null);
-      const result = json?.data ?? json;
-      if (!res.ok || !result) throw new Error(result?.message || `HTTP ${res.status}`);
+      setSyncProgress({ done: 0, total: ids.length });
+      for (let i = 0; i < ids.length; i += MAX_SYNC_PER_RUN) {
+        const res = await fetch(`${apiBase}/integration-settings/pddikti/akm/sync`, {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ semester, studentIds: ids.slice(i, i + MAX_SYNC_PER_RUN) }),
+        });
+        const json = await res.json().catch(() => null);
+        const result = json?.data ?? json;
+        if (!res.ok || !result) throw new Error(result?.message || `HTTP ${res.status}`);
+        totalProcessed += result?.processed ?? 0;
+        totalInserted += result?.inserted ?? 0;
+        totalUpdated += result?.updated ?? 0;
+        totalFailed += result?.failed ?? 0;
+        if (!result?.success) anyRequestFailed = true;
+        setSyncProgress({ done: Math.min(i + MAX_SYNC_PER_RUN, ids.length), total: ids.length });
+      }
 
-      const failedCount = result?.failed ?? 0;
       setSyncLogs((prev) => [
         {
           id: `log-akm-${Date.now()}`,
           timestamp: new Date().toLocaleString('id-ID'),
           entity: `AKM semester ${semester} -- Kirim ke Feeder`,
-          batchSize: result?.processed ?? 0,
-          successCount: (result?.inserted ?? 0) + (result?.updated ?? 0),
-          errorCount: failedCount,
-          status: !result?.success ? 'FAILED' : failedCount > 0 ? 'WARNING' : 'SUCCESS',
+          batchSize: totalProcessed,
+          successCount: totalInserted + totalUpdated,
+          errorCount: totalFailed,
+          status: anyRequestFailed ? 'FAILED' : totalFailed > 0 ? 'WARNING' : 'SUCCESS',
           durationMs: Date.now() - startedAt,
-          message: result?.message || 'Kirim AKM ke Feeder selesai.',
+          message: `${ids.length} mahasiswa diproses dalam ${Math.ceil(ids.length / MAX_SYNC_PER_RUN)} batch -- ${totalInserted} insert, ${totalUpdated} update, ${totalFailed} gagal.`,
         },
         ...prev,
       ]);
-      showToast(result?.message || 'Kirim AKM ke Feeder selesai.');
-      if (result?.success) {
-        setSelectedIds(new Set());
-        setDiffById((prev) => {
-          const next = { ...prev };
-          ids.forEach((id) => delete next[id]);
-          return next;
-        });
-      }
+      showToast(`Kirim AKM selesai: ${totalInserted + totalUpdated} dari ${ids.length} mahasiswa berhasil ke Feeder.`);
+      setSelectedIds(new Set());
+      setDiffById((prev) => {
+        const next = { ...prev };
+        ids.forEach((id) => delete next[id]);
+        return next;
+      });
     } catch (err) {
       setSyncLogs((prev) => [
         {
           id: `log-akm-${Date.now()}`,
           timestamp: new Date().toLocaleString('id-ID'),
           entity: `AKM semester ${semester} -- Kirim ke Feeder`,
-          batchSize: 0,
-          successCount: 0,
-          errorCount: 0,
+          batchSize: totalProcessed,
+          successCount: totalInserted + totalUpdated,
+          errorCount: totalFailed,
           status: 'FAILED',
           durationMs: Date.now() - startedAt,
           message: err instanceof Error ? err.message : 'Gagal mengirim AKM ke Feeder.',
@@ -264,6 +299,7 @@ export default function SinkronisasiAkmPage() {
       showToast(err instanceof Error ? err.message : 'Gagal mengirim AKM ke Feeder.');
     } finally {
       setIsSyncing(false);
+      setSyncProgress(null);
     }
   };
 
@@ -345,8 +381,9 @@ export default function SinkronisasiAkmPage() {
               </select>
             </div>
             <p className="text-[11px] text-slate-500 flex-1">
-              Dikirim maksimal {MAX_SYNC_PER_RUN} mahasiswa per proses. Yang sudah ada di Feeder di-<b>update</b> (status mahasiswa
-              dipertahankan), yang belum ada di-<b>insert</b> dengan status Aktif. Tanpa centang, &quot;Bandingkan&quot;
+              Centang header tabel untuk memilih <b>semua</b> mahasiswa di semester ini sekaligus -- pengiriman tetap
+              dilakukan bertahap per {MAX_SYNC_PER_RUN} di belakang layar. Yang sudah ada di Feeder di-<b>update</b> (status
+              mahasiswa dipertahankan), yang belum ada di-<b>insert</b> dengan status Aktif. Tanpa centang, &quot;Bandingkan&quot;
               membandingkan semua mahasiswa semester ini (sesuai pencarian).
             </p>
           </div>
@@ -385,13 +422,44 @@ export default function SinkronisasiAkmPage() {
               {isSyncing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowUpFromLine className="w-4 h-4" />}
               <span>
                 {isSyncing
-                  ? 'Mengirim...'
+                  ? syncProgress
+                    ? `Mengirim ${syncProgress.done} / ${syncProgress.total}...`
+                    : 'Mengirim...'
                   : selectedIds.size > 0
                     ? `Kirim ${selectedIds.size} AKM Terpilih ke Feeder`
                     : 'Centang mahasiswa yang akan dikirim'}
               </span>
             </button>
           </div>
+
+          {(isSelectingAll || selectedIds.size > 0) && (
+            <p className="text-[11px] font-semibold text-[#1E3A8A] flex items-center gap-1.5">
+              {isSelectingAll ? (
+                <>
+                  <RefreshCw className="w-3 h-3 animate-spin" /> Memuat seluruh daftar mahasiswa...
+                </>
+              ) : (
+                `${selectedIds.size.toLocaleString('id-ID')} mahasiswa dipilih${allSelected ? ' (semua di semester ini, sesuai kotak pencarian)' : ''}`
+              )}
+            </p>
+          )}
+
+          <SyncProgressBar
+            active={isComparing}
+            mode="determinate"
+            done={compareProgress?.done ?? 0}
+            total={compareProgress?.total ?? 0}
+            canLeavePage={false}
+            note="Perbandingan dikirim bertahap per 100 mahasiswa langsung dari browser Anda, bukan satu proses di server. Boleh pindah tab sebentar, tapi jangan tutup halaman ini sampai selesai karena prosesnya akan berhenti di tengah jalan."
+          />
+          <SyncProgressBar
+            active={isSyncing}
+            mode="determinate"
+            done={syncProgress?.done ?? 0}
+            total={syncProgress?.total ?? 0}
+            canLeavePage={false}
+            note={`AKM terpilih dikirim bertahap per ${MAX_SYNC_PER_RUN} langsung dari browser Anda (batas Feeder per proses), bukan satu proses di server. Boleh pindah tab sebentar, tapi jangan tutup halaman ini sampai selesai karena pengiriman akan berhenti di tengah jalan.`}
+          />
         </div>
 
         {/* Tabel (server-side) */}
@@ -438,8 +506,9 @@ export default function SinkronisasiAkmPage() {
                       type="checkbox"
                       checked={allSelected}
                       onChange={toggleAll}
-                      disabled={visibleRows.length === 0}
-                      aria-label="Pilih semua di halaman ini"
+                      disabled={isSelectingAll || table.total === 0}
+                      aria-label="Pilih semua mahasiswa di semester ini"
+                      title="Pilih semua mahasiswa di semester ini (sesuai kotak pencarian), bukan cuma yang tampil di halaman ini"
                       className="cursor-pointer"
                     />
                   </th>

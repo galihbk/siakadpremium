@@ -7,6 +7,7 @@ import { getAuthSession } from '@/lib/auth';
 import { useServerTable } from '@/lib/useServerTable';
 import { FeederPushPanel } from '@/components/feeder/FeederPushPanel';
 import { TablePagination } from '@/components/ui/TablePagination';
+import { SyncProgressBar } from '@/components/ui/SyncProgressBar';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -266,6 +267,15 @@ export default function SinkronisasiNilaiPage() {
           ) : (
             <p className="text-xs text-slate-400">Belum pernah dijalankan pada sesi ini.</p>
           )}
+
+          <SyncProgressBar
+            active={nilaiJobStatus?.status === 'running'}
+            mode="determinate"
+            done={nilaiJobStatus?.processedClasses ?? 0}
+            total={nilaiJobStatus?.totalClasses ?? 0}
+            canLeavePage
+            note="Ini job background yang berjalan dan disimpan statusnya di server, bukan di browser Anda -- boleh ditinggal, pindah halaman, atau ditutup sepenuhnya. Buka lagi halaman ini kapan saja untuk melihat progresnya, status akan otomatis terbaca kembali."
+          />
 
           <button
             onClick={handleStartNilaiJob}

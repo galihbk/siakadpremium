@@ -7,6 +7,7 @@ import { Modal } from '@/components/ui/Modal';
 import { getAuthSession } from '@/lib/auth';
 import { useServerTable } from '@/lib/useServerTable';
 import { TablePagination } from '@/components/ui/TablePagination';
+import { SyncProgressBar } from '@/components/ui/SyncProgressBar';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -237,7 +238,9 @@ export default function SinkronisasiMahasiswaPage() {
   // Tab Update + tabel perbandingan: centang baris (hanya yang sudah tertaut ke Feeder)
   // untuk diupdate, dan hasil perbandingan biodata per mahasiswa.
   const [isUpdatingMhs, setIsUpdatingMhs] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState<{ done: number; total: number } | null>(null);
   const [selectedLinkedIds, setSelectedLinkedIds] = useState<Set<string>>(new Set());
+  const [isSelectingAllLinked, setIsSelectingAllLinked] = useState(false);
   const [diffById, setDiffById] = useState<Record<string, MahasiswaDiffResult>>({});
   const [isComparing, setIsComparing] = useState(false);
   const [compareProgress, setCompareProgress] = useState<{ done: number; total: number } | null>(null);
@@ -252,8 +255,11 @@ export default function SinkronisasiMahasiswaPage() {
         : mhsTable.items,
     [mhsTable.items, onlyWithDiff, diffById, activeTab]
   );
-  const selectableRows = useMemo(() => visibleRows.filter((r) => r.hasFeederId), [visibleRows]);
-  const allLinkedSelected = selectableRows.length > 0 && selectableRows.every((r) => selectedLinkedIds.has(r.id));
+  // "Semua tertaut sudah terpilih" dicek terhadap jumlah SELURUH mahasiswa yang sudah
+  // tertaut ke Feeder (mhsTable.extra.linked), bukan cuma baris di halaman ini -- supaya
+  // checkbox header merefleksikan status pilihan yang sesungguhnya lintas halaman.
+  const totalLinkedCount = mhsTable.extra.linked ?? 0;
+  const allLinkedSelected = totalLinkedCount > 0 && selectedLinkedIds.size === totalLinkedCount;
 
   const toggleLinkedSelected = (id: string) => {
     setSelectedLinkedIds((prev) => {
@@ -264,28 +270,60 @@ export default function SinkronisasiMahasiswaPage() {
     });
   };
 
-  const toggleAllLinked = () => {
-    setSelectedLinkedIds((prev) => {
-      const next = new Set(prev);
-      if (allLinkedSelected) selectableRows.forEach((r) => next.delete(r.id));
-      else selectableRows.forEach((r) => next.add(r.id));
-      return next;
-    });
+  // Checkbox "pilih semua" memilih SELURUH mahasiswa yang sudah tertaut ke Feeder di
+  // seluruh halaman (bukan cuma baris yang sedang tampil), supaya aksi Bandingkan/Update
+  // berikutnya benar-benar diterapkan ke semuanya.
+  const toggleAllLinked = async () => {
+    if (allLinkedSelected) {
+      setSelectedLinkedIds(new Set());
+      return;
+    }
+    setIsSelectingAllLinked(true);
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    try {
+      const { token } = getAuthSession();
+      const res = await fetch(`${apiBase}/integration-settings/pddikti/mahasiswa/linked`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const json = await res.json().catch(() => null);
+      const result = json?.data ?? json;
+      const list: { id: string }[] = Array.isArray(result) ? result : [];
+      setSelectedLinkedIds(new Set(list.map((i) => i.id)));
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Gagal memuat seluruh daftar mahasiswa yang sudah tertaut ke Feeder.');
+    } finally {
+      setIsSelectingAllLinked(false);
+    }
   };
 
   // Bandingkan biodata lokal vs Feeder (hanya membaca) -- per batch 100 supaya tiap
   // request singkat dan tidak kena timeout; dijalankan berurutan dengan progres.
+  // Kalau tidak ada yang dicentang, bandingkan SEMUA mahasiswa yang sudah tertaut ke
+  // Feeder (bukan cuma yang sedang tampil di halaman tabel ini).
   const handleCompareWithFeeder = async () => {
-    const targets = (selectedLinkedIds.size > 0 ? selectableRows.filter((r) => selectedLinkedIds.has(r.id)) : selectableRows).map(
-      (r) => r.id
-    );
-    if (targets.length === 0) return;
     setIsComparing(true);
-    setCompareProgress({ done: 0, total: targets.length });
+    setCompareProgress(null);
     const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
     const { token } = getAuthSession();
-    const BATCH = 100;
     try {
+      let targets: string[];
+      if (selectedLinkedIds.size > 0) {
+        targets = Array.from(selectedLinkedIds);
+      } else {
+        const res = await fetch(`${apiBase}/integration-settings/pddikti/mahasiswa/linked`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const json = await res.json().catch(() => null);
+        const result = json?.data ?? json;
+        const list: { id: string }[] = Array.isArray(result) ? result : [];
+        targets = list.map((i) => i.id);
+      }
+      if (targets.length === 0) {
+        showToast('Tidak ada mahasiswa yang sudah tertaut ke Feeder untuk dibandingkan.');
+        return;
+      }
+      setCompareProgress({ done: 0, total: targets.length });
+      const BATCH = 100;
       for (let i = 0; i < targets.length; i += BATCH) {
         const res = await fetch(`${apiBase}/integration-settings/pddikti/mahasiswa/compare`, {
           method: 'POST',
@@ -312,48 +350,67 @@ export default function SinkronisasiMahasiswaPage() {
   };
 
   // Handler: Update biodata mahasiswa terpilih di Feeder dari data lokal (MENULIS ke PDDIKTI).
+  // Backend membatasi maksimal 50 mahasiswa per panggilan (LIMIT_PER_RUN), jadi kalau yang
+  // dicentang lebih dari itu (mis. hasil "pilih semua"), dikirim bertahap per 50 dari sini
+  // supaya SEMUA yang dicentang benar-benar terkirim, bukan cuma 50 pertama yang diproses.
   const handleUpdateMahasiswa = async () => {
     if (selectedLinkedIds.size === 0) return;
     setIsUpdatingMhs(true);
+    setUpdateProgress(null);
     const startedAt = Date.now();
     const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const { token } = getAuthSession();
+    const targets = Array.from(selectedLinkedIds);
+    const BATCH = 50;
+    let totalProcessed = 0;
+    let totalUpdated = 0;
+    let totalFailed = 0;
+    let totalSkipped = 0;
+    let anyRequestFailed = false;
     try {
-      const { token } = getAuthSession();
-      const res = await fetch(`${apiBase}/integration-settings/pddikti/mahasiswa/update`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ studentIds: Array.from(selectedLinkedIds) }),
-      });
-      const json = await res.json().catch(() => null);
-      const result = json?.data ?? json;
-      if (!res.ok || !result) throw new Error(result?.message || `HTTP ${res.status}`);
+      setUpdateProgress({ done: 0, total: targets.length });
+      for (let i = 0; i < targets.length; i += BATCH) {
+        const res = await fetch(`${apiBase}/integration-settings/pddikti/mahasiswa/update`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ studentIds: targets.slice(i, i + BATCH) }),
+        });
+        const json = await res.json().catch(() => null);
+        const result = json?.data ?? json;
+        if (!res.ok || !result) throw new Error(result?.message || `HTTP ${res.status}`);
+        totalProcessed += result?.processed ?? 0;
+        totalUpdated += result?.updated ?? 0;
+        totalFailed += result?.failed ?? 0;
+        totalSkipped += result?.skipped ?? 0;
+        if (!result?.success) anyRequestFailed = true;
+        setUpdateProgress({ done: Math.min(i + BATCH, targets.length), total: targets.length });
+      }
 
-      const failedCount = result?.failed ?? 0;
       setSyncLogs((prev) => [
         {
           id: `log-mhs-update-${Date.now()}`,
           timestamp: new Date().toLocaleString('id-ID'),
           entity: 'Mahasiswa (mahasiswa_pt) -- Update ke Feeder',
-          batchSize: result?.processed ?? 0,
-          successCount: result?.updated ?? 0,
-          errorCount: failedCount,
-          status: !result?.success ? 'FAILED' : failedCount > 0 ? 'WARNING' : 'SUCCESS',
+          batchSize: totalProcessed,
+          successCount: totalUpdated,
+          errorCount: totalFailed,
+          status: anyRequestFailed ? 'FAILED' : totalFailed > 0 ? 'WARNING' : 'SUCCESS',
           durationMs: Date.now() - startedAt,
-          message: result?.message || 'Update mahasiswa ke Feeder selesai.',
+          message: `${targets.length} mahasiswa diproses dalam ${Math.ceil(targets.length / BATCH)} batch -- ${totalUpdated} berhasil diupdate, ${totalFailed} gagal, ${totalSkipped} dilewati (tidak ada data untuk dikirim).`,
         },
         ...prev,
       ]);
-      showToast(result?.message || 'Update mahasiswa ke Feeder selesai.');
-      if (result?.success) setSelectedLinkedIds(new Set());
+      showToast(`Update selesai: ${totalUpdated} dari ${targets.length} mahasiswa berhasil diupdate ke Feeder.`);
+      setSelectedLinkedIds(new Set());
     } catch (err) {
       setSyncLogs((prev) => [
         {
           id: `log-mhs-update-${Date.now()}`,
           timestamp: new Date().toLocaleString('id-ID'),
           entity: 'Mahasiswa (mahasiswa_pt) -- Update ke Feeder',
-          batchSize: 0,
-          successCount: 0,
-          errorCount: 0,
+          batchSize: totalProcessed,
+          successCount: totalUpdated,
+          errorCount: totalFailed,
           status: 'FAILED',
           durationMs: Date.now() - startedAt,
           message: err instanceof Error ? err.message : 'Gagal update data mahasiswa ke Feeder.',
@@ -363,6 +420,7 @@ export default function SinkronisasiMahasiswaPage() {
       showToast(err instanceof Error ? err.message : 'Gagal update data mahasiswa ke Feeder.');
     } finally {
       setIsUpdatingMhs(false);
+      setUpdateProgress(null);
     }
   };
 
@@ -697,6 +755,13 @@ export default function SinkronisasiMahasiswaPage() {
               {isPullingMhs ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowDownToLine className="w-4 h-4" />}
               <span>{isPullingMhs ? 'Menarik...' : 'Pull dari Feeder'}</span>
             </button>
+
+            <SyncProgressBar
+              active={isPullingMhs}
+              mode="indeterminate"
+              canLeavePage
+              note="Permintaan ini dikirim sekali ke server dan diproses di sana, jadi halaman ini boleh ditinggal pindah tab atau ditutup -- proses tetap berjalan sampai selesai. Hanya saja kalau halaman ditutup, Anda tidak akan melihat notifikasi hasilnya di sini."
+            />
           </div>
         )}
 
@@ -718,6 +783,13 @@ export default function SinkronisasiMahasiswaPage() {
                     : 'Centang mahasiswa yang akan dipush'}
               </span>
             </button>
+
+            <SyncProgressBar
+              active={isPushingMhs}
+              mode="indeterminate"
+              canLeavePage
+              note="Mahasiswa terpilih dikirim dalam satu permintaan ke Web Service Neo Feeder dan diproses di server, jadi halaman ini boleh ditinggal -- pengiriman tetap berjalan sampai selesai meski Anda pindah tab atau menutup halaman."
+            />
 
             <div className="pt-3 border-t border-slate-100 space-y-3">
               <div className="flex items-center justify-between">
@@ -838,21 +910,25 @@ export default function SinkronisasiMahasiswaPage() {
             <p className="text-[11px] text-slate-500">
               Centang mahasiswa di tabel perbandingan di bawah, lalu kirim biodata lokal ke Feeder. Klik &quot;Bandingkan dengan
               Feeder&quot; untuk melihat field mana yang berbeda. Hanya field yang terisi di data lokal yang dikirim, jadi data
-              Feeder tidak ditimpa nilai kosong. Maksimal 50 mahasiswa per proses.
+              Feeder tidak ditimpa nilai kosong. Centang header tabel untuk memilih SEMUA mahasiswa yang sudah tertaut ke
+              Feeder sekaligus (bukan cuma yang tampil di halaman ini) -- pengiriman tetap dilakukan bertahap per 50 mahasiswa
+              di belakang layar.
             </p>
             <div className="flex flex-col sm:flex-row gap-2">
               <button
                 onClick={handleCompareWithFeeder}
-                disabled={isComparing || selectableRows.length === 0}
+                disabled={isComparing || (selectedLinkedIds.size === 0 && (mhsTable.extra.linked ?? 0) === 0)}
                 className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold text-[#1E3A8A] bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl shadow-xs transition-all disabled:opacity-60 cursor-pointer"
               >
                 <RefreshCw className={`w-4 h-4 ${isComparing ? 'animate-spin' : ''}`} />
                 <span>
-                  {isComparing && compareProgress
-                    ? `Membandingkan ${compareProgress.done} / ${compareProgress.total}...`
+                  {isComparing
+                    ? compareProgress
+                      ? `Membandingkan ${compareProgress.done} / ${compareProgress.total}...`
+                      : 'Menyiapkan daftar mahasiswa...'
                     : selectedLinkedIds.size > 0
                       ? `Bandingkan ${selectedLinkedIds.size} Terpilih dengan Feeder`
-                      : `Bandingkan ${selectableRows.length} Mahasiswa di Halaman Ini`}
+                      : `Bandingkan Semua Mahasiswa (${(mhsTable.extra.linked ?? 0).toLocaleString('id-ID')})`}
                 </span>
               </button>
               <button
@@ -864,13 +940,32 @@ export default function SinkronisasiMahasiswaPage() {
                 {isUpdatingMhs ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowUpFromLine className="w-4 h-4" />}
                 <span>
                   {isUpdatingMhs
-                    ? 'Mengupdate...'
+                    ? updateProgress
+                      ? `Mengupdate ${updateProgress.done} / ${updateProgress.total}...`
+                      : 'Mengupdate...'
                     : selectedLinkedIds.size > 0
                       ? `Update ${selectedLinkedIds.size} Mahasiswa Terpilih ke Feeder`
                       : 'Centang mahasiswa yang akan diupdate'}
                 </span>
               </button>
             </div>
+
+            <SyncProgressBar
+              active={isComparing}
+              mode="determinate"
+              done={compareProgress?.done ?? 0}
+              total={compareProgress?.total ?? 0}
+              canLeavePage={false}
+              note="Perbandingan dikirim bertahap per 100 mahasiswa langsung dari browser Anda, bukan satu proses di server. Boleh pindah tab sebentar, tapi jangan tutup halaman ini sampai selesai karena prosesnya akan berhenti di tengah jalan."
+            />
+            <SyncProgressBar
+              active={isUpdatingMhs}
+              mode="determinate"
+              done={updateProgress?.done ?? 0}
+              total={updateProgress?.total ?? 0}
+              canLeavePage={false}
+              note="Mahasiswa terpilih dikirim bertahap per 50 langsung dari browser Anda (batas Feeder per proses), bukan satu proses di server. Boleh pindah tab sebentar, tapi jangan tutup halaman ini sampai selesai karena pengiriman akan berhenti di tengah jalan."
+            />
           </div>
         )}
 
@@ -927,6 +1022,13 @@ export default function SinkronisasiMahasiswaPage() {
                 </tbody>
               </table>
             </div>
+            <SyncProgressBar
+              active={isSyncingMhs}
+              mode="indeterminate"
+              canLeavePage
+              note="Seluruh data hasil tarikan dikirim dalam satu permintaan dan diproses di server, jadi jendela ini boleh ditutup -- penyimpanan ke database lokal tetap berjalan sampai selesai."
+            />
+
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 onClick={() => setIsMhsResultModalOpen(false)}
@@ -979,6 +1081,18 @@ export default function SinkronisasiMahasiswaPage() {
             )}
           </div>
 
+          {activeTab === 'update' && (isSelectingAllLinked || selectedLinkedIds.size > 0) && (
+            <p className="text-[11px] font-semibold text-[#1E3A8A] flex items-center gap-1.5">
+              {isSelectingAllLinked ? (
+                <>
+                  <RefreshCw className="w-3 h-3 animate-spin" /> Memuat seluruh mahasiswa yang sudah tertaut ke Feeder...
+                </>
+              ) : (
+                `${selectedLinkedIds.size.toLocaleString('id-ID')} mahasiswa dipilih (${allLinkedSelected ? 'semua yang tertaut ke Feeder' : 'lintas halaman jika dicentang manual'})`
+              )}
+            </p>
+          )}
+
           {mhsTable.error && (
             <div className="flex items-start gap-2 text-xs p-3 rounded-xl border bg-amber-50 border-amber-200 text-amber-800">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -996,8 +1110,9 @@ export default function SinkronisasiMahasiswaPage() {
                         type="checkbox"
                         checked={allLinkedSelected}
                         onChange={toggleAllLinked}
-                        disabled={selectableRows.length === 0}
-                        aria-label="Pilih semua di halaman ini"
+                        disabled={isSelectingAllLinked || totalLinkedCount === 0}
+                        aria-label="Pilih semua mahasiswa yang sudah tertaut ke Feeder"
+                        title="Pilih semua mahasiswa yang sudah tertaut ke Feeder di seluruh halaman, bukan cuma yang tampil di sini"
                         className="cursor-pointer"
                       />
                     </th>

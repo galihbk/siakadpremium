@@ -129,3 +129,41 @@ buat **instance baru** dari kode yang sama dengan database baru yang kosong.
 - Server `deploy` (self-hosted, `/srv/projects/siakadpremium`) yang sudah ada adalah server utama Anda dan tidak diubah
   perilakunya; kampus pelanggan memakai job `deploy-customers` yang terpisah.
 - Satu kampus gagal tidak menghentikan kampus lain (`fail-fast: false`), dan paling banyak 3 kampus diproses bersamaan.
+
+## Kredensial Web Service Neo Feeder PDDIKTI (enkripsi at-rest)
+
+Username/password Web Service Feeder (Pengaturan DIKTI → `pddikti_settings`) disimpan **terenkripsi** di database
+(AES-256-GCM), bukan teks biasa. Lihat `apps/api/src/modules/integration-settings/feeder-crypto.util.ts` untuk
+implementasinya dan `FEEDER_HARDENING_REPORT.md` / `FEEDER_POST_HARDENING_REVIEW.md` di root repo untuk riwayat
+dan hasil verifikasinya.
+
+**Yang wajib dipahami sebelum operasi di bawah ini, karena berisiko mengunci kredensial Feeder kampus:**
+
+- **Kunci enkripsi diturunkan dari `JWT_SECRET`** (bukan variabel environment terpisah) lewat `scrypt`, dihitung
+  ulang setiap aplikasi start -- tidak disimpan di mana pun secara eksplisit. Ini sengaja supaya tidak perlu secret
+  tambahan, tapi konsekuensinya: **kredensial Feeder HANYA bisa didekripsi oleh server yang memakai `JWT_SECRET`
+  yang sama persis** dengan server yang mengenkripsinya.
+- **Jangan pernah mengganti `JWT_SECRET` tanpa prosedur migrasi kredensial terlebih dahulu.** Mengganti `JWT_SECRET`
+  langsung akan membuat password/secretKey Feeder kampus itu **tidak bisa dibaca lagi** (errornya baru muncul saat
+  Pengaturan DIKTI dibuka atau sinkronisasi dijalankan, bukan saat `JWT_SECRET` diganti) -- bukan kehilangan data,
+  tapi butuh admin kampus mengisi ulang kredensial secara manual. Kalau rotasi `JWT_SECRET` memang perlu:
+  1. Jalankan skrip yang membaca semua `PddiktiSetting.password`/`secretKey` dengan kunci LAMA (JWT_SECRET lama),
+     lalu simpan ulang (ter-enkripsi otomatis) setelah `JWT_SECRET` BARU aktif, dalam satu sesi deploy yang sama
+     (jangan restart API dengan `JWT_SECRET` baru sebelum migrasi ini selesai). Belum ada skrip siap pakai untuk
+     ini di repo -- tulis dulu dan uji di database staging sebelum dipakai di kampus produksi.
+  2. Atau, kalau kredensial sudah tidak terpakai/sedang dikonfigurasi ulang, cukup biarkan admin mengisi ulang
+     Pengaturan DIKTI setelah rotasi -- paling sederhana tapi berarti sinkronisasi Feeder berhenti sampai diisi ulang.
+- **Restore backup ke server baru**: `pg_dump` yang dijalankan `remote-deploy.sh` menyertakan kolom kredensial yang
+  sudah terenkripsi -- backup itu sendiri aman disimpan. Tapi memulihkannya ke server baru **hanya berhasil mendekripsi**
+  kalau server baru itu memakai `.env` dengan `JWT_SECRET` **yang sama** dengan server asal backup. Kalau server baru
+  memang sengaja memakai `JWT_SECRET` baru (mis. migrasi ke infrastruktur lain), kredensial Feeder kampus itu perlu
+  diisi ulang manual setelah restore -- ini bukan kegagalan restore, memang demikian desainnya.
+- **Baris lama yang masih plaintext** (dibuat sebelum hardening kredensial ini ada) terenkripsi **otomatis** saat
+  pertama kali dibaca aplikasi (mis. saat admin membuka halaman Pengaturan DIKTI) -- tidak perlu skrip migrasi manual
+  untuk kasus ini, hanya untuk kasus rotasi `JWT_SECRET` di atas.
+- **Rekomendasi rotasi kunci**: tidak ada jadwal rotasi otomatis. Kalau organisasi punya kebijakan rotasi secret
+  berkala, `JWT_SECRET` termasuk yang perlu diikutkan ke prosedur itu -- JANGAN dirotasi sendirian tanpa mengikuti
+  langkah migrasi kredensial Feeder di atas, karena `JWT_SECRET` juga dipakai modul auth (sesi login) dan modul lain.
+- **Pemulihan kalau kredensial sudah terlanjur tidak bisa didekripsi** (`JWT_SECRET` sudah kadung diganti): satu-satunya
+  jalan adalah mengisi ulang username/password Feeder lewat Pengaturan DIKTI -- tidak ada cara memulihkan nilai lama
+  tanpa `JWT_SECRET` yang dipakai saat mengenkripsinya.

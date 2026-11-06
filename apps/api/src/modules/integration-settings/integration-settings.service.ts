@@ -3,6 +3,7 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { UpdateBankSettingDto } from './dto/update-bank-setting.dto';
 import { UpdatePddiktiSettingDto } from './dto/update-pddikti-setting.dto';
+import { decryptFeederValue, encryptFeederValue, isEncryptedFeederValue } from './feeder-crypto.util';
 
 const BANK_SETTING_ID = 'default-bank-setting';
 const PDDIKTI_SETTING_ID = 'default-pddikti-setting';
@@ -198,7 +199,225 @@ function maskSecret(value?: string | null): string | null {
 
 @Injectable()
 export class IntegrationSettingsService {
+  private readonly feederLogger = new Logger('FeederSync');
+
   constructor(private prisma: PrismaService) {}
+
+  /**
+   * Satu-satunya titik yang boleh membaca `PddiktiSetting` untuk dipakai memanggil Feeder --
+   * mendekripsi password/secretKey (AES-256-GCM, lihat feeder-crypto.util.ts) sebelum
+   * dikembalikan. Baris lama yang masih tersimpan plaintext (dibuat sebelum hardening ini)
+   * otomatis dienkripsi ulang di sini supaya migrasi ke enkripsi tidak butuh skrip manual atau
+   * downtime -- cukup terjadi dengan sendirinya saat setting itu pertama kali dipakai lagi.
+   * Semua 26 alur pull/push/test-connection yang sebelumnya memanggil
+   * `prisma.pddiktiSetting.findUnique` langsung sudah diarahkan ke sini (bentuk hasilnya sama
+   * persis, termasuk bisa null, supaya pemanggil lama tidak perlu diubah).
+   */
+  private async getActivePddiktiSetting() {
+    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    if (!setting) return setting;
+
+    let password = setting.password;
+    let secretKey = setting.secretKey;
+    let needsReencrypt = false;
+
+    if (password) {
+      if (isEncryptedFeederValue(password)) {
+        password = decryptFeederValue(password);
+      } else {
+        needsReencrypt = true; // data lama, plaintext
+      }
+    }
+    if (secretKey) {
+      if (isEncryptedFeederValue(secretKey)) {
+        secretKey = decryptFeederValue(secretKey);
+      } else {
+        needsReencrypt = true;
+      }
+    }
+
+    if (needsReencrypt) {
+      try {
+        await this.prisma.pddiktiSetting.update({
+          where: { id: PDDIKTI_SETTING_ID },
+          data: {
+            ...(setting.password ? { password: encryptFeederValue(password!) } : {}),
+            ...(setting.secretKey ? { secretKey: encryptFeederValue(secretKey!) } : {}),
+          },
+        });
+        this.feederLogger.log('Kredensial Pengaturan DIKTI yang masih plaintext telah dienkripsi otomatis saat dibaca.');
+      } catch (err: any) {
+        // Non-blocking: kalau penyimpanan ulang gagal (mis. JWT_SECRET belum diset), tetap
+        // pakai nilai plaintext yang ada supaya sinkronisasi tidak berhenti karena ini.
+        this.feederLogger.warn(`Gagal mengenkripsi ulang kredensial Pengaturan DIKTI: ${err?.message || err}`);
+      }
+    }
+
+    return { ...setting, password, secretKey };
+  }
+
+  // ================================================================================
+  // SYNC HISTORY & IDEMPOTENCY (hardening)
+  //
+  // `FeederSyncLock` mencegah dua proses push yang berjalan bersamaan mengirim record lokal
+  // yang sama dua kali: sebelum memanggil Feeder, proses "mengklaim" (entity, localId,
+  // operation) lewat constraint unique di database -- kalau sudah diklaim proses lain, insert
+  // kedua gagal (P2002) dan percobaan ini di-skip, bukan ikut mengirim. Klaim dilepas (baris
+  // dihapus) setelah selesai, sukses maupun gagal. Klaim yang lebih tua dari
+  // FEEDER_LOCK_STALE_MS dianggap macet (mis. proses API mati di tengah jalan) dan boleh
+  // diambil alih, supaya satu crash tidak mengunci record itu selamanya.
+  //
+  // `FeederSyncLog` adalah riwayat tiap percobaan (append-only) untuk audit & observability --
+  // TIDAK dipakai sebagai mekanisme kunci, karena menyimpan satu baris per percobaan (termasuk
+  // yang gagal), bukan satu baris "aktif" seperti FeederSyncLock.
+  // ================================================================================
+
+  private readonly FEEDER_LOCK_STALE_MS = 10 * 60 * 1000; // 10 menit
+
+  /**
+   * Mencoba mengklaim satu record lokal untuk satu operasi Feeder. Mengembalikan `true` kalau
+   * berhasil diklaim (aman lanjut memanggil Feeder), `false` kalau sedang diklaim proses lain.
+   */
+  private async claimFeederSync(entity: string, localId: string, operation: string): Promise<boolean> {
+    try {
+      await this.prisma.feederSyncLock.create({ data: { entity, localId, operation } });
+      return true;
+    } catch (err: any) {
+      if (err?.code !== 'P2002') throw err; // bukan "sudah ada" -- error lain, jangan ditelan
+      // Sudah ada klaim -- kalau sudah basi (proses lain diduga crash), ambil alih.
+      const existing = await this.prisma.feederSyncLock.findUnique({
+        where: { entity_localId_operation: { entity, localId, operation } },
+      });
+      if (!existing || Date.now() - existing.lockedAt.getTime() < this.FEEDER_LOCK_STALE_MS) {
+        return false; // masih aktif diklaim proses lain -- jangan ikut kirim
+      }
+      try {
+        await this.prisma.feederSyncLock.update({ where: { id: existing.id }, data: { lockedAt: new Date() } });
+        return true; // klaim basi berhasil diambil alih
+      } catch {
+        return false; // kalah cepat dengan proses lain yang juga mencoba mengambil alih
+      }
+    }
+  }
+
+  private async releaseFeederSync(entity: string, localId: string, operation: string): Promise<void> {
+    await this.prisma.feederSyncLock
+      .delete({ where: { entity_localId_operation: { entity, localId, operation } } })
+      .catch(() => null); // sudah terhapus/diambil alih -- tidak masalah
+  }
+
+  /**
+   * Menjalankan satu operasi Feeder untuk satu record lokal dengan klaim idempoten + pencatatan
+   * riwayat. Kalau record sedang diklaim proses lain, `fn` TIDAK dipanggil dan hasilnya ditandai
+   * `skipped: true` -- pemanggil harus memperlakukan ini sebagai "lewati, bukan gagal".
+   *
+   * `fn` menerima `markSynced(detail?)` yang WAJIB dipanggil persis sekali setelah Feeder
+   * sukses merespons (sebelum mengubah data lokal), supaya kalau penyimpanan `feederId` ke
+   * database lokal gagal SETELAH Feeder sukses, kejadian itu tetap tercatat sebagai SUCCESS
+   * (Feeder sudah terima datanya) dengan catatan terpisah -- bukan FAILED yang bisa memicu
+   * pemanggil mencoba insert lagi dan menduplikasi data resmi di Feeder.
+   */
+  private async runFeederSync<T>(
+    params: { entity: string; localId: string; operation: 'PULL' | 'INSERT' | 'UPDATE' | 'DELETE'; act: string; requestSummary?: string; userId?: string },
+    fn: (markSynced: (detail?: string) => void) => Promise<T>
+  ): Promise<{ skipped: true } | { skipped: false; result: T }> {
+    const { entity, localId, operation, act, requestSummary, userId } = params;
+    const claimed = await this.claimFeederSync(entity, localId, operation);
+    if (!claimed) {
+      this.feederLogger.warn(`${entity}#${localId} (${operation} ${act}) dilewati -- sedang diproses oleh percobaan lain.`);
+      return { skipped: true };
+    }
+
+    const attemptCount = (await this.prisma.feederSyncLog.count({ where: { entity, localId, operation, act } })) + 1;
+    const log = await this.prisma.feederSyncLog.create({
+      data: { entity, localId, operation, act, status: 'PROCESSING', attempt: attemptCount, requestSummary, userId },
+    });
+
+    let feederConfirmed = false;
+    let confirmedDetail: string | undefined;
+    const markSynced = (detail?: string) => {
+      feederConfirmed = true;
+      confirmedDetail = detail;
+    };
+
+    try {
+      const result = await fn(markSynced);
+      await this.prisma.feederSyncLog.update({
+        where: { id: log.id },
+        data: { status: 'SUCCESS', finishedAt: new Date(), responseSummary: confirmedDetail ?? 'ok' },
+      });
+      return { skipped: false, result };
+    } catch (err: any) {
+      // Tiga kasus berbeda, masing-masing harus tercatat beda supaya pemanggil/admin tahu
+      // apa yang aman dilakukan selanjutnya:
+      //  1. Feeder sudah mengonfirmasi (markSynced terpanggil) tapi langkah SETELAHNYA gagal
+      //     (biasanya menyimpan ke tabel lokal) -- SUCCESS + catatan "perlu rekonsiliasi manual",
+      //     supaya tidak ada yang mengulang Insert/Update dan menduplikasi data resmi di Feeder.
+      //  2. Belum ada konfirmasi Feeder SAMA SEKALI, dan kegagalannya adalah kegagalan jaringan/
+      //     timeout (`isRetryableFeederError`) -- kita TIDAK TAHU apakah Feeder sempat menerima
+      //     request itu sebelum koneksi putus. Ini ditandai PENDING ("status tidak pasti"), BUKAN
+      //     FAILED -- percobaan berikutnya untuk record yang sama harus mengecek dulu ke Feeder
+      //     sebelum mengirim ulang (lihat pemanggil, mis. `pushNilaiToFeeder`), bukan asumsi gagal.
+      //  3. Belum ada konfirmasi Feeder, dan Feeder sudah membalas dengan jelas menolak (error_code
+      //     bisnis) -- ini FAILED biasa, aman diulang kapan saja karena memang belum pernah sukses.
+      const status = feederConfirmed ? 'SUCCESS' : this.isRetryableFeederError(err) ? 'PENDING' : 'FAILED';
+      await this.prisma.feederSyncLog.update({
+        where: { id: log.id },
+        data: {
+          status,
+          finishedAt: new Date(),
+          errorMessage: String(err?.message || err).slice(0, 2000),
+          responseSummary: feederConfirmed
+            ? 'NEEDS_RECONCILIATION: Feeder menerima data tapi penyimpanan lokal gagal'
+            : status === 'PENDING'
+              ? 'UNCERTAIN: gagal jaringan sebelum balasan Feeder diterima -- status pengiriman tidak diketahui'
+              : null,
+        },
+      });
+      throw err;
+    } finally {
+      await this.releaseFeederSync(entity, localId, operation);
+    }
+  }
+
+  /** Ringkasan status Sync History: untuk dashboard admin (jumlah sukses/gagal/menunggu, dll). */
+  async getFeederSyncStats(params?: { entity?: string; sinceHours?: number }) {
+    const since = new Date(Date.now() - (params?.sinceHours ?? 24) * 3600_000);
+    const where: any = { startedAt: { gte: since } };
+    if (params?.entity) where.entity = params.entity;
+
+    const [byStatus, needsReconciliation, recentFailures] = await Promise.all([
+      this.prisma.feederSyncLog.groupBy({ by: ['status'], where, _count: { _all: true } }),
+      this.prisma.feederSyncLog.count({ where: { ...where, responseSummary: { contains: 'NEEDS_RECONCILIATION' } } }),
+      this.prisma.feederSyncLog.findMany({
+        where: { ...where, status: 'FAILED' },
+        orderBy: { startedAt: 'desc' },
+        take: 50,
+        select: { id: true, entity: true, localId: true, operation: true, act: true, attempt: true, startedAt: true, finishedAt: true, errorMessage: true },
+      }),
+    ]);
+
+    const counts: Record<string, number> = {};
+    for (const b of byStatus) counts[b.status] = b._count._all;
+
+    return {
+      sinceHours: params?.sinceHours ?? 24,
+      counts: { pending: counts.PENDING ?? 0, processing: counts.PROCESSING ?? 0, success: counts.SUCCESS ?? 0, failed: counts.FAILED ?? 0 },
+      needsReconciliation,
+      recentFailures,
+    };
+  }
+
+  /**
+   * Memaksa klaim yang macet (lebih tua dari FEEDER_LOCK_STALE_MS) dilepas sekarang juga --
+   * untuk dipakai admin kalau mau langsung mencoba ulang tanpa menunggu TTL habis sendiri.
+   * TIDAK mengirim apa pun ke Feeder; hanya membersihkan penanda klaim.
+   */
+  async releaseStaleFeederLocks() {
+    const cutoff = new Date(Date.now() - this.FEEDER_LOCK_STALE_MS);
+    const result = await this.prisma.feederSyncLock.deleteMany({ where: { lockedAt: { lt: cutoff } } });
+    return { released: result.count };
+  }
 
   async getBankSetting() {
     const setting = await this.prisma.bankGatewaySetting.upsert({
@@ -244,19 +463,23 @@ export class IntegrationSettingsService {
   }
 
   async getPddiktiSetting() {
-    const setting = await this.prisma.pddiktiSetting.upsert({
+    await this.prisma.pddiktiSetting.upsert({
       where: { id: PDDIKTI_SETTING_ID },
       update: {},
       create: { id: PDDIKTI_SETTING_ID },
     });
+    // Lewat getActivePddiktiSetting() supaya nilai yang di-mask adalah password/secretKey ASLI
+    // (sudah didekripsi), bukan 4 karakter terakhir ciphertext-nya -- dan supaya baris lama
+    // yang masih plaintext ikut terenkripsi ulang saat pengaturan ini dibuka di UI.
+    const setting = await this.getActivePddiktiSetting();
 
     return {
       ...setting,
-      password: maskSecret(setting.password),
-      secretKey: maskSecret(setting.secretKey),
-      hasPassword: Boolean(setting.password),
-      hasSecretKey: Boolean(setting.secretKey),
-      isConnected: Boolean(setting.isActive && setting.baseUrl && setting.username && setting.password),
+      password: maskSecret(setting?.password),
+      secretKey: maskSecret(setting?.secretKey),
+      hasPassword: Boolean(setting?.password),
+      hasSecretKey: Boolean(setting?.secretKey),
+      isConnected: Boolean(setting?.isActive && setting?.baseUrl && setting?.username && setting?.password),
     };
   }
 
@@ -280,7 +503,7 @@ export class IntegrationSettingsService {
    * tidak nge-hit Feeder berkali-kali kalau halaman di-reload beruntun.
    */
   async getPddiktiConnectionStatus() {
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     const isConfigured = Boolean(setting?.baseUrl && setting?.username && setting?.password);
     const base = { isConfigured, isActive: Boolean(setting?.isActive), lastSyncAt: setting?.lastSyncAt ?? null };
 
@@ -699,7 +922,7 @@ export class IntegrationSettingsService {
     if (!Array.isArray(studentIds) || studentIds.length === 0) {
       return { success: true, message: 'Tidak ada mahasiswa untuk dibandingkan.', items: [] as any[] };
     }
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return { success: false, message: 'Konfigurasi Web Service Neo Feeder belum lengkap.', items: [] as any[] };
     }
@@ -759,7 +982,7 @@ export class IntegrationSettingsService {
     if (!Array.isArray(studentIds) || studentIds.length === 0) {
       return { success: false, message: 'Pilih minimal satu mahasiswa yang akan diupdate.', ...empty };
     }
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return { success: false, message: 'Konfigurasi Web Service Neo Feeder belum lengkap.', ...empty };
     }
@@ -1018,7 +1241,7 @@ export class IntegrationSettingsService {
     if (!semester || !Array.isArray(studentIds) || studentIds.length === 0) {
       return { success: true, message: 'Tidak ada mahasiswa untuk dibandingkan.', items: [] as any[] };
     }
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return { success: false, message: 'Konfigurasi Web Service Neo Feeder belum lengkap.', items: [] as any[] };
     }
@@ -1074,7 +1297,7 @@ export class IntegrationSettingsService {
     if (!semester || !Array.isArray(studentIds) || studentIds.length === 0) {
       return { success: false, message: 'Pilih semester dan minimal satu mahasiswa.', ...empty };
     }
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return { success: false, message: 'Konfigurasi Web Service Neo Feeder belum lengkap.', ...empty };
     }
@@ -1406,8 +1629,13 @@ export class IntegrationSettingsService {
 
   async updatePddiktiSetting(dto: UpdatePddiktiSettingDto, userId?: string) {
     const data: any = { ...dto };
+    // Kosong = jangan timpa kredensial tersimpan (frontend hanya isi field ini saat mau ganti).
+    // Diisi = enkripsi sebelum disimpan (lihat feeder-crypto.util.ts); DB tidak pernah
+    // menyimpan password/secretKey Feeder sebagai teks biasa untuk baris yang baru disimpan.
     if (!data.password) delete data.password;
+    else data.password = encryptFeederValue(data.password);
     if (!data.secretKey) delete data.secretKey;
+    else data.secretKey = encryptFeederValue(data.secretKey);
     if (userId) data.updatedByUserId = userId;
 
     await this.prisma.pddiktiSetting.upsert({
@@ -1431,40 +1659,140 @@ export class IntegrationSettingsService {
   }
 
   /**
+   * Satu baris di sini mewakili satu percobaan HTTP yang gagal di level jaringan/transport
+   * (bukan ditolak Feeder dengan error_code valid) -- satu-satunya kelas kegagalan yang aman
+   * dicoba ulang otomatis, karena kita tidak tahu apakah request sempat diproses server.
+   */
+  private isRetryableFeederError(err: any): boolean {
+    if (err?.name === 'AbortError' || err?.name === 'TimeoutError') return true;
+    const code = err?.cause?.code || err?.code;
+    if (code && ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_SOCKET'].includes(code)) {
+      return true;
+    }
+    // fetch() di Node melempar TypeError generik untuk kegagalan jaringan (mis. "fetch failed").
+    if (err instanceof TypeError && /fetch failed/i.test(err.message || '')) return true;
+    return false;
+  }
+
+  /**
    * Memanggil endpoint live2.php Web Service Neo Feeder PDDIKTI.
    * Protokolnya: POST JSON berisi `act` + parameter lain, balasannya selalu berbentuk
    * { error_code, error_desc, data }. error_code "0" (string) berarti sukses.
+   *
+   * Retry otomatis HANYA untuk kegagalan jaringan/timeout (request mungkin belum sampai ke
+   * server), dengan exponential backoff + jitter, dibatasi `maxAttempts`. Begitu server
+   * membalas (apa pun error_code-nya, termasuk "ditolak"), itu bukan lagi kegagalan jaringan
+   * dan TIDAK diulang di sini -- act Insert/Update/Delete yang gagal karena validasi payload
+   * harus ditangani pemanggil, bukan dicoba ulang buta (bisa dobel kirim).
    */
   private async callFeeder(
     baseUrl: string,
     body: Record<string, any>,
-    timeoutMs = 20000
+    timeoutMs = 20000,
+    options?: { maxAttempts?: number; retryable?: boolean }
   ): Promise<{ data?: any; errorCode?: string; errorDesc?: string }> {
-    const res = await fetch(baseUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    // GET (Get*) secara alami aman diulang; Insert/Update/Delete defaultnya TIDAK diulang
+    // otomatis di level jaringan kecuali pemanggil secara sadar mengizinkan (retryable: true).
+    const act = String(body?.act || '');
+    const defaultRetryable = /^Get/.test(act) || act === 'GetToken';
+    const retryable = options?.retryable ?? defaultRetryable;
+    const maxAttempts = retryable ? options?.maxAttempts ?? 4 : 1;
 
-    const text = await res.text();
-    let json: any;
-    try {
-      json = JSON.parse(text);
-    } catch {
-      throw new Error(`Endpoint tidak mengembalikan JSON yang valid (status HTTP ${res.status}).`);
+    let lastErr: any;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const res = await fetch(baseUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+
+        // Status 5xx dari proxy/server (bukan balasan JSON Feeder) diperlakukan sama seperti
+        // kegagalan jaringan: boleh dicoba ulang kalau act-nya memang retryable.
+        if (res.status >= 500 && retryable && attempt < maxAttempts) {
+          lastErr = new Error(`Feeder membalas HTTP ${res.status} (percobaan ${attempt}/${maxAttempts}).`);
+          await this.sleepWithBackoff(attempt);
+          continue;
+        }
+
+        const text = await res.text();
+        let json: any;
+        try {
+          json = JSON.parse(text);
+        } catch {
+          throw new Error(`Endpoint tidak mengembalikan JSON yang valid (status HTTP ${res.status}).`);
+        }
+
+        return { data: json?.data, errorCode: json?.error_code != null ? String(json.error_code) : undefined, errorDesc: json?.error_desc };
+      } catch (err: any) {
+        lastErr = err;
+        if (retryable && attempt < maxAttempts && this.isRetryableFeederError(err)) {
+          await this.sleepWithBackoff(attempt);
+          continue;
+        }
+        throw err;
+      }
     }
-
-    return { data: json?.data, errorCode: json?.error_code != null ? String(json.error_code) : undefined, errorDesc: json?.error_desc };
+    throw lastErr;
   }
+
+  /** Exponential backoff + jitter: ~300ms, ~700ms, ~1500ms (acak ±30%), dibatasi 5 detik. */
+  private async sleepWithBackoff(attempt: number): Promise<void> {
+    const base = Math.min(300 * 2 ** (attempt - 1), 5000);
+    const jitter = base * 0.3 * (Math.random() * 2 - 1);
+    await new Promise((r) => setTimeout(r, Math.max(50, base + jitter)));
+  }
+
+  /** Pesan error Feeder yang menandakan token sesi ditolak/kedaluwarsa (bukan masalah jaringan). */
+  private looksLikeExpiredFeederToken(errorDesc?: string): boolean {
+    const d = (errorDesc || '').toLowerCase();
+    return /token/.test(d) && /(invalid|expired|kadaluarsa|kadaluwarsa|tidak valid|tidak ditemukan|salah)/.test(d);
+  }
+
+  // Token Feeder di-cache in-memory per (baseUrl+username) -- dokumentasi resmi tidak
+  // menyatakan masa berlaku token secara eksplisit (lihat FEEDER_AUDIT_REPORT.md §0/§6), jadi
+  // dipakai TTL konservatif: cache dibuang jauh lebih cepat dari kemungkinan masa berlaku
+  // sesungguhnya, murni untuk menghindari login berulang kalau beberapa alur sinkronisasi
+  // dijalankan berurutan dalam waktu singkat (mis. dari UI atau cron). TIDAK dipakai untuk
+  // "menghemat" login di tengah satu alur panjang -- lihat FEEDER_HARDENING_REPORT.md untuk
+  // keterbatasan refresh token di tengah loop panjang.
+  private tokenCache = new Map<string, { token: string; expiresAt: number }>();
+  private readonly TOKEN_CACHE_TTL_MS = 5 * 60 * 1000;
 
   /** Login ke Web Service Neo Feeder (act: GetToken) dan mengembalikan token sesi. */
   private async getFeederToken(baseUrl: string, username: string, password: string, timeoutMs = 20000): Promise<string> {
-    const { data, errorCode, errorDesc } = await this.callFeeder(baseUrl, { act: 'GetToken', username, password }, timeoutMs);
+    const cacheKey = `${baseUrl}::${username}`;
+    const cached = this.tokenCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.token;
+
+    const { data, errorCode, errorDesc } = await this.callFeeder(baseUrl, { act: 'GetToken', username, password }, timeoutMs, { retryable: true });
     if (errorCode !== '0' || !data?.token) {
       throw new Error(errorDesc || 'Gagal memperoleh token -- periksa kembali username dan password Web Service.');
     }
+    this.tokenCache.set(cacheKey, { token: data.token, expiresAt: Date.now() + this.TOKEN_CACHE_TTL_MS });
     return data.token;
+  }
+
+  /**
+   * Varian getFeederToken yang memaksa login baru (melewati cache). Panggil ini setelah
+   * mendeteksi Feeder menolak token sebagai kedaluwarsa di tengah suatu alur, lalu ulangi
+   * SATU kali pemanggilan yang gagal tadi dengan token baru -- bukan mengulang seluruh alur.
+   */
+  private async refreshFeederToken(baseUrl: string, username: string, password: string, timeoutMs = 20000): Promise<string> {
+    this.tokenCache.delete(`${baseUrl}::${username}`);
+    return this.getFeederToken(baseUrl, username, password, timeoutMs);
+  }
+
+  /**
+   * Klasifikasi error satu langkah Feeder (dipakai Push Kurikulum/Mata Kuliah/Kelas Kuliah): `uncertain`
+   * (gagal jaringan/timeout -- TIDAK TAHU apakah Feeder sempat memproses request itu, lihat
+   * `isRetryableFeederError`) vs error bisnis biasa (Feeder sudah membalas dengan jelas menolak).
+   * Dipakai bersama supaya ketiga alur Insert itu konsisten membedakan keduanya, bukan menyamakan
+   * semuanya sebagai "gagal" seperti sebelum fase ini.
+   */
+  private classifyPushError(err: any): { uncertain: boolean; message: string } {
+    return { uncertain: this.isRetryableFeederError(err), message: err?.message || 'Unknown error' };
   }
 
   /** Menebak DegreeLevel (enum lokal) dari nama_jenjang_pendidikan yang dikembalikan Feeder, tanpa menebak ID numerik. */
@@ -1491,7 +1819,7 @@ export class IntegrationSettingsService {
    * di sini (bukan ditebak/dipalsukan) dan tetap memakai data lokal saat sinkronisasi.
    */
   async pullProdiFromFeeder(): Promise<{ success: boolean; message: string; items: RemoteProdiItem[] }> {
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return {
         success: false,
@@ -1738,7 +2066,7 @@ export class IntegrationSettingsService {
    * sama seperti pull Dosen/Mahasiswa.
    */
   async pullMataKuliahFromFeeder(): Promise<{ success: boolean; message: string; items: RemoteCourseItem[] }> {
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return {
         success: false,
@@ -1964,7 +2292,7 @@ export class IntegrationSettingsService {
    * menebak pembagian yang sebenarnya cuma diketahui institusi.
    */
   async pullKurikulumFromFeeder(): Promise<{ success: boolean; message: string; items: RemoteCurriculumItem[] }> {
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return {
         success: false,
@@ -2125,7 +2453,7 @@ export class IntegrationSettingsService {
    * id_jenis_mata_kuliah ('A' wajib / 'B' pilihan), sks_tatap_muka.
    */
   async pushMataKuliahBaruToFeeder(courseIds?: string[]) {
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return {
         success: false,
@@ -2160,11 +2488,20 @@ export class IntegrationSettingsService {
       let linked = 0;
       let failed = 0;
       let skipped = 0;
+      let uncertain = 0;
       const failReasons: Record<string, number> = {};
       // Catat alasan gagal pada BARIS mata kuliah itu sendiri (feederSyncError), bukan cuma
       // agregat -- supaya tab Push di halaman Sinkronisasi Feeder bisa menampilkan errornya per baris.
       const markFailed = async (courseId: string, reason: string) => {
         failed += 1;
+        failReasons[reason] = (failReasons[reason] || 0) + 1;
+        await this.prisma.course
+          .update({ where: { id: courseId }, data: { feederSyncError: reason, feederSyncErrorAt: new Date() } })
+          .catch(() => null);
+      };
+      const markUncertain = async (courseId: string, message: string) => {
+        uncertain += 1;
+        const reason = `Status pengiriman tidak pasti (gagal jaringan) -- akan dicek ulang (sudah ada/tidak) pada percobaan berikutnya: ${message}`;
         failReasons[reason] = (failReasons[reason] || 0) + 1;
         await this.prisma.course
           .update({ where: { id: courseId }, data: { feederSyncError: reason, feederSyncErrorAt: new Date() } })
@@ -2180,56 +2517,84 @@ export class IntegrationSettingsService {
           continue;
         }
 
+        // Klaim idempoten: mencegah dua proses push bersamaan mencoba InsertMataKuliah untuk mata
+        // kuliah lokal yang sama (keduanya bisa lolos pengecekan "belum ada di Feeder" di bawah kalau
+        // berjalan persis bersamaan, sebelum salah satu sempat menyimpan feederId).
+        const claimed = await this.claimFeederSync('Course', course.id, 'INSERT');
+        if (!claimed) {
+          skipped += 1;
+          continue;
+        }
         try {
-          const { data: existingData, errorCode: existingErr, errorDesc: existingErrDesc } = await this.callFeeder(setting.baseUrl, {
-            act: 'GetListMataKuliah',
-            token,
-            filter: `id_prodi = '${this.escapeFeederFilter(idProdiFeeder)}' and kode_mata_kuliah = '${this.escapeFeederFilter(course.code)}'`,
-            limit: 1,
-            offset: 0,
-          });
-          if (existingErr !== '0') throw new Error(existingErrDesc || 'Respon Feeder tidak valid');
-          const found = Array.isArray(existingData) ? existingData[0] : null;
-          if (found?.id_matkul) {
+          let idMatkulFeeder: string | null = null;
+          try {
+            const { data: existingData, errorCode: existingErr, errorDesc: existingErrDesc } = await this.callFeeder(setting.baseUrl, {
+              act: 'GetListMataKuliah',
+              token,
+              filter: `id_prodi = '${this.escapeFeederFilter(idProdiFeeder)}' and kode_mata_kuliah = '${this.escapeFeederFilter(course.code)}'`,
+              limit: 1,
+              offset: 0,
+            });
+            if (existingErr !== '0') throw new Error(existingErrDesc || 'Respon Feeder tidak valid');
+            const found = Array.isArray(existingData) ? existingData[0] : null;
+            if (found?.id_matkul) idMatkulFeeder = String(found.id_matkul);
+          } catch (err: any) {
+            const { uncertain: isUncertain, message } = this.classifyPushError(err);
+            if (isUncertain) await markUncertain(course.id, message);
+            else await markFailed(course.id, `Gagal cek data di Feeder: ${message}`);
+            continue;
+          }
+
+          if (idMatkulFeeder) {
             await this.prisma.course.update({
               where: { id: course.id },
-              data: { feederId: found.id_matkul, feederSyncError: null, feederSyncErrorAt: null },
+              data: { feederId: idMatkulFeeder, feederSyncError: null, feederSyncErrorAt: null },
             });
             linked += 1;
             continue;
           }
-        } catch (err: any) {
-          await markFailed(course.id, `Gagal cek data di Feeder: ${err?.message || 'Unknown error'}`);
-          continue;
-        }
 
-        const { data: insertData, errorCode: insertErr, errorDesc: insertErrDesc } = await this.callFeeder(setting.baseUrl, {
-          act: 'InsertMataKuliah',
-          token,
-          record: {
-            id_prodi: idProdiFeeder,
-            kode_mata_kuliah: course.code,
-            nama_mata_kuliah: course.name,
-            id_jenis_mata_kuliah: course.type?.toLowerCase().includes('pilihan') ? 'B' : 'A',
-            sks_tatap_muka: course.sks,
-          },
-        });
-        if (insertErr !== '0' || !insertData?.id_matkul) {
-          await markFailed(course.id, `Insert mata kuliah ditolak Feeder: ${insertErrDesc || 'tanpa keterangan'}`);
-          continue;
+          // InsertMataKuliah TIDAK diulang otomatis oleh callFeeder kalau gagal jaringan (act Insert*
+          // defaultnya tidak retryable) -- kalau itu terjadi di sini, kita TIDAK TAHU apakah Feeder
+          // sempat menerimanya sebelum koneksi putus. Percobaan BERIKUTNYA akan mengecek lagi lewat
+          // GetListMataKuliah di atas sebelum mencoba insert lagi -- itulah rekonsiliasinya, bukan
+          // kirim ulang buta.
+          try {
+            const { data: insertData, errorCode: insertErr, errorDesc: insertErrDesc } = await this.callFeeder(setting.baseUrl, {
+              act: 'InsertMataKuliah',
+              token,
+              record: {
+                id_prodi: idProdiFeeder,
+                kode_mata_kuliah: course.code,
+                nama_mata_kuliah: course.name,
+                id_jenis_mata_kuliah: course.type?.toLowerCase().includes('pilihan') ? 'B' : 'A',
+                sks_tatap_muka: course.sks,
+              },
+            });
+            if (insertErr !== '0' || !insertData?.id_matkul) {
+              await markFailed(course.id, `Insert mata kuliah ditolak Feeder: ${insertErrDesc || 'tanpa keterangan'}`);
+              continue;
+            }
+            await this.prisma.course.update({
+              where: { id: course.id },
+              data: { feederId: insertData.id_matkul, feederSyncError: null, feederSyncErrorAt: null },
+            });
+            created += 1;
+          } catch (err: any) {
+            const { uncertain: isUncertain, message } = this.classifyPushError(err);
+            if (isUncertain) await markUncertain(course.id, message);
+            else await markFailed(course.id, `Gagal mengirim: ${message}`);
+          }
+        } finally {
+          await this.releaseFeederSync('Course', course.id, 'INSERT');
         }
-        await this.prisma.course.update({
-          where: { id: course.id },
-          data: { feederId: insertData.id_matkul, feederSyncError: null, feederSyncErrorAt: null },
-        });
-        created += 1;
       }
 
       try {
         await this.prisma.systemAuditLog.create({
           data: {
             action: 'MATAKULIAH_PUSH_TO_FEEDER',
-            detail: `Push mata kuliah ke Feeder: ${processed} diproses, ${created} baru dibuat, ${linked} sudah ada (ditautkan), ${failed} gagal, ${skipped} dilewati (prodi belum sinkron).`,
+            detail: `Push mata kuliah ke Feeder: ${processed} diproses, ${created} baru dibuat, ${linked} sudah ada (ditautkan), ${failed} gagal, ${skipped} dilewati (prodi belum sinkron)${uncertain > 0 ? `, ${uncertain} tidak pasti` : ''}.`,
           },
         });
       } catch {
@@ -2246,12 +2611,14 @@ export class IntegrationSettingsService {
         message:
           `Push selesai: ${processed} diproses, ${created} mata kuliah baru dibuat di Feeder, ${linked} sudah ada (ditautkan), ` +
           `${failed} gagal, ${skipped} dilewati (prodi belum sinkron ke Feeder).` +
+          (uncertain > 0 ? ` ${uncertain} status pengiriman tidak pasti (gangguan jaringan) -- jalankan Push lagi, akan dicek ulang otomatis.` : '') +
           (remaining > 0 ? ` Masih ada ${remaining} mata kuliah belum terdaftar -- jalankan Push lagi untuk lanjut.` : '') +
           failReasonText,
         processed,
         created,
         linked,
         failed,
+        uncertain,
         skipped,
         failReasons,
       };
@@ -2263,6 +2630,7 @@ export class IntegrationSettingsService {
         created: 0,
         linked: 0,
         failed: 0,
+        uncertain: 0,
         skipped: 0,
         failReasons: {},
       };
@@ -2277,7 +2645,7 @@ export class IntegrationSettingsService {
    * sebelum insert, field & act mengikuti GetDictionary('InsertKurikulum').
    */
   async pushKurikulumBaruToFeeder(curriculumIds?: string[]) {
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return {
         success: false,
@@ -2308,9 +2676,18 @@ export class IntegrationSettingsService {
       let linked = 0;
       let failed = 0;
       let skipped = 0;
+      let uncertain = 0;
       const failReasons: Record<string, number> = {};
       const markFailed = async (curriculumId: string, reason: string) => {
         failed += 1;
+        failReasons[reason] = (failReasons[reason] || 0) + 1;
+        await this.prisma.curriculum
+          .update({ where: { id: curriculumId }, data: { feederSyncError: reason, feederSyncErrorAt: new Date() } })
+          .catch(() => null);
+      };
+      const markUncertain = async (curriculumId: string, message: string) => {
+        uncertain += 1;
+        const reason = `Status pengiriman tidak pasti (gagal jaringan) -- akan dicek ulang (sudah ada/tidak) pada percobaan berikutnya: ${message}`;
         failReasons[reason] = (failReasons[reason] || 0) + 1;
         await this.prisma.curriculum
           .update({ where: { id: curriculumId }, data: { feederSyncError: reason, feederSyncErrorAt: new Date() } })
@@ -2335,75 +2712,101 @@ export class IntegrationSettingsService {
         const idSemester = `${curriculum.startYear}1`;
         const namaKurikulum = curriculum.name.slice(0, 60);
 
+        // Klaim idempoten: mencegah dua proses push bersamaan mencoba InsertKurikulum untuk
+        // kurikulum lokal yang sama.
+        const claimed = await this.claimFeederSync('Curriculum', curriculum.id, 'INSERT');
+        if (!claimed) {
+          skipped += 1;
+          continue;
+        }
         try {
-          const { data: existingData, errorCode: existingErr, errorDesc: existingErrDesc } = await this.callFeeder(setting.baseUrl, {
-            act: 'GetListKurikulum',
-            token,
-            filter: `id_prodi = '${this.escapeFeederFilter(idProdiFeeder)}' and nama_kurikulum = '${this.escapeFeederFilter(namaKurikulum)}'`,
-            limit: 1,
-            offset: 0,
-          });
-          if (existingErr !== '0') throw new Error(existingErrDesc || 'Respon Feeder tidak valid');
-          const found = Array.isArray(existingData) ? existingData[0] : null;
-          if (found?.id_kurikulum) {
+          let idKurikulumFeeder: string | null = null;
+          try {
+            const { data: existingData, errorCode: existingErr, errorDesc: existingErrDesc } = await this.callFeeder(setting.baseUrl, {
+              act: 'GetListKurikulum',
+              token,
+              filter: `id_prodi = '${this.escapeFeederFilter(idProdiFeeder)}' and nama_kurikulum = '${this.escapeFeederFilter(namaKurikulum)}'`,
+              limit: 1,
+              offset: 0,
+            });
+            if (existingErr !== '0') throw new Error(existingErrDesc || 'Respon Feeder tidak valid');
+            const found = Array.isArray(existingData) ? existingData[0] : null;
+            if (found?.id_kurikulum) idKurikulumFeeder = String(found.id_kurikulum);
+
+            if (!idKurikulumFeeder) {
+              const { data: semData, errorCode: semErr, errorDesc: semErrDesc } = await this.callFeeder(setting.baseUrl, {
+                act: 'GetSemester',
+                token,
+                filter: `id_semester = '${this.escapeFeederFilter(idSemester)}'`,
+                limit: 1,
+                offset: 0,
+              });
+              if (semErr !== '0') throw new Error(semErrDesc || 'Respon Feeder tidak valid');
+              if (!Array.isArray(semData) || semData.length === 0) {
+                await markFailed(curriculum.id, `Semester ${idSemester} tidak ada di Feeder`);
+                continue;
+              }
+            }
+          } catch (err: any) {
+            const { uncertain: isUncertain, message } = this.classifyPushError(err);
+            if (isUncertain) await markUncertain(curriculum.id, message);
+            else await markFailed(curriculum.id, `Gagal cek data di Feeder: ${message}`);
+            continue;
+          }
+
+          if (idKurikulumFeeder) {
             await this.prisma.curriculum.update({
               where: { id: curriculum.id },
-              data: { feederId: found.id_kurikulum, feederSyncError: null, feederSyncErrorAt: null },
+              data: { feederId: idKurikulumFeeder, feederSyncError: null, feederSyncErrorAt: null },
             });
             linked += 1;
             continue;
           }
 
-          const { data: semData, errorCode: semErr, errorDesc: semErrDesc } = await this.callFeeder(setting.baseUrl, {
-            act: 'GetSemester',
-            token,
-            filter: `id_semester = '${this.escapeFeederFilter(idSemester)}'`,
-            limit: 1,
-            offset: 0,
-          });
-          if (semErr !== '0') throw new Error(semErrDesc || 'Respon Feeder tidak valid');
-          if (!Array.isArray(semData) || semData.length === 0) {
-            await markFailed(curriculum.id, `Semester ${idSemester} tidak ada di Feeder`);
+          if (curriculum.totalSks <= 0 || curriculum.sksWajib <= 0) {
+            await markFailed(curriculum.id, `Jumlah SKS kurikulum tidak valid (total ${curriculum.totalSks}, wajib ${curriculum.sksWajib})`);
             continue;
           }
-        } catch (err: any) {
-          await markFailed(curriculum.id, `Gagal cek data di Feeder: ${err?.message || 'Unknown error'}`);
-          continue;
-        }
 
-        if (curriculum.totalSks <= 0 || curriculum.sksWajib <= 0) {
-          await markFailed(curriculum.id, `Jumlah SKS kurikulum tidak valid (total ${curriculum.totalSks}, wajib ${curriculum.sksWajib})`);
-          continue;
+          // InsertKurikulum TIDAK diulang otomatis oleh callFeeder kalau gagal jaringan -- percobaan
+          // BERIKUTNYA akan mengecek lagi lewat GetListKurikulum di atas sebelum insert lagi.
+          try {
+            const { data: insertData, errorCode: insertErr, errorDesc: insertErrDesc } = await this.callFeeder(setting.baseUrl, {
+              act: 'InsertKurikulum',
+              token,
+              record: {
+                nama_kurikulum: namaKurikulum,
+                id_prodi: idProdiFeeder,
+                id_semester: idSemester,
+                jumlah_sks_lulus: curriculum.totalSks,
+                jumlah_sks_wajib: curriculum.sksWajib,
+                jumlah_sks_pilihan: curriculum.sksPilihan,
+              },
+            });
+            if (insertErr !== '0' || !insertData?.id_kurikulum) {
+              await markFailed(curriculum.id, `Insert kurikulum ditolak Feeder: ${insertErrDesc || 'tanpa keterangan'}`);
+              continue;
+            }
+            await this.prisma.curriculum.update({
+              where: { id: curriculum.id },
+              data: { feederId: insertData.id_kurikulum, feederSyncError: null, feederSyncErrorAt: null },
+            });
+            created += 1;
+          } catch (err: any) {
+            const { uncertain: isUncertain, message } = this.classifyPushError(err);
+            if (isUncertain) await markUncertain(curriculum.id, message);
+            else await markFailed(curriculum.id, `Gagal mengirim: ${message}`);
+          }
+        } finally {
+          await this.releaseFeederSync('Curriculum', curriculum.id, 'INSERT');
         }
-
-        const { data: insertData, errorCode: insertErr, errorDesc: insertErrDesc } = await this.callFeeder(setting.baseUrl, {
-          act: 'InsertKurikulum',
-          token,
-          record: {
-            nama_kurikulum: namaKurikulum,
-            id_prodi: idProdiFeeder,
-            id_semester: idSemester,
-            jumlah_sks_lulus: curriculum.totalSks,
-            jumlah_sks_wajib: curriculum.sksWajib,
-            jumlah_sks_pilihan: curriculum.sksPilihan,
-          },
-        });
-        if (insertErr !== '0' || !insertData?.id_kurikulum) {
-          await markFailed(curriculum.id, `Insert kurikulum ditolak Feeder: ${insertErrDesc || 'tanpa keterangan'}`);
-          continue;
-        }
-        await this.prisma.curriculum.update({
-          where: { id: curriculum.id },
-          data: { feederId: insertData.id_kurikulum, feederSyncError: null, feederSyncErrorAt: null },
-        });
-        created += 1;
       }
 
       try {
         await this.prisma.systemAuditLog.create({
           data: {
             action: 'KURIKULUM_PUSH_TO_FEEDER',
-            detail: `Push kurikulum ke Feeder: ${processed} diproses, ${created} baru dibuat, ${linked} sudah ada (ditautkan), ${failed} gagal, ${skipped} dilewati (prodi tidak cocok).`,
+            detail: `Push kurikulum ke Feeder: ${processed} diproses, ${created} baru dibuat, ${linked} sudah ada (ditautkan), ${failed} gagal, ${skipped} dilewati (prodi tidak cocok)${uncertain > 0 ? `, ${uncertain} tidak pasti` : ''}.`,
           },
         });
       } catch {
@@ -2420,12 +2823,14 @@ export class IntegrationSettingsService {
         message:
           `Push selesai: ${processed} diproses, ${created} kurikulum baru dibuat di Feeder, ${linked} sudah ada (ditautkan), ` +
           `${failed} gagal, ${skipped} dilewati (prodi tidak cocok ke Feeder).` +
+          (uncertain > 0 ? ` ${uncertain} status pengiriman tidak pasti (gangguan jaringan) -- jalankan Push lagi, akan dicek ulang otomatis.` : '') +
           (remaining > 0 ? ` Masih ada ${remaining} kurikulum belum terdaftar -- jalankan Push lagi untuk lanjut.` : '') +
           failReasonText,
         processed,
         created,
         linked,
         failed,
+        uncertain,
         skipped,
         failReasons,
       };
@@ -2437,6 +2842,7 @@ export class IntegrationSettingsService {
         created: 0,
         linked: 0,
         failed: 0,
+        uncertain: 0,
         skipped: 0,
         failReasons: {},
       };
@@ -2462,7 +2868,7 @@ export class IntegrationSettingsService {
    *     secara paralel, setelah daftar ringkasan & home base selesai digabung.
    */
   async pullDosenFromFeeder(): Promise<{ success: boolean; message: string; items: RemoteDosenItem[] }> {
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return {
         success: false,
@@ -2850,7 +3256,7 @@ export class IntegrationSettingsService {
     });
     const years = new Set<number>(localYears.map((y) => y.entryYear));
 
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     let feederOk = false;
     let feederError: string | null = null;
 
@@ -2915,7 +3321,7 @@ export class IntegrationSettingsService {
    * awal berdirinya institusi sekaligus. Kalau kosong, semua angkatan ditarik.
    */
   async pullMahasiswaFromFeeder(angkatan?: string): Promise<{ success: boolean; message: string; items: RemoteMahasiswaItem[] }> {
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return {
         success: false,
@@ -3308,7 +3714,7 @@ export class IntegrationSettingsService {
   private static readonly ORIGIN_TIMEOUT_MS = 20000;
 
   private async getOriginSession(forceNew = false): Promise<{ baseUrl: string; token: string } | null> {
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) return null;
     if (!forceNew && this.originToken && this.originToken.expiresAt > Date.now()) {
       return { baseUrl: setting.baseUrl, token: this.originToken.token };
@@ -3575,7 +3981,7 @@ export class IntegrationSettingsService {
    * (dibatasi `LIMIT_PER_RUN` per pemanggilan supaya tidak timeout).
    */
   async pushMahasiswaBaruToFeeder(studentIds?: string[]) {
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return {
         success: false,
@@ -3650,10 +4056,31 @@ export class IntegrationSettingsService {
         await this.prisma.student
           .update({ where: { id: studentId }, data: { feederSyncError: reason, feederSyncErrorAt: new Date() } })
           .catch(() => null);
+        await this.prisma.feederSyncLog
+          .create({
+            data: {
+              entity: 'Student',
+              localId: studentId,
+              operation: 'INSERT',
+              act: 'InsertBiodataMahasiswa/InsertRiwayatPendidikanMahasiswa',
+              status: 'FAILED',
+              finishedAt: new Date(),
+              errorMessage: reason.slice(0, 2000),
+            },
+          })
+          .catch(() => null); // riwayat ini sekadar untuk observability -- jangan gagalkan push kalau tabel log bermasalah
       };
 
       for (const student of eligible) {
         processed += 1;
+        // Klaim idempoten: kalau proses push lain (tab admin lain / cron bersamaan) sedang
+        // memproses mahasiswa ini, lewati -- jangan ikut mengirim, supaya tidak dobel.
+        const claimedStudent = await this.claimFeederSync('Student', student.id, 'INSERT');
+        if (!claimedStudent) {
+          skipped += 1;
+          continue;
+        }
+        try {
         const nim = student.nim;
 
         const idProdiFeeder = student.studyProgram?.diktiCode ? prodiCodeToFeederId.get(student.studyProgram.diktiCode.trim()) : undefined;
@@ -3843,6 +4270,22 @@ export class IntegrationSettingsService {
           data: { feederRegistrationId: insertRegData.id_registrasi_mahasiswa, feederSyncError: null, feederSyncErrorAt: null },
         });
         created += 1;
+        await this.prisma.feederSyncLog
+          .create({
+            data: {
+              entity: 'Student',
+              localId: student.id,
+              operation: 'INSERT',
+              act: 'InsertRiwayatPendidikanMahasiswa',
+              status: 'SUCCESS',
+              finishedAt: new Date(),
+              responseSummary: `id_registrasi_mahasiswa=${insertRegData.id_registrasi_mahasiswa}`,
+            },
+          })
+          .catch(() => null);
+        } finally {
+          await this.releaseFeederSync('Student', student.id, 'INSERT');
+        }
       }
 
       try {
@@ -3917,7 +4360,7 @@ export class IntegrationSettingsService {
     if (!Array.isArray(studentIds) || studentIds.length === 0) {
       return { success: true, message: 'Tidak ada mahasiswa untuk dibandingkan.', items: [] as any[] };
     }
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return { success: false, message: 'Konfigurasi Web Service Neo Feeder belum lengkap.', items: [] as any[] };
     }
@@ -4047,7 +4490,7 @@ export class IntegrationSettingsService {
     if (!Array.isArray(studentIds) || studentIds.length === 0) {
       return { success: false, message: 'Pilih minimal satu mahasiswa yang akan diupdate.', ...empty };
     }
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return {
         success: false,
@@ -4177,7 +4620,7 @@ export class IntegrationSettingsService {
    * dengan `jumlah_mahasiswa_krs > 0` yang ikut ditarik.
    */
   async pullTahunAkademikFromFeeder(): Promise<{ success: boolean; message: string; items: RemoteAcademicYearItem[] }> {
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return {
         success: false,
@@ -4344,7 +4787,7 @@ export class IntegrationSettingsService {
    * menurunkan `startYear` dari `id_semester`.
    */
   async pullKelasKuliahFromFeeder(): Promise<{ success: boolean; message: string; items: RemoteCourseClassItem[] }> {
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return {
         success: false,
@@ -4559,7 +5002,7 @@ export class IntegrationSettingsService {
    * dengan entitas lain yang menarik seluruh riwayat.
    */
   async pullKrsFromFeeder(): Promise<{ success: boolean; message: string; items: RemoteEnrollmentItem[] }> {
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return {
         success: false,
@@ -4790,7 +5233,7 @@ export class IntegrationSettingsService {
    * sebagai peringatan pada baris kelas.
    */
   async pushKelasKuliahBaruToFeeder(classIds?: string[]) {
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return this.pushEmptyResult('Konfigurasi Web Service Neo Feeder belum lengkap. Lengkapi dulu di menu Pengaturan DIKTI.');
     }
@@ -4816,11 +5259,18 @@ export class IntegrationSettingsService {
       let linked = 0;
       let failed = 0;
       let skipped = 0;
+      let uncertain = 0;
       let lecturersSent = 0;
       let lecturersPending = 0;
       const failReasons: Record<string, number> = {};
       const markFailed = async (id: string, reason: string) => {
         failed += 1;
+        failReasons[reason] = (failReasons[reason] || 0) + 1;
+        await this.prisma.courseClass.update({ where: { id }, data: { feederSyncError: reason, feederSyncErrorAt: new Date() } }).catch(() => null);
+      };
+      const markUncertain = async (id: string, message: string) => {
+        uncertain += 1;
+        const reason = `Status pengiriman tidak pasti (gagal jaringan) -- akan dicek ulang (sudah ada/tidak) pada percobaan berikutnya: ${message}`;
         failReasons[reason] = (failReasons[reason] || 0) + 1;
         await this.prisma.courseClass.update({ where: { id }, data: { feederSyncError: reason, feederSyncErrorAt: new Date() } }).catch(() => null);
       };
@@ -4851,48 +5301,72 @@ export class IntegrationSettingsService {
           continue;
         }
 
-        let idKelas: string | null = null;
-        try {
-          const { data: found, errorCode, errorDesc } = await this.callFeeder(setting.baseUrl, {
-            act: 'GetListKelasKuliah',
-            token,
-            filter:
-              `id_prodi = '${this.escapeFeederFilter(idProdi)}' and id_semester = '${this.escapeFeederFilter(semesterId)}' ` +
-              `and id_matkul = '${this.escapeFeederFilter(cls.course.feederId)}' and nama_kelas_kuliah = '${this.escapeFeederFilter(name)}'`,
-            limit: 1,
-            offset: 0,
-          });
-          if (errorCode !== '0') throw new Error(errorDesc || 'Respon Feeder tidak valid');
-          const hit = Array.isArray(found) ? found[0] : null;
-          if (hit?.id_kelas_kuliah) {
-            idKelas = String(hit.id_kelas_kuliah);
-            await this.prisma.courseClass.update({ where: { id: cls.id }, data: { feederId: idKelas, feederSyncError: null, feederSyncErrorAt: null } });
-            linked += 1;
-          }
-        } catch (err: any) {
-          await markFailed(cls.id, `Gagal cek data di Feeder: ${err?.message || 'Unknown error'}`);
+        // Klaim idempoten: mencegah dua proses push bersamaan mencoba InsertKelasKuliah untuk
+        // kelas lokal yang sama. Dilepas setelah kelas tertaut/terdaftar -- langkah dosen pengajar
+        // di bawah beroperasi pada kelas yang ID Feeder-nya sudah pasti, jadi tidak ikut diklaim.
+        const claimed = await this.claimFeederSync('CourseClass', cls.id, 'INSERT');
+        if (!claimed) {
+          skipped += 1;
           continue;
         }
-
-        if (!idKelas) {
-          const { data: ins, errorCode, errorDesc } = await this.callFeeder(setting.baseUrl, {
-            act: 'InsertKelasKuliah',
-            token,
-            record: {
-              id_prodi: idProdi,
-              id_semester: semesterId,
-              id_matkul: cls.course.feederId,
-              nama_kelas_kuliah: name,
-              kapasitas: cls.quota,
-            },
-          });
-          if (errorCode !== '0' || !ins?.id_kelas_kuliah) {
-            await markFailed(cls.id, `Insert kelas ditolak Feeder: ${errorDesc || 'tanpa keterangan'}`);
+        let idKelas: string | null = null;
+        try {
+          try {
+            const { data: found, errorCode, errorDesc } = await this.callFeeder(setting.baseUrl, {
+              act: 'GetListKelasKuliah',
+              token,
+              filter:
+                `id_prodi = '${this.escapeFeederFilter(idProdi)}' and id_semester = '${this.escapeFeederFilter(semesterId)}' ` +
+                `and id_matkul = '${this.escapeFeederFilter(cls.course.feederId)}' and nama_kelas_kuliah = '${this.escapeFeederFilter(name)}'`,
+              limit: 1,
+              offset: 0,
+            });
+            if (errorCode !== '0') throw new Error(errorDesc || 'Respon Feeder tidak valid');
+            const hit = Array.isArray(found) ? found[0] : null;
+            if (hit?.id_kelas_kuliah) {
+              idKelas = String(hit.id_kelas_kuliah);
+              await this.prisma.courseClass.update({ where: { id: cls.id }, data: { feederId: idKelas, feederSyncError: null, feederSyncErrorAt: null } });
+              linked += 1;
+            }
+          } catch (err: any) {
+            const { uncertain: isUncertain, message } = this.classifyPushError(err);
+            if (isUncertain) await markUncertain(cls.id, message);
+            else await markFailed(cls.id, `Gagal cek data di Feeder: ${message}`);
             continue;
           }
-          idKelas = String(ins.id_kelas_kuliah);
-          await this.prisma.courseClass.update({ where: { id: cls.id }, data: { feederId: idKelas, feederSyncError: null, feederSyncErrorAt: null } });
-          created += 1;
+
+          if (!idKelas) {
+            // InsertKelasKuliah TIDAK diulang otomatis oleh callFeeder kalau gagal jaringan --
+            // percobaan BERIKUTNYA akan mengecek lagi lewat GetListKelasKuliah di atas sebelum
+            // insert lagi, bukan langsung mencoba insert kedua kalinya secara buta.
+            try {
+              const { data: ins, errorCode, errorDesc } = await this.callFeeder(setting.baseUrl, {
+                act: 'InsertKelasKuliah',
+                token,
+                record: {
+                  id_prodi: idProdi,
+                  id_semester: semesterId,
+                  id_matkul: cls.course.feederId,
+                  nama_kelas_kuliah: name,
+                  kapasitas: cls.quota,
+                },
+              });
+              if (errorCode !== '0' || !ins?.id_kelas_kuliah) {
+                await markFailed(cls.id, `Insert kelas ditolak Feeder: ${errorDesc || 'tanpa keterangan'}`);
+                continue;
+              }
+              idKelas = String(ins.id_kelas_kuliah);
+              await this.prisma.courseClass.update({ where: { id: cls.id }, data: { feederId: idKelas, feederSyncError: null, feederSyncErrorAt: null } });
+              created += 1;
+            } catch (err: any) {
+              const { uncertain: isUncertain, message } = this.classifyPushError(err);
+              if (isUncertain) await markUncertain(cls.id, message);
+              else await markFailed(cls.id, `Gagal mengirim: ${message}`);
+              continue;
+            }
+          }
+        } finally {
+          await this.releaseFeederSync('CourseClass', cls.id, 'INSERT');
         }
 
         // ---- dosen pengajar (opsional, tidak membatalkan kelas bila gagal)
@@ -4940,7 +5414,7 @@ export class IntegrationSettingsService {
         await this.prisma.systemAuditLog.create({
           data: {
             action: 'KELAS_PUSH_TO_FEEDER',
-            detail: `Push kelas ke Feeder: ${processed} diproses, ${created} dibuat, ${linked} ditautkan, ${failed} gagal, ${skipped} dilewati; dosen pengajar terkirim ${lecturersSent}, tertunda ${lecturersPending}.`,
+            detail: `Push kelas ke Feeder: ${processed} diproses, ${created} dibuat, ${linked} ditautkan, ${failed} gagal, ${skipped} dilewati; dosen pengajar terkirim ${lecturersSent}, tertunda ${lecturersPending}${uncertain > 0 ? `; ${uncertain} tidak pasti` : ''}.`,
           },
         });
       } catch {
@@ -4953,12 +5427,14 @@ export class IntegrationSettingsService {
         message:
           `Push selesai: ${processed} diproses, ${created} kelas baru dibuat di Feeder, ${linked} sudah ada (ditautkan), ${failed} gagal, ${skipped} dilewati. ` +
           `Dosen pengajar terkirim: ${lecturersSent}; tertunda: ${lecturersPending}.` +
+          (uncertain > 0 ? ` ${uncertain} status pengiriman tidak pasti (gangguan jaringan) -- jalankan Push lagi, akan dicek ulang otomatis.` : '') +
           (remaining > 0 ? ` Masih ada ${remaining} kelas belum terdaftar -- jalankan Push lagi untuk lanjut.` : '') +
           this.pushReasonText(failReasons),
         processed,
         created,
         linked,
         failed,
+        uncertain,
         skipped,
         failReasons,
       };
@@ -4973,7 +5449,7 @@ export class IntegrationSettingsService {
    * id_registrasi_mahasiswa. Dicek dulu via GetDetailNilaiPerkuliahanKelas agar tidak dobel.
    */
   async pushKrsToFeeder(enrollmentIds?: string[]) {
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return this.pushEmptyResult('Konfigurasi Web Service Neo Feeder belum lengkap. Lengkapi dulu di menu Pengaturan DIKTI.');
     }
@@ -4997,13 +5473,24 @@ export class IntegrationSettingsService {
       let linked = 0;
       let failed = 0;
       const failReasons: Record<string, number> = {};
+      let skippedClaim = 0;
       await this.runWithConcurrency(eligible, 5, async (e) => {
+        // Klaim idempoten per KRS -- mencegah dua proses Push KRS bersamaan mendaftarkan
+        // peserta kelas yang sama dua kali ke Feeder.
+        const claimed = await this.claimFeederSync('CourseEnrollment', e.id, 'INSERT_KRS');
+        if (!claimed) {
+          skippedClaim += 1;
+          return;
+        }
         const idKelas = e.courseClass!.feederId!;
         const idReg = e.student.feederRegistrationId!;
         const fail = async (reason: string) => {
           failed += 1;
           failReasons[reason] = (failReasons[reason] || 0) + 1;
           await this.prisma.courseEnrollment.update({ where: { id: e.id }, data: { feederSyncError: reason } }).catch(() => null);
+          await this.prisma.feederSyncLog
+            .create({ data: { entity: 'CourseEnrollment', localId: e.id, operation: 'INSERT', act: 'InsertPesertaKelasKuliah', status: 'FAILED', finishedAt: new Date(), errorMessage: reason.slice(0, 2000) } })
+            .catch(() => null);
         };
         try {
           const { data: found, errorCode, errorDesc } = await this.callFeeder(setting.baseUrl, {
@@ -5036,8 +5523,13 @@ export class IntegrationSettingsService {
           }
           await this.prisma.courseEnrollment.update({ where: { id: e.id }, data: { feederSyncedAt: new Date(), feederSyncError: null } });
           created += 1;
+          await this.prisma.feederSyncLog
+            .create({ data: { entity: 'CourseEnrollment', localId: e.id, operation: 'INSERT', act: 'InsertPesertaKelasKuliah', status: 'SUCCESS', finishedAt: new Date() } })
+            .catch(() => null);
         } catch (err: any) {
           await fail(`Gagal memproses: ${err?.message || 'Unknown error'}`);
+        } finally {
+          await this.releaseFeederSync('CourseEnrollment', e.id, 'INSERT_KRS');
         }
       });
 
@@ -5063,7 +5555,7 @@ export class IntegrationSettingsService {
         created,
         linked,
         failed,
-        skipped: 0,
+        skipped: skippedClaim,
         failReasons,
       };
     } catch (err: any) {
@@ -5076,7 +5568,7 @@ export class IntegrationSettingsService {
    * Hanya nilai berstatus FINAL yang punya huruf nilai.
    */
   async pushNilaiToFeeder(enrollmentIds?: string[]) {
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return this.pushEmptyResult('Konfigurasi Web Service Neo Feeder belum lengkap. Lengkapi dulu di menu Pengaturan DIKTI.');
     }
@@ -5107,32 +5599,87 @@ export class IntegrationSettingsService {
 
       let updated = 0;
       let failed = 0;
+      let uncertain = 0;
+      let skippedClaim = 0;
       const failReasons: Record<string, number> = {};
+      const NILAI_ACT = 'UpdateNilaiPerkuliahanKelas';
       await this.runWithConcurrency(eligible, 5, async (e) => {
         try {
-          // Nilai HARUS dikirim sebagai string: bila berupa angka JSON, Feeder menjawab 1178
-          // ("Data Nilai Perkuliahan Kelas ... tidak ditemukan") walau pesertanya ada (terverifikasi di Feeder).
-          const record: Record<string, string> = { nilai_huruf: String(e.gradeLetter) };
-          if (e.totalScore != null) record.nilai_angka = (Math.round(e.totalScore * 10) / 10).toFixed(1);
-          if (e.gradePoint != null) record.nilai_indeks = e.gradePoint.toFixed(2);
-          const { errorCode, errorDesc } = await this.callFeeder(setting.baseUrl, {
-            act: 'UpdateNilaiPerkuliahanKelas',
-            token,
-            key: { id_registrasi_mahasiswa: e.student.feederRegistrationId, id_kelas_kuliah: e.courseClass!.feederId },
-            record,
-          });
-          if (errorCode !== '0') {
-            const reason = `Update nilai ditolak Feeder: ${errorDesc || 'tanpa keterangan'}`;
-            failed += 1;
-            failReasons[reason] = (failReasons[reason] || 0) + 1;
-            await this.prisma.courseEnrollment.update({ where: { id: e.id }, data: { feederGradeSyncError: reason } }).catch(() => null);
+          const outcome = await this.runFeederSync(
+            {
+              entity: 'CourseEnrollment',
+              localId: e.id,
+              operation: 'UPDATE',
+              act: NILAI_ACT,
+              requestSummary: `nilai_huruf=${e.gradeLetter}`,
+            },
+            async (markSynced) => {
+              // Rekonsiliasi: percobaan SEBELUMNYA untuk enrollment ini berakhir dengan status tidak
+              // pasti (gagal jaringan sebelum balasan Feeder diterima -- lihat runFeederSync). Jangan
+              // langsung kirim lagi secara buta: cek dulu ke Feeder apakah nilai itu ternyata sudah
+              // tersimpan dari percobaan sebelumnya.
+              const lastPending = await this.prisma.feederSyncLog.findFirst({
+                where: { entity: 'CourseEnrollment', localId: e.id, operation: 'UPDATE', act: NILAI_ACT, status: 'PENDING' },
+                orderBy: { startedAt: 'desc' },
+              });
+              if (lastPending) {
+                const check = await this.callFeeder(setting.baseUrl, {
+                  act: 'GetDetailNilaiPerkuliahanKelas',
+                  token,
+                  filter: `id_kelas_kuliah = '${this.escapeFeederFilter(e.courseClass!.feederId!)}' and id_registrasi_mahasiswa = '${this.escapeFeederFilter(e.student.feederRegistrationId!)}'`,
+                  limit: 1,
+                  offset: 0,
+                });
+                const row = check.errorCode === '0' && Array.isArray(check.data) ? check.data[0] : null;
+                if (row && String(row.nilai_huruf ?? '') === String(e.gradeLetter)) {
+                  markSynced('rekonsiliasi: nilai sudah tersimpan di Feeder dari percobaan sebelumnya');
+                  await this.prisma.courseEnrollment.update({ where: { id: e.id }, data: { feederGradeSyncedAt: new Date(), feederGradeSyncError: null } });
+                  return 'reconciled' as const;
+                }
+                // Tidak ketemu/tidak cocok -- lanjut kirim seperti biasa di bawah (Update bersifat
+                // idempoten/menimpa, jadi aman dikirim ulang meski percobaan lalu mungkin sudah sampai).
+              }
+
+              // Nilai HARUS dikirim sebagai string: bila berupa angka JSON, Feeder menjawab 1178
+              // ("Data Nilai Perkuliahan Kelas ... tidak ditemukan") walau pesertanya ada (terverifikasi di Feeder).
+              const record: Record<string, string> = { nilai_huruf: String(e.gradeLetter) };
+              if (e.totalScore != null) record.nilai_angka = (Math.round(e.totalScore * 10) / 10).toFixed(1);
+              if (e.gradePoint != null) record.nilai_indeks = e.gradePoint.toFixed(2);
+              const { errorCode, errorDesc } = await this.callFeeder(setting.baseUrl, {
+                act: NILAI_ACT,
+                token,
+                key: { id_registrasi_mahasiswa: e.student.feederRegistrationId, id_kelas_kuliah: e.courseClass!.feederId },
+                record,
+              });
+              if (errorCode !== '0') {
+                // Feeder MEMBALAS dengan jelas menolak -- ini bukan status tidak pasti, aman ditandai
+                // FAILED (markSynced TIDAK dipanggil, jadi runFeederSync tidak akan salah menandai SUCCESS).
+                throw new Error(`Update nilai ditolak Feeder: ${errorDesc || 'tanpa keterangan'}`);
+              }
+              // Feeder sudah mengonfirmasi SEBELUM kita mengubah data lokal -- kalau baris di bawah ini
+              // gagal, runFeederSync akan menandainya SUCCESS + perlu rekonsiliasi, bukan FAILED, supaya
+              // tidak ada yang mengirim ulang nilai yang sebenarnya sudah tersimpan di Feeder.
+              markSynced(`nilai_huruf=${e.gradeLetter}`);
+              await this.prisma.courseEnrollment.update({ where: { id: e.id }, data: { feederGradeSyncedAt: new Date(), feederGradeSyncError: null } });
+              return 'updated' as const;
+            }
+          );
+
+          if (outcome.skipped === true) {
+            skippedClaim += 1;
             return;
           }
-          await this.prisma.courseEnrollment.update({ where: { id: e.id }, data: { feederGradeSyncedAt: new Date(), feederGradeSyncError: null } });
-          updated += 1;
+          const result: 'updated' | 'reconciled' = outcome.result;
+          if (result === 'updated' || result === 'reconciled') {
+            updated += 1;
+          }
         } catch (err: any) {
-          const reason = `Gagal memproses: ${err?.message || 'Unknown error'}`;
-          failed += 1;
+          const isUncertain = this.isRetryableFeederError(err);
+          const reason = isUncertain
+            ? `Status pengiriman tidak pasti (gagal jaringan) -- akan dicek ulang ke Feeder pada percobaan berikutnya: ${err?.message || 'Unknown error'}`
+            : `Gagal memproses: ${err?.message || 'Unknown error'}`;
+          if (isUncertain) uncertain += 1;
+          else failed += 1;
           failReasons[reason] = (failReasons[reason] || 0) + 1;
           await this.prisma.courseEnrollment.update({ where: { id: e.id }, data: { feederGradeSyncError: reason } }).catch(() => null);
         }
@@ -5140,7 +5687,10 @@ export class IntegrationSettingsService {
 
       try {
         await this.prisma.systemAuditLog.create({
-          data: { action: 'NILAI_PUSH_TO_FEEDER', detail: `Push nilai ke Feeder: ${eligible.length} diproses, ${updated} berhasil, ${failed} gagal.` },
+          data: {
+            action: 'NILAI_PUSH_TO_FEEDER',
+            detail: `Push nilai ke Feeder: ${eligible.length} diproses, ${updated} berhasil, ${failed} gagal${uncertain > 0 ? `, ${uncertain} tidak pasti` : ''}.`,
+          },
         });
       } catch {
         // non-blocking
@@ -5151,6 +5701,9 @@ export class IntegrationSettingsService {
         success: true,
         message:
           `Push nilai selesai: ${eligible.length} diproses, ${updated} nilai terkirim, ${failed} gagal.` +
+          (uncertain > 0
+            ? ` ${uncertain} status pengiriman tidak pasti (gangguan jaringan) -- akan dicek ulang ke Feeder otomatis pada Push berikutnya, jalankan Push lagi.`
+            : '') +
           (pending.nilai.ready > 0 ? ` Masih ada ${pending.nilai.ready} nilai siap kirim -- jalankan Push lagi untuk lanjut.` : '') +
           (pending.nilai.blockedKrsNotInFeeder > 0
             ? ` Tertahan: ${pending.nilai.blockedKrsNotInFeeder} nilai karena peserta belum terdaftar di kelas Feeder (Push KRS dulu).`
@@ -5158,9 +5711,10 @@ export class IntegrationSettingsService {
           this.pushReasonText(failReasons),
         processed: eligible.length,
         created: updated,
+        uncertain,
         linked: 0,
         failed,
-        skipped: 0,
+        skipped: skippedClaim,
         failReasons,
       };
     } catch (err: any) {
@@ -5197,7 +5751,7 @@ export class IntegrationSettingsService {
       return { success: false, message: 'Sinkronisasi nilai perkuliahan sedang berjalan -- tunggu sampai selesai dulu.' };
     }
 
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return {
         success: false,
@@ -5383,7 +5937,7 @@ export class IntegrationSettingsService {
    * mana sebagai grup baru lewat `syncSkalaNilaiFromFeeder`.
    */
   async pullSkalaNilaiFromFeeder(): Promise<{ success: boolean; message: string; items: RemoteGradeScaleItem[] }> {
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return {
         success: false,
@@ -5476,7 +6030,7 @@ export class IntegrationSettingsService {
    * (act: GetToken) dengan kredensial tersimpan -- bukan sekadar GET ke URL-nya.
    */
   async testPddiktiConnection() {
-    const setting = await this.prisma.pddiktiSetting.findUnique({ where: { id: PDDIKTI_SETTING_ID } });
+    const setting = await this.getActivePddiktiSetting();
     if (!setting?.baseUrl || !setting?.username || !setting?.password) {
       return { success: false, message: 'URL, username, dan password Web Service belum lengkap diisi.' };
     }

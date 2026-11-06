@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getAuthSession } from '@/lib/auth';
 import { useServerTable } from '@/lib/useServerTable';
 import { TablePagination } from '@/components/ui/TablePagination';
+import { SyncProgressBar } from '@/components/ui/SyncProgressBar';
 import { AlertTriangle, RefreshCw, ArrowUpFromLine } from 'lucide-react';
 
 // ==========================================
@@ -64,12 +65,14 @@ export default function RiwayatPendidikanPanel({ showToast, addLog, onTotalAll }
   const sortIndicator = (key: string) => (table.sortKey === key ? (table.sortDir === 'asc' ? ' ▲' : ' ▼') : ' ⇅');
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isSelectingAll, setIsSelectingAll] = useState(false);
   const [diffById, setDiffById] = useState<Record<string, RiwayatDiffResult>>({});
   const [onlyWithDiff, setOnlyWithDiff] = useState(false);
   const [isComparing, setIsComparing] = useState(false);
   const [compareProgress, setCompareProgress] = useState<{ done: number; total: number } | null>(null);
   const cancelCompareRef = useRef(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState<{ done: number; total: number } | null>(null);
 
   const visibleRows = useMemo(
     () =>
@@ -78,7 +81,9 @@ export default function RiwayatPendidikanPanel({ showToast, addLog, onTotalAll }
         : table.items,
     [table.items, onlyWithDiff, diffById]
   );
-  const allSelected = visibleRows.length > 0 && visibleRows.every((r) => selectedIds.has(r.id));
+  // "Semua terpilih" dicek terhadap total SELURUH mahasiswa (sesuai pencarian), bukan
+  // cuma baris di halaman ini -- supaya checkbox header merefleksikan pilihan lintas halaman.
+  const allSelected = table.total > 0 && selectedIds.size === table.total;
 
   const toggleSelected = (id: string) => {
     setSelectedIds((prev) => {
@@ -89,19 +94,36 @@ export default function RiwayatPendidikanPanel({ showToast, addLog, onTotalAll }
     });
   };
 
-  const toggleAll = () => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (allSelected) visibleRows.forEach((r) => next.delete(r.id));
-      else visibleRows.forEach((r) => next.add(r.id));
-      return next;
-    });
-  };
-
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
   const authHeaders = (): Record<string, string> => {
     const { token } = getAuthSession();
     return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+  };
+
+  // Checkbox "pilih semua" memilih SELURUH mahasiswa (sesuai kotak pencarian) di seluruh
+  // halaman, bukan cuma baris yang sedang tampil, lewat endpoint /riwayat-pendidikan/ids
+  // yang sama dengan yang dipakai "Bandingkan Semua".
+  const toggleAll = async () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+      return;
+    }
+    setIsSelectingAll(true);
+    try {
+      const params = new URLSearchParams();
+      if (table.searchInput.trim()) params.set('search', table.searchInput.trim());
+      const res = await fetch(`${apiBase}/integration-settings/pddikti/riwayat-pendidikan/ids?${params.toString()}`, {
+        headers: authHeaders(),
+      });
+      const json = await res.json().catch(() => null);
+      const result = json?.data ?? json;
+      if (!res.ok || !Array.isArray(result?.ids)) throw new Error(result?.message || `HTTP ${res.status}`);
+      setSelectedIds(new Set(result.ids as string[]));
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Gagal memuat seluruh daftar mahasiswa.');
+    } finally {
+      setIsSelectingAll(false);
+    }
   };
 
   // Bandingkan riwayat pendidikan lokal vs Feeder (hanya membaca) -- per batch 100.
@@ -161,52 +183,64 @@ export default function RiwayatPendidikanPanel({ showToast, addLog, onTotalAll }
     }
   };
 
-  // Update riwayat pendidikan terpilih di Feeder (MENULIS ke PDDIKTI).
+  // Update riwayat pendidikan terpilih di Feeder (MENULIS ke PDDIKTI). Backend membatasi
+  // maksimal MAX_UPDATE_PER_RUN per panggilan, jadi kalau yang dicentang lebih dari itu
+  // (mis. hasil "pilih semua"), dikirim bertahap dari sini supaya semuanya terkirim.
   const handleUpdate = async () => {
     if (selectedIds.size === 0) return;
     setIsUpdating(true);
+    setUpdateProgress(null);
     const startedAt = Date.now();
     const ids = Array.from(selectedIds);
+    let totalProcessed = 0;
+    let totalUpdated = 0;
+    let totalFailed = 0;
+    let anyRequestFailed = false;
     try {
-      const res = await fetch(`${apiBase}/integration-settings/pddikti/riwayat-pendidikan/update`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ studentIds: ids }),
-      });
-      const json = await res.json().catch(() => null);
-      const result = json?.data ?? json;
-      if (!res.ok || !result) throw new Error(result?.message || `HTTP ${res.status}`);
+      setUpdateProgress({ done: 0, total: ids.length });
+      for (let i = 0; i < ids.length; i += MAX_UPDATE_PER_RUN) {
+        const res = await fetch(`${apiBase}/integration-settings/pddikti/riwayat-pendidikan/update`, {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ studentIds: ids.slice(i, i + MAX_UPDATE_PER_RUN) }),
+        });
+        const json = await res.json().catch(() => null);
+        const result = json?.data ?? json;
+        if (!res.ok || !result) throw new Error(result?.message || `HTTP ${res.status}`);
+        totalProcessed += result?.processed ?? 0;
+        totalUpdated += result?.updated ?? 0;
+        totalFailed += result?.failed ?? 0;
+        if (!result?.success) anyRequestFailed = true;
+        setUpdateProgress({ done: Math.min(i + MAX_UPDATE_PER_RUN, ids.length), total: ids.length });
+      }
 
-      const failedCount = result?.failed ?? 0;
       addLog({
         id: `log-riwayat-${Date.now()}`,
         timestamp: new Date().toLocaleString('id-ID'),
         entity: 'Riwayat Pendidikan Mahasiswa -- Update ke Feeder',
-        batchSize: result?.processed ?? 0,
-        successCount: result?.updated ?? 0,
-        errorCount: failedCount,
-        status: !result?.success ? 'FAILED' : failedCount > 0 ? 'WARNING' : 'SUCCESS',
+        batchSize: totalProcessed,
+        successCount: totalUpdated,
+        errorCount: totalFailed,
+        status: anyRequestFailed ? 'FAILED' : totalFailed > 0 ? 'WARNING' : 'SUCCESS',
         durationMs: Date.now() - startedAt,
-        message: result?.message || 'Update riwayat pendidikan ke Feeder selesai.',
+        message: `${ids.length} mahasiswa diproses dalam ${Math.ceil(ids.length / MAX_UPDATE_PER_RUN)} batch -- ${totalUpdated} berhasil diupdate, ${totalFailed} gagal.`,
       });
-      showToast(result?.message || 'Update riwayat pendidikan ke Feeder selesai.');
-      if (result?.success) {
-        setSelectedIds(new Set());
-        // Hasil perbandingan untuk baris yang baru diupdate sudah basi -- bandingkan ulang.
-        setDiffById((prev) => {
-          const next = { ...prev };
-          ids.forEach((id) => delete next[id]);
-          return next;
-        });
-      }
+      showToast(`Update selesai: ${totalUpdated} dari ${ids.length} riwayat pendidikan berhasil diupdate ke Feeder.`);
+      setSelectedIds(new Set());
+      // Hasil perbandingan untuk baris yang baru diupdate sudah basi -- bandingkan ulang.
+      setDiffById((prev) => {
+        const next = { ...prev };
+        ids.forEach((id) => delete next[id]);
+        return next;
+      });
     } catch (err) {
       addLog({
         id: `log-riwayat-${Date.now()}`,
         timestamp: new Date().toLocaleString('id-ID'),
         entity: 'Riwayat Pendidikan Mahasiswa -- Update ke Feeder',
-        batchSize: 0,
-        successCount: 0,
-        errorCount: 0,
+        batchSize: totalProcessed,
+        successCount: totalUpdated,
+        errorCount: totalFailed,
         status: 'FAILED',
         durationMs: Date.now() - startedAt,
         message: err instanceof Error ? err.message : 'Gagal update riwayat pendidikan ke Feeder.',
@@ -214,6 +248,7 @@ export default function RiwayatPendidikanPanel({ showToast, addLog, onTotalAll }
       showToast(err instanceof Error ? err.message : 'Gagal update riwayat pendidikan ke Feeder.');
     } finally {
       setIsUpdating(false);
+      setUpdateProgress(null);
       table.reload();
     }
   };
@@ -225,9 +260,9 @@ export default function RiwayatPendidikanPanel({ showToast, addLog, onTotalAll }
         <p className="text-[11px] text-slate-500">
           Koreksi riwayat pendidikan lewat <b>UpdateRiwayatPendidikanMahasiswa</b>. Yang diperbarui hanya <b>NIM</b>,{' '}
           <b>program studi</b>, dan <b>tahun masuk</b>; semester masuk, jenis/jalur daftar, tanggal daftar, dan pembiayaan
-          dipertahankan dari data Feeder saat ini. Maksimal {MAX_UPDATE_PER_RUN} mahasiswa per proses. Jika tidak ada yang
-          dicentang, &quot;Bandingkan&quot; membandingkan <b>semua</b> mahasiswa (sesuai kotak pencarian), bertahap 100
-          per request.
+          dipertahankan dari data Feeder saat ini. Centang header tabel untuk memilih <b>semua</b> mahasiswa (sesuai kotak
+          pencarian) sekaligus -- pengiriman tetap dilakukan bertahap per {MAX_UPDATE_PER_RUN} di belakang layar. Jika tidak
+          ada yang dicentang, &quot;Bandingkan&quot; membandingkan <b>semua</b> mahasiswa, bertahap 100 per request.
         </p>
         <div className="flex flex-col sm:flex-row gap-2">
           <button
@@ -263,13 +298,44 @@ export default function RiwayatPendidikanPanel({ showToast, addLog, onTotalAll }
             {isUpdating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowUpFromLine className="w-4 h-4" />}
             <span>
               {isUpdating
-                ? 'Mengupdate...'
+                ? updateProgress
+                  ? `Mengupdate ${updateProgress.done} / ${updateProgress.total}...`
+                  : 'Mengupdate...'
                 : selectedIds.size > 0
                   ? `Update ${selectedIds.size} Riwayat Terpilih ke Feeder`
                   : 'Centang mahasiswa yang akan diupdate'}
             </span>
           </button>
         </div>
+
+        {(isSelectingAll || selectedIds.size > 0) && (
+          <p className="text-[11px] font-semibold text-[#1E3A8A] flex items-center gap-1.5">
+            {isSelectingAll ? (
+              <>
+                <RefreshCw className="w-3 h-3 animate-spin" /> Memuat seluruh daftar mahasiswa...
+              </>
+            ) : (
+              `${selectedIds.size.toLocaleString('id-ID')} mahasiswa dipilih${allSelected ? ' (semua, sesuai kotak pencarian)' : ''}`
+            )}
+          </p>
+        )}
+
+        <SyncProgressBar
+          active={isComparing}
+          mode="determinate"
+          done={compareProgress?.done ?? 0}
+          total={compareProgress?.total ?? 0}
+          canLeavePage={false}
+          note="Perbandingan dikirim bertahap per 100 mahasiswa langsung dari browser Anda, bukan satu proses di server. Boleh pindah tab sebentar, tapi jangan tutup halaman ini sampai selesai karena prosesnya akan berhenti di tengah jalan."
+        />
+        <SyncProgressBar
+          active={isUpdating}
+          mode="determinate"
+          done={updateProgress?.done ?? 0}
+          total={updateProgress?.total ?? 0}
+          canLeavePage={false}
+          note={`Riwayat pendidikan terpilih dikirim bertahap per ${MAX_UPDATE_PER_RUN} langsung dari browser Anda (batas Feeder per proses), bukan satu proses di server. Boleh pindah tab sebentar, tapi jangan tutup halaman ini sampai selesai karena pengiriman akan berhenti di tengah jalan.`}
+        />
       </div>
 
       {/* Tabel (server-side) */}
@@ -316,8 +382,9 @@ export default function RiwayatPendidikanPanel({ showToast, addLog, onTotalAll }
                     type="checkbox"
                     checked={allSelected}
                     onChange={toggleAll}
-                    disabled={visibleRows.length === 0}
-                    aria-label="Pilih semua di halaman ini"
+                    disabled={isSelectingAll || table.total === 0}
+                    aria-label="Pilih semua mahasiswa (sesuai kotak pencarian)"
+                    title="Pilih semua mahasiswa sesuai kotak pencarian, bukan cuma yang tampil di halaman ini"
                     className="cursor-pointer"
                   />
                 </th>

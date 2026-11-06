@@ -7,6 +7,7 @@ import { getAuthSession } from '@/lib/auth';
 import { useServerTable } from '@/lib/useServerTable';
 import { FeederPushPanel } from '@/components/feeder/FeederPushPanel';
 import { TablePagination } from '@/components/ui/TablePagination';
+import { SyncProgressBar } from '@/components/ui/SyncProgressBar';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -343,6 +344,19 @@ export default function SinkronisasiKrsPage() {
               </button>
             )}
           </div>
+
+          <SyncProgressBar
+            active={isPullingKrs}
+            mode="indeterminate"
+            canLeavePage
+            note="Permintaan ini dikirim sekali ke server dan diproses di sana, jadi halaman ini boleh ditinggal pindah tab atau ditutup -- proses tetap berjalan sampai selesai. Hanya saja kalau halaman ditutup, Anda tidak akan melihat notifikasi hasilnya di sini."
+          />
+          <SyncProgressBar
+            active={isSyncingKrs}
+            mode="indeterminate"
+            canLeavePage
+            note="Seluruh data hasil tarikan dikirim dalam satu permintaan dan diproses di server, jadi halaman ini boleh ditinggal -- penyimpanan ke database lokal tetap berjalan sampai selesai."
+          />
         </div>
         )}
 

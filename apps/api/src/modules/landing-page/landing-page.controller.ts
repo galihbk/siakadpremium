@@ -21,7 +21,7 @@ const ARTICLE_EDITOR_ROLES = [
 
 // Label role yang ditampilkan PUBLIK sebagai "Diunggah oleh" -- hanya unit/role, bukan nama akun.
 const ROLE_LABELS: Record<string, string> = {
-  SUPER_ADMIN: 'Humas ITN',
+  SUPER_ADMIN: 'Humas',
   ADMIN_BAAK: 'BAAK',
   STAFF: 'BAAK',
   ADMIN_PRODI: 'Program Studi',
@@ -43,6 +43,12 @@ export class LandingPageController {
   @ApiResponse({ status: 200, description: 'Konten landing page berhasil diambil' })
   async getSettings() {
     return this.landingPageService.getSettings();
+  }
+
+  @Get('stats')
+  @ApiOperation({ summary: 'Angka ringkas publik: mahasiswa aktif, dosen, program studi, fakultas' })
+  async getPublicStats() {
+    return this.landingPageService.getPublicStats();
   }
 
   @Put()

@@ -470,4 +470,26 @@ export class IntegrationSettingsController {
   async pushMahasiswaBaruToFeeder(@Body() body: { studentIds?: string[] }) {
     return this.integrationSettingsService.pushMahasiswaBaruToFeeder(body?.studentIds);
   }
+
+  // ==================== SYNC HISTORY & RELIABILITY (hardening) ====================
+
+  @Get('pddikti/sync-log/stats')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_BAAK, UserRole.STAFF)
+  @ApiOperation({ summary: 'Ringkasan riwayat sinkronisasi Feeder: jumlah sukses/gagal/perlu rekonsiliasi dalam N jam terakhir' })
+  async getFeederSyncStats(@Query('entity') entity?: string, @Query('sinceHours') sinceHours?: string) {
+    return this.integrationSettingsService.getFeederSyncStats({
+      entity,
+      sinceHours: sinceHours ? parseInt(sinceHours, 10) : undefined,
+    });
+  }
+
+  @Post('pddikti/sync-log/release-stale-locks')
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'Melepas klaim sinkronisasi yang macet (proses sebelumnya diduga mati di tengah jalan) supaya record itu bisa dicoba ulang. Tidak mengirim apa pun ke Feeder.',
+  })
+  async releaseStaleFeederLocks() {
+    return this.integrationSettingsService.releaseStaleFeederLocks();
+  }
 }

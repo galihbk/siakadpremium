@@ -41,49 +41,28 @@ export default function KontakPage() {
     }, 4000);
   };
 
+  // Direktori diturunkan dari Profil Institusi; entri yang datanya kosong tidak ditampilkan.
   const departments = [
     {
-      name: 'Layanan PMB (Penerimaan Mahasiswa Baru)',
-      phone: '(021) 7890-1234 ext. 101',
-      wa: '+62 812-3456-7890',
-      email: 'pmb@itn.ac.id',
-      location: 'Gedung Rektorat Lt. 1, Kampus Utama',
+      name: 'Informasi Umum',
+      location: profile.contactAddress,
+      phone: profile.contactPhone,
+      wa: profile.contactWhatsapp,
+      email: profile.contactEmail,
     },
     {
-      name: 'Biro Administrasi Akademik & Kemahasiswaan (BAAK)',
-      phone: '(021) 7890-1234 ext. 202',
-      wa: '+62 813-9876-5432',
-      email: 'baak@itn.ac.id',
-      location: 'Gedung Pelayanan Terpadu Lt. 2',
+      name: 'Layanan Akademik (BAAK)',
+      location: '',
+      phone: '',
+      wa: '',
+      email: profile.academicEmail,
     },
-    {
-      name: 'Helpdesk SIAKAD & IT Center',
-      phone: '(021) 7890-1234 ext. 303',
-      wa: '+62 811-2233-4455',
-      email: 'support.siakad@itn.ac.id',
-      location: 'Gedung Data Center & Komputasi Lt. 3',
-    },
-    {
-      name: 'Biro Keuangan & Pembayaran UKT/SPP',
-      phone: '(021) 7890-1234 ext. 404',
-      wa: '+62 812-7788-9900',
-      email: 'keuangan@itn.ac.id',
-      location: 'Gedung Rektorat Sayap Timur Lt. 1',
-    },
-  ];
+  ].filter((d) => d.phone || d.wa || d.email);
 
   const faqs = [
     {
       q: 'Bagaimana cara mengakses akun Portal SIAKAD?',
       a: 'Mahasiswa dan dosen dapat masuk melalui tautan "Portal Akademik" di navbar atas menggunakan NIM/NIDN dan kata sandi yang diterbitkan oleh BAAK saat awal semester.',
-    },
-    {
-      q: 'Kapan jadwal operasional pelayanan administrasi tatap muka?',
-      a: 'Layanan kantor buka setiap hari Senin - Jumat pukul 08.00 - 16.00 WIB. Untuk hari Sabtu, layanan administrasi berlangsung secara daring melalui helpdesk tiket.',
-    },
-    {
-      q: 'Di mana lokasi pelaksanaan Ujian Masuk PMB Jalur Mandiri?',
-      a: 'Ujian Computer-Based Test (CBT) diselenggarakan di Lab Komputasi Kampus Utama Gedung B atau dapat diikuti secara daring dari rumah dengan proctoring browser.',
     },
   ];
 
@@ -281,37 +260,30 @@ export default function KontakPage() {
               {departments.map((dept, idx) => (
                 <div key={idx} className="bg-white rounded-xl p-4 border border-slate-200 shadow-subtle text-xs">
                   <p className="font-bold text-slate-900 text-sm">{dept.name}</p>
-                  <p className="text-slate-500 mt-0.5">{dept.location}</p>
+                  {dept.location && <p className="text-slate-500 mt-0.5">{dept.location}</p>}
                   
                   <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-col gap-1 text-slate-700">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Telepon:</span>
-                      <span className="font-mono font-semibold">{dept.phone}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">WhatsApp:</span>
-                      <span className="font-mono font-semibold text-emerald-700">{dept.wa}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Email:</span>
-                      <span className="font-medium text-[#1E3A8A]">{dept.email}</span>
-                    </div>
+                    {dept.phone && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Telepon:</span>
+                        <span className="font-mono font-semibold">{dept.phone}</span>
+                      </div>
+                    )}
+                    {dept.wa && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">WhatsApp:</span>
+                        <span className="font-mono font-semibold text-emerald-700">{dept.wa}</span>
+                      </div>
+                    )}
+                    {dept.email && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Email:</span>
+                        <span className="font-medium text-[#1E3A8A]">{dept.email}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
-
-              {/* Operating Hours Card */}
-              <div className="bg-blue-50 border border-blue-200/80 rounded-xl p-4 text-xs text-blue-900">
-                <div className="flex items-center gap-2 font-bold mb-1">
-                  <Clock className="w-4 h-4 text-[#1E3A8A]" />
-                  <span>Jam Operasional Pelayanan</span>
-                </div>
-                <p className="text-[11px] text-blue-800 leading-relaxed">
-                  Senin - Jumat: 08.00 - 16.00 WIB (Tatap Muka & Daring)<br />
-                  Sabtu: 08.00 - 12.00 WIB (Khusus Layanan PMB & Daring)<br />
-                  Minggu & Hari Libur Nasional: Tutup
-                </p>
-              </div>
             </div>
 
           </div>

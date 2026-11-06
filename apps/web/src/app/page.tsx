@@ -8,10 +8,10 @@ import { ProgramStudiSection } from '@/components/ProgramStudiSection';
 import { BeritaSection } from '@/components/BeritaSection';
 import { AgendaSection } from '@/components/AgendaSection';
 import { StatistikSection } from '@/components/StatistikSection';
-import { TestimoniSection } from '@/components/TestimoniSection';
 import { CtaSection } from '@/components/CtaSection';
 import { Footer } from '@/components/Footer';
 import { getApiBaseUrl } from '@/lib/api';
+import { loadPublicStats } from '@/lib/stats';
 import { Megaphone } from 'lucide-react';
 
 async function getLandingPageData() {
@@ -38,7 +38,7 @@ async function getLandingPageData() {
 }
 
 export default async function HomePage() {
-  const data = await getLandingPageData();
+  const [data, stats] = await Promise.all([getLandingPageData(), loadPublicStats()]);
   const campusName: string = data?.campusName || 'Kampus';
   const campusShort: string = data?.campusShortName || campusName;
 
@@ -69,6 +69,7 @@ export default async function HomePage() {
           ctaText={data?.heroCtaText}
           ctaLink={data?.heroCtaLink}
           campusName={campusName}
+          stats={stats}
         />
 
         {/* 3. Sambutan Rektor */}
@@ -82,7 +83,18 @@ export default async function HomePage() {
         />
 
         {/* 4. Keunggulan Kampus */}
-        <KeunggulanSection campusShort={campusShort} />
+        <KeunggulanSection
+          campusShort={campusShort}
+          accreditation={data?.accreditation}
+          accreditationSk={data?.accreditationSk}
+          accreditationValidUntil={data?.accreditationValidUntil}
+          ptStatus={data?.ptStatus}
+          npsn={data?.npsn}
+          ptCode={data?.ptCode}
+          establishmentYear={data?.establishmentYear}
+          establishmentSk={data?.establishmentSk}
+          foundationName={data?.foundationName}
+        />
 
         {/* 5. Fakultas */}
         <FakultasSection />
@@ -98,9 +110,6 @@ export default async function HomePage() {
 
         {/* 9. Statistik */}
         <StatistikSection />
-
-        {/* 10. Testimoni Alumni */}
-        <TestimoniSection campusName={campusName} campusShort={campusShort} />
 
         {/* 11. CTA PMB */}
         <CtaSection campusName={campusName} />

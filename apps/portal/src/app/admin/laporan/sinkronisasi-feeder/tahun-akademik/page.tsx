@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { getAuthSession } from '@/lib/auth';
+import { SyncProgressBar } from '@/components/ui/SyncProgressBar';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -359,6 +360,19 @@ export default function SinkronisasiTahunAkademikPage() {
               </button>
             )}
           </div>
+
+          <SyncProgressBar
+            active={isPullingTahunAkademik}
+            mode="indeterminate"
+            canLeavePage
+            note="Permintaan ini dikirim sekali ke server dan diproses di sana, jadi halaman ini boleh ditinggal pindah tab atau ditutup -- proses tetap berjalan sampai selesai. Hanya saja kalau halaman ditutup, Anda tidak akan melihat notifikasi hasilnya di sini."
+          />
+          <SyncProgressBar
+            active={isSyncingTahunAkademik}
+            mode="indeterminate"
+            canLeavePage
+            note="Seluruh data hasil tarikan dikirim dalam satu permintaan dan diproses di server, jadi halaman ini boleh ditinggal -- penyimpanan ke database lokal tetap berjalan sampai selesai."
+          />
         </div>
 
         {/* Perbandingan Data Lokal vs Feeder -- gabungan satu tabel, dicocokkan lewat kode semester */}

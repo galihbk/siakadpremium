@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, ArrowUpFromLine, CheckCircle2, RefreshCw } from 'lucide-react';
 import { getApiBaseUrl } from '@/lib/api';
 import { getAuthSession } from '@/lib/auth';
+import { SyncProgressBar } from '@/components/ui/SyncProgressBar';
 
 interface Pending {
   krs: { ready: number; blockedClassNotInFeeder: number; blockedStudentNotInFeeder: number; viaActivity: number };
@@ -144,6 +145,13 @@ export function FeederPushPanel({ kind, onDone }: { kind: 'krs' | 'nilai'; onDon
         {busy ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowUpFromLine className="w-4 h-4" />}
         <span>{busy ? 'Mengirim...' : copy.button}</span>
       </button>
+
+      <SyncProgressBar
+        active={busy}
+        mode="indeterminate"
+        canLeavePage
+        note="Data dikirim dalam satu permintaan ke server dan diproses di sana, jadi halaman ini boleh ditinggal pindah tab atau ditutup -- pengiriman tetap berjalan sampai selesai meski Anda tidak menunggu di sini."
+      />
 
       {result && (
         <div

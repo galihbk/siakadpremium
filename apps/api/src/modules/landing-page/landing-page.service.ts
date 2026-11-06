@@ -91,6 +91,17 @@ export class LandingPageService {
     private redis: RedisService,
   ) {}
 
+  /** Angka ringkas untuk situs publik: dihitung dari data akademik, bukan diisi manual. */
+  async getPublicStats() {
+    const [students, lecturers, studyPrograms, faculties] = await Promise.all([
+      this.prisma.student.count({ where: { status: 'ACTIVE' } }),
+      this.prisma.lecturer.count(),
+      this.prisma.studyProgram.count({ where: { status: 'Aktif' } }),
+      this.prisma.faculty.count(),
+    ]);
+    return { students, lecturers, studyPrograms, faculties };
+  }
+
   async getSettings() {
     try {
       const dbSettings = await this.prisma.landingPageSetting.findUnique({

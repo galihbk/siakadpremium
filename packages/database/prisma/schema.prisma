@@ -1207,6 +1207,9 @@ model PddiktiSetting {
   id         String    @id @default("default-pddikti-setting")
   baseUrl    String?
   username   String?
+  // password/secretKey: nilai terenkripsi (AES-256-GCM, lihat FeederCrypto) sejak hardening
+  // kredensial. Baris lama yang masih plaintext (dibuat sebelum hardening ini) otomatis
+  // dienkripsi ulang saat pertama kali terbaca -- lihat getFeederCredentials().
   password   String?
   secretKey  String?
   semesterId String?
@@ -1219,6 +1222,57 @@ model PddiktiSetting {
   updatedAt       DateTime @updatedAt
 
   @@map("pddikti_settings")
+}
+
+/**
+ * Riwayat tiap percobaan sinkronisasi Feeder, per record lokal. Dicatat oleh helper
+ * `runFeederSync()` di IntegrationSettingsService -- jangan diisi manual di tempat lain,
+ * supaya format status dan maskingnya konsisten. TIDAK PERNAH menyimpan password/secretKey/
+ * token mentah: field `requestSummary`/`responseSummary` wajib sudah di-mask sebelum disimpan.
+ */
+model FeederSyncLog {
+  id         String   @id @default(uuid())
+  /** Jenis entitas lokal, mis. "Student", "CourseEnrollment" -- nilai bebas tapi konsisten per pemanggil. */
+  entity     String
+  /** ID record lokal (bukan ID Feeder). */
+  localId    String
+  /** PULL | INSERT | UPDATE | DELETE */
+  operation  String
+  /** act Feeder yang dipanggil, mis. "InsertBiodataMahasiswa". */
+  act        String
+  /** PENDING | PROCESSING | SUCCESS | FAILED */
+  status     String   @default("PENDING")
+  attempt    Int      @default(1)
+  startedAt  DateTime @default(now())
+  finishedAt DateTime?
+  /** Ringkasan request TANPA kredensial (act, filter, field kunci saja). */
+  requestSummary  String? @db.Text
+  /** Ringkasan respons Feeder (error_code/error_desc, atau id yang dikembalikan). */
+  responseSummary String? @db.Text
+  errorMessage    String? @db.Text
+  userId          String?
+
+  @@index([entity, localId])
+  @@index([status, startedAt])
+  @@map("feeder_sync_logs")
+}
+
+/**
+ * Penanda klaim sementara supaya dua proses push yang berjalan bersamaan tidak mengirim
+ * record lokal yang sama dua kali ke Feeder. Baris dibuat sebelum memanggil Feeder dan
+ * dihapus setelah selesai (sukses atau gagal); constraint unique pada (entity, localId,
+ * operation) membuat percobaan klaim kedua gagal selama baris pertama masih ada. Baris yang
+ * lebih tua dari FEEDER_LOCK_STALE_MS (lihat service) dianggap macet dan boleh diambil alih.
+ */
+model FeederSyncLock {
+  id        String   @id @default(uuid())
+  entity    String
+  localId   String
+  operation String
+  lockedAt  DateTime @default(now())
+
+  @@unique([entity, localId, operation])
+  @@map("feeder_sync_locks")
 }
 
 model LandingPageArticle {
@@ -2446,3 +2500,667 @@ model PaymentReliefRequest {
   @@index([invoiceId])
   @@map("payment_relief_requests")
 }
+
+// ===== BEGIN TABEL LMS (jangan diubah manual) =====
+// Tabel aplikasi LMS yang berbagi database dan schema `public` dengan SIAKAD. Strukturnya dibuat dan diubah oleh
+// migration LMS (TypeORM, apps/api/src/database/migrations di repo LMS), BUKAN oleh Prisma. Model di bawah hanya
+// MENDAFTARKAN tabel-tabelnya supaya `prisma db push` mengenalinya dan tidak menghapusnya. Jangan dipakai dari kode
+// SIAKAD dan jangan diubah di sini; hasilkan ulang dari database (db pull) setiap kali LMS menambah/mengubah tabel
+// (lihat docs/database.md di repo LMS). Constraint CHECK dan index parsial dikelola migration LMS.
+
+model LmsAcademicSyncError {
+  id          BigInt   @id(map: "PK_lms_academic_sync_error") @default(autoincrement())
+  run_id      String   @db.Uuid
+  entity      String   @db.VarChar(32)
+  external_id String?
+  code        String   @db.VarChar(40)
+  message     String
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([run_id, id], map: "IDX_lms_academic_sync_error_run")
+
+  @@map("lms_academic_sync_error")
+}
+
+model LmsAcademicSyncRun {
+  id                        String    @id(map: "PK_lms_academic_sync_run") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind                      String    @db.VarChar(12)
+  trigger                   String    @db.VarChar(12)
+  status                    String    @default("running") @db.VarChar(10)
+  requested_by_reference_id String?
+  started_at                DateTime  @default(now()) @db.Timestamptz(6)
+  finished_at               DateTime? @db.Timestamptz(6)
+  stats                     Json      @default("{}")
+  error                     String?
+
+  @@index([started_at(sort: Desc)], map: "IDX_lms_academic_sync_run_started")
+
+  @@map("lms_academic_sync_run")
+}
+
+model LmsAcademicSyncState {
+  name                 String    @id(map: "PK_lms_academic_sync_state") @db.VarChar(40)
+  cursor               String?
+  last_success_at      DateTime? @db.Timestamptz(6)
+  last_full_at         DateTime? @db.Timestamptz(6)
+  last_error           String?
+  consecutive_failures Int       @default(0)
+  next_retry_at        DateTime? @db.Timestamptz(6)
+  lease_owner          String?
+  lease_until          DateTime? @db.Timestamptz(6)
+
+  @@map("lms_academic_sync_state")
+}
+
+model LmsAgendaItems {
+  id                  String   @id(map: "PK_agenda_items") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  class_reference_id  String
+  author_reference_id String
+  title               String   @db.VarChar(200)
+  description         String?
+  kind                String   @db.VarChar(20)
+  location            String?  @db.VarChar(200)
+  starts_at           DateTime @db.Timestamptz(6)
+  ends_at             DateTime @db.Timestamptz(6)
+  created_at          DateTime @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([author_reference_id, starts_at], map: "IDX_agenda_items_author_time")
+  @@index([class_reference_id, starts_at], map: "IDX_agenda_items_class_time")
+
+  @@map("lms_agenda_items")
+}
+
+model LmsAnnouncementFiles {
+  id                String            @id(map: "PK_announcement_files") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  announcement_id   String            @db.Uuid
+  original_name     String            @db.VarChar(255)
+  stored_name       String            @db.VarChar(255)
+  mime_type         String            @db.VarChar(150)
+  file_size         Int
+  storage_path      String            @unique(map: "UQ_announcement_files_storage_path") @db.VarChar(500)
+  created_at        DateTime          @default(now()) @db.Timestamptz(6)
+  lms_announcements LmsAnnouncements @relation(fields: [announcement_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_announcement_files_announcement")
+
+  @@index([announcement_id], map: "IDX_announcement_files_announcement")
+
+  @@map("lms_announcement_files")
+}
+
+model LmsAnnouncements {
+  id                     String                   @id(map: "PK_announcements") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  class_reference_id     String
+  author_reference_id    String
+  title                  String                   @db.VarChar(200)
+  content                String
+  is_pinned              Boolean                  @default(false)
+  is_published           Boolean                  @default(false)
+  published_at           DateTime?                @db.Timestamptz(6)
+  created_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  lms_announcement_files LmsAnnouncementFiles[]
+
+  @@index([class_reference_id, is_pinned(sort: Desc), published_at(sort: Desc)], map: "IDX_announcements_class")
+
+  @@map("lms_announcements")
+}
+
+model LmsAssignmentFiles {
+  id              String          @id(map: "PK_assignment_files") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assignment_id   String          @db.Uuid
+  original_name   String          @db.VarChar(255)
+  stored_name     String          @db.VarChar(255)
+  mime_type       String          @db.VarChar(150)
+  file_size       Int
+  storage_path    String          @unique(map: "UQ_assignment_files_storage_path") @db.VarChar(500)
+  created_at      DateTime        @default(now()) @db.Timestamptz(6)
+  lms_assignments LmsAssignments @relation(fields: [assignment_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_assignment_files_assignment")
+
+  @@index([assignment_id], map: "IDX_assignment_files_assignment")
+
+  @@map("lms_assignment_files")
+}
+
+model LmsAssignments {
+  id                     String                 @id(map: "PK_assignments") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  class_reference_id     String
+  lecturer_reference_id  String?
+  title                  String                 @db.VarChar(200)
+  description            String?
+  instructions           String?
+  deadline               DateTime               @db.Timestamptz(6)
+  published_at           DateTime?              @db.Timestamptz(6)
+  is_published           Boolean                @default(false)
+  allow_late_submission  Boolean                @default(false)
+  max_score              Decimal                @default(100) @db.Decimal(6, 2)
+  created_at             DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime               @default(now()) @db.Timestamptz(6)
+  component_reference_id String?
+  meeting_number         Int?
+  lms_assignment_files   LmsAssignmentFiles[]
+  lms_submissions        LmsSubmissions[]
+
+  @@index([class_reference_id, deadline], map: "IDX_assignments_class_deadline")
+
+  @@map("lms_assignments")
+}
+
+model LmsDiscussionFiles {
+  id                     String                  @id(map: "PK_discussion_files") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  topic_id               String?                 @db.Uuid
+  reply_id               String?                 @db.Uuid
+  original_name          String                  @db.VarChar(255)
+  stored_name            String                  @db.VarChar(255)
+  mime_type              String                  @db.VarChar(150)
+  file_size              Int
+  storage_path           String                  @unique(map: "UQ_discussion_files_storage_path") @db.VarChar(500)
+  created_at             DateTime                @default(now()) @db.Timestamptz(6)
+  lms_discussion_replies LmsDiscussionReplies? @relation(fields: [reply_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_discussion_files_reply")
+  lms_discussion_topics  LmsDiscussionTopics?  @relation(fields: [topic_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_discussion_files_topic")
+
+  @@index([reply_id], map: "IDX_discussion_files_reply")
+  @@index([topic_id], map: "IDX_discussion_files_topic")
+
+  @@map("lms_discussion_files")
+}
+
+model LmsDiscussionReplies {
+  id                    String                 @id(map: "PK_discussion_replies") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  topic_id              String                 @db.Uuid
+  author_reference_id   String
+  content               String
+  edited_at             DateTime?              @db.Timestamptz(6)
+  created_at            DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime               @default(now()) @db.Timestamptz(6)
+  lms_discussion_files  LmsDiscussionFiles[]
+  lms_discussion_topics LmsDiscussionTopics  @relation(fields: [topic_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_discussion_replies_topic")
+
+  @@index([author_reference_id, created_at], map: "IDX_discussion_replies_author_time")
+  @@index([topic_id, created_at], map: "IDX_discussion_replies_topic")
+
+  @@map("lms_discussion_replies")
+}
+
+model LmsDiscussionTopics {
+  id                     String                   @id(map: "PK_discussion_topics") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  class_reference_id     String
+  author_reference_id    String
+  title                  String                   @db.VarChar(200)
+  content                String
+  is_locked              Boolean                  @default(false)
+  edited_at              DateTime?                @db.Timestamptz(6)
+  last_activity_at       DateTime                 @default(now()) @db.Timestamptz(6)
+  created_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  meeting_number         Int?
+  lms_discussion_files   LmsDiscussionFiles[]
+  lms_discussion_replies LmsDiscussionReplies[]
+
+  @@index([author_reference_id, created_at], map: "IDX_discussion_topics_author_time")
+  @@index([class_reference_id, last_activity_at(sort: Desc)], map: "IDX_discussion_topics_class")
+
+  @@map("lms_discussion_topics")
+}
+
+model LmsExternalRef {
+  entity          String    @db.VarChar(32)
+  local_id        String
+  external_id     String
+  source_system   String    @db.VarChar(64)
+  content_hash    String    @db.VarChar(64)
+  first_seen_at   DateTime  @default(now()) @db.Timestamptz(6)
+  last_seen_at    DateTime  @default(now()) @db.Timestamptz(6)
+  last_changed_at DateTime  @default(now()) @db.Timestamptz(6)
+  inactive_at     DateTime? @db.Timestamptz(6)
+
+  @@id([entity, local_id], map: "PK_lms_external_ref")
+  @@unique([entity, source_system, external_id], map: "UQ_lms_external_ref_source")
+  @@index([entity, last_seen_at], map: "IDX_lms_external_ref_seen")
+
+  @@map("lms_external_ref")
+}
+
+model LmsGradePublications {
+  id                        String   @id(map: "PK_grade_publications") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  class_reference_id        String
+  component_reference_id    String
+  published_by_reference_id String
+  published_at              DateTime @default(now()) @db.Timestamptz(6)
+  created_at                DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([class_reference_id, component_reference_id], map: "UQ_grade_publications_class_component")
+
+  @@map("lms_grade_publications")
+}
+
+model LmsGradeSync {
+  id                      String    @id(map: "PK_grade_sync") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  class_reference_id      String
+  component_reference_id  String
+  student_reference_id    String
+  enrollment_reference_id String?
+  status                  String    @db.VarChar(10)
+  score                   Decimal?  @db.Decimal(6, 2)
+  attempts                Int       @default(0)
+  last_attempt_at         DateTime? @db.Timestamptz(6)
+  synced_at               DateTime? @db.Timestamptz(6)
+  error                   String?
+  created_at              DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime  @default(now()) @db.Timestamptz(6)
+  idempotency_key         String?   @db.VarChar(128)
+  external_grade_id       String?
+
+  @@unique([class_reference_id, component_reference_id, student_reference_id], map: "UQ_grade_sync_class_component_student")
+  @@index([class_reference_id, status], map: "IDX_grade_sync_class_status")
+
+  @@map("lms_grade_sync")
+}
+
+model LmsGradeSyncLog {
+  id                      String   @id(map: "PK_lms_grade_sync_log") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  class_reference_id      String
+  component_reference_id  String
+  student_reference_id    String
+  enrollment_reference_id String?
+  status                  String   @db.VarChar(10)
+  score                   Decimal? @db.Decimal(6, 2)
+  error                   String?
+  attempt_no              Int      @default(1)
+  created_at              DateTime @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  idempotency_key         String?  @db.VarChar(128)
+  external_grade_id       String?
+
+  @@index([class_reference_id, created_at], map: "IDX_lms_grade_sync_log_class")
+  @@index([class_reference_id, component_reference_id, student_reference_id, created_at], map: "IDX_lms_grade_sync_log_student")
+
+  @@map("lms_grade_sync_log")
+}
+
+model LmsIntegrationAudit {
+  id                 BigInt   @id(map: "PK_lms_integration_audit") @default(autoincrement())
+  actor_reference_id String?
+  action             String   @db.VarChar(40)
+  detail             Json     @default("{}")
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([created_at(sort: Desc)], map: "IDX_lms_integration_audit_created")
+
+  @@map("lms_integration_audit")
+}
+
+model LmsIntegrationSettings {
+  id                      Int       @id(map: "PK_lms_integration_settings") @default(1) @db.SmallInt
+  base_url                String?
+  auth_type               String    @default("API_KEY") @db.VarChar(24)
+  credential_enc          String?
+  credential_hint         String?   @db.VarChar(8)
+  token_url               String?
+  client_id               String?
+  enabled                 Boolean   @default(false)
+  api_version             String?   @db.VarChar(20)
+  last_test_at            DateTime? @db.Timestamptz(6)
+  last_test_ok            Boolean?
+  last_test_message       String?
+  updated_by_reference_id String?
+  created_at              DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@map("lms_integration_settings")
+}
+
+model LmsLectureSessionLog {
+  id                 BigInt   @id(map: "PK_lms_lecture_session_log") @default(autoincrement())
+  class_reference_id String
+  meeting_number     Int
+  event              String   @db.VarChar(24)
+  actor_reference_id String?
+  actor_role         String?  @db.VarChar(20)
+  details            Json?
+  created_at         DateTime @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+
+  @@index([class_reference_id, meeting_number, id], map: "IDX_lms_lecture_session_log_class")
+
+  @@map("lms_lecture_session_log")
+}
+
+model LmsLectureSessions {
+  id                      String   @id(map: "PK_lms_lecture_sessions") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  class_reference_id      String
+  meeting_number          Int
+  delivery_mode           String   @default("FACE_TO_FACE") @db.VarChar(20)
+  instructions            String?
+  meeting_url             String?
+  updated_by_reference_id String?
+  created_at              DateTime @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([class_reference_id, meeting_number], map: "UQ_lms_lecture_sessions_class_number")
+
+  @@map("lms_lecture_sessions")
+}
+
+model LmsMaterialFiles {
+  id            String        @id(map: "PK_material_files") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  material_id   String        @db.Uuid
+  original_name String        @db.VarChar(255)
+  stored_name   String        @db.VarChar(255)
+  mime_type     String        @db.VarChar(150)
+  file_size     Int
+  storage_path  String        @unique(map: "UQ_material_files_storage_path") @db.VarChar(500)
+  created_at    DateTime      @default(now()) @db.Timestamptz(6)
+  lms_materials LmsMaterials @relation(fields: [material_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_material_files_material")
+
+  @@index([material_id], map: "IDX_material_files_material")
+
+  @@map("lms_material_files")
+}
+
+model LmsMaterials {
+  id                    String               @id(map: "PK_materials") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  class_reference_id    String
+  lecturer_reference_id String?
+  title                 String               @db.VarChar(200)
+  description           String?
+  content               String?
+  meeting_number        Int?
+  sort_order            Int                  @default(0)
+  is_published          Boolean              @default(false)
+  published_at          DateTime?            @db.Timestamptz(6)
+  created_at            DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime             @default(now()) @db.Timestamptz(6)
+  lms_material_files    LmsMaterialFiles[]
+
+  @@index([class_reference_id, sort_order], map: "IDX_materials_class_order")
+
+  @@map("lms_materials")
+}
+
+model LmsMigrations {
+  id        Int    @id(map: "PK_8c82d7f526340ab734260ea46be") @default(autoincrement())
+  timestamp BigInt
+  name      String @db.VarChar
+
+  @@map("lms_migrations")
+}
+
+model LmsNotifications {
+  id                     String    @id(map: "PK_notifications") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipient_reference_id String
+  type                   String    @db.VarChar(40)
+  title                  String    @db.VarChar(200)
+  body                   String?
+  link                   String    @db.VarChar(300)
+  class_reference_id     String?
+  source_reference_id    String?
+  actor_reference_id     String?
+  dedupe_key             String    @db.VarChar(200)
+  available_at           DateTime  @default(now()) @db.Timestamptz(6)
+  read_at                DateTime? @db.Timestamptz(6)
+  created_at             DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@unique([recipient_reference_id, dedupe_key], map: "UQ_notifications_recipient_dedupe")
+  @@index([recipient_reference_id, available_at(sort: Desc)], map: "IDX_notifications_recipient_available")
+  @@index([source_reference_id], map: "IDX_notifications_source")
+
+  @@map("lms_notifications")
+}
+
+model LmsQuestionCategories {
+  id                      String          @id(map: "PK_lms_question_categories") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  course_reference_id     String
+  name                    String          @db.VarChar(100)
+  created_by_reference_id String
+  created_at              DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime        @default(now()) @db.Timestamptz(6)
+  lms_questions           LmsQuestions[]
+
+  @@unique([course_reference_id, name], map: "UQ_lms_question_categories_course_name")
+
+  @@map("lms_question_categories")
+}
+
+model LmsQuestionOptions {
+  id            String        @id(map: "PK_lms_question_options") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  question_id   String        @db.Uuid
+  body          String
+  is_correct    Boolean       @default(false)
+  sort_order    Int           @default(0)
+  lms_questions LmsQuestions @relation(fields: [question_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_lms_question_options_question")
+
+  @@index([question_id, sort_order], map: "IDX_lms_question_options_question")
+
+  @@map("lms_question_options")
+}
+
+model LmsQuestions {
+  id                      String                   @id(map: "PK_lms_questions") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  course_reference_id     String
+  category_id             String?                  @db.Uuid
+  type                    String                   @db.VarChar(20)
+  body                    String
+  explanation             String?
+  difficulty              String                   @default("MEDIUM") @db.VarChar(10)
+  points                  Decimal                  @default(1) @db.Decimal(6, 2)
+  created_by_reference_id String
+  created_at              DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime                 @default(now()) @db.Timestamptz(6)
+  lms_question_options    LmsQuestionOptions[]
+  lms_question_categories LmsQuestionCategories? @relation(fields: [category_id], references: [id], onUpdate: NoAction, map: "FK_lms_questions_category")
+
+  @@index([category_id], map: "IDX_lms_questions_category")
+  @@index([course_reference_id, created_at], map: "IDX_lms_questions_course")
+
+  @@map("lms_questions")
+}
+
+model LmsQuizAnswers {
+  id                     String            @id(map: "PK_lms_quiz_answers") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attempt_id             String            @db.Uuid
+  quiz_question_id       String            @db.Uuid
+  question_snapshot      Json
+  answer                 Json?
+  is_correct             Boolean?
+  auto_points            Decimal?          @db.Decimal(6, 2)
+  manual_points          Decimal?          @db.Decimal(6, 2)
+  points                 Decimal?          @db.Decimal(6, 2)
+  max_points             Decimal           @db.Decimal(6, 2)
+  feedback               String?
+  graded_by_reference_id String?
+  graded_at              DateTime?         @db.Timestamptz(6)
+  answered_at            DateTime?         @db.Timestamptz(6)
+  created_at             DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime          @default(now()) @db.Timestamptz(6)
+  lms_quiz_attempts      LmsQuizAttempts @relation(fields: [attempt_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_lms_quiz_answers_attempt")
+
+  @@unique([attempt_id, quiz_question_id], map: "UQ_lms_quiz_answers_attempt_question")
+
+  @@map("lms_quiz_answers")
+}
+
+model LmsQuizAttempts {
+  id                     String             @id(map: "PK_lms_quiz_attempts") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quiz_id                String             @db.Uuid
+  class_reference_id     String
+  student_reference_id   String
+  attempt_number         Int
+  status                 String             @default("IN_PROGRESS") @db.VarChar(12)
+  started_at             DateTime           @db.Timestamptz(6)
+  expires_at             DateTime           @db.Timestamptz(6)
+  submitted_at           DateTime?          @db.Timestamptz(6)
+  submit_reason          String?            @db.VarChar(10)
+  session_id             String             @db.Uuid
+  revision               Int                @default(0)
+  question_order         Json
+  quiz_snapshot          Json
+  max_points             Decimal            @db.Decimal(8, 2)
+  points_awarded         Decimal?           @db.Decimal(8, 2)
+  score                  Decimal?           @db.Decimal(6, 2)
+  pending_manual         Int                @default(0)
+  feedback               String?
+  graded_at              DateTime?          @db.Timestamptz(6)
+  graded_by_reference_id String?
+  created_at             DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime           @default(now()) @db.Timestamptz(6)
+  finalize_failures      Int                @default(0)
+  finalize_next_at       DateTime?          @db.Timestamptz(6)
+  finalize_error         String?
+  lms_quiz_answers       LmsQuizAnswers[]
+  lms_quizzes            LmsQuizzes        @relation(fields: [quiz_id], references: [id], onUpdate: NoAction, map: "FK_lms_quiz_attempts_quiz")
+
+  @@unique([quiz_id, student_reference_id, attempt_number], map: "UQ_lms_quiz_attempts_number")
+  @@index([class_reference_id, student_reference_id], map: "IDX_lms_quiz_attempts_class")
+  @@index([quiz_id, status], map: "IDX_lms_quiz_attempts_quiz_status")
+  @@index([student_reference_id, started_at], map: "IDX_lms_quiz_attempts_student")
+
+  @@map("lms_quiz_attempts")
+}
+
+model LmsQuizGradeHistory {
+  id                   String   @id(map: "PK_lms_quiz_grade_history") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attempt_id           String   @db.Uuid
+  quiz_id              String   @db.Uuid
+  class_reference_id   String
+  student_reference_id String
+  answer_id            String?  @db.Uuid
+  event                String   @db.VarChar(24)
+  points_before        Decimal? @db.Decimal(8, 2)
+  points_after         Decimal? @db.Decimal(8, 2)
+  score_before         Decimal? @db.Decimal(6, 2)
+  score_after          Decimal? @db.Decimal(6, 2)
+  feedback             String?
+  actor_reference_id   String?
+  actor_role           String?  @db.VarChar(20)
+  details              Json?
+  created_at           DateTime @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+
+  @@index([attempt_id, created_at], map: "IDX_lms_quiz_grade_history_attempt")
+  @@index([quiz_id, created_at], map: "IDX_lms_quiz_grade_history_quiz")
+  @@index([student_reference_id, created_at], map: "IDX_lms_quiz_grade_history_student")
+
+  @@map("lms_quiz_grade_history")
+}
+
+model LmsQuizQuestions {
+  id                 String      @id(map: "PK_lms_quiz_questions") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quiz_id            String      @db.Uuid
+  source_question_id String?     @db.Uuid
+  position           Int
+  points             Decimal     @db.Decimal(6, 2)
+  type               String      @db.VarChar(20)
+  body               String
+  explanation        String?
+  difficulty         String      @default("MEDIUM") @db.VarChar(10)
+  options            Json        @default("[]")
+  created_at         DateTime    @default(now()) @db.Timestamptz(6)
+  lms_quizzes        LmsQuizzes @relation(fields: [quiz_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_lms_quiz_questions_quiz")
+
+  @@index([quiz_id, position], map: "IDX_lms_quiz_questions_quiz")
+
+  @@map("lms_quiz_questions")
+}
+
+model LmsQuizzes {
+  id                     String               @id(map: "PK_lms_quizzes") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  class_reference_id     String
+  lecturer_reference_id  String?
+  title                  String               @db.VarChar(200)
+  description            String?
+  instructions           String?
+  starts_at              DateTime             @db.Timestamptz(6)
+  due_at                 DateTime             @db.Timestamptz(6)
+  duration_minutes       Int
+  max_attempts           Int                  @default(1)
+  total_score            Decimal              @default(100) @db.Decimal(6, 2)
+  passing_grade          Decimal?             @db.Decimal(6, 2)
+  shuffle_questions      Boolean              @default(false)
+  shuffle_options        Boolean              @default(false)
+  scoring_policy         String               @default("HIGHEST") @db.VarChar(10)
+  show_correct_answers   Boolean              @default(false)
+  status                 String               @default("draft") @db.VarChar(10)
+  component_reference_id String?
+  published_at           DateTime?            @db.Timestamptz(6)
+  results_published_at   DateTime?            @db.Timestamptz(6)
+  deleted_at             DateTime?            @db.Timestamptz(6)
+  created_at             DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime             @default(now()) @db.Timestamptz(6)
+  meeting_number         Int?
+  lms_quiz_attempts      LmsQuizAttempts[]
+  lms_quiz_questions     LmsQuizQuestions[]
+
+  @@index([class_reference_id, due_at], map: "IDX_lms_quizzes_class_due")
+  @@index([class_reference_id, component_reference_id], map: "IDX_lms_quizzes_component")
+
+  @@map("lms_quizzes")
+}
+
+model LmsSchedulerLog {
+  id         BigInt   @id(map: "PK_lms_scheduler_log") @default(autoincrement())
+  task       String   @db.VarChar(40)
+  subject_id String?
+  outcome    String   @db.VarChar(12)
+  attempt_no Int?
+  message    String?
+  details    Json?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([created_at(sort: Desc)], map: "IDX_lms_scheduler_log_created")
+  @@index([subject_id, created_at], map: "IDX_lms_scheduler_log_subject")
+
+  @@map("lms_scheduler_log")
+}
+
+model LmsSchedulerState {
+  name             String    @id(map: "PK_lms_scheduler_state") @db.VarChar(40)
+  lease_owner      String?
+  lease_until      DateTime? @db.Timestamptz(6)
+  last_started_at  DateTime? @db.Timestamptz(6)
+  last_finished_at DateTime? @db.Timestamptz(6)
+  last_success_at  DateTime? @db.Timestamptz(6)
+  last_error       String?
+  runs             BigInt    @default(0)
+  failed_runs      BigInt    @default(0)
+
+  @@map("lms_scheduler_state")
+}
+
+model LmsSubmissionFiles {
+  id              String          @id(map: "PK_submission_files") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  submission_id   String          @db.Uuid
+  original_name   String          @db.VarChar(255)
+  stored_name     String          @db.VarChar(255)
+  mime_type       String          @db.VarChar(150)
+  file_size       Int
+  storage_path    String          @unique(map: "UQ_submission_files_storage_path") @db.VarChar(500)
+  created_at      DateTime        @default(now()) @db.Timestamptz(6)
+  lms_submissions LmsSubmissions @relation(fields: [submission_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_submission_files_submission")
+
+  @@index([submission_id], map: "IDX_submission_files_submission")
+
+  @@map("lms_submission_files")
+}
+
+model LmsSubmissions {
+  id                     String                 @id(map: "PK_submissions") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assignment_id          String                 @db.Uuid
+  student_reference_id   String
+  content                String?
+  status                 String                 @db.VarChar(20)
+  submitted_at           DateTime               @db.Timestamptz(6)
+  score                  Decimal?               @db.Decimal(6, 2)
+  feedback               String?
+  graded_at              DateTime?              @db.Timestamptz(6)
+  graded_by_reference_id String?
+  created_at             DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime               @default(now()) @db.Timestamptz(6)
+  lms_submission_files   LmsSubmissionFiles[]
+  lms_assignments        LmsAssignments        @relation(fields: [assignment_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_submissions_assignment")
+
+  @@unique([assignment_id, student_reference_id], map: "UQ_submissions_assignment_student")
+  @@index([student_reference_id], map: "IDX_submissions_student")
+  @@index([student_reference_id, submitted_at], map: "IDX_submissions_student_time")
+
+  @@map("lms_submissions")
+}
+// ===== END TABEL LMS =====
+
